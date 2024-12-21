@@ -18,12 +18,13 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class CardSerializer(serializers.ModelSerializer):
     comments = CommentSerializer(many=True, read_only=True)
-    assigned_to = UserSerializer(read_only=True)
 
     class Meta:
         model = Card
-        fields = ['id', 'title', 'description', 'status', 'due_date', 
-                 'assigned_to', 'comments', 'created_at', 'updated_at']
+        fields = [
+            'id', 'title', 'description', 'status', 'due_date',
+            'assigned_to', 'comments', 'created_at', 'updated_at'
+        ]
 
 class ListSerializer(serializers.ModelSerializer):
     cards = CardSerializer(many=True, read_only=True)
@@ -39,8 +40,10 @@ class BoardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Board
-        fields = ['id', 'title', 'description', 'owner', 'members', 
-                 'lists', 'created_at', 'updated_at']
+        fields = [
+            'id', 'title', 'description', 'owner', 'members',
+            'lists', 'created_at', 'updated_at'
+        ]
 
     def create(self, validated_data):
         validated_data['owner'] = self.context['request'].user

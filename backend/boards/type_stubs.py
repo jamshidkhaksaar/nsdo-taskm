@@ -13,7 +13,7 @@ class TypeSafeManagerDescriptor(Generic[ModelType]):
         if self._manager is None:
             # Use getattr to bypass type checking
             self._manager = getattr(self._model_class, 'objects')
-        return self
+        return self._manager
 
     def all(self) -> QuerySet[ModelType]:
         # Use getattr to bypass type checking

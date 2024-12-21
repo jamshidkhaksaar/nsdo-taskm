@@ -16,45 +16,45 @@ from django.db.models import F, Prefetch
 from django.contrib.auth.models import User
 from .type_hints import safe_model_access, safe_queryset_get, _safe_foreign_key_access
 
+
 class BoardViewSet(viewsets.ModelViewSet):
     serializer_class = BoardSerializer
     permission_classes = [IsAuthenticated]
     queryset = get_safe_manager(Board).all()
 
-    def get_queryset(self) -> Optional[QuerySet[Board]]:  # type: ignore
+    def get_queryset(self) -> QuerySet[Board]:
         return get_safe_manager(Board).filter(
-            django_models.Q(members=self.request.user) | 
+            django_models.Q(members=self.request.user) |
             django_models.Q(owner=self.request.user)
         ).distinct()
 
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
 
 class ListViewSet(viewsets.ModelViewSet):
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated]
     queryset = get_safe_manager(List).all()
 
-    def get_queryset(self) -> Optional[QuerySet[List]]:  # type: ignore
+    def get_queryset(self) -> QuerySet[List]:
         return get_safe_manager(List).filter(
-            django_models.Q(board__members=self.request.user) | 
+            django_models.Q(board__members=self.request.user) |
             django_models.Q(board__owner=self.request.user)
         )
+
 
 class CardViewSet(viewsets.ModelViewSet):
     serializer_class = CardSerializer
     permission_classes = [IsAuthenticated]
+    queryset = get_safe_manager(Card).all()
 
-    def get_queryset(self) -> Optional[QuerySet[Card]]:  # type: ignore
+    def get_queryset(self) -> QuerySet[Card]:
         return get_safe_manager(Card).filter(
-            django_models.Q(list__board__members=self.request.user) | 
+            django_models.Q(list__board__members=self.request.user) |
             django_models.Q(list__board__owner=self.request.user)
         )
 
-    @action(detail=False, methods=['POST'])
-    def update_card_position(self, request):
-        # Extract parameters
-        card_id = request.data.get('cardId')
+    @action(detail=True, methods=['post'])
+    def update_position(self, request, pk=None):
+        card_id = pk
         source_list_id = request.data.get('sourceListId')
         dest_list_id = request.data.get('destListId')
 

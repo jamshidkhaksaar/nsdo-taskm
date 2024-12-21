@@ -33,6 +33,13 @@ import { logout, createBoard } from '../services/api';
 import { logoutSuccess } from '../store/slices/authSlice';
 import logo from '../assets/images/logo.png';
 import { Board } from '../types';
+import BusinessIcon from '@mui/icons-material/Business';
+import PersonIcon from '@mui/icons-material/Person';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import logoIcon from '../assets/images/logoIcon.png';
+import { Tooltip } from '@mui/material';
+
 
 const DRAWER_WIDTH = 240;
 
@@ -105,7 +112,7 @@ const Dashboard: React.FC = () => {
 
   const handleCreateBoard = async () => {
     try {
-      const response = await createBoard({
+      await createBoard({
         title: newBoard.title,
         description: newBoard.description
       });
@@ -155,78 +162,167 @@ const Dashboard: React.FC = () => {
           },
         }}
       >
-        <List>
-          {/* Logo */}
-          <ListItem sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            py: 2,
-            px: open ? 2 : 1,
-            transition: (theme) => theme.transitions.create('padding', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-          }}>
-            <img 
-              src={logo} 
-              alt="Company Logo" 
-              style={{ 
-                maxWidth: open ? 150 : 40, 
-                maxHeight: open ? 150 : 40,
-                transition: 'max-width 0.3s, max-height 0.3s',
-                objectFit: 'contain'
-              }} 
-            />
-          </ListItem>
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <List>
+            {/* Logo */}
+            <ListItem sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              py: 2,
+              px: open ? 2 : 1,
+            }}>
+              {open ? (
+                // Full logo for expanded drawer
+                <img 
+                  src={logo} 
+                  alt="Company Logo" 
+                  style={{ 
+                    maxWidth: 150,
+                    height: 'auto',
+                    objectFit: 'contain'
+                  }} 
+                />
+              ) : (
+                // Icon only for collapsed drawer
+                <img 
+                  src={logoIcon}  // Make sure to import this
+                  alt="Company Icon" 
+                  style={{ 
+                    width: 40,
+                    height: 40,
+                    objectFit: 'contain'
+                  }} 
+                />
+              )}
+            </ListItem>
 
-          {/* Toggle Drawer Button */}
-          <ListItem>
-            <IconButton 
-              onClick={toggleDrawer} 
-              sx={{ 
-                color: theme.palette.primary.contrastText,
+            {/* Toggle Drawer Button */}
+            <Tooltip title="Toggle Drawer">
+            <ListItem>
+              <IconButton 
+                onClick={toggleDrawer} 
+                sx={{ 
+                  color: theme.palette.primary.contrastText,
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  }
+                }}
+              >
+                <MenuIcon />
+              </IconButton>
+            </ListItem>
+            </Tooltip>
+            {/* Dashboard Navigation */}
+            <Tooltip title="Dashboard">
+            <ListItem 
+              button 
+              onClick={() => navigate('/dashboard')}
+              sx={{
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
               }}
             >
-              <MenuIcon />
-            </IconButton>
-          </ListItem>
+              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+                <DashboardIcon />
+              </ListItemIcon>
+              <ListItemText primary="Dashboard" />
+            </ListItem>
+            </Tooltip>
+            {/* Departments */}
+            <Tooltip title="Departments">
+            <ListItem 
+              button 
+              onClick={() => navigate('/departments')}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+                <BusinessIcon />
+              </ListItemIcon>
+              <ListItemText primary="Departments" />
+            </ListItem>
+            </Tooltip>
 
-          {/* Dashboard Navigation */}
-          <ListItem 
-            button 
-            onClick={() => navigate('/dashboard')}
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.1)',
-              }
-            }}
-          >
-            <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
-              <DashboardIcon />
-            </ListItemIcon>
-            <ListItemText primary="Dashboard" />
-          </ListItem>
+            {/* Users */}
+            <Tooltip title="Users">
+            <ListItem 
+              button 
+              onClick={() => navigate('/users')}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+                <PersonIcon />
+              </ListItemIcon>
+              <ListItemText primary="Users" />
+            </ListItem>
+            </Tooltip>
 
-          {/* Logout */}
-          <ListItem 
-            button 
-            onClick={handleLogout}
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.1)',
-              }
-            }}
-          >
-            <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
-              <LogoutIcon />
-            </ListItemIcon>
-            <ListItemText primary="Logout" />
-          </ListItem>
-        </List>
+            {/* Settings */}
+            <Tooltip title="Settings">
+            <ListItem
+              button 
+              onClick={() => navigate('/settings')}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+                <SettingsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Settings" />
+            </ListItem>
+            </Tooltip>
+
+            {/* Admin Panel */}
+            <Tooltip title="Admin Panel">
+            <ListItem
+              button 
+              onClick={() => navigate('/admin')}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+                <AdminPanelSettingsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Admin Panel" />
+            </ListItem>
+            </Tooltip>
+          </List>
+
+          {/* Logout at bottom */}
+          <List sx={{ marginTop: 'auto' }}>
+            <Tooltip title="Logout">
+              <ListItem 
+                button 
+                onClick={handleLogout}
+                sx={{
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  }
+                }}
+            >
+              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+                <LogoutIcon />
+              </ListItemIcon>
+              <ListItemText primary="Logout" />
+            </ListItem>
+            </Tooltip>
+          </List>
+        </Box>
       </Drawer>
 
       {/* Create Board Dialog */}
@@ -282,6 +378,7 @@ const Dashboard: React.FC = () => {
           flexGrow: 1, 
           p: 3,
           marginLeft: open ? `${DRAWER_WIDTH}px` : '72px',
+          backgroundColor: '#f8fafc',
           transition: (theme) => theme.transitions.create('margin', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,

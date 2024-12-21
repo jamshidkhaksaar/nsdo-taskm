@@ -19,14 +19,14 @@ import { AppDispatch, RootState } from '../store';
 import { fetchBoards, updateCardPosition } from '../store/slices/boardSlice';
 import { logout } from '../services/api';
 import { logoutSuccess } from '../store/slices/authSlice';
-import { Board, List, Card as TaskCard } from '../types';
+import { Board, BoardState, List, Card as TaskCard } from '../types';
 import { updateCardPositionAPI } from '../services/api';
 
 const BoardView: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { boards, loading, error } = useSelector((state: RootState) => state.board);
+  const { boards, loading, error } = useSelector((state: RootState) => state.board as BoardState);
   const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
   const [localBoards, setLocalBoards] = useState<Board[]>([]);
 
@@ -91,12 +91,12 @@ const BoardView: React.FC = () => {
     destList.cards.splice(destination.index, 0, movedCard);
 
     // Recalculate order for cards in source and destination lists
-    const updateSourceCards = sourceList.cards.map((card, index) => ({
+    sourceList.cards = sourceList.cards.map((card, index) => ({
       ...card,
       order: index
     }));
 
-    const updateDestCards = destList.cards.map((card, index) => ({
+    destList.cards = destList.cards.map((card, index) => ({
       ...card,
       order: index
     }));

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Board, BoardState, Card } from '../../types';
+import { Board, BoardState } from '../../types';
 import { getBoards } from '../../services/api';
 
 const initialState: BoardState = {
