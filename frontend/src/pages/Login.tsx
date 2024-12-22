@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -17,6 +17,9 @@ import { login } from '../services/api';
 import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
+import { loadSlim } from "tsparticles-slim";
+import type { Container, Engine } from "tsparticles-engine";
+import Particles from "react-tsparticles";
 
 // Zod validation schema
 const loginSchema = z.object({
@@ -30,7 +33,6 @@ const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const theme = useTheme();
-  const particlesRef = useRef<HTMLDivElement>(null);
 
   // Always call hooks in the same order
   const { 
@@ -43,70 +45,13 @@ const Login: React.FC = () => {
 
   const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
 
-  // Use effect to create particle background
-  useEffect(() => {
-    const loadParticles = async () => {
-      try {
-        // Dynamically import particles.js
-        await import('particles.js');
+  const particlesInit = useCallback(async (engine: Engine) => {
+    await loadSlim(engine);
+  }, []);
 
-        // Check if window.particlesJS exists
-        if (window.particlesJS && particlesRef.current) {
-          window.particlesJS('particles-js', {
-            particles: {
-              number: { value: 80, density: { enable: true, value_area: 800 } },
-              color: { value: theme.palette.primary.light },
-              shape: { type: "circle" },
-              opacity: { value: 0.5, random: false },
-              size: { value: 3, random: true },
-              line_linked: {
-                enable: true,
-                distance: 150,
-                color: theme.palette.primary.light,
-                opacity: 0.4,
-                width: 1
-              },
-              move: {
-                enable: true,
-                speed: 2,
-                direction: "none",
-                random: false,
-                straight: false,
-                out_mode: "out",
-                bounce: false,
-              }
-            },
-            interactivity: {
-              detect_on: "canvas",
-              events: {
-                onhover: { enable: true, mode: "repulse" },
-                onclick: { enable: true, mode: "push" },
-                resize: true
-              },
-              modes: {
-                repulse: { distance: 100, duration: 0.4 },
-                push: { particles_nb: 4 }
-              }
-            },
-            retina_detect: true
-          });
-        } else {
-          console.error('particlesJS is not available');
-        }
-      } catch (error) {
-        console.error('Failed to load particles.js:', error);
-      }
-    };
-
-    loadParticles();
-
-    // Cleanup function
-    return () => {
-      if (window.particlesJS && window.particlesJS.destroy) {
-        window.particlesJS.destroy();
-      }
-    };
-  }, [theme]);
+  const particlesLoaded = useCallback(async (container: Container | undefined) => {
+    console.log(container);
+  }, []);
 
   // If already authenticated, redirect to home
   if (isAuthenticated) {
@@ -141,16 +86,78 @@ const Login: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
     }}>
-      <div 
-        id="particles-js" 
-        ref={particlesRef}
-        style={{
-          position: 'absolute',
-          width: '100%',
-          height: '100%',
-          zIndex: 0,
-          backgroundColor: theme.palette.primary.dark,
-        }} 
+      <Particles
+        id="tsparticles"
+        init={particlesInit}
+        loaded={particlesLoaded}
+        options={{
+          background: {
+            color: {
+              value: "#0d47a1",
+            },
+          },
+          fpsLimit: 120,
+          interactivity: {
+            events: {
+              onClick: {
+                enable: true,
+                mode: "push",
+              },
+              onHover: {
+                enable: true,
+                mode: "repulse",
+              },
+            },
+            modes: {
+              push: {
+                quantity: 4,
+              },
+              repulse: {
+                distance: 200,
+                duration: 0.4,
+              },
+            },
+          },
+          particles: {
+            color: {
+              value: "#ffffff",
+            },
+            links: {
+              color: "#ffffff",
+              distance: 150,
+              enable: true,
+              opacity: 0.5,
+              width: 1,
+            },
+            move: {
+              direction: "none",
+              enable: true,
+              outModes: {
+                default: "bounce",
+              },
+              random: false,
+              speed: 6,
+              straight: false,
+            },
+            number: {
+              density: {
+                enable: true,
+                area: 800,
+              },
+              value: 80,
+            },
+            opacity: {
+              value: 0.5,
+            },
+            shape: {
+              type: "circle",
+            },
+            size: {
+              value: { min: 1, max: 5 },
+            },
+          },
+          detectRetina: true,
+        }}
       />
       <Paper 
         elevation={12}
