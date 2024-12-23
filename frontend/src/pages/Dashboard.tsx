@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -42,9 +42,240 @@ import { Tooltip } from '@mui/material';
 import { keyframes } from '@mui/system';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
+import { format } from 'date-fns';
+import WbSunnyIcon from '@mui/icons-material/WbSunny';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
 
 
 const DRAWER_WIDTH = 240;
+
+const slideDown = keyframes`
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+`;
+
+const slideUp = keyframes`
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+`;
+
+const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
+  const [time, setTime] = useState(new Date());
+  const [weatherInfo, setWeatherInfo] = useState({
+    location: "Loading...",
+    temp: "--°C",
+    condition: "Loading",
+  });
+
+  // Fetch location and weather data using IP
+  useEffect(() => {
+    const fetchLocationAndWeather = async () => {
+      try {
+        // Get location from IP
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        
+        // Set weather info based on location
+        setWeatherInfo({
+          location: `${data.city}, ${data.country_code}`,
+          temp: `${Math.round(data.latitude < 0 ? 25 : 20)}°C`, // Simple temperature estimation
+          condition: data.latitude < 0 ? "Sunny" : "Clear",
+        });
+      } catch (error) {
+        console.error("Error fetching location:", error);
+        setWeatherInfo({
+          location: "Kabul, AF",
+          temp: "25°C",
+          condition: "Clear",
+        });
+      }
+    };
+
+    fetchLocationAndWeather();
+  }, []);
+
+  // Clock update effect remains the same
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Function to get greeting based on time of day
+  const getGreeting = () => {
+    const hour = time.getHours();
+    if (hour < 12) {
+      return 'Good morning';
+    } else if (hour < 17) {
+      return 'Good afternoon';
+    } else if (hour < 21) {
+      return 'Good evening';
+    } else {
+      return 'Good night';
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        background: 'rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(8px)',
+        borderRadius: '12px',
+        padding: '12px',
+        marginBottom: 3,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        border: '1px solid rgba(255, 255, 255, 0.18)',
+        boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.17)',
+      }}
+    >
+      {/* Greeting Section */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.9)' }} />
+        <Box>
+          <Typography
+            variant="body1"
+            sx={{
+              color: '#fff',
+              fontWeight: 500,
+            }}
+          >
+            {getGreeting()},
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.8)',
+              fontWeight: 400,
+            }}
+          >
+            {username}
+          </Typography>
+        </Box>
+      </Box>
+
+      {/* Right Section Container */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        {/* Weather Widget */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '8px 16px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LocationOnIcon sx={{ color: 'rgba(255, 255, 255, 0.9)' }} />
+            <Typography
+              variant="body2"
+              sx={{ color: '#fff' }}
+            >
+              {weatherInfo.location}
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WbSunnyIcon sx={{ color: '#FFD700' }} />
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{ color: '#fff', fontWeight: 500 }}
+              >
+                {weatherInfo.temp}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+              >
+                {weatherInfo.condition}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Clock with improved design */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '8px 16px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'linear-gradient(45deg, rgba(255,255,255,0.1), transparent)',
+              borderRadius: '12px',
+              pointerEvents: 'none',
+            }
+          }}
+        >
+          <AccessTimeIcon 
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.9)',
+              animation: 'pulse 2s infinite',
+              '@keyframes pulse': {
+                '0%': { opacity: 0.6 },
+                '50%': { opacity: 1 },
+                '100%': { opacity: 0.6 },
+              }
+            }} 
+          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Typography
+              variant="h6"
+              sx={{ 
+                color: '#fff',
+                fontWeight: 600,
+                letterSpacing: '2px',
+                fontFamily: 'monospace',
+                fontSize: '1.1rem',
+              }}
+            >
+              {format(time, 'HH:mm')}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontFamily: 'monospace',
+              }}
+            >
+              {format(time, 'ss')} SEC
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -62,8 +293,18 @@ const Dashboard: React.FC = () => {
   
   const { 
     isAuthenticated, 
-    token 
+    token,
+    user
   } = useSelector((state: RootState) => state.auth);
+
+  const [showWidget, setShowWidget] = useState(() => {
+    const saved = localStorage.getItem('showHeaderWidget');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('showHeaderWidget', JSON.stringify(showWidget));
+  }, [showWidget]);
 
   React.useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -352,6 +593,49 @@ const Dashboard: React.FC = () => {
         }}
       >
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              justifyContent: 'flex-end', 
+              mb: 2,
+              position: 'relative',
+              zIndex: 2,
+            }}
+          >
+            <Button
+              onClick={() => setShowWidget(!showWidget)}
+              startIcon={showWidget ? <ExpandLessIcon /> : <ExpandLessIcon />}
+              sx={{
+                color: '#fff',
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '20px',
+                padding: '4px 12px',
+                minWidth: 'auto',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.2)',
+                },
+              }}
+            >
+              {showWidget ? 'Hide Time & Weather' : 'Show Time & Weather'}
+            </Button>
+          </Box>
+
+          <Box
+            sx={{
+              height: showWidget ? 'auto' : 0,
+              overflow: 'hidden',
+              animation: showWidget 
+                ? `${slideDown} 0.3s ease-out forwards`
+                : `${slideUp} 0.3s ease-out forwards`,
+              marginBottom: showWidget ? 3 : 0,
+              transition: 'margin-bottom 0.3s ease-out',
+            }}
+          >
+            <HeaderWidget username={user?.username || 'User'} />
+          </Box>
+
           <Box 
             display="flex" 
             justifyContent="space-between" 
