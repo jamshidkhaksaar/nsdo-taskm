@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -40,6 +40,8 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import logoIcon from '../assets/images/logoIcon.png';
 import { Tooltip } from '@mui/material';
 import { keyframes } from '@mui/system';
+import GitHubIcon from '@mui/icons-material/GitHub';
+import LinkedInIcon from '@mui/icons-material/LinkedIn';
 
 
 const DRAWER_WIDTH = 240;
@@ -338,6 +340,7 @@ const Dashboard: React.FC = () => {
           flexGrow: 1,
           minHeight: '100vh',
           p: 3,
+          pb: 8,
           transition: theme.transitions.create('margin', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
@@ -432,6 +435,78 @@ const Dashboard: React.FC = () => {
             ))}
           </Grid>
         </Container>
+      </Box>
+
+      {/* Add the footer before the closing Box */}
+      <Box
+        component="footer"
+        sx={{
+          position: 'fixed',
+          bottom: 0,
+          right: 0,
+          width: `calc(100% - ${open ? DRAWER_WIDTH : 72}px)`,
+          padding: '0.5rem',
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(8px)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.18)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 1,
+          transition: theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+          zIndex: 2,
+        }}
+      >
+        <Typography
+          variant="caption"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.9)',
+            fontWeight: 500,
+          }}
+        >
+          Developed by Jamshid Khaksaar
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <IconButton
+            component="a"
+            href="https://github.com/JamshidKhaksaar"
+            target="_blank"
+            rel="noopener noreferrer"
+            size="small"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.9)',
+              padding: '4px',
+              '&:hover': {
+                background: 'rgba(255, 255, 255, 0.1)',
+                transform: 'translateY(-2px)',
+              },
+              transition: 'transform 0.2s ease-in-out',
+            }}
+          >
+            <GitHubIcon sx={{ fontSize: '1.2rem' }} />
+          </IconButton>
+          <IconButton
+            component="a"
+            href="https://linkedin.com/in/jamshid-khaksaar"
+            target="_blank"
+            rel="noopener noreferrer"
+            size="small"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.9)',
+              padding: '4px',
+              '&:hover': {
+                background: 'rgba(255, 255, 255, 0.1)',
+                transform: 'translateY(-2px)',
+              },
+              transition: 'transform 0.2s ease-in-out',
+            }}
+          >
+            <LinkedInIcon sx={{ fontSize: '1.2rem' }} />
+          </IconButton>
+        </Box>
       </Box>
 
       {/* Create Board Dialog with updated styling */}
