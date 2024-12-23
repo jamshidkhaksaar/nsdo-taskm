@@ -2,43 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
-  Container,
-  Typography,
-  Box,
-  Button,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  CircularProgress,
   Drawer,
   List,
   ListItem,
   ListItemIcon,
   ListItemText,
   IconButton,
-  useTheme,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
+  Tabs,
+  Tab,
+  Tooltip,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import { AppDispatch, RootState } from '../store';
-import { fetchBoards } from '../store/slices/boardSlice';
-import { logout, createBoard } from '../services/api';
+import { logout } from '../services/api';
 import { logoutSuccess } from '../store/slices/authSlice';
 import logo from '../assets/images/logo.png';
-import { Board } from '../types';
 import BusinessIcon from '@mui/icons-material/Business';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import logoIcon from '../assets/images/logoIcon.png';
-import { Tooltip } from '@mui/material';
 import { keyframes } from '@mui/system';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
@@ -47,7 +32,22 @@ import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import DateRangeIcon from '@mui/icons-material/DateRange';
+import WorkIcon from '@mui/icons-material/Work';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  useTheme,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 
 const DRAWER_WIDTH = 240;
 
@@ -277,20 +277,176 @@ const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
   );
 };
 
+interface Task {
+  id: number;
+  title: string;
+  description: string;
+  dueDate: string;
+  status: 'upcoming' | 'ongoing' | 'completed';
+  assignedTo?: string;
+  assignedBy?: string;
+}
+
+const TaskTabs: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
+  const [tabValue, setTabValue] = useState(0);
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+
+  const filterTasks = (status: Task['status']) => {
+    return tasks.filter(task => task.status === status);
+  };
+
+  const TaskList: React.FC<{ tasks: Task[]; status: Task['status'] }> = ({ tasks, status }) => (
+    <Box sx={{ mt: 2 }}>
+      {tasks.map((task) => (
+        <Card
+          key={task.id}
+          sx={{
+            mb: 2,
+            background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            transition: 'transform 0.2s ease',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+            },
+          }}
+        >
+          <CardContent>
+            <Typography variant="h6" sx={{ color: '#fff' }}>
+              {task.title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              {task.description}
+            </Typography>
+            <Box sx={{ mt: 1, display: 'flex', gap: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
+              <Typography variant="caption">
+                Due: {new Date(task.dueDate).toLocaleDateString()}
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      ))}
+    </Box>
+  );
+
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Tabs
+        value={tabValue}
+        onChange={handleTabChange}
+        sx={{
+          '& .MuiTab-root': {
+            color: 'rgba(255, 255, 255, 0.7)',
+            '&.Mui-selected': {
+              color: '#fff',
+            },
+          },
+          '& .MuiTabs-indicator': {
+            backgroundColor: '#fff',
+          },
+        }}
+      >
+        <Tab icon={<DateRangeIcon />} label="Upcoming" />
+        <Tab icon={<WorkIcon />} label="Ongoing" />
+        <Tab icon={<CheckCircleIcon />} label="Completed" />
+      </Tabs>
+      <Box role="tabpanel" hidden={tabValue !== 0}>
+        {tabValue === 0 && <TaskList tasks={filterTasks('upcoming')} status="upcoming" />}
+      </Box>
+      <Box role="tabpanel" hidden={tabValue !== 1}>
+        {tabValue === 1 && <TaskList tasks={filterTasks('ongoing')} status="ongoing" />}
+      </Box>
+      <Box role="tabpanel" hidden={tabValue !== 2}>
+        {tabValue === 2 && <TaskList tasks={filterTasks('completed')} status="completed" />}
+      </Box>
+    </Box>
+  );
+};
+
+const AssignedTasks: React.FC<{ 
+  title: string; 
+  icon: React.ReactNode; 
+  tasks: Task[];
+  showAssignButton?: boolean;
+}> = ({
+  title,
+  icon,
+  tasks,
+  showAssignButton
+}) => (
+  <Card
+    sx={{
+      background: 'rgba(255, 255, 255, 0.1)',
+      backdropFilter: 'blur(8px)',
+      border: '1px solid rgba(255, 255, 255, 0.18)',
+      mb: 3,
+    }}
+  >
+    <CardContent>
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        mb: 2 
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {icon}
+          <Typography variant="h6" sx={{ color: '#fff' }}>
+            {title}
+          </Typography>
+        </Box>
+        {showAssignButton && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            sx={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              color: '#fff',
+              '&:hover': {
+                background: 'rgba(255, 255, 255, 0.2)',
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            Assign Task
+          </Button>
+        )}
+      </Box>
+      {tasks.map((task) => (
+        <Card
+          key={task.id}
+          sx={{
+            mb: 2,
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <CardContent>
+            <Typography variant="subtitle1" sx={{ color: '#fff' }}>
+              {task.title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              {task.description}
+            </Typography>
+          </CardContent>
+        </Card>
+      ))}
+    </CardContent>
+  </Card>
+);
+
 const Dashboard: React.FC = () => {
+  const [open, setOpen] = useState(true);
+  const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const theme = useTheme();
-  const [open, setOpen] = useState(false);
-  const [createBoardDialogOpen, setCreateBoardDialogOpen] = useState(false);
-  const [newBoard, setNewBoard] = useState({ title: '', description: '' });
-  
-  const { 
-    boards, 
-    loading, 
-    error 
-  } = useSelector((state: RootState) => state.board);
-  
+
   const { 
     isAuthenticated, 
     token,
@@ -311,25 +467,7 @@ const Dashboard: React.FC = () => {
       navigate('/login');
       return;
     }
-
-    const fetchData = async () => {
-      try {
-        console.log('Fetching boards...');
-        const result = await dispatch(fetchBoards()).unwrap();
-        console.log('Boards fetched:', result);
-      } catch (error) {
-        console.error('Error fetching boards:', error);
-        // Show an error message to the user
-        alert('Failed to fetch boards. Please try again or contact support.');
-      }
-    };
-
-    fetchData();
   }, [dispatch, isAuthenticated, token, navigate]);
-
-  console.log('Dashboard render - boards:', boards);
-  console.log('Dashboard render - loading:', loading);
-  console.log('Dashboard render - error:', error);
 
   const handleLogout = async () => {
     try {
@@ -344,51 +482,6 @@ const Dashboard: React.FC = () => {
   const toggleDrawer = () => {
     setOpen(!open);
   };
-
-  const handleCreateBoardClick = () => {
-    setCreateBoardDialogOpen(true);
-  };
-
-  const handleCreateBoardClose = () => {
-    setCreateBoardDialogOpen(false);
-    setNewBoard({ title: '', description: '' });
-  };
-
-  const handleCreateBoard = async () => {
-    try {
-      await createBoard({
-        title: newBoard.title,
-        description: newBoard.description
-      });
-      
-      // Refresh boards after creating a new one
-      await dispatch(fetchBoards()).unwrap();
-      
-      handleCreateBoardClose();
-    } catch (error) {
-      console.error('Error creating board:', error);
-      // Optionally, show an error message to the user
-    }
-  };
-
-  const fadeIn = keyframes`
-    from {
-      opacity: 0;
-      transform: translateY(-20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  `;
-
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   return (
     <Box sx={{ display: 'flex', background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)' }}>
@@ -415,141 +508,172 @@ const Dashboard: React.FC = () => {
           <List>
             {/* Logo */}
             <ListItem sx={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center', 
-              py: 2,
-              px: open ? 2 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: open ? 'space-between' : 'center',
+              padding: '20px 16px',
+              marginBottom: 2,
             }}>
               {open ? (
-                // Full logo for expanded drawer
-                <img 
-                  src={logo} 
-                  alt="Company Logo" 
-                  style={{ 
-                    maxWidth: 150,
-                    height: 'auto',
-                    objectFit: 'contain'
-                  }} 
-                />
+                <img src={logo} alt="Logo" style={{ height: '40px' }} />
               ) : (
-                // Icon only for collapsed drawer
-                <img 
-                  src={logoIcon}  // Make sure to import this
-                  alt="Company Icon" 
-                  style={{ 
-                    width: 40,
-                    height: 40,
-                    objectFit: 'contain'
-                  }} 
-                />
+                <img src={logoIcon} alt="Logo Icon" style={{ height: '30px' }} />
               )}
-            </ListItem>
-
-            {/* Toggle Drawer Button */}
-            <Tooltip title="Toggle Drawer">
-            <ListItem>
-              <IconButton 
-                onClick={toggleDrawer} 
-                sx={{ 
-                  color: theme.palette.primary.contrastText,
-                  '&:hover': {
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                  }
-                }}
-              >
+              <IconButton onClick={toggleDrawer} sx={{ color: '#fff' }}>
                 <MenuIcon />
               </IconButton>
             </ListItem>
-            </Tooltip>
-            {/* Dashboard Navigation */}
-            <Tooltip title="Dashboard">
-            <ListItem 
-              button 
-              onClick={() => navigate('/dashboard')}
+
+            {/* Navigation Items */}
+            <ListItem
+              button
               sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
               }}
             >
-              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}
+              >
                 <DashboardIcon />
               </ListItemIcon>
-              <ListItemText primary="Dashboard" />
+              <ListItemText 
+                primary="Dashboard" 
+                sx={{ 
+                  opacity: open ? 1 : 0,
+                  color: '#fff'
+                }} 
+              />
             </ListItem>
-            </Tooltip>
-            {/* Departments */}
-            <Tooltip title="Departments">
-            <ListItem 
-              button 
-              onClick={() => navigate('/departments')}
+
+            <ListItem
+              button
               sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
               }}
             >
-              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}
+              >
                 <BusinessIcon />
               </ListItemIcon>
-              <ListItemText primary="Departments" />
+              <ListItemText 
+                primary="Departments" 
+                sx={{ 
+                  opacity: open ? 1 : 0,
+                  color: '#fff'
+                }} 
+              />
             </ListItem>
-            </Tooltip>
 
-            {/* Users */}
-            <Tooltip title="Users">
-            <ListItem 
-              button 
-              onClick={() => navigate('/users')}
+            <ListItem
+              button
               sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
               }}
             >
-              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}
+              >
                 <PersonIcon />
               </ListItemIcon>
-              <ListItemText primary="Users" />
+              <ListItemText 
+                primary="Users" 
+                sx={{ 
+                  opacity: open ? 1 : 0,
+                  color: '#fff'
+                }} 
+              />
             </ListItem>
-            </Tooltip>
 
-            {/* Settings */}
-            <Tooltip title="Settings">
             <ListItem
-              button 
-              onClick={() => navigate('/settings')}
+              button
               sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
               }}
             >
-              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}
+              >
                 <SettingsIcon />
               </ListItemIcon>
-              <ListItemText primary="Settings" />
+              <ListItemText 
+                primary="Settings" 
+                sx={{ 
+                  opacity: open ? 1 : 0,
+                  color: '#fff'
+                }} 
+              />
             </ListItem>
-            </Tooltip>
 
-            {/* Admin Panel */}
-            <Tooltip title="Admin Panel">
             <ListItem
-              button 
-              onClick={() => navigate('/admin')}
+              button
               sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
               }}
             >
-              <ListItemIcon sx={{ color: theme.palette.primary.contrastText }}>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}
+              >
                 <AdminPanelSettingsIcon />
               </ListItemIcon>
-              <ListItemText primary="Admin Panel" />
+              <ListItemText 
+                primary="Admin Panel" 
+                sx={{ 
+                  opacity: open ? 1 : 0,
+                  color: '#fff'
+                }} 
+              />
             </ListItem>
-            </Tooltip>
           </List>
 
           {/* Logout at bottom */}
@@ -636,88 +760,79 @@ const Dashboard: React.FC = () => {
             <HeaderWidget username={user?.username || 'User'} />
           </Box>
 
-          <Box 
-            display="flex" 
-            justifyContent="space-between" 
-            alignItems="center" 
-            mb={4}
-            sx={{ animation: `${fadeIn} 0.8s ease-out` }}
-          >
-            <Typography 
-              variant="h4" 
-              sx={{ 
-                color: '#fff',
-                textShadow: '2px 2px 4px rgba(0,0,0,0.2)',
-                fontWeight: '600'
-              }}
-            >
-              My Boards
-            </Typography>
-            <Button 
-              variant="contained" 
-              onClick={handleCreateBoardClick}
+          <Box sx={{ mt: 4 }}>
+            <Typography
+              variant="h5"
               sx={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
                 color: '#fff',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.2)',
-                },
+                mb: 3,
+                textShadow: '2px 2px 4px rgba(0,0,0,0.2)',
               }}
             >
-              Create New Board
-            </Button>
-          </Box>
-
-          <Grid container spacing={3}>
-            {boards.map((board: Board, index) => (
-              <Grid item xs={12} sm={6} md={4} key={board.id}>
-                <Card 
+              Task Management
+            </Typography>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card
                   sx={{
                     background: 'rgba(255, 255, 255, 0.1)',
                     backdropFilter: 'blur(8px)',
                     border: '1px solid rgba(255, 255, 255, 0.18)',
-                    boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-                    animation: `${fadeIn} ${0.4 + index * 0.1}s ease-out`,
-                    transition: 'transform 0.2s ease-in-out',
-                    '&:hover': {
-                      transform: 'translateY(-5px)',
-                    },
+                    mb: 3,
                   }}
                 >
                   <CardContent>
-                    <Typography 
-                      variant="h6" 
-                      sx={{ color: '#fff', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}
-                    >
-                      {board.title}
-                    </Typography>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                    >
-                      {board.description}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button 
-                      size="small" 
-                      onClick={() => navigate(`/boards/${board.id}`)}
-                      sx={{
-                        color: '#fff',
-                        '&:hover': {
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      mb: 2 
+                    }}>
+                      <Typography variant="h6" sx={{ color: '#fff' }}>
+                        My Tasks
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        sx={{
                           background: 'rgba(255, 255, 255, 0.1)',
-                        },
-                      }}
-                    >
-                      View Board
-                    </Button>
-                  </CardActions>
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(255, 255, 255, 0.18)',
+                          color: '#fff',
+                          '&:hover': {
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            transform: 'translateY(-2px)',
+                          },
+                          transition: 'all 0.2s ease-in-out',
+                        }}
+                      >
+                        Create New Task
+                      </Button>
+                    </Box>
+                    <TaskTabs tasks={[/* Add your tasks data here */]} />
+                  </CardContent>
                 </Card>
               </Grid>
-            ))}
-          </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <AssignedTasks
+                  title="Tasks Assigned to Me"
+                  icon={<AssignmentIndIcon sx={{ color: '#fff' }} />}
+                  tasks={[/* Add assigned to me tasks */]}
+                />
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <AssignedTasks
+                  title="Tasks Assigned by Me"
+                  icon={<AssignmentIcon sx={{ color: '#fff' }} />}
+                  tasks={[/* Add assigned by me tasks */]}
+                  showAssignButton={true}
+                />
+              </Grid>
+            </Grid>
+          </Box>
         </Container>
       </Box>
 
@@ -792,58 +907,6 @@ const Dashboard: React.FC = () => {
           </IconButton>
         </Box>
       </Box>
-
-      {/* Create Board Dialog with updated styling */}
-      <Dialog 
-        open={createBoardDialogOpen} 
-        onClose={handleCreateBoardClose}
-        PaperProps={{
-          sx: {
-            background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(8px)',
-            borderRadius: '16px',
-            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-          }
-        }}
-      >
-        <DialogTitle>Create New Board</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Board Title"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newBoard.title}
-            onChange={(e) => setNewBoard(prev => ({ ...prev, title: e.target.value }))}
-          />
-          <TextField
-            margin="dense"
-            label="Board Description"
-            type="text"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={3}
-            value={newBoard.description}
-            onChange={(e) => setNewBoard(prev => ({ ...prev, description: e.target.value }))}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCreateBoardClose} color="secondary">
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleCreateBoard} 
-            color="primary" 
-            variant="contained"
-            disabled={!newBoard.title}
-          >
-            Create Board
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
