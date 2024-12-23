@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,6 +20,7 @@ import { loadFull } from "tsparticles";
 import Particles from "react-tsparticles";
 import type { Container, Engine } from "tsparticles-engine";
 import { keyframes } from '@mui/system';
+import LoadingScreen from '../components/LoadingScreen';
 
 interface LoginFormInputs {
   username: string;
@@ -35,6 +36,7 @@ const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const theme = useTheme();
+  const [isLoading, setIsLoading] = useState(true);
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -57,6 +59,19 @@ const Login: React.FC = () => {
   });
 
   const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
+
+  useEffect(() => {
+    // Simulate loading time or wait for resources
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/" />;

@@ -48,6 +48,9 @@ import {
   useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import Badge from '@mui/material/Badge';
+import LoadingScreen from '../components/LoadingScreen';
 
 const DRAWER_WIDTH = 240;
 
@@ -71,6 +74,14 @@ const slideUp = keyframes`
     transform: translateY(-100%);
     opacity: 0;
   }
+`;
+
+const shakeAnimation = keyframes`
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(10deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(-10deg); }
+  100% { transform: rotate(0deg); }
 `;
 
 const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
@@ -483,6 +494,23 @@ const Dashboard: React.FC = () => {
     setOpen(!open);
   };
 
+  const [notifications, setNotifications] = useState<number>(3); // Example number of notifications
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate loading time or wait for resources
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500); // Adjust time as needed
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <Box sx={{ display: 'flex', background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)' }}>
       {/* Drawer */}
@@ -870,11 +898,43 @@ const Dashboard: React.FC = () => {
             sx={{ 
               display: 'flex', 
               justifyContent: 'flex-end', 
+              alignItems: 'center',
+              gap: 2,
               mb: 2,
               position: 'relative',
               zIndex: 2,
             }}
           >
+            <IconButton
+              sx={{
+                color: '#fff',
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                animation: notifications > 0 ? `${shakeAnimation} 1s ease-in-out infinite` : 'none',
+                animationPlayState: 'running',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  animationPlayState: 'paused',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  transform: 'scale(1.05)',
+                },
+              }}
+            >
+              <Badge 
+                badgeContent={notifications} 
+                color="error"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: '#ff3c7d',
+                    color: '#fff',
+                  }
+                }}
+              >
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
+
             <Button
               onClick={() => setShowWidget(!showWidget)}
               startIcon={showWidget ? <ExpandLessIcon /> : <ExpandLessIcon />}
