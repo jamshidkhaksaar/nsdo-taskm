@@ -501,27 +501,116 @@ const Dashboard: React.FC = () => {
             backdropFilter: 'blur(8px)',
             borderRight: '1px solid rgba(255, 255, 255, 0.18)',
             color: '#fff',
+            transition: theme.transitions.create('width', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
           },
         }}
       >
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <List>
             {/* Logo */}
-            <ListItem sx={{ 
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: open ? 'space-between' : 'center',
-              padding: '20px 16px',
-              marginBottom: 2,
-            }}>
-              {open ? (
-                <img src={logo} alt="Logo" style={{ height: '40px' }} />
-              ) : (
-                <img src={logoIcon} alt="Logo Icon" style={{ height: '30px' }} />
-              )}
-              <IconButton onClick={toggleDrawer} sx={{ color: '#fff' }}>
+            <ListItem 
+              sx={{ 
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '16px',
+                marginBottom: 0,
+                position: 'relative',
+                height: '80px',
+              }}
+            >
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '40px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    transition: theme.transitions.create(['transform', 'opacity'], {
+                      duration: theme.transitions.duration.enteringScreen,
+                      easing: theme.transitions.easing.easeInOut,
+                    }),
+                    transform: open ? 'scale(1)' : 'scale(0.5)',
+                    opacity: open ? 1 : 0,
+                  }}
+                >
+                  <img 
+                    src={logo} 
+                    alt="Logo" 
+                    style={{ 
+                      height: '50px',
+                      width: '200px',
+                      objectFit: 'contain'
+                    }} 
+                  />
+                </Box>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    transition: theme.transitions.create(['transform', 'opacity'], {
+                      duration: theme.transitions.duration.enteringScreen,
+                      easing: theme.transitions.easing.easeInOut,
+                    }),
+                    transform: !open ? 'scale(1)' : 'scale(1.2)',
+                    opacity: !open ? 1 : 0,
+                  }}
+                >
+                  <img src={logoIcon} alt="Logo Icon" style={{ height: '35px' }} />
+                </Box>
+              </Box>
+            </ListItem>
+
+            {/* Toggle Button */}
+            <ListItem
+              button
+              sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
+                mb: 1,
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                }
+              }}
+              onClick={toggleDrawer}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  transition: theme.transitions.create(['margin-right', 'transform'], {
+                    duration: theme.transitions.duration.shorter,
+                  }),
+                  transform: open ? 'rotate(0deg)' : 'rotate(180deg)',
+                }}
+              >
                 <MenuIcon />
-              </IconButton>
+              </ListItemIcon>
+              <ListItemText 
+                primary="Toggle Menu" 
+                sx={{ 
+                  opacity: open ? 1 : 0,
+                  transition: theme.transitions.create('opacity', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
+                  color: '#fff'
+                }} 
+              />
             </ListItem>
 
             {/* Navigation Items */}
@@ -531,6 +620,10 @@ const Dashboard: React.FC = () => {
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
+                transition: theme.transitions.create(['padding', 'margin'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -541,7 +634,11 @@ const Dashboard: React.FC = () => {
                   minWidth: 0,
                   mr: open ? 3 : 'auto',
                   justifyContent: 'center',
-                  color: '#fff'
+                  color: '#fff',
+                  transition: theme.transitions.create('margin-right', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                 }}
               >
                 <DashboardIcon />
@@ -550,6 +647,10 @@ const Dashboard: React.FC = () => {
                 primary="Dashboard" 
                 sx={{ 
                   opacity: open ? 1 : 0,
+                  transition: theme.transitions.create('opacity', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                   color: '#fff'
                 }} 
               />
@@ -561,6 +662,10 @@ const Dashboard: React.FC = () => {
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
+                transition: theme.transitions.create(['padding', 'margin'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -571,7 +676,11 @@ const Dashboard: React.FC = () => {
                   minWidth: 0,
                   mr: open ? 3 : 'auto',
                   justifyContent: 'center',
-                  color: '#fff'
+                  color: '#fff',
+                  transition: theme.transitions.create('margin-right', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                 }}
               >
                 <BusinessIcon />
@@ -580,6 +689,10 @@ const Dashboard: React.FC = () => {
                 primary="Departments" 
                 sx={{ 
                   opacity: open ? 1 : 0,
+                  transition: theme.transitions.create('opacity', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                   color: '#fff'
                 }} 
               />
@@ -591,6 +704,10 @@ const Dashboard: React.FC = () => {
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
+                transition: theme.transitions.create(['padding', 'margin'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -601,7 +718,11 @@ const Dashboard: React.FC = () => {
                   minWidth: 0,
                   mr: open ? 3 : 'auto',
                   justifyContent: 'center',
-                  color: '#fff'
+                  color: '#fff',
+                  transition: theme.transitions.create('margin-right', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                 }}
               >
                 <PersonIcon />
@@ -610,6 +731,10 @@ const Dashboard: React.FC = () => {
                 primary="Users" 
                 sx={{ 
                   opacity: open ? 1 : 0,
+                  transition: theme.transitions.create('opacity', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                   color: '#fff'
                 }} 
               />
@@ -621,6 +746,10 @@ const Dashboard: React.FC = () => {
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
+                transition: theme.transitions.create(['padding', 'margin'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -631,7 +760,11 @@ const Dashboard: React.FC = () => {
                   minWidth: 0,
                   mr: open ? 3 : 'auto',
                   justifyContent: 'center',
-                  color: '#fff'
+                  color: '#fff',
+                  transition: theme.transitions.create('margin-right', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                 }}
               >
                 <SettingsIcon />
@@ -640,6 +773,10 @@ const Dashboard: React.FC = () => {
                 primary="Settings" 
                 sx={{ 
                   opacity: open ? 1 : 0,
+                  transition: theme.transitions.create('opacity', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                   color: '#fff'
                 }} 
               />
@@ -651,6 +788,10 @@ const Dashboard: React.FC = () => {
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
+                transition: theme.transitions.create(['padding', 'margin'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -661,7 +802,11 @@ const Dashboard: React.FC = () => {
                   minWidth: 0,
                   mr: open ? 3 : 'auto',
                   justifyContent: 'center',
-                  color: '#fff'
+                  color: '#fff',
+                  transition: theme.transitions.create('margin-right', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                 }}
               >
                 <AdminPanelSettingsIcon />
@@ -670,6 +815,10 @@ const Dashboard: React.FC = () => {
                 primary="Admin Panel" 
                 sx={{ 
                   opacity: open ? 1 : 0,
+                  transition: theme.transitions.create('opacity', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.enteringScreen,
+                  }),
                   color: '#fff'
                 }} 
               />
