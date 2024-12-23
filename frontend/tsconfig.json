@@ -21,10 +21,10 @@
     "jsx": "react-jsx",
     "baseUrl": "src",
     "paths": {
-      "*": ["*"]
+      "@/*": ["*"]
     },
     "checkJs": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": ["./node_modules/@types"]
   },
   "include": [
     "src/**/*",

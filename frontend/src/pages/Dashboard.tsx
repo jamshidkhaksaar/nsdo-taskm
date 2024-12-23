@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,6 +39,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import logoIcon from '../assets/images/logoIcon.png';
 import { Tooltip } from '@mui/material';
+import { keyframes } from '@mui/system';
 
 
 const DRAWER_WIDTH = 240;
@@ -127,6 +128,17 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const fadeIn = keyframes`
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  `;
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
@@ -136,7 +148,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)' }}>
       {/* Drawer */}
       <Drawer
         variant="permanent"
@@ -146,19 +158,13 @@ const Dashboard: React.FC = () => {
           flexShrink: 0,
           whiteSpace: 'nowrap',
           boxSizing: 'border-box',
-          transition: (theme) => theme.transitions.create('width', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
           '& .MuiDrawer-paper': {
             width: open ? DRAWER_WIDTH : 72,
             overflowX: 'hidden',
-            backgroundColor: theme.palette.primary.dark,
-            color: theme.palette.primary.contrastText,
-            transition: (theme) => theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
+            background: 'rgba(30, 42, 120, 0.8)',
+            backdropFilter: 'blur(8px)',
+            borderRight: '1px solid rgba(255, 255, 255, 0.18)',
+            color: '#fff',
           },
         }}
       >
@@ -325,12 +331,121 @@ const Dashboard: React.FC = () => {
         </Box>
       </Drawer>
 
-      {/* Create Board Dialog */}
+      {/* Main Content - Updated styling */}
+      <Box 
+        component="main" 
+        sx={{ 
+          flexGrow: 1,
+          minHeight: '100vh',
+          p: 3,
+          transition: theme.transitions.create('margin', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+          marginLeft: 0,
+          backgroundImage: `
+            url("data:image/svg+xml,%3Csvg width='100%' height='100%' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='network' x='0' y='0' width='40' height='40' patternUnits='userSpaceOnUse'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.3)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%' height='100%' fill='url(%23network)'/%3E%3C/svg%3E")
+          `,
+        }}
+      >
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+          <Box 
+            display="flex" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            mb={4}
+            sx={{ animation: `${fadeIn} 0.8s ease-out` }}
+          >
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                color: '#fff',
+                textShadow: '2px 2px 4px rgba(0,0,0,0.2)',
+                fontWeight: '600'
+              }}
+            >
+              My Boards
+            </Typography>
+            <Button 
+              variant="contained" 
+              onClick={handleCreateBoardClick}
+              sx={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#fff',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.2)',
+                },
+              }}
+            >
+              Create New Board
+            </Button>
+          </Box>
+
+          <Grid container spacing={3}>
+            {boards.map((board: Board, index) => (
+              <Grid item xs={12} sm={6} md={4} key={board.id}>
+                <Card 
+                  sx={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
+                    boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+                    animation: `${fadeIn} ${0.4 + index * 0.1}s ease-out`,
+                    transition: 'transform 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-5px)',
+                    },
+                  }}
+                >
+                  <CardContent>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ color: '#fff', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}
+                    >
+                      {board.title}
+                    </Typography>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                    >
+                      {board.description}
+                    </Typography>
+                  </CardContent>
+                  <CardActions>
+                    <Button 
+                      size="small" 
+                      onClick={() => navigate(`/boards/${board.id}`)}
+                      sx={{
+                        color: '#fff',
+                        '&:hover': {
+                          background: 'rgba(255, 255, 255, 0.1)',
+                        },
+                      }}
+                    >
+                      View Board
+                    </Button>
+                  </CardActions>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Create Board Dialog with updated styling */}
       <Dialog 
         open={createBoardDialogOpen} 
         onClose={handleCreateBoardClose}
-        maxWidth="sm"
-        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '16px',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+          }
+        }}
       >
         <DialogTitle>Create New Board</DialogTitle>
         <DialogContent>
@@ -370,60 +485,6 @@ const Dashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Main Content */}
-      <Box 
-        component="main" 
-        sx={{ 
-          flexGrow: 1, 
-          p: 3,
-          marginLeft: open ? `${DRAWER_WIDTH}px` : '72px',
-          backgroundColor: '#f8fafc',
-          transition: (theme) => theme.transitions.create('margin', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
-        }}
-      >
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-            <Typography variant="h4">My Boards</Typography>
-            <Button 
-              variant="contained" 
-              color="primary"
-              onClick={handleCreateBoardClick}
-            >
-              Create New Board
-            </Button>
-          </Box>
-
-          {error && (
-            <Typography color="error" sx={{ mb: 2 }}>
-              {error}
-            </Typography>
-          )}
-
-          <Grid container spacing={3}>
-            {boards.map((board: Board) => (
-              <Grid item xs={12} sm={6} md={4} key={board.id}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">{board.title}</Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      {board.description}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button size="small" onClick={() => navigate(`/boards/${board.id}`)}>
-                      View Board
-                    </Button>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
     </Box>
   );
 };

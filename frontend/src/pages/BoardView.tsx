@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -21,6 +21,10 @@ import { logout } from '../services/api';
 import { logoutSuccess } from '../store/slices/authSlice';
 import { Board, BoardState, List, Card as TaskCard } from '../types';
 import { updateCardPositionAPI } from '../services/api';
+import { keyframes } from '@mui/system';
+import { loadFull } from "tsparticles";
+import Particles from "react-tsparticles";
+import type { Container as TParticlesContainer, Engine } from "tsparticles-engine";
 
 const BoardView: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
@@ -127,6 +131,25 @@ const BoardView: React.FC = () => {
     }
   };
 
+  const particlesInit = useCallback(async (engine: Engine) => {
+    await loadFull(engine);
+  }, []);
+
+  const particlesLoaded = useCallback(async (container: TParticlesContainer | undefined) => {
+    console.log("Particles loaded", container);
+  }, []);
+
+  const fadeIn = keyframes`
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  `;
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
@@ -138,8 +161,18 @@ const BoardView: React.FC = () => {
   const currentBoard = localBoards.find(board => board.id === parseInt(boardId || '0'));
 
   return (
-    <>
-      <AppBar position="static">
+    <Box sx={{ 
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
+    }}>
+      <AppBar 
+        position="static" 
+        sx={{ 
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(8px)',
+          boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+        }}
+      >
         <Toolbar>
           <IconButton
             edge="start"
@@ -162,14 +195,84 @@ const BoardView: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        {error ? (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-        ) : (
+      <Box sx={{ position: 'relative', minHeight: 'calc(100vh - 64px)' }}>
+        <Particles
+          id="tsparticles"
+          init={particlesInit}
+          loaded={particlesLoaded}
+          options={{
+            fullScreen: false,
+            background: {
+              color: {
+                value: "transparent",
+              },
+            },
+            fpsLimit: 120,
+            particles: {
+              color: {
+                value: "#ffffff",
+              },
+              links: {
+                color: "#ffffff",
+                distance: 150,
+                enable: true,
+                opacity: 0.3,
+                width: 1,
+              },
+              move: {
+                direction: "none",
+                enable: true,
+                outModes: {
+                  default: "bounce",
+                },
+                random: false,
+                speed: 2,
+                straight: false,
+              },
+              number: {
+                density: {
+                  enable: true,
+                  area: 800,
+                },
+                value: 80,
+              },
+              opacity: {
+                value: 0.3,
+              },
+              shape: {
+                type: "circle",
+              },
+              size: {
+                value: { min: 1, max: 3 },
+              },
+            },
+            detectRetina: true,
+          }}
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            top: 0,
+            left: 0,
+            zIndex: 0,
+          }}
+        />
+
+        <Container 
+          maxWidth="xl" 
+          sx={{ 
+            mt: 4, 
+            mb: 4, 
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
           <DragDropContext onDragEnd={onDragEnd}>
-            <Box display="flex" gap={2}>
+            <Box 
+              display="flex" 
+              gap={2}
+              sx={{ animation: `${fadeIn} 0.8s ease-out` }}
+            >
               {currentBoard?.lists?.map((list: List) => (
                 <Droppable key={list.id} droppableId={list.id.toString()}>
                   {(provided) => (
@@ -178,15 +281,25 @@ const BoardView: React.FC = () => {
                       {...provided.droppableProps}
                       sx={{
                         width: 300,
-                        bgcolor: 'background.paper',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        backdropFilter: 'blur(8px)',
                         p: 2,
-                        borderRadius: 1,
-                        boxShadow: 1,
+                        borderRadius: '16px',
+                        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
                       }}
                     >
-                      <Typography variant="h6" sx={{ mb: 2 }}>
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          mb: 2,
+                          color: '#fff',
+                          textShadow: '1px 1px 2px rgba(0,0,0,0.2)'
+                        }}
+                      >
                         {list.title}
                       </Typography>
+                      
                       {list.cards?.map((card: TaskCard, index) => (
                         <Draggable
                           key={card.id}
@@ -198,10 +311,18 @@ const BoardView: React.FC = () => {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              sx={{ mb: 1 }}
+                              sx={{
+                                mb: 1,
+                                background: 'rgba(255, 255, 255, 0.15)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(255, 255, 255, 0.18)',
+                                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.17)',
+                              }}
                             >
                               <CardContent>
-                                <Typography>{card.title}</Typography>
+                                <Typography sx={{ color: '#fff' }}>
+                                  {card.title}
+                                </Typography>
                               </CardContent>
                             </Card>
                           )}
@@ -214,9 +335,9 @@ const BoardView: React.FC = () => {
               ))}
             </Box>
           </DragDropContext>
-        )}
-      </Container>
-    </>
+        </Container>
+      </Box>
+    </Box>
   );
 };
 
