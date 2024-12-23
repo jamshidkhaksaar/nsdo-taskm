@@ -8,24 +8,17 @@ import BoardView from './pages/BoardView';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 
-interface PrivateRouteProps {
-  children: React.ReactNode;
-}
-
-const PrivateRoute = ({ children }: PrivateRouteProps) => {
+const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 
-const App = () => {
+const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <Router>
         <Routes>
-          <Route 
-            path="/login" 
-            element={<Login />} 
-          />
+          <Route path="/login" element={<Login />} />
           <Route
             path="/"
             element={
@@ -50,10 +43,8 @@ const App = () => {
               </PrivateRoute>
             }
           />
-          <Route 
-            path="*" 
-            element={<Navigate to="/" replace />} 
-          />
+          {/* Catch-all route to redirect to dashboard */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </ThemeProvider>
