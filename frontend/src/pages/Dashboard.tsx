@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Drawer,
   List,
@@ -51,6 +51,10 @@ import AddIcon from '@mui/icons-material/Add';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
 import LoadingScreen from '../components/LoadingScreen';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Avatar from '@mui/material/Avatar';
 
 const DRAWER_WIDTH = 240;
 
@@ -311,35 +315,59 @@ const TaskTabs: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
 
   const TaskList: React.FC<{ tasks: Task[]; status: Task['status'] }> = ({ tasks, status }) => (
     <Box sx={{ mt: 2 }}>
-      {tasks.map((task) => (
-        <Card
-          key={task.id}
+      {tasks.length === 0 ? (
+        <Box
           sx={{
-            mb: 2,
-            background: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            transition: 'transform 0.2s ease',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-            },
+            textAlign: 'center',
+            py: 4,
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '8px',
+            border: '1px dashed rgba(255, 255, 255, 0.2)',
           }}
         >
-          <CardContent>
-            <Typography variant="h6" sx={{ color: '#fff' }}>
-              {task.title}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-              {task.description}
-            </Typography>
-            <Box sx={{ mt: 1, display: 'flex', gap: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
-              <Typography variant="caption">
-                Due: {new Date(task.dueDate).toLocaleDateString()}
+          <Typography
+            variant="body1"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontStyle: 'italic',
+            }}
+          >
+            {status === 'upcoming' && 'No upcoming tasks'}
+            {status === 'ongoing' && 'No ongoing tasks'}
+            {status === 'completed' && 'No completed tasks'}
+          </Typography>
+        </Box>
+      ) : (
+        tasks.map((task) => (
+          <Card
+            key={task.id}
+            sx={{
+              mb: 2,
+              background: 'rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              transition: 'transform 0.2s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+              },
+            }}
+          >
+            <CardContent>
+              <Typography variant="h6" sx={{ color: '#fff' }}>
+                {task.title}
               </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-      ))}
+              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                {task.description}
+              </Typography>
+              <Box sx={{ mt: 1, display: 'flex', gap: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
+                <Typography variant="caption">
+                  Due: {new Date(task.dueDate).toLocaleDateString()}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </Box>
   );
 
@@ -429,25 +457,47 @@ const AssignedTasks: React.FC<{
           </Button>
         )}
       </Box>
-      {tasks.map((task) => (
-        <Card
-          key={task.id}
+      {tasks.length === 0 ? (
+        <Box
           sx={{
-            mb: 2,
+            textAlign: 'center',
+            py: 4,
             background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '8px',
+            border: '1px dashed rgba(255, 255, 255, 0.2)',
           }}
         >
-          <CardContent>
-            <Typography variant="subtitle1" sx={{ color: '#fff' }}>
-              {task.title}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-              {task.description}
-            </Typography>
-          </CardContent>
-        </Card>
-      ))}
+          <Typography
+            variant="body1"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontStyle: 'italic',
+            }}
+          >
+            {title.includes('to Me') ? 'No tasks assigned to you' : 'No tasks assigned by you'}
+          </Typography>
+        </Box>
+      ) : (
+        tasks.map((task) => (
+          <Card
+            key={task.id}
+            sx={{
+              mb: 2,
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+            }}
+          >
+            <CardContent>
+              <Typography variant="subtitle1" sx={{ color: '#fff' }}>
+                {task.title}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                {task.description}
+              </Typography>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </CardContent>
   </Card>
 );
@@ -457,6 +507,7 @@ const Dashboard: React.FC = () => {
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { 
     isAuthenticated, 
@@ -506,6 +557,26 @@ const Dashboard: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  const handleNotificationClick = () => {
+    // Reset notifications count when clicked
+    setNotifications(0);
+  };
+
+  const isMenuItemActive = (path: string): boolean => {
+    return location.pathname === path;
+  };
+
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const openMenu = Boolean(anchorEl);
+
+  const handleProfileClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleProfileClose = () => {
+    setAnchorEl(null);
+  };
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -644,14 +715,31 @@ const Dashboard: React.FC = () => {
             {/* Navigation Items */}
             <ListItem
               button
+              selected={isMenuItemActive('/')}
               sx={{
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-                transition: theme.transitions.create(['padding', 'margin'], {
+                transition: theme.transitions.create(['padding', 'margin', 'background-color'], {
                   easing: theme.transitions.easing.sharp,
                   duration: theme.transitions.duration.enteringScreen,
                 }),
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    backgroundColor: '#fff',
+                    borderRadius: '0 4px 4px 0',
+                  },
+                },
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -686,14 +774,31 @@ const Dashboard: React.FC = () => {
 
             <ListItem
               button
+              selected={isMenuItemActive('/departments')}
               sx={{
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-                transition: theme.transitions.create(['padding', 'margin'], {
+                transition: theme.transitions.create(['padding', 'margin', 'background-color'], {
                   easing: theme.transitions.easing.sharp,
                   duration: theme.transitions.duration.enteringScreen,
                 }),
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    backgroundColor: '#fff',
+                    borderRadius: '0 4px 4px 0',
+                  },
+                },
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -728,14 +833,31 @@ const Dashboard: React.FC = () => {
 
             <ListItem
               button
+              selected={isMenuItemActive('/users')}
               sx={{
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-                transition: theme.transitions.create(['padding', 'margin'], {
+                transition: theme.transitions.create(['padding', 'margin', 'background-color'], {
                   easing: theme.transitions.easing.sharp,
                   duration: theme.transitions.duration.enteringScreen,
                 }),
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    backgroundColor: '#fff',
+                    borderRadius: '0 4px 4px 0',
+                  },
+                },
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -770,56 +892,31 @@ const Dashboard: React.FC = () => {
 
             <ListItem
               button
+              selected={isMenuItemActive('/admin')}
               sx={{
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-                transition: theme.transitions.create(['padding', 'margin'], {
+                transition: theme.transitions.create(['padding', 'margin', 'background-color'], {
                   easing: theme.transitions.easing.sharp,
                   duration: theme.transitions.duration.enteringScreen,
                 }),
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                }
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 3 : 'auto',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  transition: theme.transitions.create('margin-right', {
-                    easing: theme.transitions.easing.sharp,
-                    duration: theme.transitions.duration.enteringScreen,
-                  }),
-                }}
-              >
-                <SettingsIcon />
-              </ListItemIcon>
-              <ListItemText 
-                primary="Settings" 
-                sx={{ 
-                  opacity: open ? 1 : 0,
-                  transition: theme.transitions.create('opacity', {
-                    easing: theme.transitions.easing.sharp,
-                    duration: theme.transitions.duration.enteringScreen,
-                  }),
-                  color: '#fff'
-                }} 
-              />
-            </ListItem>
-
-            <ListItem
-              button
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-                transition: theme.transitions.create(['padding', 'margin'], {
-                  easing: theme.transitions.easing.sharp,
-                  duration: theme.transitions.duration.enteringScreen,
-                }),
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    backgroundColor: '#fff',
+                    borderRadius: '0 4px 4px 0',
+                  },
+                },
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.1)',
                 }
@@ -906,6 +1003,7 @@ const Dashboard: React.FC = () => {
             }}
           >
             <IconButton
+              onClick={handleNotificationClick}
               sx={{
                 color: '#fff',
                 background: 'rgba(255, 255, 255, 0.1)',
@@ -934,6 +1032,69 @@ const Dashboard: React.FC = () => {
                 <NotificationsIcon />
               </Badge>
             </IconButton>
+
+            <IconButton
+              onClick={handleProfileClick}
+              sx={{
+                color: '#fff',
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  transform: 'scale(1.05)',
+                },
+              }}
+            >
+              <Avatar 
+                sx={{ 
+                  width: 32, 
+                  height: 32,
+                  bgcolor: 'transparent',
+                  border: '2px solid rgba(255, 255, 255, 0.5)',
+                }}
+              >
+                <AccountCircleIcon />
+              </Avatar>
+            </IconButton>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={openMenu}
+              onClose={handleProfileClose}
+              onClick={handleProfileClose}
+              PaperProps={{
+                sx: {
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
+                  color: '#fff',
+                  mt: 1.5,
+                  '& .MuiMenuItem-root': {
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.1)',
+                    },
+                  },
+                },
+              }}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <MenuItem onClick={() => navigate('/profile')}>
+                <ListItemIcon>
+                  <AccountCircleIcon sx={{ color: '#fff' }} />
+                </ListItemIcon>
+                Profile
+              </MenuItem>
+              <MenuItem onClick={() => navigate('/settings')}>
+                <ListItemIcon>
+                  <SettingsIcon sx={{ color: '#fff' }} />
+                </ListItemIcon>
+                Settings
+              </MenuItem>
+            </Menu>
 
             <Button
               onClick={() => setShowWidget(!showWidget)}
