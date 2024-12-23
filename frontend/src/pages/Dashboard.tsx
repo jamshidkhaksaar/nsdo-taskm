@@ -775,6 +775,7 @@ const Dashboard: React.FC = () => {
             <ListItem
               button
               selected={isMenuItemActive('/departments')}
+              onClick={() => navigate('/departments')}
               sx={{
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
@@ -809,11 +810,7 @@ const Dashboard: React.FC = () => {
                   minWidth: 0,
                   mr: open ? 3 : 'auto',
                   justifyContent: 'center',
-                  color: '#fff',
-                  transition: theme.transitions.create('margin-right', {
-                    easing: theme.transitions.easing.sharp,
-                    duration: theme.transitions.duration.enteringScreen,
-                  }),
+                  color: '#fff'
                 }}
               >
                 <BusinessIcon />

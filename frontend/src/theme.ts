@@ -14,7 +14,14 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: [
+      'Roboto',
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Arial',
+      'sans-serif',
+    ].join(','),
     h5: {
       fontWeight: 600,
     },
