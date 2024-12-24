@@ -8,6 +8,7 @@ import BoardView from './pages/BoardView';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 import Departments from './pages/Departments';
+import Users from './pages/Users';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
@@ -49,6 +50,14 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <Departments />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <PrivateRoute>
+                <Users />
               </PrivateRoute>
             }
           />

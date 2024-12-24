@@ -16,45 +16,64 @@ import {
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
-import Sidebar from '../components/Sidebar';
-import DepartmentList from '../components/departments/DepartmentList';
-import DepartmentSummary from '../components/departments/DepartmentSummary';
-import TasksSection from '../components/departments/TasksSection';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
+import Sidebar from '../components/Sidebar';
+import UserList from '../components/users/UserList';
+import UserSummary from '../components/users/UserSummary';
+import TasksSection from '../components/departments/TasksSection';
 
-// Import or define the Task type
-interface Task {
-  id: string;
-  title: string;
-  assignee: string;
-  dueDate: string;
-  priority: 'high' | 'medium' | 'low';
-  status: 'upcoming' | 'ongoing' | 'completed';
-}
+const DRAWER_WIDTH = 240;
 
-// Mock data with proper typing
-const mockDepartments = [
-  { id: '1', name: 'Program', tasksCount: 15 },
-  { id: '2', name: 'Planning Partnership', tasksCount: 8 },
-  { id: '3', name: 'MEAL', tasksCount: 12 },
+// Mock data
+const mockUsers = [
+  {
+    id: '1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    role: 'Project Manager',
+    tasksCount: 12,
+    avatar: '',
+  },
+  {
+    id: '2',
+    name: 'Jane Smith',
+    email: 'jane@example.com',
+    role: 'Developer',
+    tasksCount: 8,
+    avatar: '',
+  },
+  {
+    id: '3',
+    name: 'Mike Johnson',
+    email: 'mike@example.com',
+    role: 'Designer',
+    tasksCount: 5,
+    avatar: '',
+  },
 ];
 
-const mockTopPerformers = [
-  { id: '1', name: 'John Doe', tasksCompleted: 25, completionRate: 85 },
-  { id: '2', name: 'Jane Smith', tasksCompleted: 20, completionRate: 75 },
-  { id: '3', name: 'Mike Johnson', tasksCompleted: 18, completionRate: 70 },
-];
+const mockUserDetails = {
+  name: 'John Doe',
+  role: 'Project Manager',
+  avatar: '',
+  totalTasks: 12,
+  completedTasks: 5,
+  ongoingTasks: 4,
+  upcomingTasks: 3,
+  completionRate: 75,
+  tasksByPriority: {
+    high: 3,
+    medium: 6,
+    low: 3,
+  },
+};
 
-const mockTasks: {
-  upcoming: Task[];
-  ongoing: Task[];
-  completed: Task[];
-} = {
+const mockTasks = {
   upcoming: [
     {
       id: '1',
-      title: 'Review Q3 Reports',
+      title: 'Design Review',
       assignee: 'John Doe',
       dueDate: '2024-03-20',
       priority: 'high' as const,
@@ -64,8 +83,8 @@ const mockTasks: {
   ongoing: [
     {
       id: '2',
-      title: 'Prepare Monthly Summary',
-      assignee: 'Jane Smith',
+      title: 'Frontend Development',
+      assignee: 'John Doe',
       dueDate: '2024-03-15',
       priority: 'medium' as const,
       status: 'ongoing' as const,
@@ -74,8 +93,8 @@ const mockTasks: {
   completed: [
     {
       id: '3',
-      title: 'Team Meeting Minutes',
-      assignee: 'Mike Johnson',
+      title: 'Project Planning',
+      assignee: 'John Doe',
       dueDate: '2024-03-10',
       priority: 'low' as const,
       status: 'completed' as const,
@@ -83,13 +102,12 @@ const mockTasks: {
   ],
 };
 
-const DRAWER_WIDTH = 240;
-
-const Departments: React.FC = () => {
+const Users: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const [open, setOpen] = useState(true);
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
@@ -155,6 +173,7 @@ const Departments: React.FC = () => {
         }}
       >
         <Container maxWidth="xl">
+          {/* Header with notifications and profile */}
           <Box 
             sx={{ 
               display: 'flex', 
@@ -256,23 +275,19 @@ const Departments: React.FC = () => {
             </Menu>
           </Box>
 
+          {/* Main content */}
           <Grid container spacing={3}>
             <Grid item xs={12} md={3}>
-              <DepartmentList
-                departments={mockDepartments}
-                selectedDepartment={selectedDepartment}
-                onSelectDepartment={setSelectedDepartment}
+              <UserList
+                users={mockUsers}
+                selectedUser={selectedUser}
+                onSelectUser={setSelectedUser}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
               />
             </Grid>
             <Grid item xs={12} md={9}>
-              <DepartmentSummary
-                departmentName={mockDepartments.find(d => d.id === selectedDepartment)?.name || 'All Departments'}
-                totalTasks={30}
-                completedTasks={12}
-                ongoingTasks={10}
-                upcomingTasks={8}
-                topPerformers={mockTopPerformers}
-              />
+              <UserSummary user={mockUserDetails} />
               <TasksSection
                 upcomingTasks={mockTasks.upcoming}
                 ongoingTasks={mockTasks.ongoing}
@@ -282,7 +297,8 @@ const Departments: React.FC = () => {
             </Grid>
           </Grid>
         </Container>
-        
+
+        {/* Footer */}
         <Box
           component="footer"
           sx={{
@@ -362,4 +378,4 @@ const Departments: React.FC = () => {
   );
 };
 
-export default Departments; 
+export default Users; 
