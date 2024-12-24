@@ -22,8 +22,6 @@ import {
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
-import GitHubIcon from '@mui/icons-material/GitHub';
-import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import PersonIcon from '@mui/icons-material/Person';
 import LoadingScreen from '../components/LoadingScreen';
 import { AppDispatch, RootState } from '../store';
@@ -42,6 +40,8 @@ import WorkIcon from '@mui/icons-material/Work';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 import Sidebar from '../components/Sidebar';
+import StickyNotes from '../components/dashboard/StickyNotes';
+import Footer from '../components/Footer';
 
 const DRAWER_WIDTH = 240;
 
@@ -545,34 +545,32 @@ const Dashboard: React.FC = () => {
         zIndex: 0,
       },
     }}>
-      <Sidebar 
+      <Sidebar
         open={open}
         onToggleDrawer={toggleDrawer}
         onLogout={handleLogout}
       />
+      
+      <StickyNotes />
 
-      {/* Main Content */}
-      <Box 
-        component="main" 
-        sx={{ 
+      <Box
+        component="main"
+        sx={{
           flexGrow: 1,
+          p: 3,
           minHeight: '100vh',
-          p: { xs: 2, sm: 3 },
-          pb: 8,
+          position: 'relative',
+          zIndex: 1,
+          marginLeft: { xs: 0, sm: open ? '0' : '0' },
+          width: { 
+            xs: '100%',
+            sm: `calc(100% - ${open ? DRAWER_WIDTH + 250 : 72 + 250}px)`
+          },
           transition: theme.transitions.create(['margin', 'width'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
           }),
-          marginLeft: { xs: 0, sm: open ? `${DRAWER_WIDTH}px` : '72px' },
-          position: 'relative',
-          width: { 
-            xs: '100%',
-            sm: `calc(100% - ${open ? DRAWER_WIDTH : 72}px)`
-          },
-          zIndex: 1,
-          '& > *': {
-            position: 'relative',
-          },
+          pb: '28px',
         }}
       >
         <Container 
@@ -803,81 +801,7 @@ const Dashboard: React.FC = () => {
         </Container>
       </Box>
 
-      {/* Footer */}
-      <Box
-        component="footer"
-        sx={{
-          position: 'fixed',
-          bottom: 0,
-          right: 0,
-          left: { 
-            xs: 0, 
-            sm: open ? `${DRAWER_WIDTH}px` : '72px',
-          },
-          padding: { xs: '0.25rem', sm: '0.5rem' },
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(8px)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.18)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 1,
-          zIndex: 2,
-          transition: theme.transitions.create(['left', 'width'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
-        }}
-      >
-        <Typography
-          variant="caption"
-          sx={{
-            color: 'rgba(255, 255, 255, 0.9)',
-            fontWeight: 500,
-            fontSize: { xs: '0.65rem', sm: '0.75rem' },
-          }}
-        >
-          Developed by Jamshid Khaksaar
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <IconButton
-            component="a"
-            href="https://github.com/JamshidKhaksaar"
-            target="_blank"
-            rel="noopener noreferrer"
-            size="small"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.9)',
-              padding: '4px',
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.1)',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'transform 0.2s ease-in-out',
-            }}
-          >
-            <GitHubIcon sx={{ fontSize: '1.2rem' }} />
-          </IconButton>
-          <IconButton
-            component="a"
-            href="https://linkedin.com/in/jamshid-khaksaar"
-            target="_blank"
-            rel="noopener noreferrer"
-            size="small"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.9)',
-              padding: '4px',
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.1)',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'transform 0.2s ease-in-out',
-            }}
-          >
-            <LinkedInIcon sx={{ fontSize: '1.2rem' }} />
-          </IconButton>
-        </Box>
-      </Box>
+      <Footer open={open} drawerWidth={DRAWER_WIDTH} />
     </Box>
   );
 };
