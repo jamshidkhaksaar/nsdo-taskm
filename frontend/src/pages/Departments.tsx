@@ -10,8 +10,6 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  Typography,
-  useTheme,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -20,8 +18,7 @@ import Sidebar from '../components/Sidebar';
 import DepartmentList from '../components/departments/DepartmentList';
 import DepartmentSummary from '../components/departments/DepartmentSummary';
 import TasksSection from '../components/departments/TasksSection';
-import GitHubIcon from '@mui/icons-material/GitHub';
-import LinkedInIcon from '@mui/icons-material/LinkedIn';
+import Footer from '../components/Footer';
 
 // Import or define the Task type
 interface Task {
@@ -87,7 +84,6 @@ const DRAWER_WIDTH = 240;
 
 const Departments: React.FC = () => {
   const navigate = useNavigate();
-  const theme = useTheme();
   const [open, setOpen] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
@@ -283,80 +279,7 @@ const Departments: React.FC = () => {
           </Grid>
         </Container>
         
-        <Box
-          component="footer"
-          sx={{
-            position: 'fixed',
-            bottom: 0,
-            right: 0,
-            left: { 
-              xs: 0, 
-              sm: open ? `${DRAWER_WIDTH}px` : '72px',
-            },
-            padding: { xs: '0.25rem', sm: '0.5rem' },
-            background: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(8px)',
-            borderTop: '1px solid rgba(255, 255, 255, 0.18)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 1,
-            zIndex: 2,
-            transition: theme.transitions.create(['left', 'width'], {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-          }}
-        >
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.9)',
-              fontWeight: 500,
-              fontSize: { xs: '0.65rem', sm: '0.75rem' },
-            }}
-          >
-            Developed by Jamshid Khaksaar
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton
-              component="a"
-              href="https://github.com/JamshidKhaksaar"
-              target="_blank"
-              rel="noopener noreferrer"
-              size="small"
-              sx={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                padding: '4px',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  transform: 'translateY(-2px)',
-                },
-                transition: 'transform 0.2s ease-in-out',
-              }}
-            >
-              <GitHubIcon sx={{ fontSize: '1.2rem' }} />
-            </IconButton>
-            <IconButton
-              component="a"
-              href="https://linkedin.com/in/jamshid-khaksaar"
-              target="_blank"
-              rel="noopener noreferrer"
-              size="small"
-              sx={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                padding: '4px',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  transform: 'translateY(-2px)',
-                },
-                transition: 'transform 0.2s ease-in-out',
-              }}
-            >
-              <LinkedInIcon sx={{ fontSize: '1.2rem' }} />
-            </IconButton>
-          </Box>
-        </Box>
+        <Footer open={open} drawerWidth={DRAWER_WIDTH} />
       </Box>
     </Box>
   );

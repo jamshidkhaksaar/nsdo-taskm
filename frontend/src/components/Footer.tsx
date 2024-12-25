@@ -20,16 +20,20 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
           xs: 0, 
           sm: open ? `${drawerWidth + 250}px` : `${72 + 250}px`,
         },
-        height: '28px', // Even more compact
-        padding: '0.15rem',
+        height: '24px',
+        padding: '0.1rem',
         background: 'rgba(255, 255, 255, 0.1)',
         backdropFilter: 'blur(8px)',
         borderTop: '1px solid rgba(255, 255, 255, 0.18)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 0.5,
+        gap: 0.25,
         zIndex: 10,
+        minWidth: { xs: '100%', sm: '300px' },
+        maxWidth: { xs: '100%', sm: '600px' },
+        marginLeft: 'auto',
+        marginRight: 'auto',
       }}
     >
       <Typography
@@ -37,12 +41,13 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
         sx={{
           color: 'rgba(255, 255, 255, 0.9)',
           fontWeight: 500,
-          fontSize: '0.65rem',
+          fontSize: '0.6rem',
+          whiteSpace: 'nowrap',
         }}
       >
         Developed by Jamshid Khaksaar
       </Typography>
-      <Box sx={{ display: 'flex', gap: 0.25 }}>
+      <Box sx={{ display: 'flex', gap: 0.15 }}>
         <IconButton
           component="a"
           href="https://github.com/JamshidKhaksaar"
@@ -51,7 +56,7 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
           size="small"
           sx={{
             color: 'rgba(255, 255, 255, 0.9)',
-            padding: '1px',
+            padding: '0px',
             '&:hover': {
               background: 'rgba(255, 255, 255, 0.1)',
               transform: 'translateY(-1px)',
@@ -59,7 +64,7 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
             transition: 'transform 0.2s ease-in-out',
           }}
         >
-          <GitHubIcon sx={{ fontSize: '0.9rem' }} />
+          <GitHubIcon sx={{ fontSize: '0.8rem' }} />
         </IconButton>
         <IconButton
           component="a"
@@ -69,7 +74,7 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
           size="small"
           sx={{
             color: 'rgba(255, 255, 255, 0.9)',
-            padding: '1px',
+            padding: '0px',
             '&:hover': {
               background: 'rgba(255, 255, 255, 0.1)',
               transform: 'translateY(-1px)',
@@ -77,7 +82,7 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
             transition: 'transform 0.2s ease-in-out',
           }}
         >
-          <LinkedInIcon sx={{ fontSize: '0.9rem' }} />
+          <LinkedInIcon sx={{ fontSize: '0.8rem' }} />
         </IconButton>
       </Box>
     </Box>
