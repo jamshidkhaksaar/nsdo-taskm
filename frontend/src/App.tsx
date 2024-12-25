@@ -9,6 +9,12 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 import Departments from './pages/Departments';
 import Users from './pages/Users';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import DepartmentManagement from './pages/admin/DepartmentManagement';
+import ActivityLogs from './pages/admin/ActivityLogs';
+import SystemSettings from './pages/admin/SystemSettings';
+import BackupRestore from './pages/admin/BackupRestore';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
@@ -21,6 +27,57 @@ const App: React.FC = () => {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          
+          {/* Admin Routes */}
+          <Route
+            path="/admin"
+            element={
+              <PrivateRoute>
+                <AdminDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <PrivateRoute>
+                <UserManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/departments"
+            element={
+              <PrivateRoute>
+                <DepartmentManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/activity-logs"
+            element={
+              <PrivateRoute>
+                <ActivityLogs />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <PrivateRoute>
+                <SystemSettings />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/backup"
+            element={
+              <PrivateRoute>
+                <BackupRestore />
+              </PrivateRoute>
+            }
+          />
+
           <Route
             path="/"
             element={
