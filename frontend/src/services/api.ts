@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { User } from '../types';
+import type { LoginResponse, JWTResponse } from '../types';
 
 const api = axios.create({
   baseURL: 'http://localhost:8000/api',
@@ -9,23 +9,6 @@ const api = axios.create({
   },
 });
 
-interface JWTResponse {
-  access: string;
-  refresh: string;
-  user?: {
-    id: number;
-    username: string;
-    email: string;
-  };
-}
-
-interface LoginResponse {
-  data: {
-    token: string;
-    user: User;
-  };
-}
-
 export const login = async (username: string, password: string): Promise<LoginResponse> => {
   try {
     const response = await api.post<JWTResponse>('/auth/login/', {
@@ -33,23 +16,24 @@ export const login = async (username: string, password: string): Promise<LoginRe
       password,
     });
     
-    if (response.data.access) {
-      localStorage.setItem('access_token', response.data.access);
-      localStorage.setItem('refresh_token', response.data.refresh);
-      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
-      
-      return {
-        data: {
-          token: response.data.access,
-          user: response.data.user || {
-            id: 0,
-            username,
-            email: '',
-          }
-        }
-      };
+    if (!response.data.access) {
+      throw new Error('No access token received');
     }
-    throw new Error('No access token received');
+
+    // Store tokens first
+    localStorage.setItem('access_token', response.data.access);
+    localStorage.setItem('refresh_token', response.data.refresh);
+    
+    // Then store role from backend
+    const userRole = response.data.user.role;
+    localStorage.setItem('user_role', userRole);
+
+    api.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
+    
+    return {
+      user: response.data.user,
+      token: response.data.access
+    };
   } catch (error) {
     console.error('Login error:', error);
     throw error;
@@ -57,19 +41,21 @@ export const login = async (username: string, password: string): Promise<LoginRe
 };
 
 // Auth interceptors
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 export const logout = async (): Promise<void> => {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user_role');
   api.defaults.headers.common['Authorization'] = '';
   return Promise.resolve();
 };

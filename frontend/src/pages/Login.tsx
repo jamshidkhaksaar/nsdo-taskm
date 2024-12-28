@@ -37,6 +37,7 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
+  const [formError, setFormError] = useState('');
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -58,10 +59,9 @@ const Login: React.FC = () => {
     }
   });
 
-  const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, loading, error: authError } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
-    // Simulate loading time or wait for resources
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 1500);
@@ -74,22 +74,23 @@ const Login: React.FC = () => {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" />;
+    return <Navigate to="/dashboard" />;
   }
 
   const onSubmit = async (data: LoginFormInputs) => {
     try {
+      setFormError('');
       dispatch(loginStart());
       const response = await login(data.username, data.password);
       dispatch(loginSuccess({
-        user: response.data.user,
-        token: response.data.token
+        user: response.user,
+        token: response.token
       }));
-      navigate('/');
-    } catch (err: any) {
+      navigate('/dashboard');
+    } catch (err) {
       console.error('Login error:', err);
-      const errorMessage = err.response?.data?.message || 'Login failed';
-      dispatch(loginFailure(errorMessage));
+      dispatch(loginFailure('Invalid username or password'));
+      setFormError('Invalid username or password');
     }
   };
 
@@ -272,7 +273,7 @@ const Login: React.FC = () => {
           </Typography>
         </Box>
 
-        {error && (
+        {(formError || authError) && (
           <Alert
             severity="error"
             sx={{
@@ -281,7 +282,7 @@ const Login: React.FC = () => {
               color: '#fff'
             }}
           >
-            {error}
+            {formError || authError}
           </Alert>
         )}
 

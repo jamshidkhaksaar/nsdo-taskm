@@ -2,34 +2,19 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  role: 'user' | 'admin';
 }
 
-export interface Card {
-  id: number;
-  title: string;
-  description: string;
-  order: number;
-  list_id: number;
+export interface APIError {
+  message: string;
+  status: number;
 }
 
-export interface List {
-  id: number;
-  title: string;
-  board_id: number;
-  order: number;
-  cards: Card[];
-}
-
-export interface Board {
-  id: number;
-  title: string;
-  description: string;
-  owner: number;
-  members: number[];
-  lists: List[];
-  created_at: string;
-  updated_at: string;
-}
+export type APIResponse<T> = {
+  data: T;
+  status?: number;
+  message?: string;
+};
 
 export interface AuthState {
   token: string | null;
@@ -38,14 +23,17 @@ export interface AuthState {
   error: string | null;
 }
 
-export interface BoardState {
-  boards: Board[];
-  currentBoard: Board | null;
-  loading: boolean;
-  error: string | null;
+export interface LoginResponse {
+  user: User;
+  token: string;
+}
+
+export interface JWTResponse {
+  access: string;
+  refresh: string;
+  user: User;
 }
 
 export interface RootState {
   auth: AuthState;
-  board: BoardState;
 } 

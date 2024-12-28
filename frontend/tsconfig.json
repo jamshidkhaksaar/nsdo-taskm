@@ -32,6 +32,8 @@
     "src/types/particles.js.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "build",
+    "src/store/slices/boardSlice.ts"
   ]
 }

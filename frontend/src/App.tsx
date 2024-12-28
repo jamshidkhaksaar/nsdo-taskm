@@ -1,127 +1,101 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from './store';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import BoardView from './pages/BoardView';
+import {
+  Login,
+  Dashboard,
+  Departments,
+  Users,
+  NotFound,
+} from './pages';
+import {
+  AdminDashboard,
+  UserManagement,
+  DepartmentManagement,
+  ActivityLogs,
+  SystemSettings,
+  BackupRestore,
+} from './pages/admin';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
-import Departments from './pages/Departments';
-import Users from './pages/Users';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import UserManagement from './pages/admin/UserManagement';
-import DepartmentManagement from './pages/admin/DepartmentManagement';
-import ActivityLogs from './pages/admin/ActivityLogs';
-import SystemSettings from './pages/admin/SystemSettings';
-import BackupRestore from './pages/admin/BackupRestore';
-
-const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
-};
 
 const App: React.FC = () => {
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+
+  // Protected Route wrapper
+  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  };
+
+  // Admin Route wrapper
+  const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+    const isAdmin = user?.role === 'admin' || localStorage.getItem('user_role') === 'admin';
+    return isAuthenticated && isAdmin ? (
+      <>{children}</>
+    ) : (
+      <Navigate to="/dashboard" />
+    );
+  };
+
   return (
     <ThemeProvider theme={theme}>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          {/* Admin Routes */}
-          <Route
-            path="/admin"
-            element={
-              <PrivateRoute>
-                <AdminDashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <PrivateRoute>
-                <UserManagement />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin/departments"
-            element={
-              <PrivateRoute>
-                <DepartmentManagement />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin/activity-logs"
-            element={
-              <PrivateRoute>
-                <ActivityLogs />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin/settings"
-            element={
-              <PrivateRoute>
-                <SystemSettings />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin/backup"
-            element={
-              <PrivateRoute>
-                <BackupRestore />
-              </PrivateRoute>
-            }
-          />
+      <Routes>
+        {/* Public Routes */}
+        <Route 
+          path="/login" 
+          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} 
+        />
 
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/boards/:boardId"
-            element={
-              <PrivateRoute>
-                <BoardView />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/departments"
-            element={
-              <PrivateRoute>
-                <Departments />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <PrivateRoute>
-                <Users />
-              </PrivateRoute>
-            }
-          />
-          {/* Catch-all route to redirect to dashboard */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
+        {/* Protected Routes */}
+        <Route
+          path="/dashboard"
+          element={<ProtectedRoute><Dashboard /></ProtectedRoute>}
+        />
+        <Route
+          path="/departments"
+          element={<ProtectedRoute><Departments /></ProtectedRoute>}
+        />
+        <Route
+          path="/users"
+          element={<ProtectedRoute><Users /></ProtectedRoute>}
+        />
+
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={<AdminRoute><AdminDashboard /></AdminRoute>}
+        />
+        <Route
+          path="/admin/users"
+          element={<AdminRoute><UserManagement /></AdminRoute>}
+        />
+        <Route
+          path="/admin/departments"
+          element={<AdminRoute><DepartmentManagement /></AdminRoute>}
+        />
+        <Route
+          path="/admin/activity-logs"
+          element={<AdminRoute><ActivityLogs /></AdminRoute>}
+        />
+        <Route
+          path="/admin/settings"
+          element={<AdminRoute><SystemSettings /></AdminRoute>}
+        />
+        <Route
+          path="/admin/backup"
+          element={<AdminRoute><BackupRestore /></AdminRoute>}
+        />
+
+        {/* Redirect root to dashboard */}
+        <Route 
+          path="/" 
+          element={<Navigate to="/dashboard" replace />} 
+        />
+
+        {/* 404 Route */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </ThemeProvider>
   );
 };
