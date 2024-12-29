@@ -12,3 +12,40 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+@keyframes fillProgress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes numberCountUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Add a class for elements that should animate on load */
+.animate-on-load {
+  animation: numberCountUp 0.8s ease-out forwards;
+}
+
+.progress-bar-animate {
+  animation: fillProgress 1.2s ease-out;
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-on-load,
+  .progress-bar-animate {
+    animation: none;
+  }
+}

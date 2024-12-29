@@ -10,6 +10,7 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
+  keyframes,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -98,6 +99,26 @@ const mockTasks = {
     },
   ],
 };
+
+const fillAnimation = keyframes`
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+`;
+
+const numberAnimation = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
 
 const Users: React.FC = () => {
   const navigate = useNavigate();
@@ -283,7 +304,22 @@ const Users: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} md={9}>
-              <UserSummary user={mockUserDetails} />
+              <UserSummary 
+                user={{
+                  ...mockUserDetails,
+                  sx: {
+                    completionRate: {
+                      animation: `${numberAnimation} 0.8s ease-out forwards`,
+                    },
+                    progressBar: {
+                      '& .MuiLinearProgress-bar': {
+                        animation: `${fillAnimation} 1.2s ease-out`,
+                        transformOrigin: 'left',
+                      },
+                    },
+                  },
+                }} 
+              />
               <TasksSection
                 upcomingTasks={mockTasks.upcoming}
                 ongoingTasks={mockTasks.ongoing}

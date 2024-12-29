@@ -7,6 +7,7 @@ import {
   Avatar,
   LinearProgress,
   Grid,
+  SxProps,
 } from '@mui/material';
 
 interface UserSummaryProps {
@@ -23,6 +24,10 @@ interface UserSummaryProps {
       high: number;
       medium: number;
       low: number;
+    };
+    sx?: {
+      completionRate?: React.CSSProperties;
+      progressBar?: SxProps;
     };
   };
 }
@@ -64,7 +69,13 @@ const UserSummary: React.FC<UserSummaryProps> = ({ user }) => {
                 <Typography variant="body2" sx={{ color: '#fff' }}>
                   Task Completion Rate
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#fff' }}>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    color: '#fff',
+                    ...user.sx?.completionRate 
+                  }}
+                >
                   {user.completionRate}%
                 </Typography>
               </Box>
@@ -72,12 +83,14 @@ const UserSummary: React.FC<UserSummaryProps> = ({ user }) => {
                 variant="determinate"
                 value={user.completionRate}
                 sx={{
+                  width: '100%',
                   height: 8,
                   borderRadius: 4,
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   '& .MuiLinearProgress-bar': {
                     backgroundColor: '#4CAF50',
                   },
+                  ...user.sx?.progressBar,
                 }}
               />
             </Box>

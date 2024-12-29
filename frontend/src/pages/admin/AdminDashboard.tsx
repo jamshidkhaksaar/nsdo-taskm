@@ -7,12 +7,33 @@ import {
   Box,
   IconButton,
   LinearProgress,
+  keyframes,
 } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AdminLayout from '../../layouts/AdminLayout';
+
+const fillNumberAnimation = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
+
+const progressFill = keyframes`
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+`;
 
 const AdminDashboard: React.FC = () => {
   return (
@@ -116,18 +137,28 @@ const AdminDashboard: React.FC = () => {
                   <TrendingUpIcon />
                 </IconButton>
               </Box>
-              <Typography variant="h3" sx={{ color: '#fff', mb: 1 }}>
+              <Typography 
+                variant="h3" 
+                sx={{ 
+                  color: '#fff', 
+                  mb: 1,
+                  animation: `${fillNumberAnimation} 0.8s ease-out forwards`,
+                }}
+              >
                 85%
               </Typography>
               <LinearProgress 
                 variant="determinate" 
                 value={85}
                 sx={{
+                  width: 100,
                   height: 8,
                   borderRadius: 4,
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   '& .MuiLinearProgress-bar': {
                     backgroundColor: '#4CAF50',
+                    animation: `${progressFill} 1.2s ease-out`,
+                    transformOrigin: 'left',
                   },
                 }}
               />

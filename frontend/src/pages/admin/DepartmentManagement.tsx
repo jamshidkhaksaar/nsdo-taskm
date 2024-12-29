@@ -18,6 +18,7 @@ import {
   LinearProgress,
   Avatar,
   AvatarGroup,
+  keyframes,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -58,6 +59,15 @@ const mockDepartments: Department[] = [
   },
   // Add more mock departments...
 ];
+
+const fillAnimation = keyframes`
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+`;
 
 const DepartmentManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -216,6 +226,8 @@ const DepartmentManagement: React.FC = () => {
                         backgroundColor: 'rgba(255, 255, 255, 0.1)',
                         '& .MuiLinearProgress-bar': {
                           backgroundColor: '#4CAF50',
+                          animation: `${fillAnimation} 1s ease-out`,
+                          transformOrigin: 'left',
                         },
                       }}
                     />

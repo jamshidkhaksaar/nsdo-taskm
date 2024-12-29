@@ -7,7 +7,29 @@ import {
   Avatar,
   LinearProgress,
   Grid,
+  SxProps,
+  keyframes,
 } from '@mui/material';
+
+const fillAnimation = keyframes`
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+`;
+
+const numberAnimation = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
 
 interface TopPerformer {
   id: string;
@@ -15,6 +37,10 @@ interface TopPerformer {
   avatar?: string;
   tasksCompleted: number;
   completionRate: number;
+  sx?: {
+    completionRate?: React.CSSProperties;
+    progressBar?: SxProps;
+  };
 }
 
 interface DepartmentSummaryProps {
@@ -62,7 +88,13 @@ const DepartmentSummary: React.FC<DepartmentSummaryProps> = ({
                 <Typography variant="body2" sx={{ color: '#fff' }}>
                   Overall Progress
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#fff' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#fff',
+                    animation: `${numberAnimation} 0.8s ease-out forwards`,
+                  }}
+                >
                   {Math.round((completedTasks / totalTasks) * 100)}%
                 </Typography>
               </Box>
@@ -75,6 +107,8 @@ const DepartmentSummary: React.FC<DepartmentSummaryProps> = ({
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   '& .MuiLinearProgress-bar': {
                     backgroundColor: '#4CAF50',
+                    animation: `${fillAnimation} 1.2s ease-out`,
+                    transformOrigin: 'left',
                   },
                 }}
               />
@@ -106,17 +140,27 @@ const DepartmentSummary: React.FC<DepartmentSummaryProps> = ({
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                     {performer.tasksCompleted} tasks completed
                   </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#fff',
+                      ...performer.sx?.completionRate 
+                    }}
+                  >
+                    {performer.completionRate}%
+                  </Typography>
                   <LinearProgress
                     variant="determinate"
                     value={performer.completionRate}
                     sx={{
-                      mt: 1,
-                      height: 4,
-                      borderRadius: 2,
+                      width: 100,
+                      height: 8,
+                      borderRadius: 4,
                       backgroundColor: 'rgba(255, 255, 255, 0.1)',
                       '& .MuiLinearProgress-bar': {
-                        backgroundColor: '#2196F3',
+                        backgroundColor: '#4CAF50',
                       },
+                      ...performer.sx?.progressBar,
                     }}
                   />
                 </Box>

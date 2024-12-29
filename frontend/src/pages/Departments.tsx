@@ -10,6 +10,7 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
+  keyframes,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -81,6 +82,26 @@ const mockTasks: {
 };
 
 const DRAWER_WIDTH = 240;
+
+const fillAnimation = keyframes`
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+`;
+
+const numberAnimation = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
 
 const Departments: React.FC = () => {
   const navigate = useNavigate();
@@ -267,7 +288,20 @@ const Departments: React.FC = () => {
                 completedTasks={12}
                 ongoingTasks={10}
                 upcomingTasks={8}
-                topPerformers={mockTopPerformers}
+                topPerformers={mockTopPerformers.map(performer => ({
+                  ...performer,
+                  sx: {
+                    completionRate: {
+                      animation: `${numberAnimation} 0.8s ease-out forwards`,
+                    },
+                    progressBar: {
+                      '& .MuiLinearProgress-bar': {
+                        animation: `${fillAnimation} 1.2s ease-out`,
+                        transformOrigin: 'left',
+                      },
+                    },
+                  },
+                }))}
               />
               <TasksSection
                 upcomingTasks={mockTasks.upcoming}
