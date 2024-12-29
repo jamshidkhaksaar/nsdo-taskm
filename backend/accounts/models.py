@@ -76,14 +76,21 @@ class Department(models.Model):
     )
     members_count = models.IntegerField(default=0)
     active_projects = models.IntegerField(default=0)
+    completed_projects = models.IntegerField(default=0)
+    total_members = models.IntegerField(default=0)
     completion_rate = models.FloatField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def update_stats(self):
-        # Update members count from the actual related users
-        self.members_count = self.users.count()
-        self.save(update_fields=['members_count'])
+        # Update department statistics
+        self.total_members = self.users.count()
+        # We'll update these when we implement projects
+        # self.active_projects = self.projects.filter(status='active').count()
+        # self.completed_projects = self.projects.filter(status='completed').count()
+        # if self.active_projects + self.completed_projects > 0:
+        #     self.completion_rate = (self.completed_projects * 100) / (self.active_projects + self.completed_projects)
+        self.save()
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

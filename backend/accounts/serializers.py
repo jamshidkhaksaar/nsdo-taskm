@@ -142,3 +142,20 @@ class DepartmentManagementSerializer(serializers.ModelSerializer):
     def get_members_count(self, obj):
         # Directly count the related users
         return obj.users.count() 
+
+class DashboardStatsSerializer(serializers.Serializer):
+    stats = serializers.DictField()
+    recent_activities = ActivityLogSerializer(many=True)
+    department_stats = serializers.ListField()
+    user_stats = serializers.DictField()
+
+    class Meta:
+        fields = ['stats', 'recent_activities', 'department_stats', 'user_stats']
+
+class DepartmentStatsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = [
+            'id', 'name', 'active_projects', 'completed_projects',
+            'total_members', 'completion_rate'
+        ] 

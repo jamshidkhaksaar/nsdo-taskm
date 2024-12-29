@@ -11,10 +11,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import User, Department, ActivityLog
-from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer
+from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Q
+from django.db.models import Q, Count
 from .utils import log_activity
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth.password_validation import validate_password
@@ -605,3 +605,103 @@ class DepartmentManagementViewSet(viewsets.ModelViewSet):
             ip_address=self.request.META.get('REMOTE_ADDR', '0.0.0.0')
         )
         instance.delete() 
+
+class DashboardViewSet(viewsets.ViewSet):
+    permission_classes = [IsAdminUser]
+
+    def list(self, request):
+        try:
+            # Get basic stats - exclude superuser from count
+            total_users = User.objects.exclude(is_superuser=True).count()
+            total_departments = Department.objects.count()
+            active_users = User.objects.filter(is_active=True).exclude(is_superuser=True).count()
+            
+            # Get recent activities
+            recent_activities = ActivityLog.objects.select_related('user').all()[:5]
+
+            # Get department statistics with prefetch_related for efficiency
+            departments = Department.objects.prefetch_related('users').all()
+            department_stats = []
+            for dept in departments:
+                dept_data = {
+                    'id': dept.id,
+                    'name': dept.name,
+                    'members_count': dept.users.count(),
+                    'active_projects': dept.active_projects,
+                    'completion_rate': dept.completion_rate
+                }
+                department_stats.append(dept_data)
+
+            # Get user activity stats by date
+            now = timezone.now()
+            last_30_days = now - timedelta(days=30)
+            user_activities = ActivityLog.objects.filter(
+                timestamp__gte=last_30_days
+            ).extra(
+                select={'date': 'DATE(timestamp)'}
+            ).values('date').annotate(
+                count=Count('id')
+            ).order_by('date')
+
+            # Format the response
+            response_data = {
+                'stats': {  # Wrap stats in a stats object
+                    'total_users': total_users,
+                    'total_departments': total_departments,
+                    'active_users': active_users,
+                    'total_projects': 0,  # Will be implemented with projects
+                },
+                'recent_activities': ActivityLogSerializer(recent_activities, many=True).data,
+                'department_stats': department_stats,
+                'user_stats': {
+                    'labels': [str(stat['date']) for stat in user_activities],
+                    'data': [stat['count'] for stat in user_activities]
+                }
+            }
+
+            print("Dashboard response:", response_data)  # Debug log
+            return Response(response_data)
+
+        except Exception as e:
+            print("Dashboard error:", str(e))  # Debug log
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def department_performance(self, request):
+        try:
+            departments = Department.objects.all()
+            serializer = DepartmentStatsSerializer(departments, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def user_activities(self, request):
+        try:
+            days = int(request.query_params.get('days', 30))
+            now = timezone.now()
+            start_date = now - timedelta(days=days)
+            
+            activities = ActivityLog.objects.filter(
+                timestamp__gte=start_date
+            ).extra(
+                select={'date': 'DATE(timestamp)'}
+            ).values('date').annotate(
+                count=Count('id')
+            ).order_by('date')
+
+            return Response({
+                'labels': [str(act['date']) for act in activities],
+                'data': [act['count'] for act in activities]
+            })
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) 
