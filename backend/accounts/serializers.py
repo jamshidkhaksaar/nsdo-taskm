@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Department, ActivityLog, SystemSettings
+from .models import Department, ActivityLog, SystemSettings, Backup
 
 User = get_user_model()
 
@@ -235,3 +235,14 @@ class APISettingsSerializer(serializers.ModelSerializer):
                 'API rate limit must be between 1 and 1000 requests per minute'
             )
         return value 
+
+class BackupSerializer(serializers.ModelSerializer):
+    created_by = serializers.StringRelatedField()
+    
+    class Meta:
+        model = Backup
+        fields = [
+            'id', 'name', 'timestamp', 'size', 'type',
+            'status', 'created_by', 'notes', 'error_message'
+        ]
+        read_only_fields = ['timestamp', 'created_by'] 

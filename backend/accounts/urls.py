@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import CustomTokenObtainPairView, UserViewSet, DepartmentViewSet, ActivityLogViewSet, UserManagementViewSet, DepartmentManagementViewSet, DashboardViewSet, SecuritySettingsViewSet, BackupSettingsViewSet, NotificationSettingsViewSet, APISettingsViewSet
+from .views import CustomTokenObtainPairView, UserViewSet, DepartmentViewSet, ActivityLogViewSet, UserManagementViewSet, DepartmentManagementViewSet, DashboardViewSet, SecuritySettingsViewSet, BackupSettingsViewSet, NotificationSettingsViewSet, APISettingsViewSet, BackupViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserManagementViewSet)
@@ -12,6 +12,7 @@ router.register(r'security-settings', SecuritySettingsViewSet, basename='securit
 router.register(r'backup-settings', BackupSettingsViewSet, basename='backup-settings')
 router.register(r'notification-settings', NotificationSettingsViewSet, basename='notification-settings')
 router.register(r'api-settings', APISettingsViewSet, basename='api-settings')
+router.register(r'backups', BackupViewSet, basename='backups')
 
 urlpatterns = [
     path('', include(router.urls)),

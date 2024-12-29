@@ -1,6 +1,6 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -10,16 +10,23 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import User, Department, ActivityLog, SystemSettings
-from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, APISettingsSerializer
+from .models import User, Department, ActivityLog, SystemSettings, Backup
+from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, APISettingsSerializer, BackupSerializer
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from django.db.models import Q, Count
 from .utils import log_activity
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.models import BaseUserManager
 from django.core.exceptions import ValidationError
+import os
+import shutil
+from django.conf import settings
+from rest_framework.parsers import MultiPartParser, JSONParser
+import json
+from django.forms import model_to_dict
+import re
 
 class LoginView(APIView):
     def post(self, request):
@@ -796,3 +803,447 @@ class APISettingsViewSet(viewsets.ModelViewSet):
     def regenerate_key(self, request):
         # Implement API key regeneration logic
         pass 
+
+class BackupViewSet(viewsets.ModelViewSet):
+    serializer_class = BackupSerializer
+    permission_classes = [IsAdminUser]
+    parser_classes = [MultiPartParser, JSONParser]
+
+    def get_queryset(self):
+        return Backup.objects.all()
+
+    @action(detail=False, methods=['post'])
+    def create_backup(self, request):
+        try:
+            # Add debug logging
+            print("Received backup request:", request.data)
+            print("Content type:", request.content_type)  # Debug content type
+            
+            # Get backup options from request
+            backup_type = request.data.get('type', 'full')
+            custom_path = request.data.get('customPath')
+            include_db = request.data.get('includeDatabases', True)
+            include_media = request.data.get('includeMedia', True)
+            include_settings = request.data.get('includeSettings', True)
+
+            print(f"Backup options: type={backup_type}, path={custom_path}, "
+                  f"db={include_db}, media={include_media}, settings={include_settings}")
+
+            # Validate backup type
+            if backup_type not in ['full', 'partial']:
+                return Response(
+                    {'error': 'Invalid backup type'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Validate and create backup directory
+            try:
+                if custom_path:
+                    # Normalize path for the current OS
+                    custom_path = os.path.normpath(custom_path)
+                    print(f"Normalized custom path: {custom_path}")
+                    
+                    # Validate path format
+                    if os.name == 'nt':  # Windows
+                        if not re.match(r'^[A-Za-z]:\\', custom_path):
+                            return Response(
+                                {'error': r'Invalid Windows path format. Please use the directory picker or enter a valid path'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    else:  # Unix/Linux
+                        if not custom_path.startswith('/'):
+                            return Response(
+                                {'error': 'Invalid Unix path format. Please use the directory picker or enter a valid path'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    
+                    # Test if directory is writable
+                    try:
+                        os.makedirs(custom_path, exist_ok=True)
+                        test_file = os.path.join(custom_path, '.test_write')
+                        with open(test_file, 'w') as f:
+                            f.write('test')
+                        os.remove(test_file)
+                    except (PermissionError, OSError) as e:
+                        return Response(
+                            {'error': f'Cannot write to selected directory: {str(e)}'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    
+                    backup_dir = os.path.join(custom_path, datetime.now().strftime('%Y%m%d_%H%M%S'))
+                else:
+                    backup_dir = os.path.join(settings.BACKUP_ROOT, datetime.now().strftime('%Y%m%d_%H%M%S'))
+
+                print(f"Creating backup directory: {backup_dir}")
+                os.makedirs(os.path.dirname(backup_dir), exist_ok=True)
+
+            except Exception as e:
+                print(f"Error creating backup directory: {str(e)}")
+                return Response(
+                    {'error': f'Failed to create backup directory: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # Create backup instance
+            try:
+                backup = Backup.objects.create(
+                    name=f"System Backup {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    type=backup_type,
+                    status='in_progress',
+                    file_path=backup_dir,
+                    created_by=request.user,
+                    size='0 B'
+                )
+                print(f"Created backup record: {backup.id}")
+
+            except Exception as e:
+                print(f"Error creating backup record: {str(e)}")
+                return Response(
+                    {'error': f'Failed to create backup record: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            try:
+                # Create backup directory
+                os.makedirs(backup_dir, exist_ok=True)
+
+                # Log backup start
+                log_activity(
+                    user=request.user,
+                    action='Backup Started',
+                    target=f'Backup: {backup.name}',
+                    details=f'Started {backup.type} backup',
+                    status='success',
+                    ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+                )
+
+                # Perform backup based on type and options
+                if backup_type == 'full' or include_db:
+                    self.backup_database(backup_dir)
+                
+                if backup_type == 'full' or include_media:
+                    self.backup_media_files(backup_dir)
+                
+                if backup_type == 'full' or include_settings:
+                    self.backup_settings(backup_dir)
+
+                # Create zip archive
+                try:
+                    archive_path = self.create_backup_archive(backup_dir)
+                    
+                    # Update backup details
+                    if os.path.exists(archive_path):
+                        size = os.path.getsize(archive_path)
+                        if size == 0:
+                            raise Exception("Backup archive has zero size")
+                        
+                        backup.file_path = archive_path
+                        backup.size = self.format_size(size)
+                        backup.status = 'completed'
+                        backup.save()
+                    else:
+                        raise Exception("Backup archive was not created")
+
+                    # Clean up temporary directory
+                    shutil.rmtree(backup_dir)
+
+                    # Log success
+                    log_activity(
+                        user=request.user,
+                        action='Backup Completed',
+                        target=f'Backup: {backup.name}',
+                        details=f'Completed {backup.type} backup',
+                        status='success',
+                        ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+                    )
+
+                    return Response({
+                        'message': 'Backup created successfully',
+                        'backup': self.get_serializer(backup).data
+                    })
+
+                except Exception as e:
+                    error_msg = f'Failed to create backup archive: {str(e)}'
+                    backup.status = 'failed'
+                    backup.error_message = error_msg
+                    backup.save()
+
+                    # Log failure
+                    log_activity(
+                        user=request.user,
+                        action='Backup Failed',
+                        target=f'Backup: {backup.name}',
+                        details=error_msg,
+                        status='error',
+                        ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+                    )
+
+                    return Response(
+                        {'error': error_msg},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+            except Exception as e:
+                error_msg = f'Backup process failed: {str(e)}'
+                backup.status = 'failed'
+                backup.error_message = error_msg
+                backup.save()
+
+                # Clean up on failure
+                if os.path.exists(backup_dir):
+                    shutil.rmtree(backup_dir)
+
+                # Log failure
+                log_activity(
+                    user=request.user,
+                    action='Backup Failed',
+                    target=f'Backup: {backup.name}',
+                    details=error_msg,
+                    status='error',
+                    ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+                )
+
+                return Response(
+                    {'error': error_msg},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        except Exception as e:
+            return Response(
+                {'error': f'Unexpected error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def backup_settings(self, backup_path):
+        """Backup system settings"""
+        try:
+            settings_path = os.path.join(backup_path, 'settings')
+            os.makedirs(settings_path, exist_ok=True)
+            
+            # Backup system settings
+            settings = SystemSettings.objects.first()
+            if settings:
+                with open(os.path.join(settings_path, 'system_settings.json'), 'w') as f:
+                    json.dump(model_to_dict(settings), f, indent=2)
+            
+            return True
+        except Exception as e:
+            print(f"Settings backup error: {str(e)}")
+            raise
+
+    def create_backup_archive(self, backup_path):
+        """Create a zip archive of the backup"""
+        try:
+            archive_name = f"{backup_path}.zip"
+            shutil.make_archive(backup_path, 'zip', backup_path)
+            
+            # Verify archive was created and has size
+            if not os.path.exists(archive_name):
+                raise Exception("Archive file was not created")
+            
+            size = os.path.getsize(archive_name)
+            if size == 0:
+                raise Exception("Created archive has zero size")
+            
+            print(f"Created archive: {archive_name}, size: {self.format_size(size)}")
+            return archive_name
+        except Exception as e:
+            print(f"Error creating backup archive: {str(e)}")
+            raise
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        backup = self.get_object()
+        try:
+            if backup.status != 'completed':
+                return Response(
+                    {'error': 'Cannot restore from incomplete backup'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Implement restore logic here
+            if backup.type == 'full':
+                self.restore_database(backup.file_path)
+                self.restore_media_files(backup.file_path)
+            else:
+                self.restore_database(backup.file_path)
+
+            return Response({'message': 'System restored successfully'})
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        backup = self.get_object()
+        try:
+            return FileResponse(
+                open(backup.file_path, 'rb'),
+                as_attachment=True,
+                filename=os.path.basename(backup.file_path)
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def backup_database(self, backup_path):
+        """Create a database backup using Django's dumpdata command"""
+        from django.core.management import call_command
+        import os
+
+        try:
+            # Create backup directory if it doesn't exist
+            os.makedirs(backup_path, exist_ok=True)
+            
+            # Backup path for database
+            db_backup_path = os.path.join(backup_path, 'db_backup.json')
+            
+            # Open file for writing
+            with open(db_backup_path, 'w') as f:
+                # Use Django's dumpdata command to backup the database
+                call_command('dumpdata', 
+                    exclude=['contenttypes', 'auth.permission'],
+                    indent=2,
+                    stdout=f
+                )
+            
+            return True
+        except Exception as e:
+            print(f"Database backup error: {str(e)}")
+            raise
+
+    def backup_media_files(self, backup_path):
+        """Backup media files using shutil"""
+        try:
+            # Ensure MEDIA_ROOT exists and is absolute
+            media_dir = os.path.abspath(settings.MEDIA_ROOT)
+            if not os.path.exists(media_dir):
+                os.makedirs(media_dir)
+                print(f"Created media directory at: {media_dir}")
+
+            backup_media_path = os.path.join(backup_path, 'media')
+            print(f"Backup media path: {backup_media_path}")
+            
+            # Create media backup directory
+            os.makedirs(backup_media_path, exist_ok=True)
+            
+            # Copy all files from media directory if it has any files
+            if os.path.exists(media_dir) and os.listdir(media_dir):
+                print(f"Copying files from {media_dir} to {backup_media_path}")
+                for item in os.listdir(media_dir):
+                    source = os.path.join(media_dir, item)
+                    dest = os.path.join(backup_media_path, item)
+                    if os.path.isdir(source):
+                        shutil.copytree(source, dest, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(source, dest)
+            else:
+                print(f"No files found in media directory: {media_dir}")
+                # Create an empty media directory in the backup
+                os.makedirs(backup_media_path, exist_ok=True)
+            
+            return True
+        except Exception as e:
+            print(f"Media backup error: {str(e)}")
+            print(f"MEDIA_ROOT: {settings.MEDIA_ROOT}")
+            print(f"Current working directory: {os.getcwd()}")
+            raise
+
+    def restore_database(self, backup_path):
+        """Restore database from backup"""
+        from django.core.management import call_command
+        import os
+
+        try:
+            # Database backup file path
+            db_backup_path = os.path.join(backup_path, 'db_backup.json')
+            
+            if not os.path.exists(db_backup_path):
+                raise FileNotFoundError("Database backup file not found")
+            
+            # Flush existing database
+            call_command('flush', interactive=False)
+            
+            # Load data from backup
+            call_command('loaddata', db_backup_path)
+            
+            return True
+        except Exception as e:
+            print(f"Database restore error: {str(e)}")
+            raise
+
+    def restore_media_files(self, backup_path):
+        """Restore media files from backup"""
+        import shutil
+        import os
+
+        try:
+            backup_media_path = os.path.join(backup_path, 'media')
+            media_dir = settings.MEDIA_ROOT
+            
+            if not os.path.exists(backup_media_path):
+                raise FileNotFoundError("Media backup directory not found")
+            
+            # Clear existing media directory
+            shutil.rmtree(media_dir, ignore_errors=True)
+            os.makedirs(media_dir, exist_ok=True)
+            
+            # Copy all files from backup
+            for item in os.listdir(backup_media_path):
+                source = os.path.join(backup_media_path, item)
+                dest = os.path.join(media_dir, item)
+                if os.path.isdir(source):
+                    shutil.copytree(source, dest, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(source, dest)
+            
+            return True
+        except Exception as e:
+            print(f"Media restore error: {str(e)}")
+            raise
+
+    def get_directory_size(self, path):
+        """Calculate total size of a directory"""
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                total_size += os.path.getsize(fp)
+        return total_size
+
+    def format_size(self, size):
+        """Format size in bytes to human readable format"""
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size < 1024:
+                return f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} PB"
+
+    def create_backup_archive(self, backup_path):
+        """Create a zip archive of the backup"""
+        try:
+            archive_name = f"{backup_path}.zip"
+            shutil.make_archive(backup_path, 'zip', backup_path)
+            
+            # Verify archive was created and has size
+            if not os.path.exists(archive_name):
+                raise Exception("Archive file was not created")
+            
+            size = os.path.getsize(archive_name)
+            if size == 0:
+                raise Exception("Created archive has zero size")
+            
+            print(f"Created archive: {archive_name}, size: {self.format_size(size)}")
+            return archive_name
+        except Exception as e:
+            print(f"Error creating backup archive: {str(e)}")
+            raise
+
+    def extract_backup_archive(self, archive_path, extract_path):
+        """Extract backup archive"""
+        import shutil
+        shutil.unpack_archive(archive_path, extract_path) 
