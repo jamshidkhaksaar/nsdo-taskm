@@ -11,8 +11,8 @@ import {
   useTheme,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { login } from '../services/api';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
+import axios from '../utils/axios';
 import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
@@ -35,9 +35,11 @@ const loginSchema = z.object({
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [formError, setFormError] = useState('');
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -81,16 +83,23 @@ const Login: React.FC = () => {
     try {
       setFormError('');
       dispatch(loginStart());
-      const response = await login(data.username, data.password);
-      dispatch(loginSuccess({
-        user: response.user,
-        token: response.token
-      }));
-      navigate('/dashboard');
-    } catch (err) {
+      const response = await axios.post('/api/auth/login/', {
+        username: data.username,
+        password: data.password,
+      });
+
+      if (response.data.access) {
+        dispatch(loginSuccess({
+          user: response.data.user,
+          token: response.data.access
+        }));
+        navigate(from, { replace: true });
+      }
+    } catch (err: any) {
       console.error('Login error:', err);
-      dispatch(loginFailure('Invalid username or password'));
-      setFormError('Invalid username or password');
+      const errorMessage = err.response?.data?.error || 'Invalid username or password';
+      dispatch(loginFailure(errorMessage));
+      setFormError(errorMessage);
     }
   };
 

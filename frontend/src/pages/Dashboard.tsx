@@ -25,8 +25,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import PersonIcon from '@mui/icons-material/Person';
 import LoadingScreen from '../components/LoadingScreen';
 import { AppDispatch, RootState } from '../store';
-import { logout } from '../services/api';
-import { logoutSuccess } from '../store/slices/authSlice';
+import { logout } from '../store/slices/authSlice';
 import { keyframes } from '@mui/system';
 import { format } from 'date-fns';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
@@ -491,10 +490,9 @@ const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
-      await logout();
-      dispatch(logoutSuccess());
+      dispatch(logout());
       navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);

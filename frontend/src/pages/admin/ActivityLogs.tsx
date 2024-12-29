@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Grid,
   Card,
@@ -15,74 +15,42 @@ import {
   Box,
   Chip,
   IconButton,
-  Menu,
   MenuItem,
   Select,
   FormControl,
   InputLabel,
+  Button,
+  Tooltip,
+  CircularProgress,
+  Alert,
+  Paper,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import AdminLayout from '../../layouts/AdminLayout';
+import axios from '../../utils/axios';
 
 interface ActivityLog {
   id: string;
-  user: string;
+  user: string | null;
   action: string;
   target: string;
   timestamp: string;
-  ipAddress: string;
+  ip_address: string;
   status: 'success' | 'warning' | 'error';
   details: string;
 }
-
-const mockLogs: ActivityLog[] = [
-  {
-    id: '1',
-    user: 'John Doe',
-    action: 'User Login',
-    target: 'System',
-    timestamp: '2024-03-15 10:30:45',
-    ipAddress: '192.168.1.100',
-    status: 'success',
-    details: 'Successful login from Chrome browser',
-  },
-  {
-    id: '2',
-    user: 'Jane Smith',
-    action: 'Update Task',
-    target: 'Task #123',
-    timestamp: '2024-03-15 10:25:30',
-    ipAddress: '192.168.1.101',
-    status: 'warning',
-    details: 'Changed task deadline',
-  },
-  {
-    id: '3',
-    user: 'Mike Johnson',
-    action: 'Delete User',
-    target: 'User #456',
-    timestamp: '2024-03-15 10:20:15',
-    ipAddress: '192.168.1.102',
-    status: 'error',
-    details: 'Unauthorized deletion attempt',
-  },
-];
 
 const ActivityLogs: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [timeRange, setTimeRange] = useState('24h');
   const [actionFilter, setActionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
+  const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const getStatusColor = (status: ActivityLog['status']) => {
     switch (status) {
@@ -90,6 +58,72 @@ const ActivityLogs: React.FC = () => {
       case 'warning': return 'warning';
       case 'error': return 'error';
       default: return 'default';
+    }
+  };
+
+  const fetchLogs = React.useCallback(async () => {
+    try {
+      setError(null);
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (timeRange !== 'all') params.append('time_range', timeRange);
+      if (actionFilter !== 'all') params.append('action', actionFilter);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+
+      console.log('Fetching logs with params:', params.toString());
+      console.log('Authorization token:', localStorage.getItem('token'));
+
+      const response = await axios.get(`/api/activity-logs/?${params.toString()}`);
+      console.log('Received logs:', response.data);
+      setLogs(response.data);
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      setError('Failed to fetch activity logs. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, timeRange, actionFilter, statusFilter]);
+
+  useEffect(() => {
+    if (localStorage.getItem('token')) {
+      fetchLogs();
+    }
+  }, [fetchLogs]);
+
+  const handleDeleteLog = async (logId: string) => {
+    try {
+      await axios.delete(`/api/activity-logs/${logId}/`);
+      await fetchLogs();
+    } catch (error) {
+      console.error('Error deleting log:', error);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLogs.length === 0) return;
+
+    try {
+      await axios.post('/api/activity-logs/bulk_delete/', {
+        log_ids: selectedLogs
+      });
+      setSelectedLogs([]);
+      await fetchLogs();
+    } catch (error) {
+      console.error('Error deleting logs:', error);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm('Are you sure you want to delete all logs? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await axios.post('/api/activity-logs/delete_all/');
+      await fetchLogs();
+    } catch (error) {
+      console.error('Error deleting all logs:', error);
     }
   };
 
@@ -193,70 +227,111 @@ const ActivityLogs: React.FC = () => {
         </CardContent>
       </Card>
 
-      <TableContainer component={Card} sx={{
+      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+        {selectedLogs.length > 0 && (
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleBulkDelete}
+            startIcon={<DeleteIcon />}
+          >
+            Delete Selected ({selectedLogs.length})
+          </Button>
+        )}
+        
+        <Tooltip title="Delete all logs">
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteAll}
+            startIcon={<DeleteSweepIcon />}
+          >
+            Delete All Logs
+          </Button>
+        </Tooltip>
+      </Box>
+
+      <Paper component={Card} sx={{
         background: 'rgba(255, 255, 255, 0.1)',
         backdropFilter: 'blur(8px)',
         border: '1px solid rgba(255, 255, 255, 0.18)',
+        position: 'relative',
       }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ color: '#fff' }}>Timestamp</TableCell>
-              <TableCell sx={{ color: '#fff' }}>User</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Action</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Target</TableCell>
-              <TableCell sx={{ color: '#fff' }}>IP Address</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Status</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Details</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {mockLogs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell sx={{ color: '#fff' }}>{log.timestamp}</TableCell>
-                <TableCell sx={{ color: '#fff' }}>{log.user}</TableCell>
-                <TableCell sx={{ color: '#fff' }}>{log.action}</TableCell>
-                <TableCell sx={{ color: '#fff' }}>{log.target}</TableCell>
-                <TableCell sx={{ color: '#fff' }}>{log.ipAddress}</TableCell>
-                <TableCell>
-                  <Chip
-                    label={log.status}
-                    color={getStatusColor(log.status)}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell sx={{ color: '#fff' }}>{log.details}</TableCell>
-                <TableCell>
-                  <IconButton
-                    onClick={handleMenuOpen}
-                    sx={{ color: '#fff' }}
-                  >
-                    <MoreVertIcon />
-                  </IconButton>
-                </TableCell>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ color: '#fff' }}>Timestamp</TableCell>
+                <TableCell sx={{ color: '#fff' }}>User</TableCell>
+                <TableCell sx={{ color: '#fff' }}>Action</TableCell>
+                <TableCell sx={{ color: '#fff' }}>Target</TableCell>
+                <TableCell sx={{ color: '#fff' }}>IP Address</TableCell>
+                <TableCell sx={{ color: '#fff' }}>Status</TableCell>
+                <TableCell sx={{ color: '#fff' }}>Details</TableCell>
+                <TableCell sx={{ color: '#fff' }}>Actions</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center">
+                    <CircularProgress size={24} />
+                  </TableCell>
+                </TableRow>
+              ) : logs.length === 0 ? (
+                <TableRow>
+                  <TableCell 
+                    colSpan={8} 
+                    align="center"
+                    sx={{ color: '#fff', py: 4 }}
+                  >
+                    No logs found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                logs.map((log) => (
+                  <TableRow 
+                    key={log.id}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      }
+                    }}
+                  >
+                    <TableCell sx={{ color: '#fff' }}>{log.timestamp}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>{log.user}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>{log.action}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>{log.target}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>{log.ip_address}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={log.status}
+                        color={getStatusColor(log.status)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell sx={{ color: '#fff' }}>{log.details}</TableCell>
+                    <TableCell>
+                      <IconButton
+                        onClick={() => handleDeleteLog(log.id)}
+                        sx={{ color: '#fff' }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        PaperProps={{
-          sx: {
-            background: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            color: '#fff',
-          },
-        }}
-      >
-        <MenuItem onClick={handleMenuClose}>View Details</MenuItem>
-        <MenuItem onClick={handleMenuClose}>Export Log</MenuItem>
-      </Menu>
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {error}
+        </Alert>
+      )}
     </AdminLayout>
   );
 };
