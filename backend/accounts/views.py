@@ -10,8 +10,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import User, Department, ActivityLog
-from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer
+from .models import User, Department, ActivityLog, SystemSettings
+from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, APISettingsSerializer
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q, Count
@@ -705,3 +705,94 @@ class DashboardViewSet(viewsets.ViewSet):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             ) 
+
+class SecuritySettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = SecuritySettingsSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        # Get or create settings object
+        settings, _ = SystemSettings.objects.get_or_create(pk=1)
+        return settings
+
+    def update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            
+            # Save with user and IP information
+            serializer.save(
+                user=request.user,
+                ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+            )
+
+            # Apply settings immediately
+            self.apply_security_settings(serializer.validated_data)
+
+            return Response({
+                'message': 'Security settings updated successfully',
+                'settings': serializer.data
+            })
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def apply_security_settings(self, settings):
+        """Apply security settings to the system"""
+        from django.conf import settings as django_settings
+        
+        # Update session timeout
+        if 'session_timeout_minutes' in settings:
+            django_settings.SESSION_COOKIE_AGE = settings['session_timeout_minutes'] * 60
+
+        # Update password settings
+        if 'password_complexity_required' in settings:
+            # You might want to update password validators here
+            pass
+
+        # Update login attempt settings
+        if 'max_login_attempts' in settings:
+            # You might want to configure your authentication backend
+            pass 
+
+class BackupSettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = BackupSettingsSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        settings, _ = SystemSettings.objects.get_or_create(pk=1)
+        return settings
+
+    @action(detail=False, methods=['post'])
+    def trigger_backup(self, request):
+        # Implement backup logic here
+        pass
+
+class NotificationSettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSettingsSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        settings, _ = SystemSettings.objects.get_or_create(pk=1)
+        return settings
+
+    @action(detail=False, methods=['post'])
+    def test_email(self, request):
+        # Implement email test logic here
+        pass
+
+class APISettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = APISettingsSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        settings, _ = SystemSettings.objects.get_or_create(pk=1)
+        return settings
+
+    @action(detail=False, methods=['post'])
+    def regenerate_key(self, request):
+        # Implement API key regeneration logic
+        pass 

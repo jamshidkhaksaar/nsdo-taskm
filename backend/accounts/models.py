@@ -141,3 +141,60 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.action} - {self.timestamp}" 
+
+class SystemSettings(models.Model):
+    # Security Settings
+    two_factor_enabled = models.BooleanField(default=False)
+    password_expiry_days = models.IntegerField(default=90)
+    max_login_attempts = models.IntegerField(default=5)
+    lockout_duration_minutes = models.IntegerField(default=30)
+    password_complexity_required = models.BooleanField(default=True)
+    session_timeout_minutes = models.IntegerField(default=60)
+
+    # Backup Settings
+    auto_backup_enabled = models.BooleanField(default=True)
+    backup_frequency_hours = models.IntegerField(default=24)
+    backup_retention_days = models.IntegerField(default=30)
+    last_backup_at = models.DateTimeField(null=True, blank=True)
+    backup_location = models.CharField(max_length=255, default='backups/')
+
+    # Notification Settings
+    email_notifications_enabled = models.BooleanField(default=True)
+    smtp_server = models.CharField(max_length=255, default='smtp.example.com')
+    smtp_port = models.IntegerField(default=587)
+    smtp_username = models.CharField(max_length=255, blank=True)
+    smtp_password = models.CharField(max_length=255, blank=True)
+    smtp_use_tls = models.BooleanField(default=True)
+
+    # API Settings
+    api_enabled = models.BooleanField(default=True)
+    api_key = models.CharField(max_length=64, blank=True)
+    api_rate_limit = models.IntegerField(default=100)  # Requests per minute
+    api_allowed_ips = models.TextField(blank=True)  # Comma-separated list of IPs
+
+    # Add a timestamp for tracking changes
+    last_updated = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='system_settings_updates'
+    )
+
+    class Meta:
+        verbose_name = 'System Settings'
+        verbose_name_plural = 'System Settings'
+
+    def save(self, *args, **kwargs):
+        # Log the settings update
+        from .utils import log_activity
+        action = 'System Settings Updated'
+        log_activity(
+            user=kwargs.get('user'),
+            action=action,
+            target='Security Settings',
+            details='Security settings were updated',
+            status='success',
+            ip_address=kwargs.get('ip_address', '0.0.0.0')
+        )
+        super().save(*args, **kwargs) 

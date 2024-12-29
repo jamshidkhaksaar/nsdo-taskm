@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Department, ActivityLog
+from .models import Department, ActivityLog, SystemSettings
 
 User = get_user_model()
 
@@ -159,3 +159,79 @@ class DepartmentStatsSerializer(serializers.ModelSerializer):
             'id', 'name', 'active_projects', 'completed_projects',
             'total_members', 'completion_rate'
         ] 
+
+class SecuritySettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'two_factor_enabled',
+            'password_expiry_days',
+            'max_login_attempts',
+            'lockout_duration_minutes',
+            'password_complexity_required',
+            'session_timeout_minutes',
+            'last_updated'
+        ]
+
+    def validate_password_expiry_days(self, value):
+        if value < 1 or value > 365:
+            raise serializers.ValidationError(
+                'Password expiry must be between 1 and 365 days'
+            )
+        return value
+
+    def validate_max_login_attempts(self, value):
+        if value < 1 or value > 10:
+            raise serializers.ValidationError(
+                'Max login attempts must be between 1 and 10'
+            )
+        return value 
+
+class BackupSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'auto_backup_enabled',
+            'backup_frequency_hours',
+            'backup_retention_days',
+            'last_backup_at',
+            'backup_location'
+        ]
+
+    def validate_backup_frequency_hours(self, value):
+        if value < 1 or value > 168:  # Max 1 week
+            raise serializers.ValidationError(
+                'Backup frequency must be between 1 and 168 hours'
+            )
+        return value
+
+class NotificationSettingsSerializer(serializers.ModelSerializer):
+    smtp_password = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'email_notifications_enabled',
+            'smtp_server',
+            'smtp_port',
+            'smtp_username',
+            'smtp_password',
+            'smtp_use_tls'
+        ]
+
+class APISettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'api_enabled',
+            'api_key',
+            'api_rate_limit',
+            'api_allowed_ips'
+        ]
+
+    def validate_api_rate_limit(self, value):
+        if value < 1 or value > 1000:
+            raise serializers.ValidationError(
+                'API rate limit must be between 1 and 1000 requests per minute'
+            )
+        return value 
