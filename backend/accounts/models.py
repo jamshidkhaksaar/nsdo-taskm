@@ -198,3 +198,58 @@ class SystemSettings(models.Model):
             ip_address=kwargs.get('ip_address', '0.0.0.0')
         )
         super().save(*args, **kwargs) 
+
+class Backup(models.Model):
+    STATUS_CHOICES = [
+        ('completed', 'Completed'),
+        ('in_progress', 'In Progress'),
+        ('failed', 'Failed')
+    ]
+    
+    TYPE_CHOICES = [
+        ('full', 'Full'),
+        ('partial', 'Partial')
+    ]
+
+    name = models.CharField(max_length=255)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    size = models.CharField(max_length=20)  # Store size as string (e.g., "2.5 GB")
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    file_path = models.CharField(max_length=255)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='backups'
+    )
+    notes = models.TextField(blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.name} ({self.timestamp})"
+
+    def delete(self, *args, **kwargs):
+        # Delete the actual backup file
+        import os
+        if os.path.exists(self.file_path):
+            try:
+                os.remove(self.file_path)
+            except Exception as e:
+                print(f"Error deleting backup file: {e}")
+        
+        # Log the deletion
+        from .utils import log_activity
+        log_activity(
+            user=kwargs.get('user'),
+            action='Backup Deleted',
+            target=f'Backup: {self.name}',
+            details=f'Backup file deleted: {self.file_path}',
+            status='success',
+            ip_address=kwargs.get('ip_address', '0.0.0.0')
+        )
+        
+        super().delete(*args, **kwargs) 
