@@ -3,6 +3,7 @@ export interface User {
   username: string;
   email: string;
   role: 'user' | 'admin';
+  avatar?: string;
 }
 
 export interface APIError {
@@ -36,4 +37,12 @@ export interface JWTResponse {
 
 export interface RootState {
   auth: AuthState;
+}
+
+export interface UserDetail {
+  id: number;
+  username: string;
+  email: string;
+  role: 'user' | 'admin';
+  avatar?: string;
 } 
