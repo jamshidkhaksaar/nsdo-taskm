@@ -1,19 +1,28 @@
+import axios from '../utils/axios';
+
+// Initialize auth token from localStorage if it exists
+const token = localStorage.getItem('token');
+if (token) {
+  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+}
+
 export const login = async (username: string, password: string) => {
-  const response = await fetch('http://localhost:8000/api/auth/login/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  try {
+    const response = await axios.post('/api/auth/login/', {
       username,
       password,
-    }),
-  });
+    });
 
-  if (!response.ok) {
+    if (response.data.access && response.data.refresh) {
+      localStorage.setItem('token', response.data.access);
+      localStorage.setItem('refreshToken', response.data.refresh);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
+    }
+
+    return response.data;
+  } catch (error) {
     throw new Error('Login failed');
   }
+};
 
-  const data = await response.json();
-  return data;
-}; 
+export { logout } from '../utils/authUtils';

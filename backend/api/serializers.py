@@ -1,4 +1,29 @@
 from rest_framework import serializers
+from rest_framework import serializers
+from .models import Backup
+
+class BackupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Backup
+        fields = [
+            'id',
+            'created_at',
+            'file',
+            'description',
+            'size',
+            'is_restored'
+        ]
+        read_only_fields = [
+            'id',
+            'created_at',
+            'size',
+            'is_restored'
+        ]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['file'] = instance.file.url if instance.file else None
+        return representation
 from .models import Board, List, Card
 
 class CardSerializer(serializers.ModelSerializer):
@@ -19,4 +44,3 @@ class BoardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Board
-        fields = ['id', 'title', 'owner', 'lists', 'created_at', 'updated_at'] 
