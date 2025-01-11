@@ -1,13 +1,122 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from django.db.models import Q as models
+from accounts.models import User
+from .serializers import UserSerializer
+from accounts.permissions import IsDepartmentAdmin
 from django.core.files.base import ContentFile
 from django.utils import timezone
 import os
 import zipfile
 import io
-from .models import Backup
-from .serializers import BackupSerializer
+from .models import Backup, Task
+from .serializers import BackupSerializer, TaskSerializer
+from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['email', 'role', 'departments']
+    search_fields = ['email', 'first_name', 'last_name']
+    ordering_fields = ['date_joined']
+    ordering = ['-date_joined']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset()
+        
+        # Admin users can see all users in their department
+        if user.is_staff:
+            queryset = queryset.filter(departments__in=user.departments.all())
+        else:
+            # Regular users can only see themselves
+            queryset = queryset.filter(id=user.id)
+            
+        return queryset
+
+class TaskViewSet(viewsets.ModelViewSet):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'department', 'assigned_to', 'is_private']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'due_date']
+    ordering = ['-created_at']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, IsDepartmentAdmin]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset()
+        
+        # Admin users can see all tasks in their department
+        if user.is_staff:
+            queryset = queryset.filter(department__in=user.departments.all())
+        else:
+            # Regular users can only see their own tasks
+            queryset = queryset.filter(
+                models.Q(created_by=user) | 
+                models.Q(assigned_to=user)
+            )
+        
+        # Filter by department if specified
+        department_id = self.request.query_params.get('department')
+        if department_id:
+            queryset = queryset.filter(department_id=department_id)
+            
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        task = self.get_object()
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            user = User.objects.get(id=user_id)
+            task.assigned_to = user
+            task.save()
+            return Response({'status': 'user assigned'})
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['post'])
+    def change_status(self, request, pk=None):
+        task = self.get_object()
+        new_status = request.data.get('status')
+        
+        if not new_status:
+            return Response(
+                {'error': 'status is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            task.status = new_status
+            task.save()
+            return Response({'status': 'status updated'})
+        except ValidationError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class BackupViewSet(viewsets.ModelViewSet):
     queryset = Backup.objects.all()

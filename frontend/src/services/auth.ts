@@ -8,7 +8,7 @@ if (token) {
 
 export const login = async (username: string, password: string) => {
   try {
-    const response = await axios.post('/api/auth/login/', {
+    const response = await axios.post('/api/auth/token/', {
       username,
       password,
     });

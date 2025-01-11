@@ -20,6 +20,7 @@ import UserList from '../components/users/UserList';
 import UserSummary from '../components/users/UserSummary';
 import TasksSection from '../components/departments/TasksSection';
 import Footer from '../components/Footer';
+import { Task } from '../types/task';
 
 const DRAWER_WIDTH = 240;
 
@@ -67,37 +68,56 @@ const mockUserDetails = {
   },
 };
 
-const mockTasks = {
+const mockTasks: {
+  upcoming: Task[];
+  ongoing: Task[];
+  completed: Task[];
+} = {
   upcoming: [
     {
       id: '1',
-      title: 'Design Review',
-      assignee: 'John Doe',
-      dueDate: '2024-03-20',
+      title: 'Review User Reports',
+      description: 'Review and analyze user activity reports for Q1',
+      createdBy: { id: '1', name: 'Admin' },
+      assignedTo: { id: '2', name: 'Jane Smith' },
+      department: { id: '1', name: 'Program' },
+      dueDate: '2024-03-25',
       priority: 'high' as const,
-      status: 'upcoming' as const,
-    },
+      status: 'todo' as const,
+      createdAt: '2024-03-01',
+      isPrivate: false
+    }
   ],
   ongoing: [
     {
       id: '2',
-      title: 'Frontend Development',
-      assignee: 'John Doe',
-      dueDate: '2024-03-15',
+      title: 'User Training Session',
+      description: 'Conduct training session for new system users',
+      createdBy: { id: '1', name: 'Admin' },
+      assignedTo: { id: '3', name: 'Mike Johnson' },
+      department: { id: '2', name: 'Planning Partnership' },
+      dueDate: '2024-03-20',
       priority: 'medium' as const,
-      status: 'ongoing' as const,
-    },
+      status: 'in_progress' as const,
+      createdAt: '2024-03-01',
+      isPrivate: false
+    }
   ],
   completed: [
     {
       id: '3',
-      title: 'Project Planning',
-      assignee: 'John Doe',
-      dueDate: '2024-03-10',
+      title: 'User Access Review',
+      description: 'Complete monthly user access review',
+      createdBy: { id: '1', name: 'Admin' },
+      assignedTo: { id: '4', name: 'Sarah Wilson' },
+      department: { id: '3', name: 'MEAL' },
+      dueDate: '2024-03-15',
       priority: 'low' as const,
-      status: 'completed' as const,
-    },
-  ],
+      status: 'done' as const,
+      createdAt: '2024-03-01',
+      isPrivate: false
+    }
+  ]
 };
 
 const fillAnimation = keyframes`
@@ -128,6 +148,10 @@ const Users: React.FC = () => {
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
+
+  const currentUserId = "1"; // Or get from auth context/state
+  const currentDepartmentId = selectedUser || "1"; // Use selected user as department ID
+  const viewMode = "user"; // Since this is the Users view
 
   const handleLogout = async () => {
     // Your logout logic
@@ -325,6 +349,9 @@ const Users: React.FC = () => {
                 ongoingTasks={mockTasks.ongoing}
                 completedTasks={mockTasks.completed}
                 onAddTask={() => console.log('Add task clicked')}
+                currentUserId={currentUserId}
+                currentDepartmentId={currentDepartmentId}
+                viewMode={viewMode}
               />
             </Grid>
           </Grid>

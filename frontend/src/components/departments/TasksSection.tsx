@@ -14,38 +14,63 @@ import WorkIcon from '@mui/icons-material/Work';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 
-interface Task {
-  id: string;
-  title: string;
-  assignee: string;
-  dueDate: string;
-  priority: 'high' | 'medium' | 'low';
-  status: 'upcoming' | 'ongoing' | 'completed';
-}
+import { Task } from '../../types/task';
 
 interface TasksSectionProps {
-  upcomingTasks: Task[];
-  ongoingTasks: Task[];
-  completedTasks: Task[];
+  tasks?: Task[];
+  currentUserId: string;
+  currentDepartmentId: string;
+  viewMode: 'department' | 'user' | 'assigned';
   onAddTask?: () => void;
+  onTaskClick?: (task: Task) => void;
+  showAddButton?: boolean;
+  // Allow alternative task grouping
+  upcomingTasks?: Task[];
+  ongoingTasks?: Task[];
+  completedTasks?: Task[];
 }
 
 const TasksSection: React.FC<TasksSectionProps> = ({
-  upcomingTasks,
-  ongoingTasks,
-  completedTasks,
+  tasks,
+  currentUserId,
+  currentDepartmentId,
+  viewMode,
   onAddTask,
+  onTaskClick,
+  upcomingTasks: propsUpcomingTasks,
+  ongoingTasks: propsOngoingTasks,
+  completedTasks: propsCompletedTasks
 }) => {
+  // Use provided grouped tasks or filter from main tasks array
+  const upcomingTasks = propsUpcomingTasks || 
+    (tasks ? tasks.filter(task => 
+      task.status === 'todo' && 
+      new Date(task.dueDate) > new Date()
+    ) : []);
+  
+  const ongoingTasks = propsOngoingTasks || 
+    (tasks ? tasks.filter(task => 
+      task.status === 'in_progress' || 
+      (task.status === 'todo' && new Date(task.dueDate) <= new Date())
+    ) : []);
+  
+  const completedTasks = propsCompletedTasks || 
+    (tasks ? tasks.filter(task => task.status === 'done') : []);
+
   const TaskBox = ({ 
     title, 
     tasks, 
     icon, 
-    color 
+    color,
+    onTaskClick,
+    showAddButton
   }: { 
     title: string; 
     tasks: Task[]; 
     icon: React.ReactNode; 
-    color: string; 
+    color: string;
+    onTaskClick?: (task: Task) => void;
+    showAddButton?: boolean;
   }) => (
     <Card
       sx={{
@@ -95,14 +120,19 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                   background: 'rgba(255, 255, 255, 0.05)',
                   borderRadius: 1,
                   p: 2,
+                  cursor: 'pointer',
+                  '&:hover': {
+                    background: 'rgba(255, 255, 255, 0.1)',
+                  },
                 }}
+                onClick={() => onTaskClick?.(task)}
               >
                 <Typography variant="subtitle2" sx={{ color: '#fff', mb: 1 }}>
                   {task.title}
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    Assigned to: {task.assignee}
+                    Assigned to: {task.assignedTo.name}
                   </Typography>
                   <Typography
                     variant="caption"
@@ -139,6 +169,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
           tasks={upcomingTasks}
           icon={<DateRangeIcon sx={{ color: '#fff' }} />}
           color="#2196F3"
+          onTaskClick={onTaskClick}
         />
       </Grid>
       <Grid item xs={12} md={4}>
@@ -147,6 +178,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
           tasks={ongoingTasks}
           icon={<WorkIcon sx={{ color: '#fff' }} />}
           color="#FF9800"
+          onTaskClick={onTaskClick}
         />
       </Grid>
       <Grid item xs={12} md={4}>
@@ -155,10 +187,11 @@ const TasksSection: React.FC<TasksSectionProps> = ({
           tasks={completedTasks}
           icon={<CheckCircleIcon sx={{ color: '#fff' }} />}
           color="#4CAF50"
+          onTaskClick={onTaskClick}
         />
       </Grid>
     </Grid>
   );
 };
 
-export default TasksSection; 
+export default TasksSection;

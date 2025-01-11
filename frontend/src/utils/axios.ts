@@ -42,7 +42,7 @@ instance.interceptors.response.use(
         }
         
         const response = await axios.post(
-          'http://localhost:8000/api/auth/refresh/',
+          '/api/auth/token/refresh/',
           { refresh: refreshToken }
         );
         

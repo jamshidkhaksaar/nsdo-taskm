@@ -20,16 +20,7 @@ import DepartmentList from '../components/departments/DepartmentList';
 import DepartmentSummary from '../components/departments/DepartmentSummary';
 import TasksSection from '../components/departments/TasksSection';
 import Footer from '../components/Footer';
-
-// Import or define the Task type
-interface Task {
-  id: string;
-  title: string;
-  assignee: string;
-  dueDate: string;
-  priority: 'high' | 'medium' | 'low';
-  status: 'upcoming' | 'ongoing' | 'completed';
-}
+import { Task } from '../types/task';
 
 // Mock data with proper typing
 const mockDepartments = [
@@ -53,30 +44,45 @@ const mockTasks: {
     {
       id: '1',
       title: 'Review Q3 Reports',
-      assignee: 'John Doe',
+      description: '',
+      createdBy: { id: '1', name: 'Admin' },
+      assignedTo: { id: '1', name: 'John Doe' },
+      department: { id: '1', name: 'Program' },
       dueDate: '2024-03-20',
-      priority: 'high' as const,
-      status: 'upcoming' as const,
+      priority: 'high',
+      status: 'todo',
+      createdAt: '2024-03-01',
+      isPrivate: false
     },
   ],
   ongoing: [
     {
       id: '2',
       title: 'Prepare Monthly Summary',
-      assignee: 'Jane Smith',
+      description: '',
+      createdBy: { id: '1', name: 'Admin' },
+      assignedTo: { id: '2', name: 'Jane Smith' },
+      department: { id: '1', name: 'Program' },
       dueDate: '2024-03-15',
-      priority: 'medium' as const,
-      status: 'ongoing' as const,
+      priority: 'medium',
+      status: 'in_progress',
+      createdAt: '2024-03-01',
+      isPrivate: false
     },
   ],
   completed: [
     {
       id: '3',
       title: 'Team Meeting Minutes',
-      assignee: 'Mike Johnson',
+      description: '',
+      createdBy: { id: '1', name: 'Admin' },
+      assignedTo: { id: '3', name: 'Mike Johnson' },
+      department: { id: '1', name: 'Program' },
       dueDate: '2024-03-10',
-      priority: 'low' as const,
-      status: 'completed' as const,
+      priority: 'low',
+      status: 'done',
+      createdAt: '2024-03-01',
+      isPrivate: false
     },
   ],
 };
@@ -130,6 +136,10 @@ const Departments: React.FC = () => {
   const handleProfileClose = () => {
     setAnchorEl(null);
   };
+
+  const currentUserId = "1";
+  const currentDepartmentId = selectedDepartment || "1";
+  const viewMode = "department";
 
   return (
     <Box sx={{ 
@@ -308,6 +318,9 @@ const Departments: React.FC = () => {
                 ongoingTasks={mockTasks.ongoing}
                 completedTasks={mockTasks.completed}
                 onAddTask={() => console.log('Add task clicked')}
+                currentUserId={currentUserId}
+                currentDepartmentId={currentDepartmentId}
+                viewMode={viewMode}
               />
             </Grid>
           </Grid>
@@ -319,4 +332,4 @@ const Departments: React.FC = () => {
   );
 };
 
-export default Departments; 
+export default Departments;
