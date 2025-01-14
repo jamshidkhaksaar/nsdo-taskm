@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import {
   Box,
   Container,
@@ -11,6 +12,7 @@ import {
   MenuItem,
   ListItemIcon,
   keyframes,
+  CircularProgress,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -21,61 +23,9 @@ import DepartmentSummary from '../components/departments/DepartmentSummary';
 import TasksSection from '../components/departments/TasksSection';
 import Footer from '../components/Footer';
 import { Task } from '../types/task';
-
-// Mock data with proper typing
-const mockDepartments = [
-  { id: '1', name: 'Program', tasksCount: 15 },
-  { id: '2', name: 'Planning Partnership', tasksCount: 8 },
-  { id: '3', name: 'MEAL', tasksCount: 12 },
-];
-
-const mockTopPerformers = [
-  { id: '1', name: 'John Doe', tasksCompleted: 25, completionRate: 85 },
-  { id: '2', name: 'Jane Smith', tasksCompleted: 20, completionRate: 75 },
-  { id: '3', name: 'Mike Johnson', tasksCompleted: 18, completionRate: 70 },
-];
-
-const mockTasks = [
-  {
-    id: '1',
-    title: 'Review Q3 Reports',
-    description: '',
-    created_by: { id: '1', username: 'Admin' },
-    assigned_to: { id: '1', username: 'John Doe' },
-    department: { id: '1', name: 'Program' },
-    due_date: '2024-03-20',
-    priority: 'high' as const,
-    status: 'todo' as const,
-    created_at: '2024-03-01',
-    is_private: false,
-  },
-  {
-    id: '2',
-    title: 'Prepare Monthly Summary',
-    description: '',
-    created_by: { id: '1', username: 'Admin' },
-    assigned_to: { id: '2', username: 'Jane Smith' },
-    department: { id: '1', name: 'Program' },
-    due_date: '2024-03-15',
-    priority: 'medium' as const,
-    status: 'in_progress' as const,
-    created_at: '2024-03-01',
-    is_private: false,
-  },
-  {
-    id: '3',
-    title: 'Team Meeting Minutes',
-    description: '',
-    created_by: { id: '1', username: 'Admin' },
-    assigned_to: { id: '3', username: 'Mike Johnson' },
-    department: { id: '1', name: 'Program' },
-    due_date: '2024-03-10',
-    priority: 'low' as const,
-    status: 'done' as const,
-    created_at: '2024-03-01',
-    is_private: false,
-  },
-];
+import { DepartmentService } from '../services/department';
+import { TaskService } from '../services/task';
+import { RootState } from '../store';
 
 const DRAWER_WIDTH = 240;
 
@@ -101,10 +51,51 @@ const numberAnimation = keyframes`
 
 const Departments: React.FC = () => {
   const navigate = useNavigate();
+  const [open, setOpen] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [open, setOpen] = useState(true);
+
+  // Add new state for real data
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [topPerformers, setTopPerformers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const currentUser = useSelector((state: RootState) => state.auth.user);
+
+  // Fetch departments and tasks
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch departments
+        const departmentsResponse = await DepartmentService.getDepartments();
+        setDepartments(departmentsResponse);
+
+        // If a department is selected, fetch its tasks and performance metrics
+        if (selectedDepartment) {
+          const [tasksResponse, performanceResponse] = await Promise.all([
+            TaskService.getTasksByDepartment(selectedDepartment),
+            DepartmentService.getDepartmentPerformance(selectedDepartment)
+          ]);
+          
+          setTasks(tasksResponse);
+          setTopPerformers(performanceResponse.topPerformers || []);
+        }
+      } catch (err) {
+        setError('Failed to fetch data. Please try again later.');
+        console.error('Error fetching data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedDepartment]);
 
   const handleLogout = () => {
     // Handle logout
@@ -122,12 +113,12 @@ const Departments: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const handleTaskClick = (task: Task) => {
+  const handleTaskClick = async (task: Task) => {
     console.log('Task clicked:', task);
   };
 
   // Filter tasks based on selected department
-  const filteredTasks = mockTasks.filter(task => 
+  const filteredTasks = tasks.filter(task => 
     task.department?.id === selectedDepartment
   );
 
@@ -143,6 +134,39 @@ const Departments: React.FC = () => {
   const completedTasks = filteredTasks.filter(task => 
     task.status === 'done'
   );
+
+  if (isLoading) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh' 
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          color: 'error.main' 
+        }}
+      >
+        {error}
+      </Box>
+    );
+  }
+
+  const selectedDepartmentData = departments.find(d => d.id === selectedDepartment);
 
   return (
     <Box sx={{ 
@@ -289,39 +313,26 @@ const Departments: React.FC = () => {
           <Grid container spacing={3}>
             <Grid item xs={12} md={3}>
               <DepartmentList
-                departments={mockDepartments}
+                departments={departments}
                 selectedDepartment={selectedDepartment}
                 onSelectDepartment={setSelectedDepartment}
               />
             </Grid>
             <Grid item xs={12} md={9}>
               <DepartmentSummary
-                departmentName={mockDepartments.find(d => d.id === selectedDepartment)?.name || 'All Departments'}
-                totalTasks={30}
-                completedTasks={12}
-                ongoingTasks={10}
-                upcomingTasks={8}
-                topPerformers={mockTopPerformers.map(performer => ({
-                  ...performer,
-                  sx: {
-                    completionRate: {
-                      animation: `${numberAnimation} 0.8s ease-out forwards`,
-                    },
-                    progressBar: {
-                      '& .MuiLinearProgress-bar': {
-                        animation: `${fillAnimation} 1.2s ease-out`,
-                        transformOrigin: 'left',
-                      },
-                    },
-                  },
-                }))}
+                departmentName={selectedDepartmentData?.name || 'All Departments'}
+                totalTasks={filteredTasks.length}
+                completedTasks={completedTasks.length}
+                ongoingTasks={ongoingTasks.length}
+                upcomingTasks={upcomingTasks.length}
+                topPerformers={topPerformers}
               />
               <TasksSection
                 tasks={filteredTasks}
                 upcomingTasks={upcomingTasks}
                 ongoingTasks={ongoingTasks}
                 completedTasks={completedTasks}
-                currentUserId=""
+                currentUserId={currentUser?.id?.toString() || ''}
                 currentDepartmentId={selectedDepartment || ''}
                 viewMode="department"
                 onTaskClick={handleTaskClick}

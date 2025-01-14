@@ -12,27 +12,31 @@ import {
 
 interface UserSummaryProps {
   user: {
-    name: string;
+    username: string;
+    first_name?: string;
+    last_name?: string;
     role: string;
     avatar?: string;
     totalTasks: number;
     completedTasks: number;
     ongoingTasks: number;
-    upcomingTasks: number;
     completionRate: number;
-    tasksByPriority: {
-      high: number;
-      medium: number;
-      low: number;
-    };
     sx?: {
       completionRate?: React.CSSProperties;
       progressBar?: SxProps;
     };
-  };
+  } | null;
 }
 
 const UserSummary: React.FC<UserSummaryProps> = ({ user }) => {
+  if (!user) {
+    return null;
+  }
+
+  const displayName = user.first_name && user.last_name 
+    ? `${user.first_name} ${user.last_name}` 
+    : user.username;
+
   return (
     <Card
       sx={{
@@ -47,14 +51,14 @@ const UserSummary: React.FC<UserSummaryProps> = ({ user }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <Avatar
             src={user.avatar}
-            alt={user.name}
+            alt={displayName}
             sx={{ width: 64, height: 64 }}
           >
-            {user.name.charAt(0)}
+            {user.first_name ? user.first_name.charAt(0) : user.username.charAt(0)}
           </Avatar>
           <Box>
             <Typography variant="h5" sx={{ color: '#fff' }}>
-              {user.name}
+              {displayName}
             </Typography>
             <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
               {user.role}
@@ -99,26 +103,26 @@ const UserSummary: React.FC<UserSummaryProps> = ({ user }) => {
             <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h6" sx={{ color: '#ff3d00' }}>
-                  {user.tasksByPriority.high}
+                  {user.ongoingTasks}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                  High Priority
+                  Ongoing Tasks
                 </Typography>
               </Box>
               <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" sx={{ color: '#ffd740' }}>
-                  {user.tasksByPriority.medium}
+                <Typography variant="h6" sx={{ color: '#4CAF50' }}>
+                  {user.completedTasks}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                  Medium Priority
+                  Completed Tasks
                 </Typography>
               </Box>
               <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" sx={{ color: '#69f0ae' }}>
-                  {user.tasksByPriority.low}
+                <Typography variant="h6" sx={{ color: '#2196F3' }}>
+                  {user.totalTasks}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                  Low Priority
+                  Total Tasks
                 </Typography>
               </Box>
             </Box>

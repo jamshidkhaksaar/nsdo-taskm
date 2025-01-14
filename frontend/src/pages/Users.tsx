@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import {
   Box,
   Container,
@@ -11,6 +12,7 @@ import {
   MenuItem,
   ListItemIcon,
   keyframes,
+  CircularProgress,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -21,94 +23,11 @@ import UserSummary from '../components/users/UserSummary';
 import TasksSection from '../components/departments/TasksSection';
 import Footer from '../components/Footer';
 import { Task } from '../types/task';
+import { UserService } from '../services/user';
+import { TaskService } from '../services/task';
+import { RootState } from '../store';
 
 const DRAWER_WIDTH = 240;
-
-// Mock data
-const mockUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'Project Manager',
-    tasksCount: 12,
-    avatar: '',
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    role: 'Developer',
-    tasksCount: 8,
-    avatar: '',
-  },
-  {
-    id: '3',
-    name: 'Mike Johnson',
-    email: 'mike@example.com',
-    role: 'Designer',
-    tasksCount: 5,
-    avatar: '',
-  },
-];
-
-const mockUserDetails = {
-  name: 'John Doe',
-  role: 'Project Manager',
-  avatar: '',
-  totalTasks: 12,
-  completedTasks: 5,
-  ongoingTasks: 4,
-  upcomingTasks: 3,
-  completionRate: 75,
-  tasksByPriority: {
-    high: 3,
-    medium: 6,
-    low: 3,
-  },
-};
-
-const mockTasks = [
-  {
-    id: '1',
-    title: 'Review User Reports',
-    description: 'Review and analyze user activity reports for Q1',
-    created_by: { id: '1', username: 'Admin' },
-    assigned_to: { id: '2', username: 'Jane Smith' },
-    department: { id: '1', name: 'Program' },
-    due_date: '2024-03-25',
-    priority: 'high' as const,
-    status: 'todo' as const,
-    created_at: '2024-03-01',
-    is_private: false,
-  },
-  {
-    id: '2',
-    title: 'User Training Session',
-    description: 'Conduct training session for new system users',
-    created_by: { id: '1', username: 'Admin' },
-    assigned_to: { id: '3', username: 'Mike Johnson' },
-    department: { id: '2', name: 'Planning Partnership' },
-    due_date: '2024-03-20',
-    priority: 'medium' as const,
-    status: 'in_progress' as const,
-    created_at: '2024-03-01',
-    is_private: false,
-  },
-  {
-    id: '3',
-    title: 'User Access Review',
-    description: 'Complete monthly user access review',
-    created_by: { id: '1', username: 'Admin' },
-    assigned_to: { id: '4', username: 'Sarah Wilson' },
-    department: { id: '3', name: 'MEAL' },
-    due_date: '2024-03-15',
-    priority: 'low' as const,
-    status: 'done' as const,
-    created_at: '2024-03-01',
-    is_private: false,
-  },
-];
 
 const fillAnimation = keyframes`
   from {
@@ -139,6 +58,41 @@ const Users: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
 
+  // Add new state for real data
+  const [users, setUsers] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const currentUser = useSelector((state: RootState) => state.auth.user);
+
+  // Fetch users and tasks
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch users based on current user's department
+        const usersResponse = await UserService.getUsers();
+        setUsers(usersResponse);
+
+        // If a user is selected, fetch their tasks
+        if (selectedUser) {
+          const tasksResponse = await TaskService.getAssignedTasks(selectedUser);
+          setTasks(tasksResponse);
+        }
+      } catch (err) {
+        setError('Failed to fetch data. Please try again later.');
+        console.error('Error fetching data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedUser]);
+
   const handleLogout = async () => {
     // Your logout logic
   };
@@ -159,12 +113,12 @@ const Users: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const handleTaskClick = (task: Task) => {
+  const handleTaskClick = async (task: Task) => {
     console.log('Task clicked:', task);
   };
 
   // Filter tasks based on status and selected user
-  const filteredTasks = mockTasks.filter(task => 
+  const filteredTasks = tasks.filter(task => 
     task.assigned_to?.id === selectedUser || task.created_by.id === selectedUser
   );
 
@@ -180,6 +134,37 @@ const Users: React.FC = () => {
   const completedTasks = filteredTasks.filter(task => 
     task.status === 'done'
   );
+
+  if (isLoading) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh' 
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          color: 'error.main' 
+        }}
+      >
+        {error}
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ 
@@ -328,7 +313,7 @@ const Users: React.FC = () => {
           <Grid container spacing={3}>
             <Grid item xs={12} md={3}>
               <UserList
-                users={mockUsers}
+                users={users}
                 selectedUser={selectedUser}
                 onSelectUser={setSelectedUser}
                 searchQuery={searchQuery}
@@ -337,8 +322,14 @@ const Users: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={9}>
               <UserSummary 
-                user={{
-                  ...mockUserDetails,
+                user={selectedUser && users.length > 0 ? {
+                  ...users.find(u => u.id === selectedUser),
+                  totalTasks: filteredTasks.length,
+                  completedTasks: completedTasks.length,
+                  ongoingTasks: ongoingTasks.length,
+                  completionRate: filteredTasks.length > 0 
+                    ? Math.round((completedTasks.length / filteredTasks.length) * 100) 
+                    : 0,
                   sx: {
                     completionRate: {
                       animation: `${numberAnimation} 0.8s ease-out forwards`,
@@ -350,10 +341,10 @@ const Users: React.FC = () => {
                       },
                     },
                   },
-                }} 
+                } : null} 
               />
               <TasksSection
-                tasks={filteredTasks}
+                tasks={tasks}
                 upcomingTasks={upcomingTasks}
                 ongoingTasks={ongoingTasks}
                 completedTasks={completedTasks}

@@ -15,11 +15,13 @@ import SearchIcon from '@mui/icons-material/Search';
 
 interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
   avatar?: string;
   role: string;
-  tasksCount: number;
+  first_name?: string;
+  last_name?: string;
+  department?: string;
 }
 
 interface UserListProps {
@@ -110,19 +112,16 @@ const UserList: React.FC<UserListProps> = ({
             }}
           >
             <ListItemAvatar>
-              <Avatar src={user.avatar} alt={user.name}>
-                {user.name.charAt(0)}
+              <Avatar src={user.avatar} alt={user.username}>
+                {user.first_name ? user.first_name.charAt(0) : user.username.charAt(0)}
               </Avatar>
             </ListItemAvatar>
             <ListItemText
-              primary={user.name}
+              primary={user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username}
               secondary={
                 <Box component="span" sx={{ display: 'block' }}>
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                     {user.role}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'block' }}>
-                    {user.tasksCount} tasks
                   </Typography>
                 </Box>
               }

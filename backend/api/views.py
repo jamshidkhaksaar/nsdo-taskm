@@ -60,7 +60,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         
         # Admin users can see all tasks in their department
         if user.is_staff:
-            queryset = queryset.filter(department__in=user.departments.all())
+            queryset = queryset.filter(department=user.department)
         else:
             # Regular users can only see their own tasks
             queryset = queryset.filter(
