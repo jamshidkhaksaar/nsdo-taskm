@@ -45,13 +45,13 @@ const TasksSection: React.FC<TasksSectionProps> = ({
   const upcomingTasks = propsUpcomingTasks || 
     (tasks ? tasks.filter(task => 
       task.status === 'todo' && 
-      new Date(task.dueDate) > new Date()
+      new Date(task.due_date) > new Date()
     ) : []);
   
   const ongoingTasks = propsOngoingTasks || 
     (tasks ? tasks.filter(task => 
       task.status === 'in_progress' || 
-      (task.status === 'todo' && new Date(task.dueDate) <= new Date())
+      (task.status === 'todo' && new Date(task.due_date) <= new Date())
     ) : []);
   
   const completedTasks = propsCompletedTasks || 
@@ -132,7 +132,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    Assigned to: {task.assignedTo.name}
+                    Assigned to: {task.assigned_to?.username || 'Unassigned'}
                   </Typography>
                   <Typography
                     variant="caption"
@@ -151,7 +151,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                   </Typography>
                 </Box>
                 <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'block', mt: 1 }}>
-                  Due: {task.dueDate}
+                  Due: {task.due_date}
                 </Typography>
               </Box>
             ))}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -11,11 +11,15 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
+import axios from '../../utils/axios';
 
 interface Note {
   id: string;
   content: string;
   color: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
 }
 
 const COLORS = [
@@ -30,29 +34,75 @@ const StickyNotes: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newNoteContent, setNewNoteContent] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const addNote = () => {
-    if (newNoteContent.trim()) {
-      const newNote: Note = {
-        id: Date.now().toString(),
-        content: newNoteContent,
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      };
-      setNotes([...notes, newNote]);
-      setNewNoteContent('');
+  // Fetch notes on component mount
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  const fetchNotes = async () => {
+    try {
+      const response = await axios.get('/api/notes/');
+      setNotes(response.data);
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const deleteNote = (id: string) => {
-    setNotes(notes.filter(note => note.id !== id));
+  const addNote = async () => {
+    if (newNoteContent.trim()) {
+      try {
+        const newNote = {
+          content: newNoteContent,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        };
+        const response = await axios.post('/api/notes/', newNote);
+        setNotes([...notes, response.data]);
+        setNewNoteContent('');
+      } catch (error) {
+        console.error('Error adding note:', error);
+      }
+    }
   };
 
-  const updateNote = (id: string, content: string) => {
-    setNotes(notes.map(note => 
-      note.id === id ? { ...note, content } : note
-    ));
-    setEditingId(null);
+  const deleteNote = async (id: string) => {
+    try {
+      await axios.delete(`/api/notes/${id}/`);
+      setNotes(notes.filter(note => note.id !== id));
+    } catch (error) {
+      console.error('Error deleting note:', error);
+    }
   };
+
+  const updateNote = async (id: string, content: string) => {
+    try {
+      const noteToUpdate = notes.find(note => note.id === id);
+      if (!noteToUpdate) return;
+
+      const response = await axios.patch(`/api/notes/${id}/`, {
+        content,
+        color: noteToUpdate.color,
+      });
+      
+      setNotes(notes.map(note => 
+        note.id === id ? response.data : note
+      ));
+      setEditingId(null);
+    } catch (error) {
+      console.error('Error updating note:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography>Loading notes...</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box

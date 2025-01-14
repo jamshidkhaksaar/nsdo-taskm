@@ -35,57 +35,47 @@ const mockTopPerformers = [
   { id: '3', name: 'Mike Johnson', tasksCompleted: 18, completionRate: 70 },
 ];
 
-const mockTasks: {
-  upcoming: Task[];
-  ongoing: Task[];
-  completed: Task[];
-} = {
-  upcoming: [
-    {
-      id: '1',
-      title: 'Review Q3 Reports',
-      description: '',
-      createdBy: { id: '1', name: 'Admin' },
-      assignedTo: { id: '1', name: 'John Doe' },
-      department: { id: '1', name: 'Program' },
-      dueDate: '2024-03-20',
-      priority: 'high',
-      status: 'todo',
-      createdAt: '2024-03-01',
-      isPrivate: false
-    },
-  ],
-  ongoing: [
-    {
-      id: '2',
-      title: 'Prepare Monthly Summary',
-      description: '',
-      createdBy: { id: '1', name: 'Admin' },
-      assignedTo: { id: '2', name: 'Jane Smith' },
-      department: { id: '1', name: 'Program' },
-      dueDate: '2024-03-15',
-      priority: 'medium',
-      status: 'in_progress',
-      createdAt: '2024-03-01',
-      isPrivate: false
-    },
-  ],
-  completed: [
-    {
-      id: '3',
-      title: 'Team Meeting Minutes',
-      description: '',
-      createdBy: { id: '1', name: 'Admin' },
-      assignedTo: { id: '3', name: 'Mike Johnson' },
-      department: { id: '1', name: 'Program' },
-      dueDate: '2024-03-10',
-      priority: 'low',
-      status: 'done',
-      createdAt: '2024-03-01',
-      isPrivate: false
-    },
-  ],
-};
+const mockTasks = [
+  {
+    id: '1',
+    title: 'Review Q3 Reports',
+    description: '',
+    created_by: { id: '1', username: 'Admin' },
+    assigned_to: { id: '1', username: 'John Doe' },
+    department: { id: '1', name: 'Program' },
+    due_date: '2024-03-20',
+    priority: 'high' as const,
+    status: 'todo' as const,
+    created_at: '2024-03-01',
+    is_private: false,
+  },
+  {
+    id: '2',
+    title: 'Prepare Monthly Summary',
+    description: '',
+    created_by: { id: '1', username: 'Admin' },
+    assigned_to: { id: '2', username: 'Jane Smith' },
+    department: { id: '1', name: 'Program' },
+    due_date: '2024-03-15',
+    priority: 'medium' as const,
+    status: 'in_progress' as const,
+    created_at: '2024-03-01',
+    is_private: false,
+  },
+  {
+    id: '3',
+    title: 'Team Meeting Minutes',
+    description: '',
+    created_by: { id: '1', username: 'Admin' },
+    assigned_to: { id: '3', username: 'Mike Johnson' },
+    department: { id: '1', name: 'Program' },
+    due_date: '2024-03-10',
+    priority: 'low' as const,
+    status: 'done' as const,
+    created_at: '2024-03-01',
+    is_private: false,
+  },
+];
 
 const DRAWER_WIDTH = 240;
 
@@ -111,18 +101,13 @@ const numberAnimation = keyframes`
 
 const Departments: React.FC = () => {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const openMenu = Boolean(anchorEl);
+  const [open, setOpen] = useState(true);
 
-  const handleLogout = async () => {
-    // Your logout logic
-  };
-
-  const toggleDrawer = () => {
-    setOpen(!open);
+  const handleLogout = () => {
+    // Handle logout
   };
 
   const handleNotificationClick = () => {
@@ -137,9 +122,27 @@ const Departments: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const currentUserId = "1";
-  const currentDepartmentId = selectedDepartment || "1";
-  const viewMode = "department";
+  const handleTaskClick = (task: Task) => {
+    console.log('Task clicked:', task);
+  };
+
+  // Filter tasks based on selected department
+  const filteredTasks = mockTasks.filter(task => 
+    task.department?.id === selectedDepartment
+  );
+
+  const upcomingTasks = filteredTasks.filter(task => 
+    task.status === 'todo' && new Date(task.due_date) > new Date()
+  );
+  
+  const ongoingTasks = filteredTasks.filter(task => 
+    task.status === 'in_progress' || 
+    (task.status === 'todo' && new Date(task.due_date) <= new Date())
+  );
+  
+  const completedTasks = filteredTasks.filter(task => 
+    task.status === 'done'
+  );
 
   return (
     <Box sx={{ 
@@ -167,7 +170,7 @@ const Departments: React.FC = () => {
     }}>
       <Sidebar
         open={open}
-        onToggleDrawer={toggleDrawer}
+        onToggleDrawer={() => setOpen(!open)}
         onLogout={handleLogout}
       />
 
@@ -247,7 +250,7 @@ const Departments: React.FC = () => {
 
             <Menu
               anchorEl={anchorEl}
-              open={openMenu}
+              open={Boolean(anchorEl)}
               onClose={handleProfileClose}
               onClick={handleProfileClose}
               PaperProps={{
@@ -314,13 +317,14 @@ const Departments: React.FC = () => {
                 }))}
               />
               <TasksSection
-                upcomingTasks={mockTasks.upcoming}
-                ongoingTasks={mockTasks.ongoing}
-                completedTasks={mockTasks.completed}
-                onAddTask={() => console.log('Add task clicked')}
-                currentUserId={currentUserId}
-                currentDepartmentId={currentDepartmentId}
-                viewMode={viewMode}
+                tasks={filteredTasks}
+                upcomingTasks={upcomingTasks}
+                ongoingTasks={ongoingTasks}
+                completedTasks={completedTasks}
+                currentUserId=""
+                currentDepartmentId={selectedDepartment || ''}
+                viewMode="department"
+                onTaskClick={handleTaskClick}
               />
             </Grid>
           </Grid>

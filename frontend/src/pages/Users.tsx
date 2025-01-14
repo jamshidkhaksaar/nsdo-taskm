@@ -68,57 +68,47 @@ const mockUserDetails = {
   },
 };
 
-const mockTasks: {
-  upcoming: Task[];
-  ongoing: Task[];
-  completed: Task[];
-} = {
-  upcoming: [
-    {
-      id: '1',
-      title: 'Review User Reports',
-      description: 'Review and analyze user activity reports for Q1',
-      createdBy: { id: '1', name: 'Admin' },
-      assignedTo: { id: '2', name: 'Jane Smith' },
-      department: { id: '1', name: 'Program' },
-      dueDate: '2024-03-25',
-      priority: 'high' as const,
-      status: 'todo' as const,
-      createdAt: '2024-03-01',
-      isPrivate: false
-    }
-  ],
-  ongoing: [
-    {
-      id: '2',
-      title: 'User Training Session',
-      description: 'Conduct training session for new system users',
-      createdBy: { id: '1', name: 'Admin' },
-      assignedTo: { id: '3', name: 'Mike Johnson' },
-      department: { id: '2', name: 'Planning Partnership' },
-      dueDate: '2024-03-20',
-      priority: 'medium' as const,
-      status: 'in_progress' as const,
-      createdAt: '2024-03-01',
-      isPrivate: false
-    }
-  ],
-  completed: [
-    {
-      id: '3',
-      title: 'User Access Review',
-      description: 'Complete monthly user access review',
-      createdBy: { id: '1', name: 'Admin' },
-      assignedTo: { id: '4', name: 'Sarah Wilson' },
-      department: { id: '3', name: 'MEAL' },
-      dueDate: '2024-03-15',
-      priority: 'low' as const,
-      status: 'done' as const,
-      createdAt: '2024-03-01',
-      isPrivate: false
-    }
-  ]
-};
+const mockTasks = [
+  {
+    id: '1',
+    title: 'Review User Reports',
+    description: 'Review and analyze user activity reports for Q1',
+    created_by: { id: '1', username: 'Admin' },
+    assigned_to: { id: '2', username: 'Jane Smith' },
+    department: { id: '1', name: 'Program' },
+    due_date: '2024-03-25',
+    priority: 'high' as const,
+    status: 'todo' as const,
+    created_at: '2024-03-01',
+    is_private: false,
+  },
+  {
+    id: '2',
+    title: 'User Training Session',
+    description: 'Conduct training session for new system users',
+    created_by: { id: '1', username: 'Admin' },
+    assigned_to: { id: '3', username: 'Mike Johnson' },
+    department: { id: '2', name: 'Planning Partnership' },
+    due_date: '2024-03-20',
+    priority: 'medium' as const,
+    status: 'in_progress' as const,
+    created_at: '2024-03-01',
+    is_private: false,
+  },
+  {
+    id: '3',
+    title: 'User Access Review',
+    description: 'Complete monthly user access review',
+    created_by: { id: '1', username: 'Admin' },
+    assigned_to: { id: '4', username: 'Sarah Wilson' },
+    department: { id: '3', name: 'MEAL' },
+    due_date: '2024-03-15',
+    priority: 'low' as const,
+    status: 'done' as const,
+    created_at: '2024-03-01',
+    is_private: false,
+  },
+];
 
 const fillAnimation = keyframes`
   from {
@@ -149,10 +139,6 @@ const Users: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
 
-  const currentUserId = "1"; // Or get from auth context/state
-  const currentDepartmentId = selectedUser || "1"; // Use selected user as department ID
-  const viewMode = "user"; // Since this is the Users view
-
   const handleLogout = async () => {
     // Your logout logic
   };
@@ -172,6 +158,28 @@ const Users: React.FC = () => {
   const handleProfileClose = () => {
     setAnchorEl(null);
   };
+
+  const handleTaskClick = (task: Task) => {
+    console.log('Task clicked:', task);
+  };
+
+  // Filter tasks based on status and selected user
+  const filteredTasks = mockTasks.filter(task => 
+    task.assigned_to?.id === selectedUser || task.created_by.id === selectedUser
+  );
+
+  const upcomingTasks = filteredTasks.filter(task => 
+    task.status === 'todo' && new Date(task.due_date) > new Date()
+  );
+  
+  const ongoingTasks = filteredTasks.filter(task => 
+    task.status === 'in_progress' || 
+    (task.status === 'todo' && new Date(task.due_date) <= new Date())
+  );
+  
+  const completedTasks = filteredTasks.filter(task => 
+    task.status === 'done'
+  );
 
   return (
     <Box sx={{ 
@@ -345,13 +353,14 @@ const Users: React.FC = () => {
                 }} 
               />
               <TasksSection
-                upcomingTasks={mockTasks.upcoming}
-                ongoingTasks={mockTasks.ongoing}
-                completedTasks={mockTasks.completed}
-                onAddTask={() => console.log('Add task clicked')}
-                currentUserId={currentUserId}
-                currentDepartmentId={currentDepartmentId}
-                viewMode={viewMode}
+                tasks={filteredTasks}
+                upcomingTasks={upcomingTasks}
+                ongoingTasks={ongoingTasks}
+                completedTasks={completedTasks}
+                currentUserId={selectedUser || ''}
+                currentDepartmentId=""
+                viewMode="user"
+                onTaskClick={handleTaskClick}
               />
             </Grid>
           </Grid>

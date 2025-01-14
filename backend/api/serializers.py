@@ -1,8 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
-from rest_framework import serializers
 from accounts.models import User
-from .models import Backup
+from .models import Backup, Task, Note
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,7 +39,6 @@ class BackupSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         representation['file'] = instance.file.url if instance.file else None
         return representation
-from .models import Board, List, Card, Task
 
 class TaskSerializer(serializers.ModelSerializer):
     created_by = serializers.StringRelatedField(read_only=True)
@@ -101,21 +99,17 @@ class TaskSerializer(serializers.ModelSerializer):
             )
         return super().update(instance, validated_data)
 
-class CardSerializer(serializers.ModelSerializer):
+class NoteSerializer(serializers.ModelSerializer):
+    created_by = serializers.StringRelatedField(read_only=True)
+    
     class Meta:
-        model = Card
-        fields = ['id', 'title', 'description', 'list', 'order', 'created_at', 'updated_at']
-
-class ListSerializer(serializers.ModelSerializer):
-    cards = CardSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = List
-        fields = ['id', 'title', 'board', 'order', 'cards', 'created_at']
-
-class BoardSerializer(serializers.ModelSerializer):
-    lists = ListSerializer(many=True, read_only=True)
-    owner = serializers.ReadOnlyField(source='owner.username')
-
-    class Meta:
-        model = Board
+        model = Note
+        fields = [
+            'id',
+            'content',
+            'color',
+            'created_by',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'created_by']

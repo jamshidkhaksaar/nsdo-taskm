@@ -11,8 +11,8 @@ from django.utils import timezone
 import os
 import zipfile
 import io
-from .models import Backup, Task
-from .serializers import BackupSerializer, TaskSerializer
+from .models import Backup, Task, Note
+from .serializers import BackupSerializer, TaskSerializer, NoteSerializer
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -199,3 +199,13 @@ class BackupViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class NoteViewSet(viewsets.ModelViewSet):
+    serializer_class = NoteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Note.objects.filter(created_by=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)

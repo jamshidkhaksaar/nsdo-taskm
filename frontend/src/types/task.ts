@@ -2,21 +2,21 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  createdBy: {
+  created_at: string;
+  due_date: string;
+  status: 'todo' | 'in_progress' | 'done';
+  created_by: {
     id: string;
-    name: string;
+    username: string;
   };
-  assignedTo: {
+  assigned_to: {
     id: string;
-    name: string;
-  };
+    username: string;
+  } | null;
   department: {
     id: string;
     name: string;
-  };
-  dueDate: string;
+  } | null;
+  is_private: boolean;
   priority: 'high' | 'medium' | 'low';
-  status: 'todo' | 'in_progress' | 'done';
-  createdAt: string;
-  isPrivate: boolean;
 }

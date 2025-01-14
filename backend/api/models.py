@@ -78,3 +78,22 @@ class Backup(models.Model):
             if os.path.isfile(self.file.path):
                 os.remove(self.file.path)
         super().delete(*args, **kwargs)
+
+class Note(models.Model):
+    content = models.TextField()
+    color = models.CharField(max_length=50)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notes'
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Note'
+        verbose_name_plural = 'Notes'
+
+    def __str__(self):
+        return f"Note by {self.created_by.username} ({self.created_at.strftime('%Y-%m-%d')})"
