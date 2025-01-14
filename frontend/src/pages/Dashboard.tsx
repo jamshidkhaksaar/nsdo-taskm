@@ -49,6 +49,7 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import Sidebar from '../components/Sidebar';
 import Footer from '../components/Footer';
 import TaskTabs from '../components/tasks/TaskTabs';
+import StickyNotes from '../components/dashboard/StickyNotes';
 
 const DRAWER_WIDTH = 240;
 
@@ -642,44 +643,113 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      position: 'relative',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
+      backgroundAttachment: 'fixed',
+      backgroundSize: 'cover',
+      '&::before': {
+        content: '""',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundImage: `
+          url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.3)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/svg%3E")
+        `,
+        backgroundSize: '40px 40px',
+        opacity: 0.5,
+        pointerEvents: 'none',
+        zIndex: 0,
+      },
+    }}>
       <Sidebar
         open={open}
         onToggleDrawer={toggleDrawer}
         onLogout={handleLogout}
         drawerWidth={DRAWER_WIDTH}
       />
+      
+      <Box
+        sx={{
+          position: 'fixed',
+          left: open ? `${DRAWER_WIDTH}px` : '73px',
+          top: '80px',
+          bottom: '20px',
+          width: '280px',
+          transition: theme.transitions.create('left', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
+          zIndex: 2,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '10px',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+            display: 'none',
+          },
+          '&:hover::-webkit-scrollbar': {
+            display: 'block',
+            visibility: 'hidden',
+          },
+          '&:hover::-webkit-scrollbar:vertical': {
+            visibility: 'visible',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '10px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(255, 255, 255, 0.2)',
+            borderRadius: '10px',
+            '&:hover': {
+              background: 'rgba(255, 255, 255, 0.3)',
+            },
+          },
+          '@media (hover: none)': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+          },
+        }}
+      >
+        <StickyNotes />
+      </Box>
+
       <Box
         component="main"
         sx={{
-          backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#121212',
           flexGrow: 1,
+          p: 3,
           minHeight: '100vh',
-          overflow: 'auto',
           position: 'relative',
+          zIndex: 1,
+          pl: { sm: '320px' },
+          transition: theme.transitions.create('padding', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
         }}
       >
-        {error && (
-          <Box sx={{ 
-            p: 2, 
-            bgcolor: 'error.main',
-            color: 'error.contrastText',
-            position: 'fixed',
-            top: 0,
-            width: '100%',
-            zIndex: 9999
-          }}>
-            {error}
-          </Box>
-        )}
-        <Container 
-          maxWidth="lg" 
-          sx={{ 
-            mt: { xs: 2, sm: 4 }, 
-            mb: { xs: 2, sm: 4 },
-            px: { xs: 1, sm: 2, md: 3 }, // Adjust padding for different screen sizes
-          }}
-        >
+        <Container maxWidth="xl">
+          {error && (
+            <Box sx={{ 
+              p: 2, 
+              bgcolor: 'error.dark',
+              color: 'error.contrastText',
+              position: 'fixed',
+              top: 0,
+              width: '100%',
+              zIndex: 9999,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+            }}>
+              {error}
+            </Box>
+          )}
           <Box 
             sx={{ 
               display: 'flex', 
@@ -697,11 +767,8 @@ const Dashboard: React.FC = () => {
                 background: 'rgba(255, 255, 255, 0.1)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid rgba(255, 255, 255, 0.18)',
-                animation: notifications > 0 ? `${shakeAnimation} 1s ease-in-out infinite` : 'none',
-                animationPlayState: 'running',
                 transition: 'all 0.2s ease-in-out',
                 '&:hover': {
-                  animationPlayState: 'paused',
                   background: 'rgba(255, 255, 255, 0.2)',
                   transform: 'scale(1.05)',
                 },
@@ -843,17 +910,24 @@ const Dashboard: React.FC = () => {
                     background: 'rgba(255, 255, 255, 0.1)',
                     backdropFilter: 'blur(8px)',
                     border: '1px solid rgba(255, 255, 255, 0.18)',
+                    boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
                     mb: 3,
                   }}
                 >
-                  <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                  <CardContent>
                     <Box sx={{ 
                       display: 'flex', 
                       justifyContent: 'space-between', 
                       alignItems: 'center',
-                      mb: 2 
+                      mb: 2
                     }}>
-                      <Typography variant="h6" sx={{ color: '#fff' }}>
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          color: '#fff',
+                          fontWeight: 500,
+                        }}
+                      >
                         My Tasks
                       </Typography>
                       <Button
@@ -867,7 +941,7 @@ const Dashboard: React.FC = () => {
                           color: '#fff',
                           '&:hover': {
                             background: 'rgba(255, 255, 255, 0.2)',
-                            transform: 'translateY(-2px)',
+                            transform: 'scale(1.05)',
                           },
                           transition: 'all 0.2s ease-in-out',
                         }}
