@@ -1,22 +1,33 @@
+export type TaskPriority = 'low' | 'medium' | 'high';
+
 export interface Task {
   id: string;
   title: string;
   description: string;
-  created_at: string;
-  due_date: string;
   status: 'todo' | 'in_progress' | 'done';
-  created_by: {
-    id: string;
-    username: string;
-  };
+  priority: TaskPriority;
+  due_date: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
   assigned_to: {
     id: string;
     username: string;
+    email: string;
   } | null;
-  department: {
-    id: string;
-    name: string;
-  } | null;
+  department: string | null;
   is_private: boolean;
-  priority: 'high' | 'medium' | 'low';
+}
+
+export interface CreateTask {
+  title: string;
+  description: string;
+  status: 'todo' | 'in_progress' | 'done';
+  priority: TaskPriority;
+  due_date: string;
+  created_by: string | null;
+  assigned_to: string | null;
+  department: string | null;
+  is_private: boolean;
+  updated_at?: string;
 }

@@ -11,7 +11,6 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  keyframes,
   CircularProgress,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -28,26 +27,6 @@ import { TaskService } from '../services/task';
 import { RootState } from '../store';
 
 const DRAWER_WIDTH = 240;
-
-const fillAnimation = keyframes`
-  from {
-    width: 0%;
-  }
-  to {
-    width: 100%;
-  }
-`;
-
-const numberAnimation = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`;
 
 const Departments: React.FC = () => {
   const navigate = useNavigate();
@@ -78,13 +57,17 @@ const Departments: React.FC = () => {
 
         // If a department is selected, fetch its tasks and performance metrics
         if (selectedDepartment) {
+          const departmentId = parseInt(selectedDepartment, 10);
           const [tasksResponse, performanceResponse] = await Promise.all([
-            TaskService.getTasksByDepartment(selectedDepartment),
+            TaskService.getTasksByDepartment(departmentId),
             DepartmentService.getDepartmentPerformance(selectedDepartment)
           ]);
           
           setTasks(tasksResponse);
-          setTopPerformers(performanceResponse.topPerformers || []);
+          // Check if performanceResponse has the expected structure
+          if (performanceResponse && typeof performanceResponse === 'object' && 'topPerformers' in performanceResponse) {
+            setTopPerformers(performanceResponse.topPerformers || []);
+          }
         }
       } catch (err) {
         setError('Failed to fetch data. Please try again later.');
@@ -113,13 +96,9 @@ const Departments: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const handleTaskClick = async (task: Task) => {
-    console.log('Task clicked:', task);
-  };
-
   // Filter tasks based on selected department
   const filteredTasks = tasks.filter(task => 
-    task.department?.id === selectedDepartment
+    task.department?.toString() === selectedDepartment
   );
 
   const upcomingTasks = filteredTasks.filter(task => 
@@ -328,14 +307,12 @@ const Departments: React.FC = () => {
                 topPerformers={topPerformers}
               />
               <TasksSection
-                tasks={filteredTasks}
+                currentUserId={Number(currentUser?.id) || 0}
+                currentDepartmentId={selectedDepartment ? parseInt(selectedDepartment, 10) : 0}
+                viewMode="department"
                 upcomingTasks={upcomingTasks}
                 ongoingTasks={ongoingTasks}
                 completedTasks={completedTasks}
-                currentUserId={currentUser?.id?.toString() || ''}
-                currentDepartmentId={selectedDepartment || ''}
-                viewMode="department"
-                onTaskClick={handleTaskClick}
               />
             </Grid>
           </Grid>

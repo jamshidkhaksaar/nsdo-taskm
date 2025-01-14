@@ -88,7 +88,7 @@ class Note(models.Model):
         related_name='notes'
     )
     created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-created_at']

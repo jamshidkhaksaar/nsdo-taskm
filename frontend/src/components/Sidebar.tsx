@@ -78,9 +78,10 @@ interface SidebarProps {
   open: boolean;
   onToggleDrawer: () => void;
   onLogout: () => void;
+  drawerWidth?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawerWidth = DRAWER_WIDTH }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
@@ -189,10 +190,10 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout }) => 
       variant="permanent"
       open={open}
       sx={{
-        width: open ? DRAWER_WIDTH : 65,
+        width: open ? drawerWidth : 65,
         transition: 'width 0.2s',
         '& .MuiDrawer-paper': {
-          width: open ? DRAWER_WIDTH : 65,
+          width: open ? drawerWidth : 65,
           transition: 'width 0.2s',
           background: 'rgba(255, 255, 255, 0.1)',
           backdropFilter: 'blur(8px)',

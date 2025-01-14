@@ -79,7 +79,8 @@ const Users: React.FC = () => {
 
         // If a user is selected, fetch their tasks
         if (selectedUser) {
-          const tasksResponse = await TaskService.getAssignedTasks(selectedUser);
+          const userId = parseInt(selectedUser, 10);
+          const tasksResponse = await TaskService.getAssignedTasks(userId);
           setTasks(tasksResponse);
         }
       } catch (err) {
@@ -113,14 +114,12 @@ const Users: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const handleTaskClick = async (task: Task) => {
-    console.log('Task clicked:', task);
-  };
-
-  // Filter tasks based on status and selected user
-  const filteredTasks = tasks.filter(task => 
-    task.assigned_to?.id === selectedUser || task.created_by.id === selectedUser
-  );
+  // Filter tasks based on selected user
+  const filteredTasks = tasks.filter(task => {
+    if (!selectedUser) return false;
+    const userId = selectedUser;
+    return task.assigned_to?.id === userId || task.created_by === userId;
+  });
 
   const upcomingTasks = filteredTasks.filter(task => 
     task.status === 'todo' && new Date(task.due_date) > new Date()
@@ -344,14 +343,12 @@ const Users: React.FC = () => {
                 } : null} 
               />
               <TasksSection
-                tasks={tasks}
+                currentUserId={currentUser?.id || 0}
+                currentDepartmentId={selectedUser ? parseInt(selectedUser, 10) : 0}
+                viewMode="user"
                 upcomingTasks={upcomingTasks}
                 ongoingTasks={ongoingTasks}
                 completedTasks={completedTasks}
-                currentUserId={selectedUser || ''}
-                currentDepartmentId=""
-                viewMode="user"
-                onTaskClick={handleTaskClick}
               />
             </Grid>
           </Grid>
@@ -364,4 +361,4 @@ const Users: React.FC = () => {
   );
 };
 
-export default Users; 
+export default Users;

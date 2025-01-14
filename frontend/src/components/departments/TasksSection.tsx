@@ -18,8 +18,8 @@ import { Task } from '../../types/task';
 
 interface TasksSectionProps {
   tasks?: Task[];
-  currentUserId: string;
-  currentDepartmentId: string;
+  currentUserId: number;
+  currentDepartmentId: number;
   viewMode: 'department' | 'user' | 'assigned';
   onAddTask?: () => void;
   onTaskClick?: (task: Task) => void;
@@ -132,7 +132,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    Assigned to: {task.assigned_to?.username || 'Unassigned'}
+                    Assigned to: {typeof task.assigned_to === 'object' ? task.assigned_to?.username : 'Unassigned'}
                   </Typography>
                   <Typography
                     variant="caption"

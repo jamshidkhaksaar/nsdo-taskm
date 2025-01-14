@@ -3,26 +3,38 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Container,
-  Typography,
   Button,
-  Grid,
-  Card,
-  CardContent,
   IconButton,
   Badge,
   Avatar,
   Menu,
   MenuItem,
   ListItemIcon,
-  Tabs,
-  Tab,
   useTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Container,
 } from '@mui/material';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
-import PersonIcon from '@mui/icons-material/Person';
+import AddIcon from '@mui/icons-material/Add';
+import { TaskService } from '../services/task';
+import { Task } from '../types/task';
 import LoadingScreen from '../components/LoadingScreen';
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
@@ -34,13 +46,9 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
-import DateRangeIcon from '@mui/icons-material/DateRange';
-import WorkIcon from '@mui/icons-material/Work';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import AddIcon from '@mui/icons-material/Add';
 import Sidebar from '../components/Sidebar';
-import StickyNotes from '../components/dashboard/StickyNotes';
 import Footer from '../components/Footer';
+import TaskTabs from '../components/tasks/TaskTabs';
 
 const DRAWER_WIDTH = 240;
 
@@ -151,7 +159,6 @@ const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
     >
       {/* Greeting Section */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.9)' }} />
         <Box>
           <Typography
             variant="body1"
@@ -280,107 +287,6 @@ const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
   );
 };
 
-interface Task {
-  id: number;
-  title: string;
-  description: string;
-  dueDate: string;
-  status: 'upcoming' | 'ongoing' | 'completed';
-  assignedTo?: string;
-  assignedBy?: string;
-}
-
-const TaskTabs: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
-  const [tabValue, setTabValue] = useState(0);
-
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
-  const filterTasks = (status: Task['status']) => {
-    return tasks.filter(task => task.status === status);
-  };
-
-  return (
-    <>
-      <Tabs
-        value={tabValue}
-        onChange={handleTabChange}
-        sx={{
-          '& .MuiTabs-indicator': {
-            backgroundColor: '#fff',
-          },
-          '& .MuiTab-root': {
-            color: 'rgba(255, 255, 255, 0.7)',
-            '&.Mui-selected': {
-              color: '#fff',
-            },
-          },
-        }}
-      >
-        <Tab 
-          icon={<DateRangeIcon />} 
-          label="Upcoming" 
-          iconPosition="start"
-        />
-        <Tab 
-          icon={<WorkIcon />} 
-          label="Ongoing" 
-          iconPosition="start"
-        />
-        <Tab 
-          icon={<CheckCircleIcon />} 
-          label="Completed" 
-          iconPosition="start"
-        />
-      </Tabs>
-
-      {tabValue === 0 && (
-        <Box sx={{ mt: 2 }}>
-          {filterTasks('upcoming').length === 0 ? (
-            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 4 }}>
-              No upcoming tasks
-            </Typography>
-          ) : (
-            filterTasks('upcoming').map(task => (
-              // Task card component here
-              <Box key={task.id}>{/* Task card content */}</Box>
-            ))
-          )}
-        </Box>
-      )}
-      {tabValue === 1 && (
-        <Box sx={{ mt: 2 }}>
-          {filterTasks('ongoing').length === 0 ? (
-            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 4 }}>
-              No ongoing tasks
-            </Typography>
-          ) : (
-            filterTasks('ongoing').map(task => (
-              // Task card component here
-              <Box key={task.id}>{/* Task card content */}</Box>
-            ))
-          )}
-        </Box>
-      )}
-      {tabValue === 2 && (
-        <Box sx={{ mt: 2 }}>
-          {filterTasks('completed').length === 0 ? (
-            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 4 }}>
-              No completed tasks
-            </Typography>
-          ) : (
-            filterTasks('completed').map(task => (
-              // Task card component here
-              <Box key={task.id}>{/* Task card content */}</Box>
-            ))
-          )}
-        </Box>
-      )}
-    </>
-  );
-};
-
 interface AssignedTasksProps {
   title: string;
   icon: React.ReactNode;
@@ -449,6 +355,201 @@ const AssignedTasks: React.FC<AssignedTasksProps> = ({
   </Card>
 );
 
+interface CreateTaskDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onTaskCreated: () => void;
+}
+
+const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTaskCreated }) => {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!title || !dueDate) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await TaskService.createTask({
+        title,
+        description,
+        due_date: dueDate.toISOString(),
+        status: 'todo',
+        priority,
+        is_private: false,
+        department: null,
+        assigned_to: null,
+        updated_at: new Date().toISOString()
+      });
+
+      onTaskCreated();
+      onClose();
+      setTitle('');
+      setDescription('');
+      setDueDate(null);
+      setPriority('medium');
+    } catch (err) {
+      setError('Failed to create task. Please try again.');
+      console.error('Error creating task:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      PaperProps={{
+        sx: {
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          minWidth: '500px',
+        },
+      }}
+    >
+      <DialogTitle sx={{ color: '#fff' }}>Create New Task</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+          <TextField
+            label="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: '#fff',
+                '& fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.23)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.4)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+              },
+            }}
+          />
+          <TextField
+            label="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            multiline
+            rows={4}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: '#fff',
+                '& fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.23)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.4)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+              },
+            }}
+          />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DateTimePicker
+              label="Due Date"
+              value={dueDate}
+              onChange={(newValue: Date | null) => setDueDate(newValue)}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#fff',
+                  '& fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.23)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            />
+          </LocalizationProvider>
+          <FormControl fullWidth>
+            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Priority</InputLabel>
+            <Select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
+              label="Priority"
+              sx={{
+                color: '#fff',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.23)',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.4)',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                },
+              }}
+            >
+              <MenuItem value="low">Low</MenuItem>
+              <MenuItem value="medium">Medium</MenuItem>
+              <MenuItem value="high">High</MenuItem>
+            </Select>
+          </FormControl>
+          {error && (
+            <FormHelperText error sx={{ mt: 1 }}>
+              {error}
+            </FormHelperText>
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ p: 2 }}>
+        <Button 
+          onClick={onClose}
+          sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={loading}
+          sx={{
+            background: 'rgba(255, 255, 255, 0.2)',
+            '&:hover': {
+              background: 'rgba(255, 255, 255, 0.3)',
+            },
+          }}
+        >
+          Create Task
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(true);
   const theme = useTheme();
@@ -470,6 +571,9 @@ const Dashboard: React.FC = () => {
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
+  const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('showHeaderWidget', JSON.stringify(showWidget));
@@ -515,62 +619,59 @@ const Dashboard: React.FC = () => {
     setAnchorEl(null);
   };
 
+  const fetchTasks = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await TaskService.getTasks();
+      setTasks(response);
+    } catch (err) {
+      setError('Failed to fetch tasks');
+      console.error('Error fetching tasks:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      position: 'relative',
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
-      backgroundAttachment: 'fixed',
-      backgroundSize: 'cover',
-      '&::before': {
-        content: '""',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundImage: `
-          url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.3)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/svg%3E")
-        `,
-        backgroundSize: '40px 40px',
-        opacity: 0.5,
-        pointerEvents: 'none',
-        zIndex: 0,
-      },
-    }}>
+    <Box sx={{ display: 'flex' }}>
       <Sidebar
         open={open}
         onToggleDrawer={toggleDrawer}
         onLogout={handleLogout}
+        drawerWidth={DRAWER_WIDTH}
       />
-      
-      <StickyNotes />
-
       <Box
         component="main"
         sx={{
+          backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#121212',
           flexGrow: 1,
-          p: 3,
           minHeight: '100vh',
+          overflow: 'auto',
           position: 'relative',
-          zIndex: 1,
-          marginLeft: { xs: 0, sm: open ? '0' : '0' },
-          width: { 
-            xs: '100%',
-            sm: `calc(100% - ${open ? DRAWER_WIDTH + 250 : 72 + 250}px)`
-          },
-          transition: theme.transitions.create(['margin', 'width'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
-          pb: '28px',
         }}
       >
+        {error && (
+          <Box sx={{ 
+            p: 2, 
+            bgcolor: 'error.main',
+            color: 'error.contrastText',
+            position: 'fixed',
+            top: 0,
+            width: '100%',
+            zIndex: 9999
+          }}>
+            {error}
+          </Box>
+        )}
         <Container 
           maxWidth="lg" 
           sx={{ 
@@ -758,6 +859,7 @@ const Dashboard: React.FC = () => {
                       <Button
                         variant="contained"
                         startIcon={<AddIcon />}
+                        onClick={() => setCreateTaskDialogOpen(true)}
                         sx={{
                           background: 'rgba(255, 255, 255, 0.1)',
                           backdropFilter: 'blur(8px)',
@@ -773,7 +875,7 @@ const Dashboard: React.FC = () => {
                         Create New Task
                       </Button>
                     </Box>
-                    <TaskTabs tasks={[/* Add your tasks data here */]} />
+                    <TaskTabs tasks={tasks} />
                   </CardContent>
                 </Card>
               </Grid>
@@ -796,6 +898,11 @@ const Dashboard: React.FC = () => {
               </Grid>
             </Grid>
           </Box>
+          <CreateTaskDialog
+            open={createTaskDialogOpen}
+            onClose={() => setCreateTaskDialogOpen(false)}
+            onTaskCreated={fetchTasks}
+          />
         </Container>
       </Box>
 

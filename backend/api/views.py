@@ -208,4 +208,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         return Note.objects.filter(created_by=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save(
+            created_by=self.request.user,
+            updated_at=timezone.now()
+        )
