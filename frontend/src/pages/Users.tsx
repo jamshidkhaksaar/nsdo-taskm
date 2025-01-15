@@ -79,8 +79,7 @@ const Users: React.FC = () => {
 
         // If a user is selected, fetch their tasks
         if (selectedUser) {
-          const userId = parseInt(selectedUser, 10);
-          const tasksResponse = await TaskService.getAssignedTasks(userId);
+          const tasksResponse = await TaskService.getAssignedTasks(selectedUser.toString());
           setTasks(tasksResponse);
         }
       } catch (err) {
@@ -118,7 +117,10 @@ const Users: React.FC = () => {
   const filteredTasks = tasks.filter(task => {
     if (!selectedUser) return false;
     const userId = selectedUser;
-    return task.assigned_to?.id === userId || task.created_by === userId;
+    const assignedToId = task.assigned_to;
+    const createdById = task.created_by?.toString();
+    return (assignedToId === userId) || 
+           (createdById === userId);
   });
 
   const upcomingTasks = filteredTasks.filter(task => 
@@ -343,8 +345,8 @@ const Users: React.FC = () => {
                 } : null} 
               />
               <TasksSection
-                currentUserId={currentUser?.id || 0}
-                currentDepartmentId={selectedUser ? parseInt(selectedUser, 10) : 0}
+                currentUserId={currentUser?.id ? Number(currentUser.id) : 0}
+                currentDepartmentId={selectedUser ? Number(selectedUser) : 0}
                 viewMode="user"
                 upcomingTasks={upcomingTasks}
                 ongoingTasks={ongoingTasks}

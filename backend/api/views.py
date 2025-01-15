@@ -49,9 +49,19 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'due_date']
     ordering = ['-created_at']
 
+    def handle_exception(self, exc):
+        if isinstance(exc, ValidationError):
+            return Response(
+                {'error': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().handle_exception(exc)
+
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [permissions.IsAuthenticated, IsDepartmentAdmin]
+        elif self.action == 'create':
+            self.permission_classes = [permissions.IsAuthenticated]
         return super().get_permissions()
 
     def get_queryset(self):

@@ -65,5 +65,11 @@ export const UserService = {
     toggleUserStatus: async (id: string) => {
         const response = await axios.post(`/api/users/${id}/toggle_status/`);
         return response.data;
+    },
+
+    // Search users
+    searchUsers: async (query: string) => {
+        const response = await axios.get(`/api/users/search/?q=${query}`);
+        return response.data;
     }
-}; 
+};

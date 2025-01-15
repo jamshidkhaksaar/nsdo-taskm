@@ -1,3 +1,5 @@
+import { User } from './user';
+
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface Task {
@@ -8,13 +10,9 @@ export interface Task {
   priority: TaskPriority;
   due_date: string;
   created_at: string;
-  updated_at: string;
-  created_by: string | null;
-  assigned_to: {
-    id: string;
-    username: string;
-    email: string;
-  } | null;
+  updated_at?: string;
+  created_by: number | null;
+  assigned_to: string | null;
   department: string | null;
   is_private: boolean;
 }
@@ -25,7 +23,7 @@ export interface CreateTask {
   status: 'todo' | 'in_progress' | 'done';
   priority: TaskPriority;
   due_date: string;
-  created_by: string | null;
+  created_by: number | null;
   assigned_to: string | null;
   department: string | null;
   is_private: boolean;

@@ -16,9 +16,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
   FormHelperText,
   Typography,
   Grid,
@@ -35,6 +32,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
 import { TaskService } from '../services/task';
 import { Task } from '../types/task';
+import { User } from '../types/user';
 import LoadingScreen from '../components/LoadingScreen';
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
@@ -363,12 +361,32 @@ interface CreateTaskDialogProps {
 }
 
 const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTaskCreated }) => {
+  const { user } = useSelector((state: RootState) => state.auth);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [assignedTo, setAssignedTo] = useState<User | null>(null);
+  const [is_private, setIsPrivate] = useState(false);
+  const [department, setDepartment] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await TaskService.getUsers();
+        setUsers(response);
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      }
+    };
+    
+    if (open) {
+      fetchUsers();
+    }
+  }, [open]);
 
   const handleSubmit = async () => {
     if (!title || !dueDate) {
@@ -383,12 +401,13 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
       await TaskService.createTask({
         title,
         description,
-        due_date: dueDate.toISOString(),
-        status: 'todo',
+        due_date: dueDate?.toISOString(),
         priority,
-        is_private: false,
+        status: 'todo',
+        is_private,
         department: null,
-        assigned_to: null,
+        assigned_to: assignedTo?.id || null,
+        created_by: user?.id || null,
         updated_at: new Date().toISOString()
       });
 
@@ -397,7 +416,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
       setTitle('');
       setDescription('');
       setDueDate(null);
-      setPriority('medium');
     } catch (err) {
       setError('Failed to create task. Please try again.');
       console.error('Error creating task:', err);
@@ -471,12 +489,72 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
               },
             }}
           />
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DateTimePicker
-              label="Due Date"
-              value={dueDate}
-              onChange={(newValue: Date | null) => setDueDate(newValue)}
-              sx={{
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DateTimePicker
+                label="Due Date"
+                value={dueDate}
+                onChange={(newValue: Date | null) => setDueDate(newValue)}
+                sx={{ flex: 1 }}
+              />
+            </LocalizationProvider>
+            
+            <TextField
+              select
+              label="Priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
+              sx={{ flex: 1 }}
+            >
+              <MenuItem value="low">Low</MenuItem>
+              <MenuItem value="medium">Medium</MenuItem>
+              <MenuItem value="high">High</MenuItem>
+            </TextField>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              select
+              label="Assigned To"
+              value={assignedTo?.id || ''}
+              onChange={(e) => {
+                const selectedUser = users.find(u => u.id === e.target.value);
+                setAssignedTo(selectedUser || null);
+              }}
+              sx={{ 
+                flex: 1,
+                '& .MuiOutlinedInput-root': {
+                  color: '#fff',
+                  '& fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.23)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {users.map(user => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.username} ({user.email})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Department"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              sx={{ 
+                flex: 1,
                 '& .MuiOutlinedInput-root': {
                   color: '#fff',
                   '& fieldset': {
@@ -494,31 +572,8 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
                 },
               }}
             />
-          </LocalizationProvider>
-          <FormControl fullWidth>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Priority</InputLabel>
-            <Select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-              label="Priority"
-              sx={{
-                color: '#fff',
-                '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.23)',
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.4)',
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                },
-              }}
-            >
-              <MenuItem value="low">Low</MenuItem>
-              <MenuItem value="medium">Medium</MenuItem>
-              <MenuItem value="high">High</MenuItem>
-            </Select>
-          </FormControl>
+          </Box>
+
           {error && (
             <FormHelperText error sx={{ mt: 1 }}>
               {error}

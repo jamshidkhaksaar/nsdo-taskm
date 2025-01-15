@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSelector } from 'react-redux';
 import {
   Box,
   Button,
@@ -20,6 +21,10 @@ import { SelectChangeEvent } from '@mui/material/Select';
 import { TaskPriority } from '../types/task';
 import { Task } from '../types/task';
 import { TaskService } from '../services/task';
+import { UserService } from '../services/user';
+import type { User } from '../types/user';
+import { RootState } from '../store';
+import { Autocomplete } from '@mui/material';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -32,8 +37,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClos
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [is_private, setIsPrivate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const currentUser = useSelector((state: RootState) => state.auth.user);
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -46,15 +56,15 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClos
 
     try {
       const newTask = {
-        title: title.trim(),
-        description: description.trim(),
+        title,
+        description,
         due_date: dueDate.toISOString(),
         priority,
         status: 'todo' as const,
-        is_private: false,
-        department: null,
-        assigned_to: null,
-        updated_at: new Date().toISOString()
+        is_private,
+        department: selectedUser?.department?.id || null,
+        assigned_to: selectedUser?.id?.toString() || null,
+        created_by: currentUser?.id || 0,
       };
 
       await TaskService.createTask(newTask);
@@ -102,6 +112,26 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClos
               sx={{ mb: 2, width: '100%' }}
             />
           </LocalizationProvider>
+          <Autocomplete
+            options={users}
+            getOptionLabel={(user) => `${user.first_name} ${user.last_name}`}
+            value={selectedUser}
+            onChange={(_, newValue) => setSelectedUser(newValue)}
+            onInputChange={(_, newInputValue) => {
+              setUserSearch(newInputValue);
+              if (newInputValue.length > 2) {
+                UserService.searchUsers(newInputValue).then(setUsers);
+              }
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Assign to user"
+                placeholder="Search users..."
+              />
+            )}
+            sx={{ mb: 2 }}
+          />
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Priority</InputLabel>
             <Select

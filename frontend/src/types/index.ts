@@ -2,8 +2,14 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  first_name: string;
+  last_name: string;
   role: 'user' | 'admin';
   avatar?: string;
+  department?: {
+    id: number;
+    name: string;
+  };
 }
 
 export interface APIError {
@@ -45,4 +51,4 @@ export interface UserDetail {
   email: string;
   role: 'user' | 'admin';
   avatar?: string;
-} 
+}
