@@ -1,5 +1,5 @@
 import axios from '../utils/axios';
-import { Task } from '../types/task';
+import { Task, CreateTask } from '../types/task';
 import { User } from '../types/user';
 
 export const TaskService = {
@@ -10,9 +10,14 @@ export const TaskService = {
     },
 
     // Get tasks by department
-    getTasksByDepartment: async (departmentId: string) => {
-        const response = await axios.get<Task[]>(`/api/tasks/?department=${departmentId}`);
-        return response.data;
+    getTasksByDepartment: async (departmentId: string | number): Promise<Task[]> => {
+        try {
+            const response = await axios.get<Task[]>(`/api/tasks/?department=${departmentId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching department tasks:', error);
+            throw error;
+        }
     },
 
     // Get tasks assigned to user
@@ -28,14 +33,12 @@ export const TaskService = {
     },
 
     // Create a new task
-    createTask: async (task: Omit<Task, 'id' | 'created_at'> & {
-      assigned_to: string | null;
-    }): Promise<Task> => {
+    createTask: async (task: CreateTask): Promise<Task> => {
         const payload = {
             ...task,
-            assigned_to: task.assigned_to,
+            assigned_to: task.assigned_to || [],
             department: task.department || '',
-            created_by: task.created_by
+            created_by: task.created_by?.toString() || null
         };
         const response = await axios.post<Task>('/api/tasks/', payload);
         return response.data;

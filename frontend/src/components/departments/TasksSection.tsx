@@ -132,7 +132,9 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    Assigned to: {typeof task.assigned_to === 'object' ? task.assigned_to?.username : 'Unassigned'}
+                    Assigned to: {Array.isArray(task.assigned_to) && task.assigned_to.length > 0 
+                      ? task.assigned_to.join(', ') 
+                      : 'Unassigned'}
                   </Typography>
                   <Typography
                     variant="caption"

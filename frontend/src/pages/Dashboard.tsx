@@ -22,6 +22,8 @@ import {
   Card,
   CardContent,
   Container,
+  Autocomplete,
+  Chip,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -75,12 +77,13 @@ const slideUp = keyframes`
   }
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const shakeAnimation = keyframes`
-  0% { transform: rotate(0deg); }
-  25% { transform: rotate(10deg); }
-  50% { transform: rotate(0deg); }
-  75% { transform: rotate(-10deg); }
-  100% { transform: rotate(0deg); }
+ 0% { transform: rotate(0deg); }
+ 25% { transform: rotate(10deg); }
+ 50% { transform: rotate(0deg); }
+ 75% { transform: rotate(-10deg); }
+ 100% { transform: rotate(0deg); }
 `;
 
 const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
@@ -366,7 +369,8 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [assignedTo, setAssignedTo] = useState<User | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [is_private, setIsPrivate] = useState(false);
   const [department, setDepartment] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -406,8 +410,8 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
         status: 'todo',
         is_private,
         department: null,
-        assigned_to: assignedTo?.id || null,
-        created_by: user?.id || null,
+        assigned_to: selectedUsers.map(user => user.id),
+        created_by: user?.id?.toString() || '0',
         updated_at: new Date().toISOString()
       });
 
@@ -416,6 +420,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
       setTitle('');
       setDescription('');
       setDueDate(null);
+      setSelectedUsers([]);
     } catch (err) {
       setError('Failed to create task. Please try again.');
       console.error('Error creating task:', err);
@@ -513,42 +518,64 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTa
           </Box>
 
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              select
-              label="Assigned To"
-              value={assignedTo?.id || ''}
-              onChange={(e) => {
-                const selectedUser = users.find(u => u.id === e.target.value);
-                setAssignedTo(selectedUser || null);
+            <Autocomplete
+              multiple
+              options={users}
+              value={selectedUsers}
+              onChange={(_, newValue) => setSelectedUsers(newValue)}
+              getOptionLabel={(option) => `${option.username} (${option.email})`}
+              filterOptions={(options, { inputValue }) => {
+                const inputValueLower = inputValue.toLowerCase();
+                return options.filter(
+                  option => 
+                    option.username.toLowerCase().includes(inputValueLower) ||
+                    option.email.toLowerCase().includes(inputValueLower)
+                );
               }}
-              sx={{ 
-                flex: 1,
-                '& .MuiOutlinedInput-root': {
-                  color: '#fff',
-                  '& fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.23)',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.4)',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {users.map(user => (
-                <MenuItem key={user.id} value={user.id}>
-                  {user.username} ({user.email})
-                </MenuItem>
-              ))}
-            </TextField>
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Assign To"
+                  placeholder="Type to search users"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#fff',
+                      '& fieldset': {
+                        borderColor: 'rgba(255, 255, 255, 0.23)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(255, 255, 255, 0.4)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(255, 255, 255, 0.7)',
+                    },
+                  }}
+                />
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip
+                    label={option.username}
+                    {...getTagProps({ index })}
+                    sx={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      color: '#fff',
+                      '& .MuiChip-deleteIcon': {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        '&:hover': {
+                          color: '#fff',
+                        },
+                      },
+                    }}
+                  />
+                ))
+              }
+              sx={{ flex: 1 }}
+            />
             <TextField
               label="Department"
               value={department}

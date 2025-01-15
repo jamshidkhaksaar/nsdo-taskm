@@ -114,25 +114,23 @@ const Users: React.FC = () => {
   };
 
   // Filter tasks based on selected user
-  const filteredTasks = tasks.filter(task => {
+  const userTasks = tasks.filter(task => {
     if (!selectedUser) return false;
-    const userId = selectedUser;
-    const assignedToId = task.assigned_to;
+    const assignedToIds = task.assigned_to || [];
     const createdById = task.created_by?.toString();
-    return (assignedToId === userId) || 
-           (createdById === userId);
+    return assignedToIds.includes(selectedUser) || createdById === selectedUser;
   });
 
-  const upcomingTasks = filteredTasks.filter(task => 
+  const upcomingTasks = userTasks.filter(task => 
     task.status === 'todo' && new Date(task.due_date) > new Date()
   );
   
-  const ongoingTasks = filteredTasks.filter(task => 
+  const ongoingTasks = userTasks.filter(task => 
     task.status === 'in_progress' || 
     (task.status === 'todo' && new Date(task.due_date) <= new Date())
   );
   
-  const completedTasks = filteredTasks.filter(task => 
+  const completedTasks = userTasks.filter(task => 
     task.status === 'done'
   );
 
@@ -325,11 +323,11 @@ const Users: React.FC = () => {
               <UserSummary 
                 user={selectedUser && users.length > 0 ? {
                   ...users.find(u => u.id === selectedUser),
-                  totalTasks: filteredTasks.length,
+                  totalTasks: userTasks.length,
                   completedTasks: completedTasks.length,
                   ongoingTasks: ongoingTasks.length,
-                  completionRate: filteredTasks.length > 0 
-                    ? Math.round((completedTasks.length / filteredTasks.length) * 100) 
+                  completionRate: userTasks.length > 0 
+                    ? Math.round((completedTasks.length / userTasks.length) * 100) 
                     : 0,
                   sx: {
                     completionRate: {

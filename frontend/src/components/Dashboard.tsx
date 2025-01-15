@@ -37,10 +37,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClos
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [is_private, setIsPrivate] = useState(false);
+  const [is_private] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [userSearch, setUserSearch] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const currentUser = useSelector((state: RootState) => state.auth.user);
@@ -63,8 +62,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClos
         status: 'todo' as const,
         is_private,
         department: selectedUser?.department?.id || null,
-        assigned_to: selectedUser?.id?.toString() || null,
-        created_by: currentUser?.id || 0,
+        assigned_to: selectedUser?.id ? [selectedUser.id.toString()] : null,
+        created_by: currentUser?.id?.toString() || '0',
+        updated_at: new Date().toISOString(),
       };
 
       await TaskService.createTask(newTask);
@@ -118,7 +118,6 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClos
             value={selectedUser}
             onChange={(_, newValue) => setSelectedUser(newValue)}
             onInputChange={(_, newInputValue) => {
-              setUserSearch(newInputValue);
               if (newInputValue.length > 2) {
                 UserService.searchUsers(newInputValue).then(setUsers);
               }
