@@ -1,6 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+
+// Material-UI Core Components
 import {
   Box,
   Button,
@@ -25,31 +28,42 @@ import {
   Autocomplete,
   Chip,
 } from '@mui/material';
+
+// Material-UI Date/Time Components
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+
+// Material-UI Icons
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
-import { TaskService } from '../services/task';
-import { Task } from '../types/task';
-import { User } from '../types/user';
-import LoadingScreen from '../components/LoadingScreen';
-import { AppDispatch, RootState } from '../store';
-import { logout } from '../store/slices/authSlice';
-import { keyframes } from '@mui/system';
-import { format } from 'date-fns';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+
+// Services and Types
+import { TaskService } from '../services/task';
+import { Task } from '../types/task';
+import { User } from '../types/user';
+import { AppDispatch, RootState } from '../store';
+import { logout } from '../store/slices/authSlice';
+
+// Utilities and Helpers
+import { keyframes } from '@mui/system';
+import { format } from 'date-fns';
+
+// Components
+import LoadingScreen from '../components/LoadingScreen';
 import Sidebar from '../components/Sidebar';
 import Footer from '../components/Footer';
 import TaskTabs from '../components/tasks/TaskTabs';
 import StickyNotes from '../components/dashboard/StickyNotes';
+import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
 
 const DRAWER_WIDTH = 240;
 
@@ -357,282 +371,6 @@ const AssignedTasks: React.FC<AssignedTasksProps> = ({
   </Card>
 );
 
-interface CreateTaskDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onTaskCreated: () => void;
-}
-
-const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({ open, onClose, onTaskCreated }) => {
-  const { user } = useSelector((state: RootState) => state.auth);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState<Date | null>(null);
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [is_private, setIsPrivate] = useState(false);
-  const [department, setDepartment] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await TaskService.getUsers();
-        setUsers(response);
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-    
-    if (open) {
-      fetchUsers();
-    }
-  }, [open]);
-
-  const handleSubmit = async () => {
-    if (!title || !dueDate) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      await TaskService.createTask({
-        title,
-        description,
-        due_date: dueDate?.toISOString(),
-        priority,
-        status: 'todo',
-        is_private,
-        department: null,
-        assigned_to: selectedUsers.map(user => user.id),
-        created_by: user?.id?.toString() || '0',
-        updated_at: new Date().toISOString()
-      });
-
-      onTaskCreated();
-      onClose();
-      setTitle('');
-      setDescription('');
-      setDueDate(null);
-      setSelectedUsers([]);
-    } catch (err) {
-      setError('Failed to create task. Please try again.');
-      console.error('Error creating task:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Dialog 
-      open={open} 
-      onClose={onClose}
-      PaperProps={{
-        sx: {
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          minWidth: '500px',
-        },
-      }}
-    >
-      <DialogTitle sx={{ color: '#fff' }}>Create New Task</DialogTitle>
-      <DialogContent>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-          <TextField
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.23)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.4)',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-              },
-            }}
-          />
-          <TextField
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            multiline
-            rows={4}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.23)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.4)',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-              },
-            }}
-          />
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DateTimePicker
-                label="Due Date"
-                value={dueDate}
-                onChange={(newValue: Date | null) => setDueDate(newValue)}
-                sx={{ flex: 1 }}
-              />
-            </LocalizationProvider>
-            
-            <TextField
-              select
-              label="Priority"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-              sx={{ flex: 1 }}
-            >
-              <MenuItem value="low">Low</MenuItem>
-              <MenuItem value="medium">Medium</MenuItem>
-              <MenuItem value="high">High</MenuItem>
-            </TextField>
-          </Box>
-
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Autocomplete
-              multiple
-              options={users}
-              value={selectedUsers}
-              onChange={(_, newValue) => setSelectedUsers(newValue)}
-              getOptionLabel={(option) => `${option.username} (${option.email})`}
-              filterOptions={(options, { inputValue }) => {
-                const inputValueLower = inputValue.toLowerCase();
-                return options.filter(
-                  option => 
-                    option.username.toLowerCase().includes(inputValueLower) ||
-                    option.email.toLowerCase().includes(inputValueLower)
-                );
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Assign To"
-                  placeholder="Type to search users"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      color: '#fff',
-                      '& fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.23)',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.4)',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.5)',
-                      },
-                    },
-                    '& .MuiInputLabel-root': {
-                      color: 'rgba(255, 255, 255, 0.7)',
-                    },
-                  }}
-                />
-              )}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => (
-                  <Chip
-                    label={option.username}
-                    {...getTagProps({ index })}
-                    sx={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      color: '#fff',
-                      '& .MuiChip-deleteIcon': {
-                        color: 'rgba(255, 255, 255, 0.7)',
-                        '&:hover': {
-                          color: '#fff',
-                        },
-                      },
-                    }}
-                  />
-                ))
-              }
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="Department"
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              sx={{ 
-                flex: 1,
-                '& .MuiOutlinedInput-root': {
-                  color: '#fff',
-                  '& fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.23)',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.4)',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            />
-          </Box>
-
-          {error && (
-            <FormHelperText error sx={{ mt: 1 }}>
-              {error}
-            </FormHelperText>
-          )}
-        </Box>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button 
-          onClick={onClose}
-          sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          disabled={loading}
-          sx={{
-            background: 'rgba(255, 255, 255, 0.2)',
-            '&:hover': {
-              background: 'rgba(255, 255, 255, 0.3)',
-            },
-          }}
-        >
-          Create Task
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
 const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(true);
   const theme = useTheme();
@@ -657,6 +395,8 @@ const Dashboard: React.FC = () => {
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('showHeaderWidget', JSON.stringify(showWidget));
@@ -1031,7 +771,24 @@ const Dashboard: React.FC = () => {
                         Create New Task
                       </Button>
                     </Box>
-                    <TaskTabs tasks={tasks} />
+                    <TaskTabs 
+                      tasks={tasks} 
+                      onEditTask={(taskId) => {
+                        setSelectedTask(taskId);
+                        setEditTaskDialogOpen(true);
+                      }}
+                      onDeleteTask={async (taskId) => {
+                        if (window.confirm('Are you sure you want to delete this task?')) {
+                          try {
+                            await TaskService.deleteTask(taskId);
+                            fetchTasks();
+                          } catch (err) {
+                            console.error('Error deleting task:', err);
+                          }
+                        }
+                      }}
+                      onTaskUpdated={fetchTasks}
+                    />
                   </CardContent>
                 </Card>
               </Grid>

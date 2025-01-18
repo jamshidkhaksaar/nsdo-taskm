@@ -72,8 +72,14 @@ export const TaskService = {
     },
 
     // Get all users
-    getUsers: async () => {
-        const response = await axios.get<User[]>('/api/users/');
-        return response.data;
+    getUsers: async (): Promise<User[]> => {
+        try {
+            const response = await axios.get<User[]>('/api/users/');
+            console.log('Users response:', response.data); // For debugging
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching users:', error);
+            throw error;
+        }
     }
 };
