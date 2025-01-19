@@ -23,6 +23,7 @@ interface TasksSectionProps {
   viewMode: 'department' | 'user' | 'assigned';
   onAddTask?: () => void;
   onTaskClick?: (task: Task) => void;
+  onTaskUpdated?: (task: Task) => Promise<void>;
   showAddButton?: boolean;
   // Allow alternative task grouping
   upcomingTasks?: Task[];
@@ -37,6 +38,8 @@ const TasksSection: React.FC<TasksSectionProps> = ({
   viewMode,
   onAddTask,
   onTaskClick,
+  onTaskUpdated,
+  showAddButton,
   upcomingTasks: propsUpcomingTasks,
   ongoingTasks: propsOngoingTasks,
   completedTasks: propsCompletedTasks
@@ -63,7 +66,8 @@ const TasksSection: React.FC<TasksSectionProps> = ({
     icon, 
     color,
     onTaskClick,
-    showAddButton
+    showAddButton,
+    onTaskUpdated
   }: { 
     title: string; 
     tasks: Task[]; 
@@ -71,6 +75,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
     color: string;
     onTaskClick?: (task: Task) => void;
     showAddButton?: boolean;
+    onTaskUpdated?: (task: Task) => Promise<void>;
   }) => (
     <Card
       sx={{
@@ -90,7 +95,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
               {title}
             </Typography>
           </Box>
-          {title === 'Upcoming Tasks' && (
+          {title === 'Upcoming Tasks' && showAddButton && (
             <Tooltip title="Add New Task">
               <IconButton
                 onClick={onAddTask}
@@ -125,7 +130,10 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                     background: 'rgba(255, 255, 255, 0.1)',
                   },
                 }}
-                onClick={() => onTaskClick?.(task)}
+                onClick={() => {
+                  if (onTaskClick) onTaskClick(task);
+                  if (onTaskUpdated) onTaskUpdated(task);
+                }}
               >
                 <Typography variant="subtitle2" sx={{ color: '#fff', mb: 1 }}>
                   {task.title}
@@ -172,6 +180,8 @@ const TasksSection: React.FC<TasksSectionProps> = ({
           icon={<DateRangeIcon sx={{ color: '#fff' }} />}
           color="#2196F3"
           onTaskClick={onTaskClick}
+          showAddButton={showAddButton}
+          onTaskUpdated={onTaskUpdated}
         />
       </Grid>
       <Grid item xs={12} md={4}>
@@ -181,6 +191,8 @@ const TasksSection: React.FC<TasksSectionProps> = ({
           icon={<WorkIcon sx={{ color: '#fff' }} />}
           color="#FF9800"
           onTaskClick={onTaskClick}
+          showAddButton={showAddButton}
+          onTaskUpdated={onTaskUpdated}
         />
       </Grid>
       <Grid item xs={12} md={4}>
@@ -190,6 +202,8 @@ const TasksSection: React.FC<TasksSectionProps> = ({
           icon={<CheckCircleIcon sx={{ color: '#fff' }} />}
           color="#4CAF50"
           onTaskClick={onTaskClick}
+          showAddButton={showAddButton}
+          onTaskUpdated={onTaskUpdated}
         />
       </Grid>
     </Grid>

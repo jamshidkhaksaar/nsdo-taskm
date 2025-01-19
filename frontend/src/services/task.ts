@@ -2,11 +2,15 @@ import axios from '../utils/axios';
 import { Task, CreateTask, TaskPriority } from '../types/task';
 import { User } from '../types/user';
 
+interface GetTasksParams {
+    task_type?: 'my_tasks' | 'assigned' | 'created' | 'all';
+}
+
 export const TaskService = {
     // Get all tasks
-    getTasks: async () => {
+    getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
-            const response = await axios.get<Task[]>('/api/tasks/');
+            const response = await axios.get<Task[]>('/api/tasks/', { params });
             console.log('Tasks fetched:', response.data);
             return response.data;
         } catch (error) {

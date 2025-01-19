@@ -2,10 +2,10 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from django.db.models import Q as models
+from django.db.models import Q
 from accounts.models import User
-from .serializers import UserSerializer
-from accounts.permissions import IsAdminOrOwner
+from .serializers import UserSerializer, UserLimitedSerializer
+from accounts.permissions import TaskPermission
 from django.core.files.base import ContentFile
 from django.utils import timezone
 import os
@@ -28,23 +28,31 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset()
         
-        # Admin users can see all users in their department
-        if user.is_staff:
-            queryset = queryset.filter(departments__in=user.departments.all())
-        else:
-            # Regular users can only see themselves
-            queryset = queryset.filter(id=user.id)
+        # For GET requests (list and retrieve), allow all users to see other users
+        if self.request.method == 'GET':
+            return User.objects.filter(is_active=True).exclude(is_superuser=True)
             
-        return queryset
+        # For other methods (create, update, delete)
+        if user.is_staff:
+            # Admin users can see all users in their department
+            return User.objects.filter(departments__in=user.departments.all())
+        else:
+            # Regular users can only modify themselves
+            return User.objects.filter(id=user.id)
+            
+    def get_serializer_class(self):
+        # For GET requests, use the limited serializer
+        if self.request.method == 'GET':
+            return UserLimitedSerializer
+        return self.serializer_class
 
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrOwner]
+    permission_classes = [permissions.IsAuthenticated, TaskPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'priority', 'department', 'assigned_to', 'is_private']
+    filterset_fields = ['status', 'priority', 'department', 'is_private']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'due_date', 'priority']
     ordering = ['-created_at']
@@ -57,22 +65,39 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
         return super().handle_exception(exc)
 
-    def get_permissions(self):
-        if self.action in ['update', 'partial_update', 'destroy']:
-            self.permission_classes = [permissions.IsAuthenticated, IsAdminOrOwner]
-        elif self.action == 'create':
-            self.permission_classes = [permissions.IsAuthenticated]
-        return super().get_permissions()
-
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
-            return Task.objects.all()
-        return Task.objects.filter(
-            models.Q(created_by=user) | 
-            models.Q(assigned_to__contains=[str(user.id)]) |
-            models.Q(department=user.department)
-        )
+        task_type = self.request.query_params.get('task_type', 'my_tasks')
+        user_id_str = str(user.id)
+
+        if task_type == 'my_tasks':
+            # Return only tasks created by the current user
+            return Task.objects.filter(created_by=user).distinct()
+        elif task_type == 'assigned':
+            # Return only tasks assigned to the current user by others
+            return Task.objects.filter(
+                assigned_to__isnull=False,
+                assigned_to__contains=[user_id_str]
+            ).exclude(created_by=user).distinct()
+        elif task_type == 'created':
+            # Return tasks created by the user and assigned to others
+            return Task.objects.filter(
+                created_by=user
+            ).exclude(
+                assigned_to__contains=[user_id_str]
+            ).distinct() | Task.objects.filter(
+                created_by=user,
+                assigned_to__isnull=True
+            ).distinct()
+        else:
+            # For admin users or when no specific type is requested
+            if user.is_staff:
+                return Task.objects.all()
+            # For regular users, return both created and assigned tasks
+            return Task.objects.filter(
+                Q(created_by=user) | 
+                Q(assigned_to__isnull=False, assigned_to__contains=[user_id_str])
+            ).distinct()
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
@@ -87,8 +112,11 @@ class TaskViewSet(viewsets.ModelViewSet):
             
         try:
             user = User.objects.get(id=user_id)
-            task.assigned_to = user
-            task.save()
+            assigned_users = task.get_assigned_users()
+            if str(user.id) not in assigned_users:
+                assigned_users.append(str(user.id))
+                task.set_assigned_users(assigned_users)
+                task.save()
             return Response({'status': 'user assigned'})
         except User.DoesNotExist:
             return Response(

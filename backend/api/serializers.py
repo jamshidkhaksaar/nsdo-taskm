@@ -42,7 +42,11 @@ class BackupSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     created_by = serializers.StringRelatedField(read_only=True)
-    assigned_to = serializers.StringRelatedField()
+    assigned_to = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_null=True
+    )
     department = serializers.StringRelatedField()
     
     class Meta:
@@ -61,6 +65,19 @@ class TaskSerializer(serializers.ModelSerializer):
             'is_private'
         ]
         read_only_fields = ['id', 'created_at', 'created_by']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['assigned_to'] = instance.get_assigned_users()
+        return ret
+
+    def to_internal_value(self, data):
+        internal_value = super().to_internal_value(data)
+        if 'assigned_to' in internal_value:
+            instance = self.instance or Task()
+            instance.set_assigned_users(internal_value['assigned_to'])
+            internal_value['assigned_to'] = instance.assigned_to
+        return internal_value
 
     def validate(self, data):
         # Validate due date is in the future
@@ -101,7 +118,10 @@ class TaskSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Only allow the creator or assigned user to update the task
         user = self.context['request'].user
-        if user != instance.created_by and user != instance.assigned_to:
+        user_id_str = str(user.id)
+        assigned_users = instance.get_assigned_users()
+        if (user != instance.created_by and 
+            (not assigned_users or user_id_str not in assigned_users)):
             raise serializers.ValidationError(
                 "You don't have permission to update this task"
             )
@@ -121,3 +141,14 @@ class NoteSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at', 'created_by']
+
+class UserLimitedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id', 'email', 'first_name', 'last_name']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['id'] = str(instance.id)  # Convert ID to string for consistency
+        return ret

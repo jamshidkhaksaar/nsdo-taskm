@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
+import json
 import os
 import uuid
 from accounts.models import Department
@@ -36,13 +37,7 @@ class Task(models.Model):
         on_delete=models.CASCADE,
         related_name='created_tasks'
     )
-    assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='assigned_tasks',
-        null=True,
-        blank=True
-    )
+    assigned_to = models.TextField(null=True, blank=True)
     department = models.ForeignKey(
         Department,
         on_delete=models.CASCADE,
@@ -59,6 +54,22 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    def get_assigned_users(self):
+        """Get the list of assigned user IDs"""
+        if not self.assigned_to:
+            return []
+        try:
+            return json.loads(self.assigned_to)
+        except json.JSONDecodeError:
+            return []
+
+    def set_assigned_users(self, user_ids):
+        """Set the list of assigned user IDs"""
+        if user_ids is None:
+            self.assigned_to = None
+        else:
+            self.assigned_to = json.dumps(user_ids)
 
 class Backup(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
