@@ -54,6 +54,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'created_at',
             'due_date',
             'status',
+            'priority',
             'created_by',
             'assigned_to',
             'department',
@@ -66,6 +67,13 @@ class TaskSerializer(serializers.ModelSerializer):
         if 'due_date' in data and data['due_date']:
             if data['due_date'] < timezone.now():
                 raise serializers.ValidationError("Due date must be in the future")
+        
+        # Validate priority if provided
+        if 'priority' in data:
+            priority = data['priority'].lower()
+            if priority not in ['low', 'medium', 'high']:
+                raise serializers.ValidationError("Priority must be one of: low, medium, high")
+            data['priority'] = priority
         
         # Validate status transitions
         if self.instance and 'status' in data:

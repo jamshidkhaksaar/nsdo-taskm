@@ -48,7 +48,7 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 
 // Services and Types
 import { TaskService } from '../services/task';
-import { Task } from '../types/task';
+import { Task, TaskPriority } from '../types/task';
 import { User } from '../types/user';
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
@@ -447,14 +447,13 @@ const Dashboard: React.FC = () => {
       setError(null);
       const response = await TaskService.getTasks();
       console.log('Fetched tasks:', response);
-      // Make sure we're getting fresh data
-      setTasks(prevTasks => {
-        const newTasks = response.map(newTask => {
-          const existingTask = prevTasks.find(t => t.id === newTask.id);
-          return existingTask ? { ...existingTask, ...newTask } : newTask;
-        });
-        return newTasks;
-      });
+      // Force update by creating new array with fresh data
+      const newTasks = response.map(task => ({
+        ...task,
+        priority: (task.priority?.toLowerCase() as TaskPriority) || 'medium'
+      }));
+      setTasks([]); // Clear tasks first to force re-render
+      setTasks(newTasks); // Set new tasks
     } catch (err) {
       console.error('Error fetching tasks:', err);
       setError('Failed to fetch tasks. Please try again.');

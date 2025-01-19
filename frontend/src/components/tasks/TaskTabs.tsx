@@ -47,19 +47,27 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [currentTask, setCurrentTask] = React.useState<Task>({
     ...task,
     priority: task.priority?.toLowerCase() as TaskPriority || 'medium',
-    status: task.status?.toLowerCase() as Task['status'] || 'todo'
+    status: task.status?.toLowerCase() as Task['status'] || 'todo',
+    isUpdating: false
   });
 
   React.useEffect(() => {
     if (task) {
-      setCurrentTask({
-        ...task,
-        priority: task.priority?.toLowerCase() as TaskPriority || 'medium',
-        status: task.status?.toLowerCase() as Task['status'] || 'todo'
-      });
+      const newPriority = task.priority?.toLowerCase() as TaskPriority || 'medium';
+      const newStatus = task.status?.toLowerCase() as Task['status'] || 'todo';
+      
+      // Only update if we're not in the middle of a priority change
+      if (!currentTask.isUpdating) {
+        setCurrentTask(prevTask => ({
+          ...task,
+          priority: newPriority,
+          status: newStatus,
+          isUpdating: false
+        }));
+      }
       console.log('Task prop updated:', task);
     }
-  }, [task]);
+  }, [task, currentTask.isUpdating]);
 
   React.useEffect(() => {
     const fetchUsers = async () => {
@@ -88,34 +96,75 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const handlePriorityChange = async (newPriority: TaskPriority) => {
     try {
       setAnchorEl(null);
-      
+
       console.log('Updating priority to:', newPriority);
       
+      // Set updating flag and update local state immediately
+      setCurrentTask(prevTask => ({
+        ...prevTask,
+        priority: newPriority,
+        isUpdating: true
+      }));
+
+      // Send only the priority update to the server
       const updatedTask = await TaskService.updateTask(currentTask.id, {
         priority: newPriority,
         updated_at: new Date().toISOString()
       });
-      
+
       console.log('Task updated successfully:', updatedTask);
-      
+
       if (!updatedTask || !updatedTask.priority) {
         throw new Error('Invalid task data received');
       }
 
-      const newTask = {
-        ...currentTask,
-        ...updatedTask,
-        priority: updatedTask.priority.toLowerCase() as TaskPriority,
-        status: updatedTask.status as Task['status']
-      };
+      // Verify the priority value from the server
+      console.log('Server returned priority:', updatedTask.priority);
 
-      console.log('Setting current task to:', newTask);
-      setCurrentTask(newTask);
-      
+      // Update local state with the server response but ensure priority is maintained
+      setCurrentTask(prevTask => ({
+        ...prevTask,
+        ...updatedTask,
+        priority: newPriority, // Force the new priority
+        isUpdating: false
+      }));
+
+      // Notify parent component of the update with forced priority
       if (onTaskUpdated) {
-        await onTaskUpdated(newTask);
+        const taskToUpdate = {
+          ...updatedTask,
+          priority: newPriority // Ensure priority is maintained
+        };
+        await onTaskUpdated(taskToUpdate);
       }
+
+      // Double-check the update with a fresh fetch
+      const refreshedTask = await TaskService.getTask(currentTask.id);
+      console.log('Refreshed task from server:', refreshedTask);
+
+      if (refreshedTask.priority !== newPriority) {
+        console.warn('Priority mismatch after refresh:', {
+          expected: newPriority,
+          received: refreshedTask.priority
+        });
+        
+        // Force another update if needed
+        if (refreshedTask.priority !== newPriority) {
+          await TaskService.updateTask(currentTask.id, {
+            priority: newPriority,
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+
     } catch (err: unknown) {
+      // Revert the local state on error
+      setCurrentTask(prevTask => ({
+        ...prevTask,
+        priority: prevTask.priority,
+        isUpdating: false
+      }));
+
       const axiosError = err as AxiosError;
       console.error('Error updating priority:', err);
       console.error('Error details:', {
@@ -129,46 +178,53 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const handleStatusChange = async (newStatus: Task['status']) => {
     try {
       console.log('Updating status to:', newStatus);
-      setStatusAnchorEl(null); // Close menu immediately for better UX
-      
-      const updatedTask = await TaskService.updateTask(currentTask.id, { 
+      setStatusAnchorEl(null);
+
+      // Set updating flag and update local state immediately
+      setCurrentTask(prevTask => ({
+        ...prevTask,
+        status: newStatus,
+        isUpdating: true
+      }));
+
+      const updatedTask = await TaskService.updateTask(currentTask.id, {
         status: newStatus,
         updated_at: new Date().toISOString()
       });
-      
-      console.log('Task updated successfully:', updatedTask);
-      
+
       if (!updatedTask || !updatedTask.status) {
         throw new Error('Invalid task data received');
       }
 
-      const newTask = {
-        ...currentTask,
+      // Update with response but maintain our status
+      setCurrentTask(prevTask => ({
+        ...prevTask,
         ...updatedTask,
-        priority: updatedTask.priority as TaskPriority,
-        status: updatedTask.status as Task['status']
-      };
+        status: newStatus,
+        isUpdating: false
+      }));
 
-      setCurrentTask(newTask);
-      
       if (onTaskUpdated) {
-        await onTaskUpdated(newTask);
+        const taskToUpdate = {
+          ...updatedTask,
+          status: newStatus
+        };
+        await onTaskUpdated(taskToUpdate);
       }
     } catch (err: unknown) {
+      // Revert the local state on error
+      setCurrentTask(prevTask => ({
+        ...prevTask,
+        status: prevTask.status,
+        isUpdating: false
+      }));
+
       const axiosError = err as AxiosError;
       console.error('Error updating status:', err);
       console.error('Error details:', {
         message: axiosError?.message || 'Unknown error',
         response: (axiosError as any)?.response?.data
       });
-      
-      if (axiosError.message === 'Session expired. Please login again.') {
-        // Handle session expiration
-        alert('Your session has expired. Please login again.');
-        window.location.href = '/login';
-        return;
-      }
-      
       alert(`Failed to update task status: ${axiosError?.message || 'Unknown error'}`);
     }
   };
@@ -200,8 +256,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                bgcolor: 
-                  currentTask?.status === 'done' ? 'success.main' : 
+                bgcolor:
+                  currentTask?.status === 'done' ? 'success.main' :
                   currentTask?.status === 'in_progress' ? 'warning.main' : 'info.main',
                 flexShrink: 0
               }}
@@ -212,14 +268,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <Chip
                 label={
-                  currentTask?.priority 
+                  currentTask?.priority
                     ? currentTask.priority.charAt(0).toUpperCase() + currentTask.priority.slice(1)
                     : 'Medium'
                 }
                 size="small"
                 onClick={(e) => setAnchorEl(e.currentTarget)}
                 sx={{
-                  backgroundColor: 
+                  backgroundColor:
                     !currentTask?.priority || currentTask.priority === 'medium' ? 'warning.main' :
                     currentTask.priority === 'high' ? 'error.main' : 'success.main',
                   color: '#fff',
@@ -254,10 +310,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 }}
               >
                 {['low', 'medium', 'high'].map((p) => (
-                  <MenuItem 
-                    key={p} 
+                  <MenuItem
+                    key={p}
                     onClick={() => handlePriorityChange(p as TaskPriority)}
-                    sx={{ 
+                    sx={{
                       minWidth: 120,
                       borderRadius: '4px',
                       margin: '2px 4px',
@@ -278,14 +334,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </Menu>
               <Chip
                 label={
-                  currentTask?.status 
+                  currentTask?.status
                     ? currentTask.status.replace('_', ' ').toUpperCase()
                     : 'TODO'
                 }
                 size="small"
                 onClick={(e) => setStatusAnchorEl(e.currentTarget)}
                 sx={{
-                  backgroundColor: 
+                  backgroundColor:
                     !currentTask?.status || currentTask.status === 'todo' ? 'info.main' :
                     currentTask.status === 'done' ? 'success.main' : 'warning.main',
                   color: '#fff',
@@ -320,10 +376,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 }}
               >
                 {['todo', 'in_progress', 'done'].map((status) => (
-                  <MenuItem 
-                    key={status} 
+                  <MenuItem
+                    key={status}
                     onClick={() => handleStatusChange(status as Task['status'])}
-                    sx={{ 
+                    sx={{
                       minWidth: 120,
                       borderRadius: '4px',
                       margin: '2px 4px',
@@ -334,7 +390,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        bgcolor: 
+                        bgcolor:
                           status === 'done' ? 'success.main' :
                           status === 'in_progress' ? 'warning.main' : 'info.main',
                       }}
@@ -345,7 +401,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </Menu>
             </Box>
           </Box>
-          
+
           {currentTask?.description && (
             <Typography
               variant="caption"
@@ -366,13 +422,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <AccessTimeIcon sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px' }} />
               <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                {currentTask?.due_date ? 
-                  format(new Date(currentTask.due_date), 'MMM d, h:mm a') : 
+                {currentTask?.due_date ?
+                  format(new Date(currentTask.due_date), 'MMM d, h:mm a') :
                   'No due date'
                 }
               </Typography>
             </Box>
-            
+
             {assignedUsers.length > 0 && (
               <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
                 <CollaboratorAvatars collaborators={assignedUsers} />
@@ -387,7 +443,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               <IconButton
                 size="small"
                 onClick={() => onEditTask(currentTask.id)}
-                sx={{ 
+                sx={{
                   color: 'rgba(255, 255, 255, 0.7)',
                   '&:hover': {
                     color: '#fff',
@@ -404,7 +460,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               <IconButton
                 size="small"
                 onClick={() => onDeleteTask(currentTask.id)}
-                sx={{ 
+                sx={{
                   color: 'rgba(255, 255, 255, 0.7)',
                   '&:hover': {
                     color: '#ff3c7d',
@@ -432,13 +488,31 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
   const [value, setValue] = useState(0);
 
   useEffect(() => {
-    setLocalTasks(tasks);
+    // Only update tasks that haven't been modified locally
+    setLocalTasks(prevTasks => {
+      return tasks.map(newTask => {
+        const existingTask = prevTasks.find(t => t.id === newTask.id);
+        if (existingTask) {
+          // Preserve local changes if they exist
+          return {
+            ...newTask,
+            priority: existingTask.priority || newTask.priority,
+            status: existingTask.status || newTask.status
+          };
+        }
+        return newTask;
+      });
+    });
   }, [tasks]);
 
   const handleTaskUpdate = async (updatedTask: Task) => {
     setLocalTasks(prevTasks => 
       prevTasks.map(task => 
-        task.id === updatedTask.id ? updatedTask : task
+        task.id === updatedTask.id ? {
+          ...updatedTask,
+          priority: updatedTask.priority?.toLowerCase() as TaskPriority || task.priority,
+          status: updatedTask.status?.toLowerCase() as Task['status'] || task.status
+        } : task
       )
     );
     

@@ -16,6 +16,7 @@ export interface Task {
   assigned_to: string[] | null;
   created_by: string | null;
   updated_at: string;
+  isUpdating?: boolean;
 }
 
 export interface CreateTask {

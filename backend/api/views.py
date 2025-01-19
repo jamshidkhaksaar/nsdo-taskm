@@ -44,9 +44,9 @@ class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminOrOwner]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'department', 'assigned_to', 'is_private']
+    filterset_fields = ['status', 'priority', 'department', 'assigned_to', 'is_private']
     search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'due_date']
+    ordering_fields = ['created_at', 'due_date', 'priority']
     ordering = ['-created_at']
 
     def handle_exception(self, exc):
@@ -118,6 +118,9 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
 
     def perform_update(self, serializer):
+        # Ensure priority is lowercase
+        if 'priority' in serializer.validated_data:
+            serializer.validated_data['priority'] = serializer.validated_data['priority'].lower()
         serializer.save(updated_at=timezone.now())
 
 class BackupViewSet(viewsets.ModelViewSet):

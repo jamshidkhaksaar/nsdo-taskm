@@ -8,19 +8,15 @@ import {
   TextField,
   Button,
   Box,
-  MenuItem,
   FormHelperText,
   Autocomplete,
   Chip,
-  FormControl,
-  InputLabel,
-  Select
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { TaskService } from '../../services/task';
-import { TaskPriority, CreateTask } from '../../types/task';
+import { CreateTask } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 
@@ -39,7 +35,6 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(new Date());
-  const [priority, setPriority] = useState<TaskPriority>('medium');
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [isPrivate] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +70,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         title,
         description,
         due_date: dueDate.toISOString(),
-        priority: priority as TaskPriority,
+        priority: 'medium',
         status: 'todo' as const,
         is_private: isPrivate,
         department: null,
@@ -88,15 +83,14 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
       const createdTask = await TaskService.createTask(taskData);
       console.log('Task created:', createdTask);
-      
+
       if (onTaskCreated) {
         await onTaskCreated();
       }
-      
+
       setTitle('');
       setDescription('');
       setDueDate(new Date());
-      setPriority('medium');
       setSelectedUsers([]);
       onClose();
     } catch (err) {
@@ -108,8 +102,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={onClose}
       PaperProps={{
         sx: {
@@ -203,28 +197,6 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               }}
             />
           </LocalizationProvider>
-          
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="priority-label">Priority</InputLabel>
-            <Select
-              labelId="priority-label"
-              value={priority}
-              label="Priority"
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  color: '#fff',
-                },
-                '& .MuiSelect-icon': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                }
-              }}
-            >
-              <MenuItem value="low">Low</MenuItem>
-              <MenuItem value="medium">Medium</MenuItem>
-              <MenuItem value="high">High</MenuItem>
-            </Select>
-          </FormControl>
 
           <Autocomplete
             multiple
@@ -278,13 +250,33 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>
+        <Button 
+          onClick={onClose}
+          sx={{ 
+            color: 'rgba(255, 255, 255, 0.7)',
+            '&:hover': {
+              color: '#fff',
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+            }
+          }}
+        >
           Cancel
         </Button>
         <Button
           onClick={handleSubmit}
           variant="contained"
           disabled={loading}
+          sx={{
+            bgcolor: 'rgba(255, 255, 255, 0.1)',
+            color: '#fff',
+            '&:hover': {
+              bgcolor: 'rgba(255, 255, 255, 0.2)',
+            },
+            '&:disabled': {
+              bgcolor: 'rgba(255, 255, 255, 0.05)',
+              color: 'rgba(255, 255, 255, 0.3)',
+            }
+          }}
         >
           Create Task
         </Button>
@@ -293,4 +285,4 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   );
 };
 
-export default CreateTaskDialog; 
+export default CreateTaskDialog;
