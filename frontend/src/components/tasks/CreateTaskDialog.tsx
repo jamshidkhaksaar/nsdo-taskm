@@ -16,7 +16,7 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { TaskService } from '../../services/task';
-import { CreateTask } from '../../types/task';
+import { CreateTask, Task } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 
@@ -24,12 +24,14 @@ interface CreateTaskDialogProps {
   open: boolean;
   onClose: () => void;
   onTaskCreated: () => void;
+  task?: Task; // Optional task for edit mode
 }
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   open,
   onClose,
-  onTaskCreated
+  onTaskCreated,
+  task
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const [title, setTitle] = useState('');
@@ -41,20 +43,47 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
 
+  // Reset form when dialog opens or task changes
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await TaskService.getUsers();
-        setUsers(response);
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-    
     if (open) {
-      fetchUsers();
+      if (task) {
+        // Edit mode - populate form with task data
+        setTitle(task.title);
+        setDescription(task.description || '');
+        setDueDate(task.due_date ? new Date(task.due_date) : new Date());
+        // Fetch and set assigned users
+        const fetchAssignedUsers = async () => {
+          try {
+            const response = await TaskService.getUsers();
+            const assignedUsers = response.filter(user => 
+              task.assigned_to?.includes(user.id.toString())
+            );
+            setSelectedUsers(assignedUsers);
+            setUsers(response);
+          } catch (err) {
+            console.error('Error fetching users:', err);
+          }
+        };
+        fetchAssignedUsers();
+      } else {
+        // Create mode - reset form
+        setTitle('');
+        setDescription('');
+        setDueDate(new Date());
+        setSelectedUsers([]);
+        // Fetch users for assignment
+        const fetchUsers = async () => {
+          try {
+            const response = await TaskService.getUsers();
+            setUsers(response);
+          } catch (err) {
+            console.error('Error fetching users:', err);
+          }
+        };
+        fetchUsers();
+      }
     }
-  }, [open]);
+  }, [open, task]);
 
   const handleSubmit = async () => {
     if (!title || !dueDate) {
@@ -66,12 +95,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setError(null);
 
     try {
-      const taskData: CreateTask = {
+      const taskData = {
         title,
         description,
         due_date: dueDate.toISOString(),
-        priority: 'medium',
-        status: 'todo' as const,
         is_private: isPrivate,
         department: null,
         assigned_to: selectedUsers.map(user => user.id.toString()),
@@ -79,10 +106,20 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         updated_at: new Date().toISOString()
       };
 
-      console.log('Creating task with data:', taskData);
-
-      const createdTask = await TaskService.createTask(taskData);
-      console.log('Task created:', createdTask);
+      if (task) {
+        // Update existing task - don't include status or priority in update
+        console.log('Updating task with data:', taskData);
+        await TaskService.updateTask(task.id, taskData);
+      } else {
+        // Create new task - include default status and priority
+        const createTaskData = {
+          ...taskData,
+          priority: 'medium',
+          status: 'todo' as const,
+        };
+        console.log('Creating task with data:', createTaskData);
+        await TaskService.createTask(createTaskData as CreateTask);
+      }
 
       if (onTaskCreated) {
         await onTaskCreated();
@@ -94,8 +131,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setSelectedUsers([]);
       onClose();
     } catch (err) {
-      console.error('Error creating task:', err);
-      setError('Failed to create task');
+      console.error(task ? 'Error updating task:' : 'Error creating task:', err);
+      setError(task ? 'Failed to update task' : 'Failed to create task');
     } finally {
       setLoading(false);
     }
@@ -114,7 +151,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         },
       }}
     >
-      <DialogTitle sx={{ color: '#fff' }}>Create New Task</DialogTitle>
+      <DialogTitle sx={{ color: '#fff' }}>{task ? 'Edit Task' : 'Create New Task'}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
           <TextField
@@ -278,7 +315,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             }
           }}
         >
-          Create Task
+          {task ? 'Update Task' : 'Create Task'}
         </Button>
       </DialogActions>
     </Dialog>

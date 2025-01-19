@@ -20,6 +20,7 @@ import { TaskService } from '../../services/task';
 import { TaskPriority } from '../../types/task';
 import { CollaboratorAvatars } from './CollaboratorAvatars';
 import { AxiosError } from 'axios';
+import CreateTaskDialog from './CreateTaskDialog';
 
 interface TaskTabsProps {
   tasks: Task[];
@@ -233,6 +234,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
     console.log('Task updated:', currentTask); // For debugging
   }, [currentTask]);
 
+  const handleEditClick = (taskId: string) => {
+    if (onEditTask) {
+      onEditTask(taskId);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -442,7 +449,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Tooltip title="Edit Task" arrow placement="top">
               <IconButton
                 size="small"
-                onClick={() => onEditTask(currentTask.id)}
+                onClick={() => handleEditClick(currentTask.id)}
                 sx={{
                   color: 'rgba(255, 255, 255, 0.7)',
                   '&:hover': {
@@ -486,6 +493,8 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
 }) => {
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
   const [value, setValue] = useState(0);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   useEffect(() => {
     // Only update tasks that haven't been modified locally
@@ -521,6 +530,27 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
     }
   };
 
+  const handleEditClick = (taskId: string) => {
+    const taskToEdit = localTasks.find(task => task.id === taskId);
+    if (taskToEdit) {
+      setEditingTask(taskToEdit);
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const handleEditDialogClose = () => {
+    setIsEditDialogOpen(false);
+    setEditingTask(null);
+  };
+
+  const handleTaskEdited = async () => {
+    // Refresh the tasks list
+    if (onTaskUpdated) {
+      await onTaskUpdated({} as Task); // Trigger a refresh
+    }
+    handleEditDialogClose();
+  };
+
   const filteredTasks = localTasks.filter(task => {
     if (value === 0) return true;
     if (value === 1) return task.status === 'todo';
@@ -530,43 +560,53 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
   });
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs 
-          value={value} 
-          onChange={(_, newValue) => setValue(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            '& .MuiTab-root': {
-              color: 'rgba(255, 255, 255, 0.7)',
-              '&.Mui-selected': {
-                color: '#fff'
+    <>
+      <Box sx={{ width: '100%' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={value} 
+            onChange={(_, newValue) => setValue(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTab-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-selected': {
+                  color: '#fff'
+                }
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#fff'
               }
-            },
-            '& .MuiTabs-indicator': {
-              backgroundColor: '#fff'
-            }
-          }}
-        >
-          <Tab label="All Tasks" />
-          <Tab label="To Do" />
-          <Tab label="In Progress" />
-          <Tab label="Completed" />
-        </Tabs>
+            }}
+          >
+            <Tab label="All Tasks" />
+            <Tab label="To Do" />
+            <Tab label="In Progress" />
+            <Tab label="Completed" />
+          </Tabs>
+        </Box>
+        <Box sx={{ p: 2 }}>
+          {filteredTasks.map((task) => (
+            <TaskItem 
+              key={task.id} 
+              task={task}
+              onEditTask={handleEditClick}
+              onDeleteTask={onDeleteTask}
+              onTaskUpdated={handleTaskUpdate}
+            />
+          ))}
+        </Box>
       </Box>
-      <Box sx={{ p: 2 }}>
-        {filteredTasks.map((task) => (
-          <TaskItem 
-            key={task.id} 
-            task={task}
-            onEditTask={onEditTask}
-            onDeleteTask={onDeleteTask}
-            onTaskUpdated={handleTaskUpdate}
-          />
-        ))}
-      </Box>
-    </Box>
+
+      {/* Add the edit dialog */}
+      <CreateTaskDialog
+        open={isEditDialogOpen}
+        onClose={handleEditDialogClose}
+        onTaskCreated={handleTaskEdited}
+        task={editingTask || undefined}
+      />
+    </>
   );
 };
 
