@@ -30,3 +30,16 @@ export interface CreateTask {
   is_private: boolean;
   updated_at: string;
 }
+
+// Add a type for task updates
+export interface TaskUpdate {
+  title?: string;
+  description?: string;
+  due_date?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  is_private?: boolean;
+  department?: string | null;
+  assigned_to?: string[] | null;
+  updated_at: string;
+}

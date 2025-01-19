@@ -11,13 +11,16 @@ import {
   MenuItem,
   FormHelperText,
   Autocomplete,
-  Chip
+  Chip,
+  FormControl,
+  InputLabel,
+  Select
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { TaskService } from '../../services/task';
-import { TaskPriority } from '../../types/task';
+import { TaskPriority, CreateTask } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 
@@ -68,30 +71,37 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setError(null);
 
     try {
-      await TaskService.createTask({
+      const taskData: CreateTask = {
         title,
         description,
         due_date: dueDate.toISOString(),
-        priority,
-        status: 'todo',
+        priority: priority as TaskPriority,
+        status: 'todo' as const,
         is_private: isPrivate,
         department: null,
         assigned_to: selectedUsers.map(user => user.id.toString()),
         created_by: user?.id?.toString() || null,
         updated_at: new Date().toISOString()
-      });
+      };
 
-      onTaskCreated();
-      onClose();
-      // Reset form
+      console.log('Creating task with data:', taskData);
+
+      const createdTask = await TaskService.createTask(taskData);
+      console.log('Task created:', createdTask);
+      
+      if (onTaskCreated) {
+        await onTaskCreated();
+      }
+      
       setTitle('');
       setDescription('');
       setDueDate(new Date());
       setPriority('medium');
       setSelectedUsers([]);
+      onClose();
     } catch (err) {
-      setError('Failed to create task. Please try again.');
       console.error('Error creating task:', err);
+      setError('Failed to create task');
     } finally {
       setLoading(false);
     }
@@ -194,31 +204,27 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             />
           </LocalizationProvider>
           
-          <TextField
-            select
-            label="Priority"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as TaskPriority)}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.23)',
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="priority-label">Priority</InputLabel>
+            <Select
+              labelId="priority-label"
+              value={priority}
+              label="Priority"
+              onChange={(e) => setPriority(e.target.value as TaskPriority)}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#fff',
                 },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-              },
-              '& .MuiSelect-icon': {
-                color: 'rgba(255, 255, 255, 0.7)',
-              },
-            }}
-          >
-            <MenuItem value="low">Low</MenuItem>
-            <MenuItem value="medium">Medium</MenuItem>
-            <MenuItem value="high">High</MenuItem>
-          </TextField>
+                '& .MuiSelect-icon': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                }
+              }}
+            >
+              <MenuItem value="low">Low</MenuItem>
+              <MenuItem value="medium">Medium</MenuItem>
+              <MenuItem value="high">High</MenuItem>
+            </Select>
+          </FormControl>
 
           <Autocomplete
             multiple

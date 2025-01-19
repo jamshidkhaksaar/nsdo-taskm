@@ -444,15 +444,20 @@ const Dashboard: React.FC = () => {
 
   const fetchTasks = async () => {
     try {
-      setIsLoading(true);
       setError(null);
       const response = await TaskService.getTasks();
-      setTasks(response);
+      console.log('Fetched tasks:', response);
+      // Make sure we're getting fresh data
+      setTasks(prevTasks => {
+        const newTasks = response.map(newTask => {
+          const existingTask = prevTasks.find(t => t.id === newTask.id);
+          return existingTask ? { ...existingTask, ...newTask } : newTask;
+        });
+        return newTasks;
+      });
     } catch (err) {
-      setError('Failed to fetch tasks');
       console.error('Error fetching tasks:', err);
-    } finally {
-      setIsLoading(false);
+      setError('Failed to fetch tasks. Please try again.');
     }
   };
 
@@ -781,7 +786,7 @@ const Dashboard: React.FC = () => {
                         if (window.confirm('Are you sure you want to delete this task?')) {
                           try {
                             await TaskService.deleteTask(taskId);
-                            fetchTasks();
+                            await fetchTasks(); // Wait for the delete to complete
                           } catch (err) {
                             console.error('Error deleting task:', err);
                           }

@@ -45,11 +45,11 @@ class User(AbstractUser):
         default='user'
     )
     department = models.ForeignKey(
-        'Department', 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        'Department',
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
-        related_name='users'
+        related_name='members'
     )
     position = models.CharField(max_length=100, blank=True)
     last_login = models.DateTimeField(null=True, blank=True)
@@ -84,7 +84,7 @@ class Department(models.Model):
 
     def update_stats(self):
         # Update department statistics
-        self.total_members = self.users.count()
+        self.total_members = self.members.count()
         # We'll update these when we implement projects
         # self.active_projects = self.projects.filter(status='active').count()
         # self.completed_projects = self.projects.filter(status='completed').count()

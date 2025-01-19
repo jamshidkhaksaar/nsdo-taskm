@@ -1,15 +1,16 @@
 import axios from 'axios';
-import { logout } from './authUtils';
+import { store } from '../store';
+import { logout } from '../store/slices/authSlice';
 
-const instance = axios.create({
-  baseURL: 'http://localhost:8000',
+const axiosInstance = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
   headers: {
-    'Accept': 'application/json',
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add request interceptor to handle authentication
-instance.interceptors.request.use(
+axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -23,47 +24,17 @@ instance.interceptors.request.use(
 );
 
 // Add response interceptor to handle token refresh
-instance.interceptors.response.use(
+axiosInstance.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // If error is 401 and we haven't already retried
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        // Attempt to refresh token
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          logout();
-          window.location.href = '/login';
-          return Promise.reject(new Error('Session expired'));
-        }
-        
-        const response = await axios.post(
-          '/api/auth/token/refresh/',
-          { refresh: refreshToken }
-        );
-        
-        const { access } = response.data;
-        
-        // Store new token
-        localStorage.setItem('token', access);
-        instance.defaults.headers.common['Authorization'] = `Bearer ${access}`;
-        originalRequest.headers['Authorization'] = `Bearer ${access}`;
-        
-        // Retry original request
-        return instance(originalRequest);
-      } catch (refreshError) {
-        // If refresh fails, logout user
-        logout();
-        return Promise.reject(refreshError);
-      }
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear token and redirect to login
+      localStorage.removeItem('token');
+      store.dispatch(logout());
+      window.location.href = '/login';
     }
-    
     return Promise.reject(error);
   }
 );
 
-export default instance;
+export default axiosInstance;
