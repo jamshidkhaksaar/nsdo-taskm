@@ -17,6 +17,7 @@ export interface Task {
   created_by: string | null;
   updated_at: string;
   isUpdating?: boolean;
+  comments?: Comment[];
 }
 
 export interface CreateTask {
@@ -43,4 +44,18 @@ export interface TaskUpdate {
   department?: string | null;
   assigned_to?: string[] | null;
   updated_at: string;
+}
+
+export interface Comment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
 }

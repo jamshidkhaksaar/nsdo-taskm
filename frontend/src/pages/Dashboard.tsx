@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import axios from '../utils/axios';
 
 // Material-UI Core Components
 import {
@@ -106,33 +107,58 @@ const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
     location: "Loading...",
     temp: "--°C",
     condition: "Loading",
+    icon: "",
   });
 
-  // Fetch location and weather data using IP
+  // Fetch weather data using WeatherAPI.com
   useEffect(() => {
-    const fetchLocationAndWeather = async () => {
+    const fetchWeather = async () => {
       try {
-        // Get location from IP
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
+        // Use the configured axios instance
+        const settingsResponse = await axios.get('/api/api-settings/1/');
+        const weatherApiKey = settingsResponse.data.weather_api_key;
+        const weatherApiEnabled = settingsResponse.data.weather_api_enabled;
         
-        // Set weather info based on location
+        if (!weatherApiEnabled || !weatherApiKey) {
+          throw new Error('Weather API is not configured or disabled');
+        }
+
+        // Get location from IP
+        const locationResponse = await fetch('https://ipapi.co/json/');
+        const locationData = await locationResponse.json();
+        
+        // Fetch weather data from WeatherAPI.com
+        const weatherResponse = await fetch(
+          `https://api.weatherapi.com/v1/current.json?key=${weatherApiKey}&q=${locationData.city}&aqi=no`
+        );
+        
+        if (!weatherResponse.ok) {
+          throw new Error('Weather API request failed');
+        }
+        
+        const weatherData = await weatherResponse.json();
+
         setWeatherInfo({
-          location: `${data.city}, ${data.country_code}`,
-          temp: `${Math.round(data.latitude < 0 ? 25 : 20)}°C`, // Simple temperature estimation
-          condition: data.latitude < 0 ? "Sunny" : "Clear",
+          location: `${weatherData.location.name}, ${weatherData.location.country}`,
+          temp: `${weatherData.current.temp_c}°C`,
+          condition: weatherData.current.condition.text,
+          icon: weatherData.current.condition.icon,
         });
       } catch (error) {
-        console.error("Error fetching location:", error);
+        console.error("Error fetching weather:", error);
         setWeatherInfo({
-          location: "Kabul, AF",
-          temp: "25°C",
-          condition: "Clear",
+          location: "Weather Unavailable",
+          temp: "--°C",
+          condition: "Error",
+          icon: "",
         });
       }
     };
 
-    fetchLocationAndWeather();
+    fetchWeather();
+    const weatherInterval = setInterval(fetchWeather, 300000); // Update every 5 minutes
+
+    return () => clearInterval(weatherInterval);
   }, []);
 
   // Clock update effect remains the same
@@ -221,7 +247,15 @@ const HeaderWidget: React.FC<{ username: string }> = ({ username }) => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <WbSunnyIcon sx={{ color: '#FFD700' }} />
+            {weatherInfo.icon ? (
+              <img 
+                src={`https:${weatherInfo.icon}`} 
+                alt={weatherInfo.condition}
+                style={{ width: 24, height: 24 }}
+              />
+            ) : (
+              <WbSunnyIcon sx={{ color: '#FFD700' }} />
+            )}
             <Box>
               <Typography
                 variant="body2"

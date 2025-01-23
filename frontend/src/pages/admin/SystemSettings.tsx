@@ -160,6 +160,20 @@ const settingsSections: SettingsSection[] = [
         description: 'Your API key for external integrations',
       },
       {
+        id: 'weatherApiEnabled',
+        label: 'Enable Weather API',
+        type: 'switch',
+        value: true,
+        description: 'Enable WeatherAPI.com integration',
+      },
+      {
+        id: 'weatherApiKey',
+        label: 'Weather API Key',
+        type: 'text',
+        value: '',
+        description: 'Your WeatherAPI.com API key',
+      },
+      {
         id: 'apiRateLimit',
         label: 'Rate Limit',
         type: 'number',
@@ -216,6 +230,8 @@ const notificationSettingsMap = {
 const apiSettingsMap = {
   apiEnabled: 'api_enabled',
   apiKey: 'api_key',
+  weatherApiEnabled: 'weather_api_enabled',
+  weatherApiKey: 'weather_api_key',
   apiRateLimit: 'api_rate_limit',
   apiAllowedIps: 'api_allowed_ips'
 };

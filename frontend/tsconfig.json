@@ -4,7 +4,8 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "esnext"
+      "esnext",
+      "webworker"
     ],
     "allowJs": true,
     "skipLibCheck": true,
@@ -24,12 +25,16 @@
       "@/*": ["*"]
     },
     "checkJs": true,
-    "typeRoots": ["./node_modules/@types"]
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ]
   },
   "include": [
     "src/**/*",
     "src/types/images.d.ts",
-    "src/types/particles.js.d.ts"
+    "src/types/particles.js.d.ts",
+    "src/types/service-worker.d.ts"
   ],
   "exclude": [
     "node_modules",

@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.conf import settings
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email=None, password=None, **extra_fields):
@@ -68,49 +69,48 @@ class Department(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     head = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='headed_departments'
     )
-    members_count = models.IntegerField(default=0)
-    active_projects = models.IntegerField(default=0)
-    completed_projects = models.IntegerField(default=0)
-    total_members = models.IntegerField(default=0)
-    completion_rate = models.FloatField(default=0)
+    users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name='departments',
+        blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    active_projects = models.IntegerField(default=0)
+    completion_rate = models.FloatField(default=0.0)
 
-    def update_stats(self):
-        # Update department statistics
-        self.total_members = self.members.count()
-        # We'll update these when we implement projects
-        # self.active_projects = self.projects.filter(status='active').count()
-        # self.completed_projects = self.projects.filter(status='completed').count()
-        # if self.active_projects + self.completed_projects > 0:
-        #     self.completion_rate = (self.completed_projects * 100) / (self.active_projects + self.completed_projects)
-        self.save()
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        # Update stats after saving
-        if 'update_fields' not in kwargs or 'members_count' not in kwargs.get('update_fields', []):
-            self.update_stats()
-        # Log the activity
-        from .utils import log_activity
-        action = 'Department Created' if not self.pk else 'Department Updated'
-        log_activity(
-            user=kwargs.get('user'),  # Pass user when saving
-            action=action,
-            target=f'Department: {self.name}',
-            details=f'{action}',
-            status='success',
-            ip_address='0.0.0.0'  # You might want to pass this from the view
-        )
+    class Meta:
+        ordering = ['name']
 
     def __str__(self):
         return self.name
+
+    @property
+    def members_count(self):
+        return self.users.count()
+
+    def update_stats(self):
+        """Update department statistics"""
+        from api.models import Project  # Import here to avoid circular imports
+        
+        # Get projects for this department's users
+        projects = Project.objects.filter(assigned_to__department=self)
+        
+        # Update active projects count
+        self.active_projects = projects.filter(status='in_progress').count()
+        
+        # Calculate completion rate
+        total_projects = projects.count()
+        completed_projects = projects.filter(status='completed').count()
+        self.completion_rate = (completed_projects / total_projects * 100) if total_projects > 0 else 0
+        
+        self.save()
 
 class ActivityLog(models.Model):
     STATUS_CHOICES = [
@@ -171,6 +171,10 @@ class SystemSettings(models.Model):
     api_key = models.CharField(max_length=64, blank=True)
     api_rate_limit = models.IntegerField(default=100)  # Requests per minute
     api_allowed_ips = models.TextField(blank=True)  # Comma-separated list of IPs
+
+    # Weather API Settings
+    weather_api_enabled = models.BooleanField(default=False)
+    weather_api_key = models.CharField(max_length=255, blank=True)
 
     # Add a timestamp for tracking changes
     last_updated = models.DateTimeField(auto_now=True)

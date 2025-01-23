@@ -5,22 +5,31 @@ from .models import Department, ActivityLog, SystemSettings, Backup
 
 User = get_user_model()
 
-class DepartmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Department
-        fields = ['id', 'name', 'description', 'head', 'created_at', 'updated_at']
-
+# Define UserSerializer first since it's used by other serializers
 class UserSerializer(serializers.ModelSerializer):
-    department_details = DepartmentSerializer(source='department', read_only=True)
-    
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'role', 'department', 'department_details', 'position',
+            'role', 'department', 'position',
             'is_active', 'date_joined', 'last_login'
         ]
         read_only_fields = ['date_joined', 'last_login']
+
+# Then define DepartmentSerializer which uses UserSerializer
+class DepartmentSerializer(serializers.ModelSerializer):
+    head = UserSerializer(read_only=True)
+    members = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'description', 'head', 'members', 'created_at', 'updated_at']
+
+    def get_members(self, obj):
+        return UserSerializer(obj.users.all(), many=True).data
+
+# Update UserSerializer to include department_details
+UserSerializer.department_details = DepartmentSerializer(source='department', read_only=True)
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -123,7 +132,7 @@ class DepartmentManagementSerializer(serializers.ModelSerializer):
             'members', 'members_count', 'active_projects',
             'completion_rate', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['members_count', 'active_projects', 'completion_rate', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
     def get_head_name(self, obj):
         if obj.head:
@@ -131,17 +140,10 @@ class DepartmentManagementSerializer(serializers.ModelSerializer):
         return "No Head Assigned"
 
     def get_members(self, obj):
-        # Get all users in this department
-        department_users = obj.users.all()
-        return [{
-            'id': str(user.id),  # Convert to string to ensure consistency
-            'name': f"{user.first_name} {user.last_name}".strip() or user.username,
-            'avatar': None
-        } for user in department_users]
+        return UserSerializer(obj.users.all(), many=True).data
 
     def get_members_count(self, obj):
-        # Directly count the related users
-        return obj.users.count() 
+        return obj.members_count
 
 class DashboardStatsSerializer(serializers.Serializer):
     stats = serializers.DictField()
@@ -225,6 +227,8 @@ class APISettingsSerializer(serializers.ModelSerializer):
         fields = [
             'api_enabled',
             'api_key',
+            'weather_api_enabled',
+            'weather_api_key',
             'api_rate_limit',
             'api_allowed_ips'
         ]

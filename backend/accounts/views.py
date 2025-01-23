@@ -190,13 +190,35 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
-    serializer_class = DepartmentSerializer
+    serializer_class = DepartmentManagementSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    def list(self, request, *args, **kwargs):
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def update(self, request, *args, **kwargs):
+        try:
+            return super().update(request, *args, **kwargs)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
@@ -540,8 +562,7 @@ class DepartmentManagementViewSet(viewsets.ModelViewSet):
         if search:
             queryset = queryset.filter(
                 Q(name__icontains=search) |
-                Q(description__icontains=search) |
-                Q(head__username__icontains=search)
+                Q(description__icontains=search)
             )
         return queryset
 
@@ -579,27 +600,21 @@ class DepartmentManagementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         department = serializer.save()
-        department.update_stats()
-        log_activity(
-            user=self.request.user,
-            action='Department Created',
-            target=f'Department: {department.name}',
-            details='New department created',
-            status='success',
-            ip_address=self.request.META.get('REMOTE_ADDR', '0.0.0.0')
-        )
+        try:
+            department.update_stats()
+        except Exception as e:
+            print(f"Error updating department stats: {e}")
+            # Continue even if stats update fails
+        return department
 
     def perform_update(self, serializer):
         department = serializer.save()
-        department.update_stats()
-        log_activity(
-            user=self.request.user,
-            action='Department Updated',
-            target=f'Department: {department.name}',
-            details='Department details updated',
-            status='success',
-            ip_address=self.request.META.get('REMOTE_ADDR', '0.0.0.0')
-        )
+        try:
+            department.update_stats()
+        except Exception as e:
+            print(f"Error updating department stats: {e}")
+            # Continue even if stats update fails
+        return department
 
     def perform_destroy(self, instance):
         name = instance.name
@@ -792,17 +807,18 @@ class NotificationSettingsViewSet(viewsets.ModelViewSet):
         pass
 
 class APISettingsViewSet(viewsets.ModelViewSet):
+    queryset = SystemSettings.objects.all()
     serializer_class = APISettingsSerializer
-    permission_classes = [IsAdminUser]
-
+    
     def get_object(self):
-        settings, _ = SystemSettings.objects.get_or_create(pk=1)
-        return settings
+        # Get or create the settings object
+        obj, created = SystemSettings.objects.get_or_create(pk=1)
+        return obj
 
-    @action(detail=False, methods=['post'])
-    def regenerate_key(self, request):
-        # Implement API key regeneration logic
-        pass 
+    def list(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
 class BackupViewSet(viewsets.ModelViewSet):
     serializer_class = BackupSerializer

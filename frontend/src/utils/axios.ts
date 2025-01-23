@@ -2,15 +2,15 @@ import axios from 'axios';
 import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
 
-const axiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+const instance = axios.create({
+  baseURL: 'http://localhost:8000',  // Your Django backend URL
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add request interceptor to handle authentication
-axiosInstance.interceptors.request.use(
+// Add request interceptor to add auth token
+instance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -24,7 +24,7 @@ axiosInstance.interceptors.request.use(
 );
 
 // Add response interceptor to handle token refresh
-axiosInstance.interceptors.response.use(
+instance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
@@ -37,4 +37,4 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-export default axiosInstance;
+export default instance;
