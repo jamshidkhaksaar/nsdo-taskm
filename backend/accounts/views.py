@@ -10,8 +10,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import User, Department, ActivityLog, SystemSettings, Backup
-from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, APISettingsSerializer, BackupSerializer
+from .models import User, Department, ActivityLog, SystemSettings, Backup, UserProfile
+from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, APISettingsSerializer, BackupSerializer, UserProfileSerializer
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Q, Count
@@ -23,7 +23,7 @@ from django.core.exceptions import ValidationError
 import os
 import shutil
 from django.conf import settings
-from rest_framework.parsers import MultiPartParser, JSONParser
+from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
 import json
 from django.forms import model_to_dict
 import re
@@ -1263,3 +1263,59 @@ class BackupViewSet(viewsets.ModelViewSet):
         """Extract backup archive"""
         import shutil
         shutil.unpack_archive(archive_path, extract_path) 
+
+class UserProfileViewSet(viewsets.ModelViewSet):
+    serializer_class = UserProfileSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserProfile.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get', 'put', 'patch'])
+    def me(self, request):
+        profile, created = UserProfile.objects.get_or_create(user=request.user)
+        
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response(serializer.data)
+        
+        # Handle PUT/PATCH
+        try:
+            # Remove avatar-related fields if they're in the request data
+            data = request.data.copy()
+            if 'avatar' in data:
+                del data['avatar']
+            if 'avatar_url' in data:
+                del data['avatar_url']
+
+            # Convert empty strings to None for certain fields
+            for field in ['phone_number', 'location', 'linkedin', 'github', 'twitter', 'website']:
+                if field in data and data[field] == '':
+                    data[field] = None
+
+            print("Cleaned received data:", data)  # Debug log
+            partial = request.method == 'PATCH'
+            serializer = self.get_serializer(profile, data=data, partial=partial)
+            
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            
+            print("Validation errors:", serializer.errors)  # Debug log
+            return Response(
+                {
+                    'error': 'Validation failed',
+                    'details': serializer.errors
+                }, 
+                status=400
+            )
+        except Exception as e:
+            print(f"Error updating profile: {str(e)}")  # Debug log
+            return Response(
+                {'error': f'Failed to update profile: {str(e)}'}, 
+                status=400
+            ) 

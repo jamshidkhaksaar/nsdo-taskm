@@ -1,6 +1,11 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.conf import settings
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+import requests
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email=None, password=None, **extra_fields):
@@ -64,6 +69,107 @@ class User(AbstractUser):
     class Meta:
         # Remove the unique_together constraint since AbstractUser already handles username uniqueness
         swappable = 'AUTH_USER_MODEL'
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='profile'
+    )
+    avatar = models.ImageField(
+        upload_to='avatars/',
+        null=True,
+        blank=True
+    )
+    bio = models.TextField(
+        max_length=500,
+        blank=True,
+        null=True
+    )
+    phone_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+    location = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+    linkedin = models.URLField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+    github = models.URLField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+    twitter = models.URLField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+    website = models.URLField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+    skills = models.JSONField(
+        default=list,
+        blank=True,
+        null=True
+    )
+    theme_preference = models.CharField(
+        max_length=20,
+        default='light',
+        blank=True,
+        null=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s profile"
+
+    def clean(self):
+        # Validate URLs if provided
+        url_validator = URLValidator()
+        urls = {
+            'LinkedIn': self.linkedin,
+            'GitHub': self.github,
+            'Twitter': self.twitter,
+            'Website': self.website
+        }
+        
+        for name, url in urls.items():
+            if url:
+                try:
+                    url_validator(url)
+                except ValidationError:
+                    raise ValidationError(f'Invalid {name} URL')
+
+    def generate_avatar(self):
+        """Generate an avatar using UI Avatars API"""
+        username = self.user.username
+        avatar_url = f"https://ui-avatars.com/api/?name={username}&background=random&size=200"
+        
+        try:
+            response = requests.get(avatar_url)
+            if response.status_code == 200:
+                # Save the avatar image
+                from django.core.files.base import ContentFile
+                avatar_name = f"avatar_{self.user.username}.png"
+                self.avatar.save(avatar_name, ContentFile(response.content), save=True)
+        except Exception as e:
+            print(f"Error generating avatar: {e}")
+
+@receiver(post_save, sender=UserProfile)
+def ensure_profile_has_avatar(sender, instance, created, **kwargs):
+    """Ensure profile has an avatar after creation"""
+    if created and not instance.avatar:
+        instance.generate_avatar()
 
 class Department(models.Model):
     name = models.CharField(max_length=100)

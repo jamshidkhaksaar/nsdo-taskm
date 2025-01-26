@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Department, ActivityLog, SystemSettings, Backup
+from .models import Department, ActivityLog, SystemSettings, Backup, UserProfile
+from django.core.files.base import ContentFile
+import base64
 
 User = get_user_model()
 
@@ -249,4 +251,80 @@ class BackupSerializer(serializers.ModelSerializer):
             'id', 'name', 'timestamp', 'size', 'type',
             'status', 'created_by', 'notes', 'error_message'
         ]
-        read_only_fields = ['timestamp', 'created_by'] 
+        read_only_fields = ['timestamp', 'created_by']
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    avatar_base64 = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
+    avatar_url = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = UserProfile
+        fields = [
+            'id', 'avatar', 'avatar_base64', 'avatar_url', 'bio', 
+            'phone_number', 'location', 'linkedin', 'github', 
+            'twitter', 'website', 'skills', 'theme_preference',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'avatar_url']
+        extra_kwargs = {
+            'avatar': {'required': False, 'allow_null': True, 'write_only': True},
+            'bio': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
+            'location': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
+            'linkedin': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
+            'github': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
+            'twitter': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
+            'website': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
+            'skills': {'required': False, 'default': list, 'allow_null': True},
+            'theme_preference': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': 'light'},
+        }
+
+    def get_avatar_url(self, obj):
+        if obj.avatar:
+            try:
+                return self.context['request'].build_absolute_uri(obj.avatar.url)
+            except Exception:
+                return None
+        return None
+
+    def validate(self, data):
+        # Handle URL fields - convert empty strings and invalid URLs to None
+        url_fields = ['linkedin', 'github', 'twitter', 'website']
+        for field in url_fields:
+            if field in data:
+                value = data.get(field)
+                if not value or (isinstance(value, str) and not value.strip()):
+                    data[field] = None
+
+        # Ensure skills is always a list
+        if 'skills' in data and data['skills'] is None:
+            data['skills'] = []
+
+        return data
+
+    def update(self, instance, validated_data):
+        avatar_base64 = validated_data.pop('avatar_base64', None)
+        
+        if avatar_base64 and avatar_base64.strip():  # Only process if not empty
+            try:
+                if ';base64,' in avatar_base64:
+                    format, imgstr = avatar_base64.split(';base64,')
+                    ext = format.split('/')[-1]
+                    data = ContentFile(base64.b64decode(imgstr), name=f'avatar_{instance.user.username}.{ext}')
+                    instance.avatar = data
+            except Exception as e:
+                print(f"Error processing avatar: {e}")
+                # If avatar processing fails, generate a default one
+                instance.generate_avatar()
+
+        # Handle skills separately to ensure it's always a list
+        skills = validated_data.pop('skills', None)
+        if skills is not None:
+            instance.skills = skills if isinstance(skills, list) else []
+
+        # Update other fields
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        instance.save()
+        return instance 
