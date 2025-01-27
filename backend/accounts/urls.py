@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import CustomTokenObtainPairView, UserViewSet, DepartmentViewSet, ActivityLogViewSet, UserManagementViewSet, DepartmentManagementViewSet, DashboardViewSet, SecuritySettingsViewSet, BackupSettingsViewSet, NotificationSettingsViewSet, APISettingsViewSet, BackupViewSet, UserProfileViewSet
+from .views import CustomTokenObtainPairView, UserViewSet, DepartmentViewSet, ActivityLogViewSet, UserManagementViewSet, DepartmentManagementViewSet, DashboardViewSet, SecuritySettingsViewSet, BackupSettingsViewSet, NotificationSettingsViewSet, APISettingsViewSet, BackupViewSet, UserProfileViewSet, UserSettingsViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserManagementViewSet)
@@ -14,10 +14,12 @@ router.register(r'notification-settings', NotificationSettingsViewSet, basename=
 router.register(r'api-settings', APISettingsViewSet, basename='api-settings')
 router.register(r'backups', BackupViewSet, basename='backups')
 router.register(r'profile', UserProfileViewSet, basename='profile')
+router.register(r'settings', UserSettingsViewSet, basename='user-settings')
 
 urlpatterns = [
     path('', include(router.urls)),
     path('auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('activity-logs/debug/', ActivityLogViewSet.as_view({'get': 'debug'}), name='activity-logs-debug'),
+    path('settings/download-tasks/', UserSettingsViewSet.as_view({'get': 'download_tasks'}), name='settings-download-tasks'),
 ] 

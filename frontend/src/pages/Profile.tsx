@@ -23,9 +23,14 @@ import {
   PhotoCamera as PhotoCameraIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { ProfileService } from '../services/profile';
+import Sidebar from '../components/Sidebar';
+import Footer from '../components/Footer';
+import { useTheme } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
+import { logout } from '../store/slices/authSlice';
 
 interface UserProfile {
   avatar_url: string | null;
@@ -40,6 +45,8 @@ interface UserProfile {
   theme_preference: string;
 }
 
+const DRAWER_WIDTH = 240;
+
 const Profile: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -48,6 +55,10 @@ const Profile: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [newSkill, setNewSkill] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [open, setOpen] = useState(true);
+  const theme = useTheme();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     fetchProfile();
@@ -129,6 +140,19 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleLogout = () => {
+    try {
+      dispatch(logout());
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const toggleDrawer = () => {
+    setOpen(!open);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -161,252 +185,277 @@ const Profile: React.FC = () => {
         zIndex: 0,
       },
     }}>
-      <Container 
-        maxWidth="lg" 
-        sx={{ 
-          py: 4,
+      <Sidebar
+        open={open}
+        onToggleDrawer={toggleDrawer}
+        onLogout={handleLogout}
+        drawerWidth={DRAWER_WIDTH}
+      />
+      
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          minHeight: '100vh',
           position: 'relative',
           zIndex: 1,
+          pl: { sm: open ? `${DRAWER_WIDTH}px` : '73px' },
+          transition: theme.transitions.create('padding', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
         }}
       >
-        <Typography variant="h4" sx={{ mb: 4, color: '#fff' }}>
-          Profile Settings
-        </Typography>
+        <Container 
+          maxWidth="lg" 
+          sx={{ 
+            py: 4,
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          <Typography variant="h4" sx={{ mb: 4, color: '#fff' }}>
+            Profile Settings
+          </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-            {success}
-          </Alert>
-        )}
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+              {success}
+            </Alert>
+          )}
 
-        <form onSubmit={handleProfileUpdate}>
-          <Grid container spacing={3}>
-            {/* Profile Photo Section */}
-            <Grid item xs={12} md={4}>
-              <Card sx={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-              }}>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                    <Avatar
-                      src={avatarPreview || profile?.avatar_url || undefined}
-                      sx={{ width: 150, height: 150, mb: 2, mx: 'auto' }}
-                    />
-                    <input
-                      accept="image/*"
-                      type="file"
-                      id="avatar-upload"
-                      hidden
-                      onChange={handleAvatarChange}
-                    />
-                    <label htmlFor="avatar-upload">
-                      <IconButton
-                        component="span"
-                        sx={{
-                          position: 'absolute',
-                          bottom: 0,
-                          right: 0,
-                          bgcolor: 'primary.main',
-                          '&:hover': { bgcolor: 'primary.dark' },
-                        }}
-                      >
-                        <PhotoCameraIcon />
-                      </IconButton>
-                    </label>
-                  </Box>
-                  <Typography variant="h6" sx={{ color: '#fff', mt: 2 }}>
-                    {user?.username}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    {user?.email}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Profile Details Section */}
-            <Grid item xs={12} md={8}>
-              <Card sx={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-              }}>
-                <CardContent>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}>
-                      <TextField
-                        multiline
-                        rows={4}
-                        fullWidth
-                        label="Bio"
-                        value={profile?.bio || ''}
-                        onChange={(e) => setProfile(prev => prev ? { ...prev, bio: e.target.value } : null)}
-                        sx={{ mb: 2 }}
+          <form onSubmit={handleProfileUpdate}>
+            <Grid container spacing={3}>
+              {/* Profile Photo Section */}
+              <Grid item xs={12} md={4}>
+                <Card sx={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                }}>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                      <Avatar
+                        src={avatarPreview || profile?.avatar_url || undefined}
+                        sx={{ width: 150, height: 150, mb: 2, mx: 'auto' }}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Phone Number"
-                        value={profile?.phone_number || ''}
-                        onChange={(e) => setProfile(prev => prev ? { ...prev, phone_number: e.target.value } : null)}
-                        sx={{ mb: 2 }}
+                      <input
+                        accept="image/*"
+                        type="file"
+                        id="avatar-upload"
+                        hidden
+                        onChange={handleAvatarChange}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Location"
-                        value={profile?.location || ''}
-                        onChange={(e) => setProfile(prev => prev ? { ...prev, location: e.target.value } : null)}
-                        sx={{ mb: 2 }}
-                      />
-                    </Grid>
+                      <label htmlFor="avatar-upload">
+                        <IconButton
+                          component="span"
+                          sx={{
+                            position: 'absolute',
+                            bottom: 0,
+                            right: 0,
+                            bgcolor: 'primary.main',
+                            '&:hover': { bgcolor: 'primary.dark' },
+                          }}
+                        >
+                          <PhotoCameraIcon />
+                        </IconButton>
+                      </label>
+                    </Box>
+                    <Typography variant="h6" sx={{ color: '#fff', mt: 2 }}>
+                      {user?.username}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                      {user?.email}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
 
-                    {/* Social Media Links */}
-                    <Grid item xs={12}>
-                      <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
-                        Social Media Links
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
+              {/* Profile Details Section */}
+              <Grid item xs={12} md={8}>
+                <Card sx={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                }}>
+                  <CardContent>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          multiline
+                          rows={4}
+                          fullWidth
+                          label="Bio"
+                          value={profile?.bio || ''}
+                          onChange={(e) => setProfile(prev => prev ? { ...prev, bio: e.target.value } : null)}
+                          sx={{ mb: 2 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Phone Number"
+                          value={profile?.phone_number || ''}
+                          onChange={(e) => setProfile(prev => prev ? { ...prev, phone_number: e.target.value } : null)}
+                          sx={{ mb: 2 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Location"
+                          value={profile?.location || ''}
+                          onChange={(e) => setProfile(prev => prev ? { ...prev, location: e.target.value } : null)}
+                          sx={{ mb: 2 }}
+                        />
+                      </Grid>
+
+                      {/* Social Media Links */}
+                      <Grid item xs={12}>
+                        <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
+                          Social Media Links
+                        </Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              label="LinkedIn"
+                              value={profile?.linkedin || ''}
+                              onChange={(e) => setProfile(prev => prev ? { ...prev, linkedin: e.target.value } : null)}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <LinkedInIcon sx={{ color: '#fff' }} />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              label="GitHub"
+                              value={profile?.github || ''}
+                              onChange={(e) => setProfile(prev => prev ? { ...prev, github: e.target.value } : null)}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <GitHubIcon sx={{ color: '#fff' }} />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              label="Twitter"
+                              value={profile?.twitter || ''}
+                              onChange={(e) => setProfile(prev => prev ? { ...prev, twitter: e.target.value } : null)}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <TwitterIcon sx={{ color: '#fff' }} />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              label="Website"
+                              value={profile?.website || ''}
+                              onChange={(e) => setProfile(prev => prev ? { ...prev, website: e.target.value } : null)}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <WebsiteIcon sx={{ color: '#fff' }} />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Grid>
+                        </Grid>
+                      </Grid>
+
+                      {/* Skills Section */}
+                      <Grid item xs={12}>
+                        <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
+                          Skills
+                        </Typography>
+                        <Box sx={{ mb: 2 }}>
                           <TextField
-                            fullWidth
-                            label="LinkedIn"
-                            value={profile?.linkedin || ''}
-                            onChange={(e) => setProfile(prev => prev ? { ...prev, linkedin: e.target.value } : null)}
+                            value={newSkill}
+                            onChange={(e) => setNewSkill(e.target.value)}
+                            label="Add Skill"
+                            size="small"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddSkill();
+                              }
+                            }}
                             InputProps={{
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  <LinkedInIcon sx={{ color: '#fff' }} />
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <IconButton onClick={handleAddSkill} edge="end">
+                                    <AddIcon />
+                                  </IconButton>
                                 </InputAdornment>
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="GitHub"
-                            value={profile?.github || ''}
-                            onChange={(e) => setProfile(prev => prev ? { ...prev, github: e.target.value } : null)}
-                            InputProps={{
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  <GitHubIcon sx={{ color: '#fff' }} />
-                                </InputAdornment>
-                              ),
-                            }}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Twitter"
-                            value={profile?.twitter || ''}
-                            onChange={(e) => setProfile(prev => prev ? { ...prev, twitter: e.target.value } : null)}
-                            InputProps={{
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  <TwitterIcon sx={{ color: '#fff' }} />
-                                </InputAdornment>
-                              ),
-                            }}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Website"
-                            value={profile?.website || ''}
-                            onChange={(e) => setProfile(prev => prev ? { ...prev, website: e.target.value } : null)}
-                            InputProps={{
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  <WebsiteIcon sx={{ color: '#fff' }} />
-                                </InputAdornment>
-                              ),
-                            }}
-                          />
-                        </Grid>
+                        </Box>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {profile?.skills.map((skill) => (
+                            <Chip
+                              key={skill}
+                              label={skill}
+                              onDelete={() => handleRemoveSkill(skill)}
+                              sx={{
+                                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                                color: '#fff',
+                                '& .MuiChip-deleteIcon': {
+                                  color: 'rgba(255, 255, 255, 0.7)',
+                                  '&:hover': { color: '#fff' },
+                                },
+                              }}
+                            />
+                          ))}
+                        </Box>
                       </Grid>
                     </Grid>
 
-                    {/* Skills Section */}
-                    <Grid item xs={12}>
-                      <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
-                        Skills
-                      </Typography>
-                      <Box sx={{ mb: 2 }}>
-                        <TextField
-                          value={newSkill}
-                          onChange={(e) => setNewSkill(e.target.value)}
-                          label="Add Skill"
-                          size="small"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddSkill();
-                            }
-                          }}
-                          InputProps={{
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                <IconButton onClick={handleAddSkill} edge="end">
-                                  <AddIcon />
-                                </IconButton>
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Box>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {profile?.skills.map((skill) => (
-                          <Chip
-                            key={skill}
-                            label={skill}
-                            onDelete={() => handleRemoveSkill(skill)}
-                            sx={{
-                              bgcolor: 'rgba(255, 255, 255, 0.1)',
-                              color: '#fff',
-                              '& .MuiChip-deleteIcon': {
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                '&:hover': { color: '#fff' },
-                              },
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    </Grid>
-                  </Grid>
-
-                  <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      sx={{
-                        bgcolor: 'primary.main',
-                        color: '#fff',
-                        '&:hover': { bgcolor: 'primary.dark' },
-                      }}
-                    >
-                      Save Changes
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
+                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        sx={{
+                          bgcolor: 'primary.main',
+                          color: '#fff',
+                          '&:hover': { bgcolor: 'primary.dark' },
+                        }}
+                      >
+                        Save Changes
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        </form>
-      </Container>
+          </form>
+        </Container>
+      </Box>
+
+      <Footer open={open} drawerWidth={DRAWER_WIDTH} />
     </Box>
   );
 };

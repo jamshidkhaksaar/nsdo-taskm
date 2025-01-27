@@ -11,7 +11,15 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import User, Department, ActivityLog, SystemSettings, Backup, UserProfile
-from .serializers import UserSerializer, UserCreateSerializer, DepartmentSerializer, LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, APISettingsSerializer, BackupSerializer, UserProfileSerializer
+from api.models import Task
+from .serializers import (
+    UserSerializer, UserCreateSerializer, DepartmentSerializer, 
+    LoginResponseSerializer, ActivityLogSerializer, UserManagementSerializer, 
+    UserPasswordSerializer, DepartmentManagementSerializer, DepartmentStatsSerializer, 
+    SecuritySettingsSerializer, BackupSettingsSerializer, NotificationSettingsSerializer, 
+    APISettingsSerializer, BackupSerializer, UserProfileSerializer,
+    PasswordUpdateSerializer, TwoFactorSettingsSerializer, TaskExportSerializer
+)
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Q, Count
@@ -27,6 +35,20 @@ from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
 import json
 from django.forms import model_to_dict
 import re
+import pyotp
+import qrcode
+import io
+import base64
+import csv
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from django.http import HttpResponse
+import logging
+from .renderers import CSVRenderer, PDFRenderer
+
+logger = logging.getLogger(__name__)
 
 class LoginView(APIView):
     def post(self, request):
@@ -1318,4 +1340,298 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': f'Failed to update profile: {str(e)}'}, 
                 status=400
+            ) 
+
+class UserSettingsViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        logger.info(f"Available actions: {self.get_extra_actions()}")
+    
+    def list(self, request):
+        logger.info("List method called")
+        return Response({'message': 'Settings API'})
+
+    @action(detail=False, methods=['post'])
+    def update_password(self, request):
+        serializer = PasswordUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            current_password = serializer.validated_data['current_password']
+            new_password = serializer.validated_data['new_password']
+            
+            # Verify current password
+            if not user.check_password(current_password):
+                return Response(
+                    {'error': 'Current password is incorrect'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Update password
+            try:
+                user.set_password(new_password)
+                user.save()
+                
+                # Log the password change
+                log_activity(
+                    user=user,
+                    action='Password Changed',
+                    target='User Settings',
+                    details='Password was successfully updated',
+                    status='success',
+                    ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+                )
+                
+                return Response({'message': 'Password updated successfully'})
+            except Exception as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def setup_2fa(self, request):
+        serializer = TwoFactorSettingsSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            enabled = serializer.validated_data['enabled']
+            
+            try:
+                if enabled:
+                    # Generate secret key for user
+                    secret = pyotp.random_base32()
+                    user.profile.two_factor_secret = secret
+                    user.profile.two_factor_enabled = False  # Not enabled until verified
+                    user.profile.save()
+                    
+                    # Generate QR code
+                    totp = pyotp.TOTP(secret)
+                    provisioning_uri = totp.provisioning_uri(
+                        user.email,
+                        issuer_name="Your App Name"
+                    )
+                    
+                    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+                    qr.add_data(provisioning_uri)
+                    qr.make(fit=True)
+                    
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="PNG")
+                    qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
+                    
+                    return Response({
+                        'qr_code': f"data:image/png;base64,{qr_code_base64}",
+                        'secret': secret
+                    })
+                else:
+                    # Disable 2FA
+                    user.profile.two_factor_enabled = False
+                    user.profile.two_factor_secret = None
+                    user.profile.save()
+                    
+                    return Response({'message': '2FA disabled successfully'})
+                    
+            except Exception as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def verify_2fa(self, request):
+        code = request.data.get('verification_code')
+        if not code:
+            return Response(
+                {'error': 'Verification code is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        user = request.user
+        secret = user.profile.two_factor_secret
+        
+        if not secret:
+            return Response(
+                {'error': '2FA setup not initiated'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        totp = pyotp.TOTP(secret)
+        if totp.verify(code):
+            user.profile.two_factor_enabled = True
+            user.profile.save()
+            return Response({'message': '2FA verified and enabled successfully'})
+        else:
+            return Response(
+                {'error': 'Invalid verification code'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='download-tasks',
+        url_name='download-tasks',
+        renderer_classes=[CSVRenderer, PDFRenderer],
+        permission_classes=[IsAuthenticated]
+    )
+    def download_tasks(self, request):
+        logger.info(f"Download tasks called with format: {request.query_params.get('format')}")
+        logger.info(f"Request path: {request.path}")
+        logger.info(f"Request method: {request.method}")
+        logger.info(f"User: {request.user}")
+        
+        try:
+            format_type = request.query_params.get('format', 'csv')
+            print(f"Received download request for format: {format_type}")
+
+            if format_type not in ['csv', 'pdf']:
+                return Response(
+                    {'error': 'Invalid format type. Must be csv or pdf'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user = request.user
+            user_id_str = str(user.id)
+            
+            # Get all tasks
+            tasks = Task.objects.filter(
+                Q(created_by=user)
+            ).select_related('created_by', 'department')
+
+            # Filter tasks where user is assigned
+            all_tasks = []
+            for task in tasks:
+                if task.assigned_to:
+                    try:
+                        assigned_users = json.loads(task.assigned_to)
+                        if user_id_str in assigned_users:
+                            all_tasks.append(task)
+                    except json.JSONDecodeError:
+                        continue
+                else:
+                    all_tasks.append(task)
+
+            if not all_tasks:
+                return Response(
+                    {'error': 'No tasks found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            if format_type == 'csv':
+                response = HttpResponse(content_type='text/csv')
+                response['Content-Disposition'] = 'attachment; filename="tasks.csv"'
+                
+                writer = csv.writer(response)
+                writer.writerow([
+                    'Title', 'Description', 'Status', 'Priority',
+                    'Created Date', 'Due Date', 'Department',
+                    'Created By', 'Assigned To'
+                ])
+                
+                for task in all_tasks:
+                    # Get assigned users' usernames
+                    assigned_users = []
+                    if task.assigned_to:
+                        try:
+                            assigned_user_ids = json.loads(task.assigned_to)
+                            assigned_users = User.objects.filter(
+                                id__in=assigned_user_ids
+                            ).values_list('username', flat=True)
+                        except (json.JSONDecodeError, User.DoesNotExist):
+                            pass
+
+                    writer.writerow([
+                        task.title,
+                        task.description or '',
+                        task.get_status_display(),
+                        task.get_priority_display(),
+                        task.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        task.due_date.strftime('%Y-%m-%d %H:%M:%S') if task.due_date else '',
+                        task.department.name if task.department else '',
+                        task.created_by.username if task.created_by else '',
+                        ', '.join(assigned_users)
+                    ])
+                
+                return response
+            else:  # pdf
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=letter)
+                elements = []
+                
+                # Update PDF headers to match CSV
+                data = [
+                    ['Title', 'Description', 'Status', 'Priority',
+                     'Created Date', 'Due Date', 'Department',
+                     'Created By', 'Assigned To']
+                ]
+                
+                for task in all_tasks:
+                    # Get assigned users' usernames
+                    assigned_users = []
+                    if task.assigned_to:
+                        try:
+                            assigned_user_ids = json.loads(task.assigned_to)
+                            assigned_users = User.objects.filter(
+                                id__in=assigned_user_ids
+                            ).values_list('username', flat=True)
+                        except (json.JSONDecodeError, User.DoesNotExist):
+                            pass
+
+                    data.append([
+                        task.title,
+                        task.description or '',
+                        task.get_status_display(),
+                        task.get_priority_display(),
+                        task.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        task.due_date.strftime('%Y-%m-%d %H:%M:%S') if task.due_date else '',
+                        task.department.name if task.department else '',
+                        task.created_by.username if task.created_by else '',
+                        ', '.join(assigned_users)
+                    ])
+                
+                # Adjust table style for better readability
+                table = Table(data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Left align for better readability
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),  # White background for data
+                    ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                    ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('WORDWRAP', (0, 0), (-1, -1), True),  # Enable word wrapping
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6),  # Add some padding
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                
+                # Add title to the PDF
+                elements.append(Paragraph(
+                    'Task Report',
+                    getSampleStyleSheet()['Heading1']
+                ))
+                elements.append(Spacer(1, 12))  # Add some space
+                elements.append(table)
+                
+                doc.build(elements)
+                
+                buffer.seek(0)
+                response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+                response['Content-Disposition'] = 'attachment; filename="tasks.pdf"'
+                return response
+
+        except Exception as e:
+            logger.error(f"Error in download_tasks: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             ) 

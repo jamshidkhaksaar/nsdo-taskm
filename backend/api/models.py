@@ -7,44 +7,52 @@ import uuid
 from accounts.models import Department
 
 class Task(models.Model):
-    PRIORITY_CHOICES = (
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled')
+    ]
+    
+    PRIORITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
-        ('high', 'High'),
-    )
-    STATUS_CHOICES = (
-        ('todo', 'Todo'),
-        ('in_progress', 'In Progress'),
-        ('done', 'Done'),
-    )
+        ('high', 'High')
+    ]
     
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(default=timezone.now)
-    due_date = models.DateTimeField(null=True, blank=True)
-    priority = models.CharField(
-        max_length=10,
-        choices=PRIORITY_CHOICES,
-        default='medium'
-    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='todo'
+        default='pending'
+    )
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default='medium'
     )
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'accounts.User',  # Use string reference to avoid circular import
         on_delete=models.CASCADE,
         related_name='created_tasks'
     )
-    assigned_to = models.TextField(null=True, blank=True)
+    assigned_to = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="JSON array of user IDs"
+    )
     department = models.ForeignKey(
-        Department,
+        'accounts.Department',
         on_delete=models.CASCADE,
         related_name='tasks',
         null=True,
         blank=True
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    due_date = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     is_private = models.BooleanField(default=False)
 
     class Meta:

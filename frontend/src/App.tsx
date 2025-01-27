@@ -4,6 +4,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 import { AppRoutes } from './routes';
 import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 const App: React.FC = () => {
@@ -16,6 +17,14 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/settings" 
+            element={
+              <ProtectedRoute>
+                <Settings />
               </ProtectedRoute>
             } 
           />

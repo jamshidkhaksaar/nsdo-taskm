@@ -328,3 +328,20 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance 
+
+class PasswordUpdateSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+    confirm_password = serializers.CharField(required=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("New passwords don't match")
+        return data
+
+class TwoFactorSettingsSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField(required=True)
+    verification_code = serializers.CharField(required=False, allow_blank=True)
+
+class TaskExportSerializer(serializers.Serializer):
+    format = serializers.ChoiceField(choices=['csv', 'pdf'], required=True) 
