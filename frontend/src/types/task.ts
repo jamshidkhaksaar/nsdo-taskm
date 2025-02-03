@@ -2,7 +2,7 @@
 import { User } from './user';
 
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskStatus = 'todo' | 'in_progress' | 'done';
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
 
 export interface Task {
   id: string;

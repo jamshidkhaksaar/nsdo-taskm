@@ -556,6 +556,7 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
     if (value === 1) return task.status === 'todo';
     if (value === 2) return task.status === 'in_progress';
     if (value === 3) return task.status === 'done';
+    if (value === 4) return task.status === 'cancelled';
     return true;
   });
 
@@ -584,9 +585,10 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
             <Tab label="To Do" />
             <Tab label="In Progress" />
             <Tab label="Completed" />
+            <Tab label="Cancelled" />
           </Tabs>
         </Box>
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: 2, maxHeight: '360px', overflowY: 'auto' }}>
           {filteredTasks.map((task) => (
             <TaskItem 
               key={task.id} 

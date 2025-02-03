@@ -12,6 +12,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import axios from '../../utils/axios';
+import { format } from 'date-fns';
 
 interface Note {
   id: string;
@@ -181,14 +182,17 @@ const StickyNotes: React.FC = () => {
             <Paper
               elevation={3}
               sx={{
-                p: 2,
+                p: 3,
                 background: note.color,
-                borderRadius: 2,
+                borderRadius: '24px',
+                border: '1px solid rgba(0,0,0,0.1)',
+                overflow: 'hidden',
                 position: 'relative',
-                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
                 '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.25)',
                 },
               }}
             >
@@ -232,10 +236,21 @@ const StickyNotes: React.FC = () => {
                     sx={{
                       color: 'rgba(0, 0, 0, 0.87)',
                       wordBreak: 'break-word',
-                      pr: 6,
+                      mb: 2,
                     }}
                   >
                     {note.content}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      position: 'absolute',
+                      bottom: 8,
+                      right: 8,
+                      color: 'rgba(0, 0, 0, 0.6)',
+                    }}
+                  >
+                    {format(new Date(note.created_at), 'MMM d, yyyy, h:mm a')}
                   </Typography>
                   <Box
                     sx={{

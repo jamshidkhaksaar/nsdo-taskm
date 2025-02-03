@@ -28,6 +28,8 @@ import {
   Container,
   Autocomplete,
   Chip,
+  Tabs,
+  Tab,
 } from '@mui/material';
 
 // Material-UI Date/Time Components
@@ -344,71 +346,116 @@ interface AssignedTasksProps {
   showAssignButton?: boolean;
 }
 
-const AssignedTasks: React.FC<AssignedTasksProps> = ({
-  title,
-  icon,
-  tasks,
-  showAssignButton
-}) => (
-  <Card
-    sx={{
-      background: 'rgba(255, 255, 255, 0.1)',
-      backdropFilter: 'blur(8px)',
-      border: '1px solid rgba(255, 255, 255, 0.18)',
-      mb: 3,
-    }}
-  >
-    <CardContent>
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        mb: 2 
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {icon}
-          <Typography variant="h6" sx={{ color: '#fff' }}>
-            {title}
-          </Typography>
-        </Box>
-        {showAssignButton && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
+const AssignedTasks: React.FC<AssignedTasksProps> = ({ title, icon, tasks, showAssignButton }) => {
+  const [tabValue, setTabValue] = useState(0);
+  const filteredTasks = tasks.filter(task => {
+    if (tabValue === 0) return true;
+    if (tabValue === 1) return task.status === 'todo';
+    if (tabValue === 2) return task.status === 'in_progress';
+    if (tabValue === 3) return task.status === 'done';
+    if (tabValue === 4) return task.status === 'cancelled';
+    return true;
+  });
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+
+  return (
+    <>
+      <Card
+        sx={{
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          mb: 3,
+        }}
+      >
+        <CardContent>
+          <Box
             sx={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              color: '#fff',
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.2)',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.2s ease-in-out',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 2,
             }}
           >
-            Assign Task
-          </Button>
-        )}
-      </Box>
-      {tasks.length === 0 ? (
-        <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 4 }}>
-          No tasks {title.toLowerCase()}
-        </Typography>
-      ) : (
-        tasks.map(task => (
-          // Task card component here
-          <Box key={task.id}>{/* Task card content */}</Box>
-        ))
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {icon}
+              <Typography variant="h6" sx={{ color: '#fff' }}>
+                {title}
+              </Typography>
+            </Box>
+            {showAssignButton && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setAssignDialogOpen(true)}
+                sx={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  color: '#fff',
+                  '&:hover': {
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                Assign Task
+              </Button>
+            )}
+          </Box>
+
+          <Tabs
+            value={tabValue}
+            onChange={(_, newValue) => setTabValue(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTab-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-selected': {
+                  color: '#fff',
+                },
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#fff',
+              },
+              mb: 2,
+            }}
+          >
+            <Tab label="All" />
+            <Tab label="To Do" />
+            <Tab label="In Progress" />
+            <Tab label="Completed" />
+            <Tab label="Cancelled" />
+          </Tabs>
+
+          {filteredTasks.length === 0 ? (
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 4 }}>
+              No tasks {title.toLowerCase()}
+            </Typography>
+          ) : (
+            filteredTasks.map(task => (
+              <Box key={task.id}>{/* Task card content */}</Box>
+            ))
+          )}
+        </CardContent>
+      </Card>
+      {showAssignButton && (
+        <CreateTaskDialog
+          open={assignDialogOpen}
+          onClose={() => setAssignDialogOpen(false)}
+          onTaskCreated={() => { setAssignDialogOpen(false); /* Optionally refresh tasks if needed */ }}
+        />
       )}
-    </CardContent>
-  </Card>
-);
+    </>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(true);
   const theme = useTheme();
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useDispatch() as AppDispatch;
   const navigate = useNavigate();
 
   const { 
