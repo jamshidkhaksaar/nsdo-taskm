@@ -4,12 +4,11 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import BackupViewSet, TaskViewSet, UserViewSet, NoteViewSet
+from .views import BackupViewSet, TaskViewSet, NoteViewSet
 
 router = DefaultRouter()
 router.register(r'backups', BackupViewSet, basename='backup')
 router.register(r'tasks', TaskViewSet, basename='task')
-router.register(r'users', UserViewSet, basename='user')
 router.register(r'notes', NoteViewSet, basename='note')
 
 urlpatterns = [

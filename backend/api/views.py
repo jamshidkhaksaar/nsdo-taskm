@@ -21,7 +21,7 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['email', 'role', 'departments']
+    filterset_fields = ['email', 'role', 'department']
     search_fields = ['email', 'first_name', 'last_name']
     ordering_fields = ['date_joined']
     ordering = ['-date_joined']
@@ -29,14 +29,20 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         
-        # For GET requests (list and retrieve), allow all users to see other users
+        # For GET requests (list and retrieve), allow users to see other users in their department
         if self.request.method == 'GET':
-            return User.objects.filter(is_active=True).exclude(is_superuser=True)
+            if user.is_staff:
+                return User.objects.filter(is_active=True).exclude(is_superuser=True)
+            else:
+                return User.objects.filter(
+                    is_active=True,
+                    department=user.department
+                ).exclude(is_superuser=True)
             
         # For other methods (create, update, delete)
         if user.is_staff:
-            # Admin users can see all users in their department
-            return User.objects.filter(departments__in=user.departments.all())
+            # Admin users can see all users
+            return User.objects.all()
         else:
             # Regular users can only modify themselves
             return User.objects.filter(id=user.id)
