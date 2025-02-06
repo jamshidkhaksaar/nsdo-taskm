@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
-from accounts.models import User
+from accounts.models import User, SystemSettings
 from .models import Backup, Task, Note
 
 class UserSerializer(serializers.ModelSerializer):
@@ -18,19 +18,28 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date_joined']
 
 class BackupSerializer(serializers.ModelSerializer):
+    created_by = serializers.StringRelatedField()
+    timestamp = serializers.DateTimeField(source='created_at', read_only=True)
+    
     class Meta:
         model = Backup
         fields = [
             'id',
-            'created_at',
+            'name',
+            'timestamp',
+            'created_by',
             'file',
             'description',
             'size',
-            'is_restored'
+            'type',
+            'status',
+            'is_restored',
+            'error_message'
         ]
         read_only_fields = [
             'id',
-            'created_at',
+            'timestamp',
+            'created_by',
             'size',
             'is_restored'
         ]
@@ -38,6 +47,13 @@ class BackupSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         representation['file'] = instance.file.url if instance.file else None
+        # Convert size to human readable format
+        if instance.size:
+            for unit in ['B', 'KB', 'MB', 'GB']:
+                if instance.size < 1024:
+                    representation['size'] = f"{instance.size:.1f} {unit}"
+                    break
+                instance.size /= 1024
         return representation
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -152,3 +168,21 @@ class UserLimitedSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret['id'] = str(instance.id)  # Convert ID to string for consistency
         return ret
+
+class BackupSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = [
+            'auto_backup_enabled',
+            'backup_frequency_hours',
+            'backup_retention_days',
+            'last_backup_at',
+            'backup_location'
+        ]
+
+    def validate_backup_frequency_hours(self, value):
+        if value < 1 or value > 168:  # Max 1 week
+            raise serializers.ValidationError(
+                'Backup frequency must be between 1 and 168 hours'
+            )
+        return value

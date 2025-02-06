@@ -857,19 +857,6 @@ class SecuritySettingsViewSet(viewsets.ModelViewSet):
             # You might want to configure your authentication backend
             pass 
 
-class BackupSettingsViewSet(viewsets.ModelViewSet):
-    serializer_class = BackupSettingsSerializer
-    permission_classes = [IsAdminUser]
-
-    def get_object(self):
-        settings, _ = SystemSettings.objects.get_or_create(pk=1)
-        return settings
-
-    @action(detail=False, methods=['post'])
-    def trigger_backup(self, request):
-        # Implement backup logic here
-        pass
-
 class NotificationSettingsViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSettingsSerializer
     permission_classes = [IsAdminUser]
@@ -896,32 +883,6 @@ class APISettingsViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-
-class BackupViewSet(viewsets.ModelViewSet):
-    queryset = Backup.objects.all()
-    serializer_class = BackupSerializer
-    permission_classes = [IsAdminUser]
-
-    def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user)
-
-    @action(detail=True, methods=['get'])
-    def download(self, request, pk=None):
-        backup = self.get_object()
-        try:
-            return FileResponse(
-                open(backup.file_path, 'rb'),
-                as_attachment=True,
-                filename=os.path.basename(backup.file_path)
-            )
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
 
 class UserProfileViewSet(viewsets.ModelViewSet):
     serializer_class = UserProfileSerializer

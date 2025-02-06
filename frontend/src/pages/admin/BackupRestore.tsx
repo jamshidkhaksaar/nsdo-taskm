@@ -156,7 +156,7 @@ const BackupRestore: React.FC = () => {
       // Start polling for backup progress
       const pollInterval = setInterval(async () => {
         try {
-          const pollResponse = await axios.get(`/api/backups/${response.data.backup.id}/`);
+          const pollResponse = await axios.get(`/api/backups/${response.data.id}/`);
           const backup = pollResponse.data;
 
           if (backup.status === 'completed') {

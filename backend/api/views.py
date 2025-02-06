@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from django.db.models import Q
-from accounts.models import User
-from .serializers import UserSerializer, UserLimitedSerializer
+from accounts.models import User, SystemSettings
+from .serializers import UserSerializer, UserLimitedSerializer, BackupSettingsSerializer
 from accounts.permissions import TaskPermission
 from django.core.files.base import ContentFile
 from django.utils import timezone
@@ -15,6 +15,7 @@ from .models import Backup, Task, Note
 from .serializers import BackupSerializer, TaskSerializer, NoteSerializer
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
+from django.http import FileResponse
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -171,24 +172,29 @@ class BackupViewSet(viewsets.ModelViewSet):
             # Create a zip file in memory
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, 'w') as zip_file:
-                # Add database file
-                db_path = os.path.join('backend', 'db.sqlite3')
-                if os.path.exists(db_path):
-                    zip_file.write(db_path, 'db.sqlite3')
+                # Add database file if requested
+                if request.data.get('includeDatabases', True):
+                    db_path = os.path.join('backend', 'db.sqlite3')
+                    if os.path.exists(db_path):
+                        zip_file.write(db_path, 'db.sqlite3')
                 
-                # Add media files
-                media_path = os.path.join('backend', 'media')
-                if os.path.exists(media_path):
-                    for root, dirs, files in os.walk(media_path):
-                        for file in files:
-                            file_path = os.path.join(root, file)
-                            arcname = os.path.relpath(file_path, media_path)
-                            zip_file.write(file_path, f'media/{arcname}')
+                # Add media files if requested
+                if request.data.get('includeMedia', True):
+                    media_path = os.path.join('backend', 'media')
+                    if os.path.exists(media_path):
+                        for root, dirs, files in os.walk(media_path):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                arcname = os.path.relpath(file_path, media_path)
+                                zip_file.write(file_path, f'media/{arcname}')
 
             # Create backup record
             backup = Backup(
                 created_by=request.user,
-                description=request.data.get('description', '')
+                description=request.data.get('description', ''),
+                type=request.data.get('type', 'full'),
+                status='completed',
+                name=f"Backup_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
             )
             
             # Save zip file to backup
@@ -209,7 +215,7 @@ class BackupViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=['post'])
-    def restore_backup(self, request, pk=None):
+    def restore(self, request, pk=None):
         backup = self.get_object()
         
         try:
@@ -239,6 +245,21 @@ class BackupViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        backup = self.get_object()
+        try:
+            return FileResponse(
+                open(backup.file.path, 'rb'),
+                as_attachment=True,
+                filename=os.path.basename(backup.file.path)
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class NoteViewSet(viewsets.ModelViewSet):
     serializer_class = NoteSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -251,3 +272,23 @@ class NoteViewSet(viewsets.ModelViewSet):
             created_by=self.request.user,
             updated_at=timezone.now()
         )
+
+class BackupSettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = BackupSettingsSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    def get_object(self):
+        settings, _ = SystemSettings.objects.get_or_create(pk=1)
+        return settings
+
+    def list(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

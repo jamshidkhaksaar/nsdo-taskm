@@ -80,7 +80,19 @@ class Task(models.Model):
             self.assigned_to = json.dumps(user_ids)
 
 class Backup(models.Model):
+    TYPE_CHOICES = [
+        ('full', 'Full'),
+        ('partial', 'Partial')
+    ]
+    
+    STATUS_CHOICES = [
+        ('completed', 'Completed'),
+        ('in_progress', 'In Progress'),
+        ('failed', 'Failed')
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, default='Untitled Backup')
     created_at = models.DateTimeField(default=timezone.now)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -91,7 +103,10 @@ class Backup(models.Model):
     file = models.FileField(upload_to='backups/')
     description = models.TextField(blank=True)
     size = models.BigIntegerField(default=0)
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='full')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='in_progress')
     is_restored = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -99,11 +114,13 @@ class Backup(models.Model):
         verbose_name_plural = 'Backups'
 
     def __str__(self):
-        return f"Backup {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.name} ({self.created_at.strftime('%Y-%m-%d %H:%M')})"
 
     def save(self, *args, **kwargs):
-        if not self.pk:
+        if not self.pk and self.file:
             self.size = self.file.size
+        if not self.name or self.name == 'Untitled Backup':
+            self.name = f"Backup_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
