@@ -264,8 +264,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 height: 8,
                 borderRadius: '50%',
                 bgcolor:
-                  currentTask?.status === 'done' ? 'success.main' :
-                  currentTask?.status === 'in_progress' ? 'warning.main' : 'info.main',
+                  currentTask?.status === 'DONE' ? 'success.main' :
+                  currentTask?.status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
                 flexShrink: 0
               }}
             />
@@ -349,8 +349,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 onClick={(e) => setStatusAnchorEl(e.currentTarget)}
                 sx={{
                   backgroundColor:
-                    !currentTask?.status || currentTask.status === 'todo' ? 'info.main' :
-                    currentTask.status === 'done' ? 'success.main' : 'warning.main',
+                    !currentTask?.status || currentTask.status === 'TODO' ? 'info.main' :
+                    currentTask.status === 'DONE' ? 'success.main' : 'warning.main',
                   color: '#fff',
                   cursor: 'pointer',
                   '&:hover': {
@@ -553,10 +553,10 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
 
   const filteredTasks = localTasks.filter(task => {
     if (value === 0) return true;
-    if (value === 1) return task.status === 'todo';
-    if (value === 2) return task.status === 'in_progress';
-    if (value === 3) return task.status === 'done';
-    if (value === 4) return task.status === 'cancelled';
+    if (value === 1) return task.status === 'TODO';
+    if (value === 2) return task.status === 'IN_PROGRESS';
+    if (value === 3) return task.status === 'DONE';
+    if (value === 4) return task.status === 'CANCELLED';
     return true;
   });
 
@@ -607,6 +607,7 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
         onClose={handleEditDialogClose}
         onTaskCreated={handleTaskEdited}
         task={editingTask || undefined}
+        dialogType="personal"
       />
     </>
   );

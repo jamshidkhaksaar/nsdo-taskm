@@ -104,8 +104,8 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
                         height: 8,
                         borderRadius: '50%',
                         bgcolor:
-                          task.status === 'done' ? 'success.main' :
-                          task.status === 'in_progress' ? 'warning.main' : 'info.main',
+                          task.status === 'DONE' ? 'success.main' :
+                          task.status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
                       }}
                     />
                     <Typography variant="subtitle2" sx={{ color: '#fff', flex: 1 }}>
@@ -130,8 +130,8 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
                         onClick={(e) => handleStatusClick(e, task)}
                         sx={{
                           backgroundColor:
-                            task.status === 'done' ? 'success.main' :
-                            task.status === 'in_progress' ? 'warning.main' : 'info.main',
+                            task.status === 'DONE' ? 'success.main' :
+                            task.status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
                           color: '#fff',
                           cursor: 'pointer',
                         }}
@@ -214,7 +214,7 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
             },
           }}
         >
-          {['todo', 'in_progress', 'done'].map((status) => (
+          {['TODO', 'IN_PROGRESS', 'DONE'].map((status) => (
             <MenuItem
               key={status}
               onClick={() => handleStatusChange(status as Task['status'])}
@@ -231,8 +231,8 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
                   height: 8,
                   borderRadius: '50%',
                   bgcolor:
-                    status === 'done' ? 'success.main' :
-                    status === 'in_progress' ? 'warning.main' : 'info.main',
+                    status === 'DONE' ? 'success.main' :
+                    status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
                   mr: 1,
                 }}
               />

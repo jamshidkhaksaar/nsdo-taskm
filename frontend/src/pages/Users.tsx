@@ -122,16 +122,16 @@ const Users: React.FC = () => {
   });
 
   const upcomingTasks = userTasks.filter(task => 
-    task.status === 'todo' && new Date(task.due_date) > new Date()
+    task.status === 'TODO' && new Date(task.due_date) > new Date()
   );
   
   const ongoingTasks = userTasks.filter(task => 
-    task.status === 'in_progress' || 
-    (task.status === 'todo' && new Date(task.due_date) <= new Date())
+    task.status === 'IN_PROGRESS' || 
+    (task.status === 'TODO' && new Date(task.due_date) <= new Date())
   );
   
   const completedTasks = userTasks.filter(task => 
-    task.status === 'done'
+    task.status === 'DONE'
   );
 
   if (isLoading) {

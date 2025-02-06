@@ -17,9 +17,9 @@ interface AuthState {
 
 // Initialize state from localStorage
 const initialState: AuthState = {
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: !!localStorage.getItem('access_token'),
   user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null,
-  token: localStorage.getItem('token'),
+  token: localStorage.getItem('access_token'),
   loading: false,
   error: null,
 };
@@ -40,7 +40,7 @@ const authSlice = createSlice({
       state.error = null;
       
       // Save to localStorage
-      localStorage.setItem('token', action.payload.token);
+      localStorage.setItem('access_token', action.payload.token);
       localStorage.setItem('user', JSON.stringify(action.payload.user));
     },
     loginFailure: (state, action: PayloadAction<string>) => {
@@ -51,7 +51,7 @@ const authSlice = createSlice({
       state.token = null;
       
       // Clear localStorage
-      localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
       localStorage.removeItem('user');
     },
     logout: (state) => {
@@ -62,9 +62,9 @@ const authSlice = createSlice({
       state.error = null;
       
       // Clear localStorage
-      localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
       localStorage.removeItem('user');
-      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('refresh_token');
     },
   },
 });

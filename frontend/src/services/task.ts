@@ -45,24 +45,25 @@ export const TaskService = {
     // Create a new task
     createTask: async (task: CreateTask): Promise<Task> => {
         try {
+            const { updated_at, ...rest } = task;
             const payload = {
-                ...task,
+                ...rest,
                 priority: task.priority?.toLowerCase() || 'medium',
                 assigned_to: task.assigned_to || [],
-                department: task.department || '',
+                department: task.department,
                 created_by: task.created_by?.toString() || null,
-                status: task.status?.toLowerCase() || 'todo'
+                status: task.status || 'TODO'
             };
             console.log('Creating task with payload:', payload);
 
             const response = await axios.post<Task>('/api/tasks/', payload);
             console.log('Create task response:', response.data);
 
-            // Ensure the returned task has the correct priority format
+            // Ensure the returned task has the correct format
             const createdTask: Task = {
                 ...response.data,
                 priority: (response.data.priority?.toLowerCase() as TaskPriority) || payload.priority,
-                status: response.data.status?.toLowerCase() as Task['status'] || 'todo'
+                status: response.data.status as Task['status'] || 'TODO'
             };
 
             return createdTask;
@@ -93,7 +94,7 @@ export const TaskService = {
             }
 
             // Handle other updates
-            if (updates.status) payload.status = updates.status.toLowerCase();
+            if (updates.status) payload.status = updates.status;  // Don't convert status case
             if (updates.title) payload.title = updates.title;
             if (updates.description) payload.description = updates.description;
             if (updates.due_date) payload.due_date = updates.due_date;
@@ -130,7 +131,7 @@ export const TaskService = {
                 return {
                     ...forceUpdateResponse.data,
                     priority: formattedPriority,
-                    status: forceUpdateResponse.data.status?.toLowerCase() as Task['status']
+                    status: forceUpdateResponse.data.status as Task['status']
                 };
             }
 
@@ -138,7 +139,7 @@ export const TaskService = {
             return {
                 ...verifiedTask,
                 priority: (verifiedTask.priority?.toLowerCase() as TaskPriority) || 'medium',
-                status: verifiedTask.status?.toLowerCase() as Task['status']
+                status: verifiedTask.status as Task['status']
             };
 
         } catch (error) {
@@ -191,7 +192,7 @@ export const TaskService = {
             return {
                 ...response.data,
                 priority: (response.data.priority?.toLowerCase() as TaskPriority) || 'medium',
-                status: response.data.status?.toLowerCase() as Task['status'] || 'todo'
+                status: response.data.status as Task['status'] || 'todo'
             };
         } catch (error) {
             console.error('Error fetching task:', error);

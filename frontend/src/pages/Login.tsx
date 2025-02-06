@@ -9,27 +9,30 @@ import {
   Typography,
   Alert,
   useTheme,
+  CircularProgress,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
-import axios from '../utils/axios';
 import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
 import { loadFull } from "tsparticles";
 import Particles from "react-tsparticles";
-import type { Container, Engine } from "tsparticles-engine";
+import type { Container as ParticlesContainer, Engine } from "tsparticles-engine";
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
+import { AuthService } from '../services/auth';
 
 interface LoginFormInputs {
   username: string;
   password: string;
+  verificationCode?: string;
 }
 
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters')
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  verificationCode: z.string().optional()
 }) as z.ZodType<LoginFormInputs>;
 
 const Login: React.FC = () => {
@@ -40,12 +43,14 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [formError, setFormError] = useState('');
   const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const [need2FA, setNeed2FA] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
   }, []);
 
-  const particlesLoaded = useCallback(async (container: Container | undefined) => {
+  const particlesLoaded = useCallback(async (container: ParticlesContainer | undefined) => {
     console.log("Particles loaded", container);
   }, []);
 
@@ -57,11 +62,12 @@ const Login: React.FC = () => {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       username: '',
-      password: ''
+      password: '',
+      verificationCode: ''
     }
   });
 
-  const { isAuthenticated, loading, error: authError } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, error: authError } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -81,25 +87,39 @@ const Login: React.FC = () => {
 
   const onSubmit = async (data: LoginFormInputs) => {
     try {
+      setLoading(true);
       setFormError('');
       dispatch(loginStart());
-      const response = await axios.post('/api/auth/login/', {
-        username: data.username,
-        password: data.password,
-      });
-
-      if (response.data.access) {
-        dispatch(loginSuccess({
-          user: response.data.user,
-          token: response.data.access
-        }));
-        navigate(from, { replace: true });
+      
+      const response = await AuthService.login(
+        data.username, 
+        data.password, 
+        need2FA ? data.verificationCode : undefined
+      );
+      
+      if (response.need_2fa) {
+        setNeed2FA(true);
+        setLoading(false);
+        return;
       }
+
+      // Store tokens
+      localStorage.setItem('token', response.access);
+      localStorage.setItem('user', JSON.stringify(response.user));
+
+      dispatch(loginSuccess({
+        user: response.user,
+        token: response.access
+      }));
+      
+      navigate(from, { replace: true });
     } catch (err: any) {
       console.error('Login error:', err);
       const errorMessage = err.response?.data?.error || 'Invalid username or password';
       dispatch(loginFailure(errorMessage));
       setFormError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -296,70 +316,106 @@ const Login: React.FC = () => {
         )}
 
         <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-          <TextField
-            {...register('username')}
-            fullWidth
-            label="Username"
-            variant="outlined"
-            autoComplete="username"
-            error={!!errors.username}
-            helperText={errors.username?.message}
-            disabled={loading}
-            sx={{
-              mb: 3,
-              '& .MuiOutlinedInput-root': {
-                background: 'rgba(255, 255, 255, 0.05)',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-              },
-              '& .MuiOutlinedInput-input': {
-                color: '#fff',
-              },
-              '& .MuiFormHelperText-root': {
-                color: theme.palette.error.light,
-              }
-            }}
-          />
+          {!need2FA ? (
+            <>
+              <TextField
+                {...register('username')}
+                fullWidth
+                label="Username"
+                variant="outlined"
+                autoComplete="username"
+                error={!!errors.username}
+                helperText={errors.username?.message}
+                disabled={loading}
+                sx={{
+                  mb: 3,
+                  '& .MuiOutlinedInput-root': {
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    '& fieldset': {
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'rgba(255, 255, 255, 0.5)',
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    color: '#fff',
+                  },
+                  '& .MuiFormHelperText-root': {
+                    color: theme.palette.error.light,
+                  }
+                }}
+              />
 
-          <TextField
-            {...register('password')}
-            fullWidth
-            label="Password"
-            type="password"
-            variant="outlined"
-            autoComplete="current-password"
-            error={!!errors.password}
-            helperText={errors.password?.message}
-            disabled={loading}
-            sx={{
-              mb: 3,
-              '& .MuiOutlinedInput-root': {
-                background: 'rgba(255, 255, 255, 0.05)',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
+              <TextField
+                {...register('password')}
+                fullWidth
+                label="Password"
+                type="password"
+                variant="outlined"
+                autoComplete="current-password"
+                error={!!errors.password}
+                helperText={errors.password?.message}
+                disabled={loading}
+                sx={{
+                  mb: 3,
+                  '& .MuiOutlinedInput-root': {
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    '& fieldset': {
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'rgba(255, 255, 255, 0.5)',
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    color: '#fff',
+                  },
+                  '& .MuiFormHelperText-root': {
+                    color: theme.palette.error.light,
+                  }
+                }}
+              />
+            </>
+          ) : (
+            <TextField
+              {...register('verificationCode')}
+              fullWidth
+              label="2FA Verification Code"
+              variant="outlined"
+              autoComplete="verification-code"
+              error={!!errors.verificationCode}
+              helperText={errors.verificationCode?.message}
+              disabled={loading}
+              sx={{
+                mb: 3,
+                '& .MuiOutlinedInput-root': {
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  '& fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  },
                 },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                '& .MuiInputLabel-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
                 },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-              },
-              '& .MuiOutlinedInput-input': {
-                color: '#fff',
-              },
-              '& .MuiFormHelperText-root': {
-                color: theme.palette.error.light,
-              }
-            }}
-          />
+                '& .MuiOutlinedInput-input': {
+                  color: '#fff',
+                },
+                '& .MuiFormHelperText-root': {
+                  color: theme.palette.error.light,
+                }
+              }}
+            />
+          )}
 
           <Button
             type="submit"
@@ -383,7 +439,13 @@ const Login: React.FC = () => {
               }
             }}
           >
-            {loading ? 'Signing In...' : 'Sign In'}
+            {loading ? (
+              <CircularProgress size={24} />
+            ) : need2FA ? (
+              'Verify'
+            ) : (
+              'Sign In'
+            )}
           </Button>
         </Box>
       </Box>

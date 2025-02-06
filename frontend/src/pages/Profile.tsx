@@ -113,11 +113,17 @@ const Profile: React.FC = () => {
     if (!profile) return;
 
     try {
+      console.log('Sending profile data:', profile); // Debug log
       await ProfileService.updateProfile(profile);
       setSuccess('Profile updated successfully');
-    } catch (err) {
-      setError('Failed to update profile');
-      console.error('Error updating profile:', err);
+    } catch (err: any) {
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        data: err.response?.data
+      });
+      setError(err.response?.data?.error || 'Failed to update profile');
     }
   };
 

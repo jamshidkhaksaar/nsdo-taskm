@@ -30,6 +30,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import AdminLayout from '../../layouts/AdminLayout';
 import axios from '../../utils/axios';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 
 interface ActivityLog {
   id: string;
@@ -51,6 +53,9 @@ const ActivityLogs: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get auth state from Redux
+  const auth = useSelector((state: RootState) => state.auth);
 
   const getStatusColor = (status: ActivityLog['status']) => {
     switch (status) {
@@ -71,25 +76,37 @@ const ActivityLogs: React.FC = () => {
       if (actionFilter !== 'all') params.append('action', actionFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      console.log('Fetching logs with params:', params.toString());
-      console.log('Authorization token:', localStorage.getItem('token'));
-
+      // Debug logging
+      console.log('Auth state:', {
+        isAuthenticated: auth.isAuthenticated,
+        user: auth.user,
+        token: auth.token
+      });
+      console.log('Making API request to:', `/api/activity-logs/?${params.toString()}`);
+      
       const response = await axios.get(`/api/activity-logs/?${params.toString()}`);
-      console.log('Received logs:', response.data);
+      console.log('API Response:', response);
       setLogs(response.data);
-    } catch (error) {
-      console.error('Error fetching logs:', error);
-      setError('Failed to fetch activity logs. Please try again.');
+    } catch (error: any) {
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers
+      });
+      setError(error.response?.data?.error || 'Failed to fetch activity logs. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, timeRange, actionFilter, statusFilter]);
+  }, [searchQuery, timeRange, actionFilter, statusFilter, auth]);
 
   useEffect(() => {
-    if (localStorage.getItem('token')) {
+    if (auth.isAuthenticated && auth.token) {
       fetchLogs();
+    } else {
+      console.log('Not authenticated or missing token');
     }
-  }, [fetchLogs]);
+  }, [fetchLogs, auth.isAuthenticated, auth.token]);
 
   const handleDeleteLog = async (logId: string) => {
     try {

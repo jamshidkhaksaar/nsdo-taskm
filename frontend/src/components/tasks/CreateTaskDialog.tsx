@@ -11,10 +11,11 @@ import {
   FormHelperText,
   Autocomplete,
   Chip,
+  MenuItem,
 } from '@mui/material';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { TaskService } from '../../services/task';
 import { CreateTask, Task } from '../../types/task';
 import { User } from '../../types/user';
@@ -24,14 +25,16 @@ interface CreateTaskDialogProps {
   open: boolean;
   onClose: () => void;
   onTaskCreated: () => void;
-  task?: Task; // Optional task for edit mode
+  task?: Task;
+  dialogType: 'personal' | 'assign'; // 'personal' for My Tasks, 'assign' for Assigned by Me
 }
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   open,
   onClose,
   onTaskCreated,
-  task
+  task,
+  dialogType
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const [title, setTitle] = useState('');
@@ -41,9 +44,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [isPrivate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>([]); // Used in useEffect for user management
+  const [department, setDepartment] = useState<string | null>(null);
 
-  // Reset form when dialog opens or task changes
   useEffect(() => {
     if (open) {
       if (task) {
@@ -97,25 +100,24 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     try {
       const taskData = {
         title,
-        description,
+        description: description || '',
         due_date: dueDate.toISOString(),
         is_private: isPrivate,
-        department: null,
+        department: department || '',
         assigned_to: selectedUsers.map(user => user.id.toString()),
-        created_by: user?.id?.toString() || null,
-        updated_at: new Date().toISOString()
+        created_by: user?.id?.toString() || '',
       };
 
       if (task) {
-        // Update existing task - don't include status or priority in update
+        // Update existing task
         console.log('Updating task with data:', taskData);
         await TaskService.updateTask(task.id, taskData);
       } else {
-        // Create new task - include default status and priority
+        // Create new task
         const createTaskData = {
           ...taskData,
           priority: 'medium',
-          status: 'todo' as const,
+          status: 'TODO',
         };
         console.log('Creating task with data:', createTaskData);
         await TaskService.createTask(createTaskData as CreateTask);
@@ -130,9 +132,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setDueDate(new Date());
       setSelectedUsers([]);
       onClose();
-    } catch (err) {
-      console.error(task ? 'Error updating task:' : 'Error creating task:', err);
-      setError(task ? 'Failed to update task' : 'Failed to create task');
+    } catch (err: any) {
+      console.error('Error creating task:', err);
+      console.error('Error response:', err.response?.data);
+      setError(err.response?.data?.detail || 'Failed to create task. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -151,7 +154,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         },
       }}
     >
-      <DialogTitle sx={{ color: '#fff' }}>{task ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+      <DialogTitle sx={{ color: '#fff' }}>
+        {task ? 'Edit Task' : dialogType === 'personal' ? 'Create Personal Task' : 'Assign New Task'}
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
           <TextField
@@ -235,17 +240,83 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             />
           </LocalizationProvider>
 
-          <Autocomplete
-            multiple
-            options={users}
-            value={selectedUsers}
-            onChange={(_, newValue) => setSelectedUsers(newValue)}
-            getOptionLabel={(option) => `${option.first_name} ${option.last_name} (${option.username})`}
-            renderInput={(params) => (
+          {dialogType === 'personal' ? (
+            <Autocomplete
+              multiple
+              options={users}
+              value={selectedUsers}
+              onChange={(_: any, newValue: User[]) => setSelectedUsers(newValue)}
+              getOptionLabel={(option: User) => `${option.first_name} ${option.last_name}`}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Collaborate with (optional)"
+                  placeholder="Search users to collaborate with..."
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#fff',
+                      '& fieldset': {
+                        borderColor: 'rgba(255, 255, 255, 0.23)',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(255, 255, 255, 0.7)',
+                    },
+                  }}
+                />
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip
+                    label={`${option.first_name} ${option.last_name}`}
+                    {...getTagProps({ index })}
+                    sx={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      color: '#fff',
+                      '& .MuiChip-deleteIcon': {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        '&:hover': {
+                          color: '#fff',
+                        },
+                      },
+                    }}
+                  />
+                ))
+              }
+            />
+          ) : (
+            <>
+              <Autocomplete
+                multiple
+                options={users}
+                value={selectedUsers}
+                onChange={(_: any, newValue: User[]) => setSelectedUsers(newValue)}
+                getOptionLabel={(option: User) => `${option.first_name} ${option.last_name} (${option.username})`}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Assign To"
+                    placeholder="Select users to assign task..."
+                    required
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#fff',
+                        '& fieldset': {
+                          borderColor: 'rgba(255, 255, 255, 0.23)',
+                        },
+                      },
+                      '& .MuiInputLabel-root': {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                      },
+                    }}
+                  />
+                )}
+              />
               <TextField
-                {...params}
-                label="Assign To"
-                placeholder="Search users..."
+                select
+                label="Department"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     color: '#fff',
@@ -257,27 +328,12 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                     color: 'rgba(255, 255, 255, 0.7)',
                   },
                 }}
-              />
-            )}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip
-                  label={`${option.first_name} ${option.last_name}`}
-                  {...getTagProps({ index })}
-                  sx={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    color: '#fff',
-                    '& .MuiChip-deleteIcon': {
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&:hover': {
-                        color: '#fff',
-                      },
-                    },
-                  }}
-                />
-              ))
-            }
-          />
+              >
+                <MenuItem value="">No Department</MenuItem>
+                {/* Add department options here */}
+              </TextField>
+            </>
+          )}
 
           {error && (
             <FormHelperText error>
@@ -315,7 +371,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             }
           }}
         >
-          {task ? 'Update Task' : 'Create Task'}
+          {task ? 'Update Task' : dialogType === 'personal' ? 'Create Task' : 'Assign Task'}
         </Button>
       </DialogActions>
     </Dialog>

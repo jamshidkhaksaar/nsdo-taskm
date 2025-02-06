@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -73,6 +73,8 @@ const Settings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [open, setOpen] = useState(true);
+  const [initializing, setInitializing] = useState(true);
+  const [processing2FA, setProcessing2FA] = useState(false);
   
   const theme = useTheme();
   const navigate = useNavigate();
@@ -108,28 +110,59 @@ const Settings: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const fetch2FAStatus = async () => {
+      try {
+        const status = await SettingsService.get2FAStatus();
+        setTwoFactorEnabled(status.enabled);
+      } catch (err) {
+        console.error('Failed to fetch 2FA status:', err);
+      } finally {
+        setInitializing(false);
+      }
+    };
+    fetch2FAStatus();
+  }, []);
+
   const handleSetup2FA = async () => {
+    setProcessing2FA(true);
+    setError(null);
     try {
       const response = await SettingsService.setup2FA(!twoFactorEnabled);
       if (response.qr_code) {
         setQrCode(response.qr_code);
-        setSuccess(`2FA ${twoFactorEnabled ? 'disabled' : 'setup initiated'} successfully`);
+        setSuccess('2FA setup initiated successfully. Please scan the QR code and verify.');
+      } else {
+        setTwoFactorEnabled(false);
+        setQrCode(null);
+        setSuccess('2FA disabled successfully');
       }
-    } catch (err) {
-      setError('Failed to setup 2FA');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to setup 2FA');
+      setTwoFactorEnabled(false);
       console.error('Error setting up 2FA:', err);
+    } finally {
+      setProcessing2FA(false);
     }
   };
 
   const handleVerify2FA = async () => {
+    if (!verificationCode.trim()) {
+      setError('Please enter the verification code');
+      return;
+    }
+    
     setLoading(true);
+    setError(null);
     try {
       await SettingsService.verify2FA(verificationCode);
-      setSuccess('2FA verified successfully');
+      setSuccess('2FA verified and enabled successfully');
       setVerificationCode('');
       setTwoFactorEnabled(true);
+      setQrCode(null);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to verify 2FA code');
+      setTwoFactorEnabled(false);
     } finally {
       setLoading(false);
     }
@@ -318,33 +351,53 @@ const Settings: React.FC = () => {
               <TabPanel value={tabValue} index={1}>
                 <Grid container spacing={3}>
                   <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={twoFactorEnabled}
-                          onChange={handleSetup2FA}
-                          disabled={loading}
-                        />
-                      }
-                      label="Enable Two-Factor Authentication"
-                    />
+                    {initializing ? (
+                      <CircularProgress />
+                    ) : (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={twoFactorEnabled}
+                            onChange={() => {
+                              if (!processing2FA) {
+                                handleSetup2FA();
+                              }
+                            }}
+                            disabled={processing2FA || loading}
+                          />
+                        }
+                        label={
+                          processing2FA 
+                            ? "Setting up 2FA..." 
+                            : "Enable Two-Factor Authentication"
+                        }
+                      />
+                    )}
                   </Grid>
                   {qrCode && (
                     <Grid item xs={12}>
                       <Box sx={{ textAlign: 'center', my: 2 }}>
-                        <img src={qrCode} alt="2FA QR Code" />
+                        <Typography variant="body1" gutterBottom>
+                          1. Scan this QR code with your authenticator app (e.g., Google Authenticator)
+                        </Typography>
+                        <img src={qrCode} alt="2FA QR Code" style={{ margin: '20px 0' }} />
+                        <Typography variant="body1" gutterBottom>
+                          2. Enter the 6-digit code from your authenticator app below
+                        </Typography>
                       </Box>
                       <TextField
                         fullWidth
                         label="Verification Code"
                         value={verificationCode}
                         onChange={(e) => setVerificationCode(e.target.value)}
+                        error={!!error}
+                        helperText={error}
                         sx={{ mb: 2 }}
                       />
                       <Button
                         variant="contained"
                         onClick={handleVerify2FA}
-                        disabled={loading}
+                        disabled={loading || !verificationCode.trim()}
                         sx={{
                           bgcolor: 'primary.main',
                           color: '#fff',

@@ -6,23 +6,34 @@ if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 }
 
-export const login = async (username: string, password: string) => {
-  try {
-    const response = await axios.post('/api/auth/token/', {
-      username,
-      password,
-    });
+export const login = async (username: string, password: string, verificationCode?: string) => {
+  const response = await axios.post('/api/auth/login/', {
+    username,
+    password,
+    verification_code: verificationCode
+  });
 
-    if (response.data.access && response.data.refresh) {
-      localStorage.setItem('token', response.data.access);
-      localStorage.setItem('refreshToken', response.data.refresh);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
-    }
-
-    return response.data;
-  } catch (error) {
-    throw new Error('Login failed');
+  if (response.data.access) {
+    // Set the token in localStorage
+    localStorage.setItem('token', response.data.access);
+    // Set the Authorization header for future requests
+    axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
   }
+
+  return response.data;
 };
 
-export { logout } from '../utils/authUtils';
+export const logout = async () => {
+  // Clear tokens and user data
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  // Remove Authorization header
+  delete axios.defaults.headers.common['Authorization'];
+};
+
+export const AuthService = {
+  login,
+  logout
+};
+
+export default AuthService;

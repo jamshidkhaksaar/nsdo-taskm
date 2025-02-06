@@ -20,18 +20,37 @@ export const SettingsService = {
     return response.data;
   },
 
-  setup2FA: async (enabled: boolean) => {
-    const response = await axios.post('/api/settings/setup_2fa/', {
-      enabled,
-    });
+  get2FAStatus: async () => {
+    const response = await axios.get('/api/settings/2fa-status/');
     return response.data;
   },
 
+  setup2FA: async (enabled: boolean) => {
+    try {
+      const response = await axios.post('/api/settings/setup_2fa/', {
+        enabled,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('2FA setup error:', error);
+      throw error;
+    }
+  },
+
   verify2FA: async (verificationCode: string) => {
-    const response = await axios.post('/api/settings/verify_2fa/', {
-      verification_code: verificationCode,
-    });
-    return response.data;
+    try {
+      if (!verificationCode || verificationCode.trim() === '') {
+        throw new Error('Verification code is required');
+      }
+      
+      const response = await axios.post('/api/settings/verify_2fa/', {
+        verification_code: verificationCode.trim(),
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('2FA verification error:', error);
+      throw error;
+    }
   },
 
   downloadTasks: async (format: 'csv' | 'pdf') => {

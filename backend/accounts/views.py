@@ -129,11 +129,52 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
         password = request.data.get('password')
+        verification_code = request.data.get('verification_code')
         ip_address = request.META.get('REMOTE_ADDR', '0.0.0.0')
         
         user = authenticate(username=username, password=password)
         
-        if user is not None and user.is_active:  # Check if user is active
+        if user is not None and user.is_active:
+            # Check if user has 2FA enabled
+            if user.profile.two_factor_enabled:
+                # If no verification code provided, return need_2fa flag
+                if not verification_code:
+                    return Response({
+                        'need_2fa': True,
+                        'message': 'Please provide 2FA verification code'
+                    }, status=status.HTTP_200_OK)
+                
+                # Verify 2FA code
+                try:
+                    totp = pyotp.TOTP(user.profile.two_factor_secret)
+                    if not totp.verify(verification_code.strip()):
+                        log_activity(
+                            user=user,
+                            action='Failed Login Attempt',
+                            target='2FA Verification',
+                            details='Invalid 2FA code provided',
+                            status='error',
+                            ip_address=ip_address
+                        )
+                        return Response(
+                            {'error': 'Invalid 2FA verification code'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                except Exception as e:
+                    log_activity(
+                        user=user,
+                        action='Failed Login Attempt',
+                        target='2FA Verification',
+                        details=f'2FA verification error: {str(e)}',
+                        status='error',
+                        ip_address=ip_address
+                    )
+                    return Response(
+                        {'error': 'Failed to verify 2FA code'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Generate tokens
             refresh = RefreshToken.for_user(user)
             
             # Log successful login
@@ -163,7 +204,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             except User.DoesNotExist:
                 details = 'User does not exist'
             
-            # Log failed login attempt with more details
+            # Log failed login attempt
             log_activity(
                 user=None,
                 action='Failed Login Attempt',
@@ -1345,55 +1386,28 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 class UserSettingsViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        logger.info(f"Available actions: {self.get_extra_actions()}")
-    
     def list(self, request):
-        logger.info("List method called")
         return Response({'message': 'Settings API'})
 
-    @action(detail=False, methods=['post'])
-    def update_password(self, request):
-        serializer = PasswordUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            user = request.user
-            current_password = serializer.validated_data['current_password']
-            new_password = serializer.validated_data['new_password']
-            
-            # Verify current password
-            if not user.check_password(current_password):
-                return Response(
-                    {'error': 'Current password is incorrect'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Update password
-            try:
-                user.set_password(new_password)
-                user.save()
-                
-                # Log the password change
-                log_activity(
-                    user=user,
-                    action='Password Changed',
-                    target='User Settings',
-                    details='Password was successfully updated',
-                    status='success',
-                    ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
-                )
-                
-                return Response({'message': 'Password updated successfully'})
-            except Exception as e:
-                return Response(
-                    {'error': str(e)},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=False, methods=['get'])
+    def two_factor_status(self, request):
+        """Get the current 2FA status for the user"""
+        try:
+            profile = request.user.profile
+            return Response({
+                'enabled': profile.two_factor_enabled,
+                'setup_pending': bool(profile.two_factor_secret and not profile.two_factor_enabled)
+            })
+        except Exception as e:
+            logger.error(f"Error getting 2FA status: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['post'])
     def setup_2fa(self, request):
+        """Set up or disable 2FA for the user"""
         serializer = TwoFactorSettingsSerializer(data=request.data)
         if serializer.is_valid():
             user = request.user
@@ -1401,6 +1415,12 @@ class UserSettingsViewSet(viewsets.ViewSet):
             
             try:
                 if enabled:
+                    if user.profile.two_factor_enabled:
+                        return Response(
+                            {'error': '2FA is already enabled'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    
                     # Generate secret key for user
                     secret = pyotp.random_base32()
                     user.profile.two_factor_secret = secret
@@ -1411,7 +1431,7 @@ class UserSettingsViewSet(viewsets.ViewSet):
                     totp = pyotp.TOTP(secret)
                     provisioning_uri = totp.provisioning_uri(
                         user.email,
-                        issuer_name="Your App Name"
+                        issuer_name="Task Management System"
                     )
                     
                     qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -1425,7 +1445,8 @@ class UserSettingsViewSet(viewsets.ViewSet):
                     
                     return Response({
                         'qr_code': f"data:image/png;base64,{qr_code_base64}",
-                        'secret': secret
+                        'secret': secret,
+                        'message': '2FA setup initiated. Please scan the QR code and verify.'
                     })
                 else:
                     # Disable 2FA
@@ -1433,20 +1454,26 @@ class UserSettingsViewSet(viewsets.ViewSet):
                     user.profile.two_factor_secret = None
                     user.profile.save()
                     
-                    return Response({'message': '2FA disabled successfully'})
+                    return Response({
+                        'message': '2FA disabled successfully'
+                    })
                     
             except Exception as e:
                 return Response(
-                    {'error': str(e)},
+                    {'error': f'Failed to setup 2FA: {str(e)}'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
                 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     @action(detail=False, methods=['post'])
     def verify_2fa(self, request):
+        """Verify 2FA setup with a verification code"""
         code = request.data.get('verification_code')
-        if not code:
+        if not code or not code.strip():
             return Response(
                 {'error': 'Verification code is required'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -1457,19 +1484,44 @@ class UserSettingsViewSet(viewsets.ViewSet):
         
         if not secret:
             return Response(
-                {'error': '2FA setup not initiated'},
+                {'error': '2FA setup not initiated. Please enable 2FA first.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        totp = pyotp.TOTP(secret)
-        if totp.verify(code):
-            user.profile.two_factor_enabled = True
-            user.profile.save()
-            return Response({'message': '2FA verified and enabled successfully'})
-        else:
+        if user.profile.two_factor_enabled:
             return Response(
-                {'error': 'Invalid verification code'},
+                {'error': '2FA is already enabled'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            totp = pyotp.TOTP(secret)
+            if totp.verify(code.strip()):
+                user.profile.two_factor_enabled = True
+                user.profile.save()
+                
+                # Log the successful 2FA setup
+                log_activity(
+                    user=user,
+                    action='2FA Enabled',
+                    target='User Settings',
+                    details='Two-factor authentication was enabled successfully',
+                    status='success',
+                    ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0')
+                )
+                
+                return Response({
+                    'message': '2FA verified and enabled successfully'
+                })
+            else:
+                return Response(
+                    {'error': 'Invalid verification code. Please try again.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to verify 2FA: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(

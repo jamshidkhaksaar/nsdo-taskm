@@ -22,4 +22,5 @@ urlpatterns = [
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('activity-logs/debug/', ActivityLogViewSet.as_view({'get': 'debug'}), name='activity-logs-debug'),
     path('settings/download-tasks/', UserSettingsViewSet.as_view({'get': 'download_tasks'}), name='settings-download-tasks'),
+    path('settings/2fa-status/', UserSettingsViewSet.as_view({'get': 'two_factor_status'}), name='settings-2fa-status'),
 ] 

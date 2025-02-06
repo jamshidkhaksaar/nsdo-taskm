@@ -350,10 +350,10 @@ const AssignedTasks: React.FC<AssignedTasksProps> = ({ title, icon, tasks, showA
   const [tabValue, setTabValue] = useState(0);
   const filteredTasks = tasks.filter(task => {
     if (tabValue === 0) return true;
-    if (tabValue === 1) return task.status === 'todo';
-    if (tabValue === 2) return task.status === 'in_progress';
-    if (tabValue === 3) return task.status === 'done';
-    if (tabValue === 4) return task.status === 'cancelled';
+    if (tabValue === 1) return task.status === 'TODO';
+    if (tabValue === 2) return task.status === 'IN_PROGRESS';
+    if (tabValue === 3) return task.status === 'DONE';
+    if (tabValue === 4) return task.status === 'CANCELLED';
     return true;
   });
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -446,6 +446,7 @@ const AssignedTasks: React.FC<AssignedTasksProps> = ({ title, icon, tasks, showA
           open={assignDialogOpen}
           onClose={() => setAssignDialogOpen(false)}
           onTaskCreated={() => { setAssignDialogOpen(false); /* Optionally refresh tasks if needed */ }}
+          dialogType="assign"
         />
       )}
     </>
@@ -900,6 +901,7 @@ const Dashboard: React.FC = () => {
             open={createTaskDialogOpen}
             onClose={() => setCreateTaskDialogOpen(false)}
             onTaskCreated={fetchTasks}
+            dialogType="personal"
           />
         </Container>
       </Box>
