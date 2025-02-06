@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
-import { Box, Container } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Container, Typography } from '@mui/material';
 import Sidebar from '../components/Sidebar';
 import Footer from '../components/Footer';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../store';
+import { logout } from '../store/slices/authSlice';
+import { useNavigate } from 'react-router-dom';
 
 const DRAWER_WIDTH = 240;
 
@@ -10,14 +14,25 @@ interface AdminLayoutProps {
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
-  const [open, setOpen] = useState(true);
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [greeting, setGreeting] = useState('');
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Good morning');
+    else if (hour < 18) setGreeting('Good afternoon');
+    else setGreeting('Good evening');
+  }, []);
 
   const handleLogout = async () => {
-    // Implement logout logic
+    dispatch(logout());
+    navigate('/login');
   };
 
   const toggleDrawer = () => {
-    setOpen(!open);
+    // Implement drawer toggle logic if needed
   };
 
   return (
@@ -45,7 +60,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       },
     }}>
       <Sidebar
-        open={open}
+        open={true}
         onToggleDrawer={toggleDrawer}
         onLogout={handleLogout}
       />
@@ -61,9 +76,25 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         }}
       >
         <Container maxWidth="xl">
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            mb: 3 
+          }}>
+            <Box>
+              <Typography variant="h5" sx={{ color: '#fff', mb: 0.5 }}>
+                Task Management and Planner
+              </Typography>
+              <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                {greeting}, {user?.username}
+              </Typography>
+            </Box>
+            {/* ... rest of the header content ... */}
+          </Box>
           {children}
         </Container>
-        <Footer open={open} drawerWidth={DRAWER_WIDTH} />
+        <Footer open={true} drawerWidth={DRAWER_WIDTH} />
       </Box>
     </Box>
   );
