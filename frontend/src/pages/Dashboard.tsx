@@ -480,6 +480,13 @@ const Dashboard: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
 
+  // New: Compute task overview counts
+  const totalCount = tasks.length;
+  const pendingCount = tasks.filter(task => task.status === 'pending').length;
+  const inProgressCount = tasks.filter(task => task.status === 'in_progress').length;
+  const completedCount = tasks.filter(task => task.status === 'completed').length;
+  const cancelledCount = tasks.filter(task => task.status === 'cancelled').length;
+
   useEffect(() => {
     localStorage.setItem('showHeaderWidget', JSON.stringify(showWidget));
   }, [showWidget]);
@@ -555,7 +562,7 @@ const Dashboard: React.FC = () => {
       display: 'flex', 
       position: 'relative',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
+      background: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)',
       backgroundAttachment: 'fixed',
       backgroundSize: 'cover',
       '&::before': {
@@ -565,11 +572,9 @@ const Dashboard: React.FC = () => {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundImage: `
-          url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.3)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/svg%3E")
-        `,
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.1)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.05)' stroke-width='0.5'/%3E%3C/svg%3E")`,
         backgroundSize: '40px 40px',
-        opacity: 0.5,
+        opacity: 0.3,
         pointerEvents: 'none',
         zIndex: 0,
       },
@@ -797,6 +802,46 @@ const Dashboard: React.FC = () => {
             }}
           >
             <HeaderWidget username={user?.username || 'User'} />
+          </Box>
+
+          {/* New Task Overview Card */}
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <Card
+              sx={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" sx={{ color: '#fff', textAlign: 'center', mb: 2 }}>
+                  Task Overview
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#fff' }}>Total</Typography>
+                    <Typography variant="h5" sx={{ color: '#fff' }}>{totalCount}</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#fff' }}>Pending</Typography>
+                    <Typography variant="h5" sx={{ color: '#fff' }}>{pendingCount}</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#fff' }}>In Progress</Typography>
+                    <Typography variant="h5" sx={{ color: '#fff' }}>{inProgressCount}</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#fff' }}>Completed</Typography>
+                    <Typography variant="h5" sx={{ color: '#fff' }}>{completedCount}</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#fff' }}>Cancelled</Typography>
+                    <Typography variant="h5" sx={{ color: '#fff' }}>{cancelledCount}</Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
           </Box>
 
           <Box sx={{ mt: 4 }}>
