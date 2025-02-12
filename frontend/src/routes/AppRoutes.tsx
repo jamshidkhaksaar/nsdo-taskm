@@ -8,6 +8,7 @@ import {
   Users, 
   NotFound 
 } from '../pages';
+import TaskBoardPage from '../pages/TaskBoardPage';
 import AdminRoutes from './AdminRoutes';
 
 const AppRoutes: React.FC = () => {
@@ -19,6 +20,14 @@ const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/tasks"
+        element={
+          <PrivateRoute>
+            <TaskBoardPage />
           </PrivateRoute>
         }
       />

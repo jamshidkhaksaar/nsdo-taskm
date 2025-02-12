@@ -17,6 +17,17 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'date_joined']
 
+class UserLimitedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id', 'email', 'first_name', 'last_name']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['id'] = str(instance.id)  # Convert ID to string for consistency
+        return ret
+
 class BackupSerializer(serializers.ModelSerializer):
     created_by = serializers.StringRelatedField()
     timestamp = serializers.DateTimeField(source='created_at', read_only=True)
@@ -57,7 +68,7 @@ class BackupSerializer(serializers.ModelSerializer):
         return representation
 
 class TaskSerializer(serializers.ModelSerializer):
-    created_by = serializers.StringRelatedField(read_only=True)
+    created_by = UserLimitedSerializer(read_only=True)
     assigned_to = serializers.ListField(
         child=serializers.CharField(),
         required=False,
@@ -108,21 +119,12 @@ class TaskSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Priority must be one of: low, medium, high")
             data['priority'] = priority
         
-        # Validate status transitions
-        if self.instance and 'status' in data:
-            current_status = self.instance.status
-            new_status = data['status']
-            
-            valid_transitions = {
-                'todo': ['in_progress'],
-                'in_progress': ['done'],
-                'done': []
-            }
-            
-            if new_status not in valid_transitions.get(current_status, []):
-                raise serializers.ValidationError(
-                    f"Invalid status transition from {current_status} to {new_status}"
-                )
+        # Validate status if provided
+        if 'status' in data:
+            status = data['status'].lower()
+            if status not in ['pending', 'in_progress', 'completed', 'cancelled']:
+                raise serializers.ValidationError("Status must be one of: pending, in_progress, completed, cancelled")
+            data['status'] = status
         
         return data
 
@@ -157,17 +159,6 @@ class NoteSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at', 'created_by']
-
-class UserLimitedSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id', 'email', 'first_name', 'last_name']
-
-    def to_representation(self, instance):
-        ret = super().to_representation(instance)
-        ret['id'] = str(instance.id)  # Convert ID to string for consistency
-        return ret
 
 class BackupSettingsSerializer(serializers.ModelSerializer):
     class Meta:

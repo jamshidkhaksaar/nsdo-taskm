@@ -45,7 +45,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]); // Used in useEffect for user management
-  const [department, setDepartment] = useState<string | null>(null);
+  const [department, setDepartment] = useState<string>('');  // Changed from string | null to string with empty default
+  const [dateError, setDateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -54,6 +55,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setTitle(task.title);
         setDescription(task.description || '');
         setDueDate(task.due_date ? new Date(task.due_date) : new Date());
+        setDateError(null);
         // Fetch and set assigned users
         const fetchAssignedUsers = async () => {
           try {
@@ -69,10 +71,14 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         };
         fetchAssignedUsers();
       } else {
-        // Create mode - reset form
+        // Create mode - reset form with future date
         setTitle('');
         setDescription('');
-        setDueDate(new Date());
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0); // Set to 9 AM tomorrow
+        setDueDate(tomorrow);
+        setDateError(null);
         setSelectedUsers([]);
         // Fetch users for assignment
         const fetchUsers = async () => {
@@ -88,9 +94,36 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     }
   }, [open, task]);
 
+  const validateDueDate = (date: Date | null): boolean => {
+    if (!date) {
+      setDateError('Due date is required');
+      return false;
+    }
+
+    const now = new Date();
+    if (date <= now) {
+      setDateError('Due date must be in the future');
+      return false;
+    }
+
+    setDateError(null);
+    return true;
+  };
+
+  const handleDueDateChange = (newValue: Date | null) => {
+    setDueDate(newValue);
+    if (newValue) {
+      validateDueDate(newValue);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!title || !dueDate) {
+    if (!title) {
       setError('Please fill in all required fields');
+      return;
+    }
+
+    if (!dueDate || !validateDueDate(dueDate)) {
       return;
     }
 
@@ -117,7 +150,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         const createTaskData = {
           ...taskData,
           priority: 'medium',
-          status: 'TODO',
+          status: 'pending',
         };
         console.log('Creating task with data:', createTaskData);
         await TaskService.createTask(createTaskData as CreateTask);
@@ -129,13 +162,17 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
       setTitle('');
       setDescription('');
-      setDueDate(new Date());
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      setDueDate(tomorrow);
       setSelectedUsers([]);
       onClose();
     } catch (err: any) {
       console.error('Error creating task:', err);
       console.error('Error response:', err.response?.data);
-      setError(err.response?.data?.detail || 'Failed to create task. Please try again.');
+      const errorMessage = err.response?.data?.error || err.response?.data?.detail || 'Failed to create task. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -224,21 +261,26 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             <DateTimePicker
               label="Due Date"
               value={dueDate}
-              onChange={(newValue: Date | null) => setDueDate(newValue)}
+              onChange={handleDueDateChange}
               sx={{
                 width: '100%',
                 '& .MuiOutlinedInput-root': {
                   color: '#fff',
                   '& fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.23)',
+                    borderColor: dateError ? 'error.main' : 'rgba(255, 255, 255, 0.23)',
                   },
                 },
                 '& .MuiInputLabel-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
+                  color: dateError ? 'error.main' : 'rgba(255, 255, 255, 0.7)',
                 },
               }}
             />
           </LocalizationProvider>
+          {dateError && (
+            <FormHelperText error>
+              {dateError}
+            </FormHelperText>
+          )}
 
           {dialogType === 'personal' ? (
             <Autocomplete
@@ -327,10 +369,17 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                   '& .MuiInputLabel-root': {
                     color: 'rgba(255, 255, 255, 0.7)',
                   },
+                  '& .MuiSelect-icon': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
                 }}
               >
                 <MenuItem value="">No Department</MenuItem>
-                {/* Add department options here */}
+                <MenuItem value="engineering">Engineering</MenuItem>
+                <MenuItem value="marketing">Marketing</MenuItem>
+                <MenuItem value="sales">Sales</MenuItem>
+                <MenuItem value="hr">HR</MenuItem>
+                <MenuItem value="finance">Finance</MenuItem>
               </TextField>
             </>
           )}

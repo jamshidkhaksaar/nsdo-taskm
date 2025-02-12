@@ -102,16 +102,16 @@ const Departments: React.FC = () => {
   );
 
   const upcomingTasks = filteredTasks.filter(task => 
-    task.status === 'TODO' && new Date(task.due_date) > new Date()
+    task.status === 'pending' && new Date(task.due_date) > new Date()
   );
   
   const ongoingTasks = filteredTasks.filter(task => 
-    task.status === 'IN_PROGRESS' || 
-    (task.status === 'TODO' && new Date(task.due_date) <= new Date())
+    task.status === 'in_progress' || 
+    (task.status === 'pending' && new Date(task.due_date) <= new Date())
   );
   
   const completedTasks = filteredTasks.filter(task => 
-    task.status === 'DONE'
+    task.status === 'completed'
   );
 
   if (isLoading) {

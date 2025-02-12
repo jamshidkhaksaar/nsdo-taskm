@@ -264,8 +264,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 height: 8,
                 borderRadius: '50%',
                 bgcolor:
-                  currentTask?.status === 'DONE' ? 'success.main' :
-                  currentTask?.status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
+                  currentTask?.status === 'completed' ? 'success.main' :
+                  currentTask?.status === 'in_progress' ? 'warning.main' : 'info.main',
                 flexShrink: 0
               }}
             />
@@ -349,10 +349,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 onClick={(e) => setStatusAnchorEl(e.currentTarget)}
                 sx={{
                   backgroundColor:
-                    !currentTask?.status || currentTask.status === 'TODO' ? 'info.main' :
-                    currentTask.status === 'DONE' ? 'success.main' : 'warning.main',
+                    !currentTask?.status || currentTask.status === 'pending' ? 'info.main' :
+                    currentTask.status === 'completed' ? '#4caf50' :
+                    currentTask.status === 'cancelled' ? 'error.main' : 'warning.main',
                   color: '#fff',
                   cursor: 'pointer',
+                  opacity: currentTask?.status === 'completed' ? 0.85 : 1,
                   '&:hover': {
                     opacity: 0.9,
                     transform: 'scale(1.05)',
@@ -382,7 +384,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   }
                 }}
               >
-                {['todo', 'in_progress', 'done'].map((status) => (
+                {['pending', 'in_progress', 'completed', 'cancelled'].map((status) => (
                   <MenuItem
                     key={status}
                     onClick={() => handleStatusChange(status as Task['status'])}
@@ -398,8 +400,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         height: 8,
                         borderRadius: '50%',
                         bgcolor:
-                          status === 'done' ? 'success.main' :
-                          status === 'in_progress' ? 'warning.main' : 'info.main',
+                          status === 'completed' ? '#4caf50' :
+                          status === 'in_progress' ? 'warning.main' :
+                          status === 'cancelled' ? 'error.main' : 'info.main',
                       }}
                     />
                     {status.replace('_', ' ').toUpperCase()}
@@ -553,10 +556,10 @@ const TaskTabs: React.FC<TaskTabsProps> = ({
 
   const filteredTasks = localTasks.filter(task => {
     if (value === 0) return true;
-    if (value === 1) return task.status === 'TODO';
-    if (value === 2) return task.status === 'IN_PROGRESS';
-    if (value === 3) return task.status === 'DONE';
-    if (value === 4) return task.status === 'CANCELLED';
+    if (value === 1) return task.status === 'pending';
+    if (value === 2) return task.status === 'in_progress';
+    if (value === 3) return task.status === 'completed';
+    if (value === 4) return task.status === 'cancelled';
     return true;
   });
 

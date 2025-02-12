@@ -47,18 +47,18 @@ const TasksSection: React.FC<TasksSectionProps> = ({
   // Use provided grouped tasks or filter from main tasks array
   const upcomingTasks = propsUpcomingTasks || 
     (tasks ? tasks.filter(task => 
-      task.status === 'TODO' && 
+      task.status === 'pending' && 
       new Date(task.due_date) > new Date()
     ) : []);
   
   const ongoingTasks = propsOngoingTasks || 
     (tasks ? tasks.filter(task => 
-      task.status === 'IN_PROGRESS' || 
-      (task.status === 'TODO' && new Date(task.due_date) <= new Date())
+      task.status === 'in_progress' || 
+      (task.status === 'pending' && new Date(task.due_date) <= new Date())
     ) : []);
   
   const completedTasks = propsCompletedTasks || 
-    (tasks ? tasks.filter(task => task.status === 'DONE') : []);
+    (tasks ? tasks.filter(task => task.status === 'completed') : []);
 
   const TaskBox = ({ 
     title, 

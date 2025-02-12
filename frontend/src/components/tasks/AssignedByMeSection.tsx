@@ -104,8 +104,8 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
                         height: 8,
                         borderRadius: '50%',
                         bgcolor:
-                          task.status === 'DONE' ? 'success.main' :
-                          task.status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
+                          task.status === 'completed' ? 'success.main' :
+                          task.status === 'in_progress' ? 'warning.main' : 'info.main',
                       }}
                     />
                     <Typography variant="subtitle2" sx={{ color: '#fff', flex: 1 }}>
@@ -130,8 +130,8 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
                         onClick={(e) => handleStatusClick(e, task)}
                         sx={{
                           backgroundColor:
-                            task.status === 'DONE' ? 'success.main' :
-                            task.status === 'IN_PROGRESS' ? 'warning.main' : 'info.main',
+                            task.status === 'completed' ? 'success.main' :
+                            task.status === 'in_progress' ? 'warning.main' : 'info.main',
                           color: '#fff',
                           cursor: 'pointer',
                         }}

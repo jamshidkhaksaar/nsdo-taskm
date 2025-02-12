@@ -77,33 +77,35 @@ class TaskViewSet(viewsets.ModelViewSet):
         task_type = self.request.query_params.get('task_type', 'my_tasks')
         user_id_str = str(user.id)
 
+        base_queryset = Task.objects.all()
+
         if task_type == 'my_tasks':
-            # Return only tasks created by the current user
-            return Task.objects.filter(created_by=user).distinct()
+            # Return tasks created by the user (personal tasks)
+            return base_queryset.filter(
+                created_by=user
+            ).distinct()
         elif task_type == 'assigned':
             # Return only tasks assigned to the current user by others
-            return Task.objects.filter(
-                assigned_to__isnull=False,
-                assigned_to__contains=[user_id_str]
+            return base_queryset.filter(
+                assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)'
             ).exclude(created_by=user).distinct()
         elif task_type == 'created':
             # Return tasks created by the user and assigned to others
-            return Task.objects.filter(
-                created_by=user
-            ).exclude(
-                assigned_to__contains=[user_id_str]
-            ).distinct() | Task.objects.filter(
+            return base_queryset.filter(
                 created_by=user,
-                assigned_to__isnull=True
+                assigned_to__isnull=False
+            ).exclude(
+                Q(assigned_to='') | 
+                Q(assigned_to__regex=f'^{user_id_str}$')
             ).distinct()
         else:
-            # For admin users or when no specific type is requested
+            # For admin users, show all tasks
             if user.is_staff:
-                return Task.objects.all()
-            # For regular users, return both created and assigned tasks
-            return Task.objects.filter(
+                return base_queryset
+            # For regular users, show all their tasks (created or assigned)
+            return base_queryset.filter(
                 Q(created_by=user) | 
-                Q(assigned_to__isnull=False, assigned_to__contains=[user_id_str])
+                Q(assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)')
             ).distinct()
 
     @action(detail=True, methods=['post'])

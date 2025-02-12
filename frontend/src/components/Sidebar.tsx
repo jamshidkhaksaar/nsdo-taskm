@@ -22,6 +22,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import BackupIcon from '@mui/icons-material/Backup';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import logo from '../assets/images/logo.png';
@@ -31,6 +32,7 @@ const DRAWER_WIDTH = 240;
 
 const mainMenuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
+  { title: 'Tasks', path: '/tasks', icon: <AssignmentIcon /> },
   { title: 'Departments', path: '/departments', icon: <BusinessIcon /> },
   { title: 'Users', path: '/users', icon: <PeopleIcon /> },
 ];
