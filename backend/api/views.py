@@ -80,32 +80,37 @@ class TaskViewSet(viewsets.ModelViewSet):
         base_queryset = Task.objects.all()
 
         if task_type == 'my_tasks':
-            # Return tasks created by the user (personal tasks)
+            # Return personal tasks (created by user) and tasks where user is a collaborator
             return base_queryset.filter(
-                created_by=user
+                Q(created_by=user) |  # Tasks created by the user
+                Q(assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)', created_by=user)  # Tasks where user is both creator and collaborator
             ).distinct()
         elif task_type == 'assigned':
-            # Return only tasks assigned to the current user by others
+            # Return tasks assigned to the user by others (including department assignments)
             return base_queryset.filter(
-                assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)'
-            ).exclude(created_by=user).distinct()
+                Q(assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)') |  # Directly assigned to user
+                Q(department=user.department, assigned_to__isnull=False)  # Assigned to user's department
+            ).exclude(
+                created_by=user  # Exclude tasks created by the user themselves
+            ).distinct()
         elif task_type == 'created':
             # Return tasks created by the user and assigned to others
             return base_queryset.filter(
-                created_by=user,
-                assigned_to__isnull=False
+                created_by=user,  # Created by the user
+                assigned_to__isnull=False  # Has assignees
             ).exclude(
-                Q(assigned_to='') | 
-                Q(assigned_to__regex=f'^{user_id_str}$')
+                Q(assigned_to='') |  # Exclude empty assignments
+                Q(assigned_to__regex=f'^{user_id_str}$')  # Exclude tasks only assigned to creator
             ).distinct()
         else:
             # For admin users, show all tasks
             if user.is_staff:
                 return base_queryset
-            # For regular users, show all their tasks (created or assigned)
+            # For regular users, show their personal tasks and tasks assigned to them
             return base_queryset.filter(
-                Q(created_by=user) | 
-                Q(assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)')
+                Q(created_by=user) |  # Tasks they created
+                Q(assigned_to__regex=f'(^|,\\s*){user_id_str}(,|$)') |  # Tasks assigned to them
+                Q(department=user.department, assigned_to__isnull=False)  # Tasks assigned to their department
             ).distinct()
 
     @action(detail=True, methods=['post'])

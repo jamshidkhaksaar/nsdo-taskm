@@ -75,6 +75,8 @@ class TaskSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     department = serializers.StringRelatedField()
+    assigned_users = serializers.SerializerMethodField()
+    created_at_formatted = serializers.SerializerMethodField()
     
     class Meta:
         model = Task
@@ -83,28 +85,35 @@ class TaskSerializer(serializers.ModelSerializer):
             'title',
             'description',
             'created_at',
+            'created_at_formatted',
             'due_date',
             'status',
             'priority',
             'created_by',
             'assigned_to',
+            'assigned_users',
             'department',
-            'is_private'
+            'is_private',
+            'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'created_by']
+        read_only_fields = ['id', 'created_at', 'created_by', 'created_at_formatted', 'assigned_users']
+
+    def get_created_at_formatted(self, obj):
+        return obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    def get_assigned_users(self, obj):
+        # Get the full user objects for assigned users
+        assigned_ids = obj.get_assigned_users()
+        if not assigned_ids:
+            return []
+        
+        users = User.objects.filter(id__in=assigned_ids)
+        return UserLimitedSerializer(users, many=True).data
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         ret['assigned_to'] = instance.get_assigned_users()
         return ret
-
-    def to_internal_value(self, data):
-        internal_value = super().to_internal_value(data)
-        if 'assigned_to' in internal_value:
-            instance = self.instance or Task()
-            instance.set_assigned_users(internal_value['assigned_to'])
-            internal_value['assigned_to'] = instance.assigned_to
-        return internal_value
 
     def validate(self, data):
         # Validate due date is in the future

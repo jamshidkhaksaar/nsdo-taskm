@@ -9,16 +9,21 @@ import {
   Tooltip,
   Grid,
   useTheme,
-  alpha
+  alpha,
+  Avatar,
+  Button
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import { format } from 'date-fns';
 import { Task, TaskStatus } from '../../types/task';
 import { User } from '../../types/user';
 import { CollaboratorAvatars } from './CollaboratorAvatars';
 import { TaskService } from '../../services/task';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import AddIcon from '@mui/icons-material/Add';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -54,19 +59,6 @@ const TaskCard: React.FC<{
     fetchCollaborators();
   }, [task.assigned_to]);
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority.toLowerCase()) {
-      case 'high':
-        return theme.palette.error.main;
-      case 'medium':
-        return theme.palette.warning.main;
-      case 'low':
-        return theme.palette.success.main;
-      default:
-        return theme.palette.info.main;
-    }
-  };
-
   return (
     <Draggable draggableId={task.id.toString()} index={index}>
       {(provided) => (
@@ -74,59 +66,110 @@ const TaskCard: React.FC<{
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          elevation={2}
+          elevation={0}
           sx={{
             p: 2,
             mb: 2,
-            backgroundColor: alpha(theme.palette.background.paper, 0.8),
+            backgroundColor: '#fff',
+            borderRadius: 2,
+            transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
             '&:hover': {
-              backgroundColor: alpha(theme.palette.background.paper, 0.9),
+              transform: 'translateY(-2px)',
+              boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
             }
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-            <Typography variant="h6" sx={{ flexGrow: 1 }}>
-              {task.title}
-            </Typography>
-            <Box>
-              <Tooltip title="Edit">
-                <IconButton size="small" onClick={() => onEdit?.(task.id)}>
-                  <EditIcon fontSize="small" />
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography 
+                variant="subtitle1" 
+                sx={{ 
+                  color: '#2c3e50',
+                  fontWeight: 500,
+                  mb: 1
+                }}
+              >
+                {task.title}
+              </Typography>
+              
+              {task.description && (
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#7f8c8d',
+                    mb: 2,
+                    fontSize: '0.875rem',
+                    lineHeight: 1.5
+                  }}
+                >
+                  {task.description}
+                </Typography>
+              )}
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={task.priority.toUpperCase()}
+                  size="small"
+                  sx={{
+                    backgroundColor: 
+                      task.priority === 'high' ? '#ff5252' :
+                      task.priority === 'medium' ? '#ffa726' : '#81c784',
+                    color: '#fff',
+                    height: '20px',
+                    fontSize: '0.75rem'
+                  }}
+                />
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 0.5,
+                  color: '#95a5a6',
+                  fontSize: '0.75rem'
+                }}>
+                  <AccessTimeIcon sx={{ fontSize: '0.875rem' }} />
+                  {format(new Date(task.due_date), 'MMM d, h:mm a')}
+                </Box>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {onEdit && (
+                <IconButton
+                  size="small"
+                  onClick={() => onEdit(task.id)}
+                  sx={{
+                    color: '#bdc3c7',
+                    padding: '4px',
+                    '&:hover': {
+                      color: '#3498db',
+                      backgroundColor: 'rgba(52, 152, 219, 0.1)'
+                    }
+                  }}
+                >
+                  <EditIcon sx={{ fontSize: '1rem' }} />
                 </IconButton>
-              </Tooltip>
-              <Tooltip title="Delete">
-                <IconButton size="small" onClick={() => onDelete?.(task.id)}>
-                  <DeleteIcon fontSize="small" />
+              )}
+              {onDelete && (
+                <IconButton
+                  size="small"
+                  onClick={() => onDelete(task.id)}
+                  sx={{
+                    color: '#bdc3c7',
+                    padding: '4px',
+                    '&:hover': {
+                      color: '#e74c3c',
+                      backgroundColor: 'rgba(231, 76, 60, 0.1)'
+                    }
+                  }}
+                >
+                  <DeleteIcon sx={{ fontSize: '1rem' }} />
                 </IconButton>
-              </Tooltip>
+              )}
             </Box>
           </Box>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {task.description}
-          </Typography>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Chip
-              label={task.priority}
-              size="small"
-              sx={{
-                backgroundColor: getPriorityColor(task.priority),
-                color: 'white'
-              }}
-            />
-            <Tooltip title={format(new Date(task.due_date), 'PPP')}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AccessTimeIcon fontSize="small" color="action" />
-                <Typography variant="caption" color="text.secondary">
-                  {format(new Date(task.due_date), 'MMM d')}
-                </Typography>
-              </Box>
-            </Tooltip>
-          </Box>
-
           {collaborators.length > 0 && (
-            <Box sx={{ mt: 1 }}>
+            <Box sx={{ mt: 2 }}>
               <CollaboratorAvatars collaborators={collaborators} />
             </Box>
           )}
@@ -144,12 +187,29 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
 }) => {
   const theme = useTheme();
   const [localTasks, setLocalTasks] = useState(tasks);
+  const [activeTab, setActiveTab] = useState('my_tasks');
 
-  const columns: { [key in TaskStatus]: string } = {
-    'pending': 'Upcoming',
-    'in_progress': 'In Progress',
-    'completed': 'Done',
-    'cancelled': 'Cancelled'
+  const columns: { [key in TaskStatus]: { title: string; icon: React.ReactNode; color: string } } = {
+    pending: { 
+      title: 'Upcoming', 
+      icon: '📋', 
+      color: 'rgba(237, 238, 245, 0.95)'
+    },
+    in_progress: { 
+      title: 'In Progress', 
+      icon: '🔄', 
+      color: 'rgba(237, 238, 245, 0.95)'
+    },
+    completed: { 
+      title: 'Completed', 
+      icon: '✓', 
+      color: 'rgba(237, 238, 245, 0.95)'
+    },
+    cancelled: { 
+      title: 'Cancelled', 
+      icon: '✕', 
+      color: 'rgba(237, 238, 245, 0.95)'
+    }
   };
 
   const getTasksByStatus = (status: TaskStatus) => {
@@ -205,55 +265,197 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   }, [tasks]);
 
   return (
-    <DragDropContext onDragEnd={onDragEnd} onBeforeDragStart={() => {}}>
-      <Grid container spacing={2}>
-        {Object.entries(columns).map(([status, title]) => (
-          <Grid item xs={12} sm={6} md={3} key={status}>
-            <Paper
-              sx={{
-                p: 2,
-                backgroundColor: alpha(theme.palette.background.paper, 0.6),
-                height: '100%',
-                minHeight: '70vh',
-                display: 'flex',
-                flexDirection: 'column'
-              }}
-            >
-              <Typography variant="h6" gutterBottom>
-                {title} ({getTasksByStatus(status as TaskStatus).length})
-              </Typography>
-              <Droppable droppableId={status} type="task">
-                {(provided) => (
-                  <Box
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    sx={{ 
-                      minHeight: '100px',
-                      height: '100%',
-                      transition: 'background-color 0.2s ease',
-                      '&:empty': {
-                        backgroundColor: alpha(theme.palette.background.paper, 0.4)
-                      }
+    <Box sx={{ 
+      p: 3,
+      minHeight: '100vh',
+      backgroundColor: '#f8f9fe'
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 3
+      }}>
+        <Typography variant="h5" sx={{ 
+          color: '#2d3436',
+          fontWeight: 500,
+          fontSize: '1.5rem'
+        }}>
+          Task Board
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <IconButton
+            size="small"
+            sx={{
+              color: '#b2bec3',
+              '&:hover': { color: '#636e72' }
+            }}
+          >
+            <FilterListIcon />
+          </IconButton>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            sx={{
+              backgroundColor: '#3498db',
+              color: '#fff',
+              textTransform: 'none',
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+              '&:hover': {
+                backgroundColor: '#2980b9'
+              }
+            }}
+          >
+            Create Task
+          </Button>
+        </Box>
+      </Box>
+
+      <Box sx={{ 
+        display: 'flex', 
+        gap: 3, 
+        mb: 4,
+        borderBottom: '1px solid #e1e4e8',
+      }}>
+        <Button
+          onClick={() => setActiveTab('my_tasks')}
+          sx={{
+            color: activeTab === 'my_tasks' ? '#3498db' : '#636e72',
+            borderBottom: activeTab === 'my_tasks' ? '2px solid #3498db' : '2px solid transparent',
+            borderRadius: 0,
+            px: 1,
+            py: 1.5,
+            minWidth: 'auto',
+            textTransform: 'none',
+            fontWeight: activeTab === 'my_tasks' ? 600 : 400,
+            '&:hover': {
+              backgroundColor: 'transparent',
+              color: '#3498db'
+            }
+          }}
+        >
+          My Tasks
+        </Button>
+        <Button
+          onClick={() => setActiveTab('assigned')}
+          sx={{
+            color: activeTab === 'assigned' ? '#3498db' : '#636e72',
+            borderBottom: activeTab === 'assigned' ? '2px solid #3498db' : '2px solid transparent',
+            borderRadius: 0,
+            px: 1,
+            py: 1.5,
+            minWidth: 'auto',
+            textTransform: 'none',
+            fontWeight: activeTab === 'assigned' ? 600 : 400,
+            '&:hover': {
+              backgroundColor: 'transparent',
+              color: '#3498db'
+            }
+          }}
+        >
+          Assigned to Me
+        </Button>
+        <Button
+          onClick={() => setActiveTab('created')}
+          sx={{
+            color: activeTab === 'created' ? '#3498db' : '#636e72',
+            borderBottom: activeTab === 'created' ? '2px solid #3498db' : '2px solid transparent',
+            borderRadius: 0,
+            px: 1,
+            py: 1.5,
+            minWidth: 'auto',
+            textTransform: 'none',
+            fontWeight: activeTab === 'created' ? 600 : 400,
+            '&:hover': {
+              backgroundColor: 'transparent',
+              color: '#3498db'
+            }
+          }}
+        >
+          Created by Me
+        </Button>
+      </Box>
+
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Grid container spacing={3}>
+          {Object.entries(columns).map(([status, { title, icon, color }]) => (
+            <Grid item xs={12} sm={6} md={3} key={status}>
+              <Paper
+                elevation={0}
+                sx={{
+                  backgroundColor: color,
+                  borderRadius: 2,
+                  height: '100%',
+                  minHeight: '70vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }}
+              >
+                <Box sx={{ 
+                  p: 2, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1,
+                }}>
+                  <Typography sx={{ 
+                    fontSize: '0.875rem',
+                    color: '#2d3436',
+                    fontWeight: 500,
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    {icon} {title}
+                  </Typography>
+                  <Chip
+                    label={getTasksByStatus(status as TaskStatus).length}
+                    size="small"
+                    sx={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      color: '#636e72',
+                      height: '20px',
+                      fontSize: '0.75rem'
                     }}
-                  >
-                    {getTasksByStatus(status as TaskStatus).map((task, index) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        index={index}
-                        onEdit={onEditTask}
-                        onDelete={onDeleteTask}
-                      />
-                    ))}
-                    {provided.placeholder}
-                  </Box>
-                )}
-              </Droppable>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
-    </DragDropContext>
+                  />
+                </Box>
+                <Droppable droppableId={status} type="task">
+                  {(provided, snapshot) => (
+                    <Box
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      sx={{ 
+                        flex: 1,
+                        p: 2,
+                        transition: 'background-color 0.2s ease',
+                        backgroundColor: snapshot.isDraggingOver 
+                          ? 'rgba(52, 152, 219, 0.05)'
+                          : 'transparent',
+                        minHeight: '100px'
+                      }}
+                    >
+                      {getTasksByStatus(status as TaskStatus).map((task, index) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          index={index}
+                          onEdit={onEditTask}
+                          onDelete={onDeleteTask}
+                        />
+                      ))}
+                      {provided.placeholder}
+                    </Box>
+                  )}
+                </Droppable>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </DragDropContext>
+    </Box>
   );
 };
 

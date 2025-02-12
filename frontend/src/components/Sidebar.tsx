@@ -27,6 +27,8 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import logo from '../assets/images/logo.png';
 import logoIcon from '../assets/images/logoIcon.png';
+import { useTheme } from '@mui/material/styles';
+import { alpha } from '@mui/material/styles';
 
 const DRAWER_WIDTH = 240;
 
@@ -88,37 +90,29 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
   const [adminMenuOpen, setAdminMenuOpen] = useState(true);
+  const theme = useTheme();
 
-  // Get role from user or localStorage - memoize the function
-  const getRole = React.useCallback(() => {
-    return user?.role || localStorage.getItem('user_role');
+  const isAdmin = React.useMemo(() => {
+    const role = user?.role || localStorage.getItem('user_role');
+    return role === 'admin';
   }, [user?.role]);
 
-  // Memoize isAdmin value
-  const isAdmin = React.useMemo(() => {
-    const role = getRole();
-    return role === 'admin';
-  }, [getRole]); // Now getRole is a stable reference
-
-  // Debug logging
-  useEffect(() => {
-    const role = getRole();
-    console.log('Sidebar render - User state:', {
-      userExists: !!user,
-      userData: user,
-      role: role,
-      isAdmin,
-      adminMenuVisible: isAdmin,
-      adminMenuOpen
-    });
-  }, [user, adminMenuOpen, isAdmin, getRole]); // Added getRole to dependencies
-
-  // Set initial admin menu state
-  useEffect(() => {
-    if (isAdmin) {
-      setAdminMenuOpen(true);
-    }
-  }, [isAdmin]);
+  const getMenuItemStyles = (isActive: boolean) => ({
+    minHeight: 48,
+    justifyContent: open ? 'initial' : 'center',
+    px: 2.5,
+    mx: 1,
+    my: 0.5,
+    borderRadius: '12px',
+    transition: 'all 0.3s ease',
+    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+    color: isActive ? '#fff' : 'rgba(255, 255, 255, 0.7)',
+    '&:hover': {
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+      transform: 'translateX(5px)',
+      color: '#fff',
+    },
+  });
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -128,84 +122,36 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
-  // Admin menu section
-  const adminMenuSection = isAdmin ? (
-    <>
-      <Divider sx={{ my: 1, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
-      <ListItem disablePadding>
-        <ListItemButton
-          onClick={() => setAdminMenuOpen(!adminMenuOpen)}
-          sx={{
-            minHeight: 48,
-            justifyContent: open ? 'initial' : 'center',
-            px: 2.5,
-            backgroundColor: isActive('/admin') ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-          }}
-        >
-          <ListItemIcon sx={{ color: '#fff', minWidth: 0, mr: open ? 3 : 'auto' }}>
-            <AdminPanelSettingsIcon />
-          </ListItemIcon>
-          {open && (
-            <>
-              <ListItemText primary="Admin Panel" sx={{ color: '#fff' }} />
-              {adminMenuOpen ? <ExpandLess sx={{ color: '#fff' }} /> : <ExpandMore sx={{ color: '#fff' }} />}
-            </>
-          )}
-        </ListItemButton>
-      </ListItem>
-      <Collapse in={adminMenuOpen && open} timeout="auto" unmountOnExit>
-        <List component="div" disablePadding>
-          {adminMenuItems.map((item) => (
-            <Tooltip
-              key={item.title}
-              title={!open ? `${item.title}: ${item.description}` : ''}
-              placement="right"
-            >
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={() => handleNavigation(item.path)}
-                  selected={isActive(item.path)}
-                  sx={{
-                    minHeight: 48,
-                    justifyContent: open ? 'initial' : 'center',
-                    pl: 4,
-                    '&.Mui-selected': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: '#fff', minWidth: 0, mr: open ? 3 : 'auto' }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  {open && <ListItemText primary={item.title} sx={{ color: '#fff' }} />}
-                </ListItemButton>
-              </ListItem>
-            </Tooltip>
-          ))}
-        </List>
-      </Collapse>
-    </>
-  ) : null;
-
   return (
     <Drawer
       variant="permanent"
       open={open}
       sx={{
         width: open ? drawerWidth : 65,
-        transition: 'width 0.2s',
+        transition: 'width 0.3s ease',
         '& .MuiDrawer-paper': {
           width: open ? drawerWidth : 65,
-          transition: 'width 0.2s',
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(8px)',
+          transition: 'width 0.3s ease',
+          background: 'rgba(31, 41, 55, 0.8)',
+          backdropFilter: 'blur(12px)',
           border: 'none',
           overflow: 'hidden',
+          boxShadow: '4px 0 15px rgba(0, 0, 0, 0.1)',
+          '&:hover': {
+            boxShadow: '4px 0 20px rgba(0, 0, 0, 0.15)',
+          },
         },
       }}
     >
       {/* Logo Section */}
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ 
+        p: 2, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        mb: 2
+      }}>
         {open ? (
           <img 
             src={logo} 
@@ -213,6 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
             style={{ 
               height: '40px',
               transition: 'opacity 0.3s ease-in-out',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
             }} 
           />
         ) : (
@@ -222,66 +169,168 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
             style={{ 
               height: '30px',
               transition: 'opacity 0.3s ease-in-out',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
             }} 
           />
         )}
       </Box>
-
-      <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.12)' }} />
 
       {/* Main menu items */}
       <List>
         {mainMenuItems.map((item) => (
           <ListItem key={item.title} disablePadding>
             <ListItemButton
-              onClick={() => handleNavigation(item.path)}
+              onClick={() => navigate(item.path)}
               selected={isActive(item.path)}
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-                '&.Mui-selected': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                },
-              }}
+              sx={getMenuItemStyles(isActive(item.path))}
             >
               <Tooltip title={!open ? item.title : ''} placement="right">
-                <ListItemIcon sx={{ color: '#fff', minWidth: 0, mr: open ? 3 : 'auto' }}>
+                <ListItemIcon sx={{ 
+                  color: 'inherit', 
+                  minWidth: 0, 
+                  mr: open ? 3 : 'auto',
+                  transition: 'transform 0.2s ease',
+                  transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
+                }}>
                   {item.icon}
                 </ListItemIcon>
               </Tooltip>
-              {open && <ListItemText primary={item.title} sx={{ color: '#fff' }} />}
+              {open && (
+                <ListItemText 
+                  primary={item.title} 
+                  sx={{ 
+                    opacity: 1,
+                    '& .MuiListItemText-primary': {
+                      fontWeight: isActive(item.path) ? 600 : 400,
+                    }
+                  }} 
+                />
+              )}
             </ListItemButton>
           </ListItem>
         ))}
       </List>
 
       {/* Admin menu section */}
-      {adminMenuSection}
+      {isAdmin && (
+        <>
+          <Divider sx={{ 
+            my: 1, 
+            borderColor: 'rgba(255, 255, 255, 0.08)',
+            mx: 2
+          }} />
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => setAdminMenuOpen(!adminMenuOpen)}
+              sx={{
+                ...getMenuItemStyles(isActive('/admin')),
+                backgroundColor: adminMenuOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+              }}
+            >
+              <ListItemIcon sx={{ 
+                color: 'inherit', 
+                minWidth: 0, 
+                mr: open ? 3 : 'auto',
+                transition: 'transform 0.2s ease',
+              }}>
+                <AdminPanelSettingsIcon />
+              </ListItemIcon>
+              {open && (
+                <>
+                  <ListItemText 
+                    primary="Admin Panel" 
+                    sx={{ 
+                      '& .MuiListItemText-primary': {
+                        fontWeight: adminMenuOpen ? 600 : 400,
+                      }
+                    }} 
+                  />
+                  {adminMenuOpen ? (
+                    <ExpandLess sx={{ transition: 'transform 0.3s ease' }} />
+                  ) : (
+                    <ExpandMore sx={{ transition: 'transform 0.3s ease' }} />
+                  )}
+                </>
+              )}
+            </ListItemButton>
+          </ListItem>
+          <Collapse in={adminMenuOpen && open} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding>
+              {adminMenuItems.map((item) => (
+                <Tooltip
+                  key={item.title}
+                  title={!open ? `${item.title}: ${item.description}` : ''}
+                  placement="right"
+                >
+                  <ListItem disablePadding>
+                    <ListItemButton
+                      onClick={() => navigate(item.path)}
+                      selected={isActive(item.path)}
+                      sx={{
+                        ...getMenuItemStyles(isActive(item.path)),
+                        pl: open ? 4 : 2.5,
+                      }}
+                    >
+                      <ListItemIcon sx={{ 
+                        color: 'inherit', 
+                        minWidth: 0, 
+                        mr: open ? 3 : 'auto',
+                        transition: 'transform 0.2s ease',
+                        transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
+                      }}>
+                        {item.icon}
+                      </ListItemIcon>
+                      {open && (
+                        <ListItemText 
+                          primary={item.title} 
+                          sx={{ 
+                            '& .MuiListItemText-primary': {
+                              fontWeight: isActive(item.path) ? 600 : 400,
+                              fontSize: '0.9rem',
+                            }
+                          }} 
+                        />
+                      )}
+                    </ListItemButton>
+                  </ListItem>
+                </Tooltip>
+              ))}
+            </List>
+          </Collapse>
+        </>
+      )}
 
       {/* Logout button */}
-      <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.12)', mt: 'auto' }} />
-      <List>
-        <ListItem
-          button
-          onClick={onLogout}
-          sx={{
-            minHeight: 48,
-            justifyContent: open ? 'initial' : 'center',
-            px: 2.5,
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            },
-          }}
-        >
-          <Tooltip title={!open ? 'Logout' : ''} placement="right">
-            <ListItemIcon sx={{ color: '#fff', minWidth: 0, mr: open ? 3 : 'auto' }}>
-              <LogoutIcon />
-            </ListItemIcon>
-          </Tooltip>
-          {open && <ListItemText primary="Logout" sx={{ color: '#fff' }} />}
+      <Box sx={{ 
+        mt: 'auto', 
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        p: 1
+      }}>
+        <ListItem disablePadding>
+          <ListItemButton
+            onClick={onLogout}
+            sx={{
+              ...getMenuItemStyles(false),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.error.main, 0.1),
+                color: theme.palette.error.main,
+              },
+            }}
+          >
+            <Tooltip title={!open ? 'Logout' : ''} placement="right">
+              <ListItemIcon sx={{ 
+                color: 'inherit', 
+                minWidth: 0, 
+                mr: open ? 3 : 'auto',
+                transition: 'all 0.2s ease',
+              }}>
+                <LogoutIcon />
+              </ListItemIcon>
+            </Tooltip>
+            {open && <ListItemText primary="Logout" />}
+          </ListItemButton>
         </ListItem>
-      </List>
+      </Box>
     </Drawer>
   );
 };
