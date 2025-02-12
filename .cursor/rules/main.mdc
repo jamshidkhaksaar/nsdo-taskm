@@ -1,0 +1,267 @@
+---
+description: .cursorrules
+globs: 
+---
+# .cursorrules for React, Typescript (Frontend) and Python, Django, Django Rest Framework, PyJWT (Backend)
+
+You are an expert full-stack developer proficient in React, Python, and modern UI/UX best practices. Your goal is to create maintainable, performant, and robust web applications.
+
+## Frontend (React)
+
+### Code Style and Structure
+
+- Use TypeScript for type safety and improved code maintainability.
+- Write concise, functional React components. Favor hooks and functional programming paradigms.
+- Structure files with exported components, sub-components, utility functions, and types.
+- Use descriptive variable and function names. Follow a consistent naming convention (e.g., camelCase for variables, PascalCase for components).
+- Organize components into logical directories based on features or functionality.
+
+### UI/UX
+
+- Implement modern UI/UX principles.  Prioritize accessibility (WCAG guidelines).
+- Use a UI library like Material UI, Ant Design, or create custom components with CSS-in-JS (e.g., styled-components, Emotion).
+- Ensure responsive design for various screen sizes.
+
+### State Management
+
+- Use a state management library like Redux, Zustand, or Context API for managing application state effectively.
+- Implement efficient state updates and avoid unnecessary re-renders.
+
+### Data Fetching
+
+- Use libraries like `axios` or `fetch` for API calls.
+- Implement loading states and error handling for API requests.
+- Consider caching strategies for improved performance.
+
+### Testing
+
+- Write unit and integration tests using Jest and React Testing Library.
+- Aim for high test coverage to ensure code quality.
+
+## Backend (Python)
+
+### Code Style and Structure
+
+- Adhere to PEP 8 style guidelines for clean and readable Python code.
+- Use descriptive variable and function names.
+- Organize code into modules and packages for better maintainability.
+- Use type hints for improved code clarity and maintainability.
+
+### Framework (If applicable)
+
+- If using a framework like Django or Flask, follow its best practices and conventions.
+- Structure projects according to the framework's recommendations.
+
+### API Design
+
+- Design RESTful APIs with clear and consistent endpoints.
+- Use a library like Django REST Framework or Flask-RESTful for building APIs.
+- Implement proper input validation and error handling.
+- Document API endpoints using OpenAPI/Swagger.
+
+### Database
+
+- Choose an appropriate database (e.g., sqlite, MySQL) based on project needs.
+- Use an ORM (e.g., Django ORM, SQLAlchemy) for database interactions.
+- Optimize database queries for performance.
+
+### Security
+
+- Implement security best practices to protect against common vulnerabilities (e.g., SQL injection, XSS, CSRF).
+- Use secure libraries and frameworks.
+- Securely store sensitive data (e.g., passwords, API keys).
+
+### Testing
+
+- Write unit and integration tests using `pytest` or `unittest`.
+- Aim for high test coverage to ensure code quality.
+
+## General (Full-Stack)
+
+### Version Control
+
+- Use Git for version control. Follow a consistent branching strategy.
+- Write clear and concise commit messages.
+
+### Documentation
+
+- Document code clearly using comments and docstrings.
+- Create API documentation (e.g., using Swagger).
+- Write user documentation if necessary.
+
+### Deployment
+
+- Use a suitable deployment platform (e.g., Heroku, AWS, Google Cloud).
+- Automate the deployment process.
+
+### Methodology
+
+- Use an iterative development process.
+- Break down tasks into smaller, manageable units.
+- Prioritize code quality and maintainability.
+- Conduct regular code reviews.
+
+
+Documentation of project: 
+
+# Remaining Steps
+
+# Task Management System: AI Code Editor Instructions
+
+## Project Overview
+
+The project is a **Task Management System** built with:
+
+* **Backend**: Django
+* **Frontend**: React + TypeScript
+
+The frontend is almost complete, but the backend needs to be fixed and connected to the frontend. The AI must ensure that all new features, pages, and templates match the existing frontend layout, styling, and functionality.
+
+***
+
+## Rules for the AI Code Editor
+
+1. **Codebase Scanning**:
+   * Before making any changes, the AI must **scan the entire codebase** to understand:
+     * What already exists (frontend and backend).
+     * What is missing or needs to be fixed.
+   * The AI must provide a summary of the current state of the codebase, including:
+     * Existing pages, components, and backend APIs.
+     * Missing functionality or pages.
+     * Any inconsistencies or issues in the codebase.
+2. **File Creation**:
+   * Before creating any new file, the AI must:
+     * **Ask for permission** to create the file.
+     * Provide a **clear reason** why the file is needed.
+     * Explain how the file will integrate with the existing codebase.
+   * The AI must ensure that new files follow the project's existing structure and naming conventions.
+3. **Frontend Consistency**:
+   * Any new page or template must **match the overall layout and styling** of the existing frontend.
+   * The AI must ensure that:
+     * New components reuse existing styles and design patterns.
+     * New pages integrate seamlessly with the existing navigation and menus.
+4. **Backend-Frontend Integration**:
+   * The AI must ensure that all frontend pages and components are properly connected to the backend.
+   * The AI must:
+     * Identify missing backend APIs or functionality.
+     * Create or fix backend APIs as needed.
+     * Ensure proper data flow between the frontend and backend.
+5. **User Interaction**:
+   * The AI must **ask for confirmation** before implementing any major changes or features.
+   * The AI must provide **clear explanations** for its decisions and actions.
+
+***
+
+## Project Structure
+
+### Frontend Menus and Pages
+
+The frontend has the following menus and pages:
+
+1. **Dashboard**:
+   * Includes:
+     * Quick Note
+     * My Tasks
+     * Tasks Assigned to Me
+     * Tasks Assigned by Me
+   * Top-right widgets:
+     * Notification Bell
+     * Profile Menu
+     * Settings Menu (page not yet created)
+2. **Departments**:
+   * Includes:
+     * Department List
+     * All Departments Summary
+     * Upcoming Tasks for the department users
+     * Ongoing Tasks for the selected department
+     * Completed Tasks for the department
+     * Top Performers (users completing the most tasks)
+   * Logic:
+     * Clicking on a department shows a summary of tasks.
+3. **Users**:
+   * Includes:
+     * User List (colleagues in the assigned department)
+     * User Task Completion Rate (High, Medium, Low Priority Tasks)
+     * User's Upcoming, Ongoing, and Completed Tasks
+   * Logic:
+     * Users can only see colleagues in their assigned department unless they have assigned tasks to users in other departments.
+     * Clicking on a user shows their task details.
+
+***
+
+## Tasks for the AI Code Editor
+
+### Frontend Tasks
+
+1. **Profile and Settings Pages**:
+   * Create a **Profile Page** where users can edit their profile information.
+   * Create a **Settings Page** where users can update their preferences.
+   * Ensure both pages match the existing layout and styling.
+2. **Realtime Notifications and Tasks**:
+   * Implement realtime updates for:
+     * Notifications (e.g., new tasks, task updates).
+     * Task status changes (e.g., completed, due tasks).
+   * Ensure users do not need to refresh the browser to see updates.
+3. **Quick Notes**:
+   * Ensure the Quick Note feature is fully functional and connected to the backend.
+4. **Task Assignment**:
+   * Ensure users can assign tasks to colleagues in their department or other departments.
+   * Implement proper validation and error handling.
+
+### Backend Tasks
+
+1. **API Development**:
+   * Identify missing APIs for:
+     * Profile and Settings.
+     * Realtime notifications and tasks.
+     * Task assignment and management.
+   * Create or fix the necessary APIs.
+2. **Database Updates**:
+   * Ensure the database schema supports all required functionality.
+   * Make any necessary updates to the models and migrations.
+3. **Authentication and Permissions**:
+   * Ensure proper authentication and permissions for:
+     * Accessing department and user data.
+     * Assigning and managing tasks.
+
+***
+
+## Workflow for the AI Code Editor
+
+1. **Scan the Codebase**:
+   * Analyze the existing frontend and backend code.
+   * Provide a summary of what exists and what is missing.
+2. **Plan the Implementation**:
+   * Propose a plan for completing the frontend and backend tasks.
+   * Ask for confirmation before proceeding.
+3. **Implement Changes**:
+   * Create new files only after receiving permission.
+   * Ensure all changes match the existing codebase style and structure.
+   * Test each feature to ensure it works as expected.
+4. **Integrate Frontend and Backend**:
+   * Connect frontend pages and components to the backend APIs.
+   * Ensure proper data flow and error handling.
+5. **Final Testing**:
+   * Test the entire application to ensure all features work together.
+   * Fix any bugs or issues.
+
+***
+
+## Example Interaction
+
+### AI Request for File Creation
+
+**AI**:
+"I need to create a new file `ProfilePage.tsx` in the `src/pages` directory. This file will contain the profile editing functionality. It will reuse the existing styling and layout from the Dashboard page. Do you approve?"
+
+**You**:
+"Yes, proceed."
+
+### AI Summary of Codebase
+
+**AI**:
+"After scanning the codebase, I found:
+
+* Frontend: Dashboard, Departments, and Users pages are mostly complete. Missing Profile and Settings pages.
+* Backend: APIs for tasks and departments exist, but APIs for profile and settings are missing.
+* Realtime functionality is not yet implemented."

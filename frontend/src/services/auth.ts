@@ -6,11 +6,12 @@ if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 }
 
-export const login = async (username: string, password: string, verificationCode?: string) => {
+export const login = async (username: string, password: string, verificationCode?: string, rememberMe: boolean = false) => {
   const response = await axios.post('/api/auth/login/', {
     username,
     password,
-    verification_code: verificationCode
+    verification_code: verificationCode,
+    remember_me: rememberMe
   });
 
   if (response.data.access) {
@@ -24,9 +25,17 @@ export const login = async (username: string, password: string, verificationCode
 };
 
 export const logout = async () => {
+  // Store the remembered username before clearing storage
+  const rememberedUsername = localStorage.getItem('rememberedUsername');
+  
   // Clear tokens and user data
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  localStorage.clear();
+  
+  // Restore remembered username if it existed
+  if (rememberedUsername) {
+    localStorage.setItem('rememberedUsername', rememberedUsername);
+  }
+  
   // Remove Authorization header
   delete axios.defaults.headers.common['Authorization'];
 };

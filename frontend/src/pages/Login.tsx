@@ -10,6 +10,8 @@ import {
   Alert,
   useTheme,
   CircularProgress,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
@@ -27,12 +29,14 @@ interface LoginFormInputs {
   username: string;
   password: string;
   verificationCode?: string;
+  rememberMe: boolean;
 }
 
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  verificationCode: z.string().optional()
+  verificationCode: z.string().optional(),
+  rememberMe: z.boolean().default(false)
 }) as z.ZodType<LoginFormInputs>;
 
 const Login: React.FC = () => {
@@ -57,13 +61,15 @@ const Login: React.FC = () => {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors }
   } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: '',
+      username: localStorage.getItem('rememberedUsername') || '',
       password: '',
-      verificationCode: ''
+      verificationCode: '',
+      rememberMe: localStorage.getItem('rememberedUsername') ? true : false
     }
   });
 
@@ -91,10 +97,18 @@ const Login: React.FC = () => {
       setFormError('');
       dispatch(loginStart());
       
+      // Handle "Remember Me" functionality
+      if (data.rememberMe) {
+        localStorage.setItem('rememberedUsername', data.username);
+      } else {
+        localStorage.removeItem('rememberedUsername');
+      }
+
       const response = await AuthService.login(
         data.username, 
-        data.password, 
-        need2FA ? data.verificationCode : undefined
+        data.password,
+        need2FA ? data.verificationCode : undefined,
+        data.rememberMe
       );
       
       if (response.need_2fa) {
@@ -361,7 +375,7 @@ const Login: React.FC = () => {
                 helperText={errors.password?.message}
                 disabled={loading}
                 sx={{
-                  mb: 3,
+                  mb: 2,
                   '& .MuiOutlinedInput-root': {
                     background: 'rgba(255, 255, 255, 0.05)',
                     '& fieldset': {
@@ -381,6 +395,31 @@ const Login: React.FC = () => {
                     color: theme.palette.error.light,
                   }
                 }}
+              />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    {...register('rememberMe')}
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&.Mui-checked': {
+                        color: 'primary.main',
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                    }}
+                  >
+                    Remember me
+                  </Typography>
+                }
+                sx={{ mb: 2 }}
               />
             </>
           ) : (

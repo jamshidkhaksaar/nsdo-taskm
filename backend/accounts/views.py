@@ -130,6 +130,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         username = request.data.get('username')
         password = request.data.get('password')
         verification_code = request.data.get('verification_code')
+        remember_me = request.data.get('remember_me', False)
         ip_address = request.META.get('REMOTE_ADDR', '0.0.0.0')
         
         user = authenticate(username=username, password=password)
@@ -174,8 +175,18 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Generate tokens
+            # Generate tokens with extended lifetime if remember_me is True
             refresh = RefreshToken.for_user(user)
+            
+            # Extend token lifetime if remember_me is True
+            if remember_me:
+                # Extend refresh token to 30 days and access token to 7 days for "remember me"
+                refresh.set_exp(lifetime=timedelta(days=30))
+                access_token = refresh.access_token
+                access_token.set_exp(lifetime=timedelta(days=7))
+            else:
+                # Use default token lifetimes from settings
+                access_token = refresh.access_token
             
             # Log successful login
             log_activity(
@@ -188,7 +199,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
             
             response_data = {
-                'access': str(refresh.access_token),
+                'access': str(access_token),
                 'refresh': str(refresh),
                 'user': UserSerializer(user).data
             }
