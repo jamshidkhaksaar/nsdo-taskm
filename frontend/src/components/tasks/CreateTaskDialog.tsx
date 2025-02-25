@@ -20,6 +20,8 @@ import { TaskService } from '../../services/task';
 import { CreateTask, Task } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
+import { Department, DepartmentService } from '../../services/department';
+import axios from '../../utils/axios';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -46,6 +48,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]); // Used in useEffect for user management
   const [department, setDepartment] = useState<string>('');  // Changed from string | null to string with empty default
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [dateError, setDateError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,6 +59,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setDescription(task.description || '');
         setDueDate(task.due_date ? new Date(task.due_date) : new Date());
         setDateError(null);
+        setDepartment(task.department || '');
+        
         // Fetch and set assigned users
         const fetchAssignedUsers = async () => {
           try {
@@ -80,6 +85,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setDueDate(tomorrow);
         setDateError(null);
         setSelectedUsers([]);
+        setDepartment('');
+        
         // Fetch users for assignment
         const fetchUsers = async () => {
           try {
@@ -91,6 +98,17 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         };
         fetchUsers();
       }
+      
+      // Fetch departments
+      const fetchDepartments = async () => {
+        try {
+          const response = await DepartmentService.getDepartments();
+          setDepartments(response);
+        } catch (err) {
+          console.error('Error fetching departments:', err);
+        }
+      };
+      fetchDepartments();
     }
   }, [open, task]);
 
@@ -375,11 +393,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 }}
               >
                 <MenuItem value="">No Department</MenuItem>
-                <MenuItem value="engineering">Engineering</MenuItem>
-                <MenuItem value="marketing">Marketing</MenuItem>
-                <MenuItem value="sales">Sales</MenuItem>
-                <MenuItem value="hr">HR</MenuItem>
-                <MenuItem value="finance">Finance</MenuItem>
+                {departments.map((dept) => (
+                  <MenuItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </MenuItem>
+                ))}
               </TextField>
             </>
           )}

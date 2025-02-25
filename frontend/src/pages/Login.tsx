@@ -168,8 +168,23 @@ const Login: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
+        background: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)',
+        backgroundAttachment: 'fixed',
+        backgroundSize: 'cover',
         overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.1)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.05)' stroke-width='0.5'/%3E%3C/svg%3E")`,
+          backgroundSize: '40px 40px',
+          opacity: 0.3,
+          pointerEvents: 'none',
+          zIndex: 0,
+        },
       }}
     >
       <Particles
@@ -192,7 +207,7 @@ const Login: React.FC = () => {
               color: "#ffffff",
               distance: 150,
               enable: true,
-              opacity: 0.3,
+              opacity: 0.15,
               width: 1,
             },
             move: {
@@ -202,7 +217,7 @@ const Login: React.FC = () => {
                 default: "bounce",
               },
               random: false,
-              speed: 2,
+              speed: 1.5,
               straight: false,
             },
             number: {
@@ -210,16 +225,16 @@ const Login: React.FC = () => {
                 enable: true,
                 area: 800,
               },
-              value: 80,
+              value: 60,
             },
             opacity: {
-              value: 0.3,
+              value: 0.15,
             },
             shape: {
               type: "circle",
             },
             size: {
-              value: { min: 1, max: 3 },
+              value: { min: 1, max: 2 },
             },
           },
           detectRetina: true,
@@ -235,6 +250,9 @@ const Login: React.FC = () => {
       />
 
       <Box
+        component="form"
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
         sx={{
           width: '100%',
           maxWidth: '400px',
@@ -261,8 +279,7 @@ const Login: React.FC = () => {
           <Typography
             variant="h6"
             sx={{
-              color: '#fff',
-              opacity: 0.9,
+              color: 'rgba(255, 255, 255, 0.9)',
               marginBottom: '8px',
               fontWeight: '500',
               animation: `${fadeIn} 0.8s ease-out`,
@@ -277,7 +294,7 @@ const Login: React.FC = () => {
               color: '#fff',
               fontWeight: '700',
               marginBottom: '16px',
-              background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+              background: 'linear-gradient(45deg, #4CAF50, #2196F3)',
               backgroundClip: 'text',
               textFillColor: 'transparent',
               WebkitBackgroundClip: 'text',
@@ -292,8 +309,7 @@ const Login: React.FC = () => {
           <Typography
             variant="h5"
             sx={{
-              color: '#fff',
-              opacity: 0.95,
+              color: 'rgba(255, 255, 255, 0.95)',
               marginBottom: '24px',
               fontWeight: '500',
               animation: `${fadeIn} 1.2s ease-out`,
@@ -321,130 +337,48 @@ const Login: React.FC = () => {
             severity="error"
             sx={{
               mb: 3,
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: '#fff'
+              background: 'rgba(255, 59, 59, 0.1)',
+              color: '#ff3b3b',
+              border: '1px solid rgba(255, 59, 59, 0.3)',
+              '& .MuiAlert-icon': {
+                color: '#ff3b3b'
+              }
             }}
           >
             {formError || authError}
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-          {!need2FA ? (
-            <>
-              <TextField
-                {...register('username')}
-                fullWidth
-                label="Username"
-                variant="outlined"
-                autoComplete="username"
-                error={!!errors.username}
-                helperText={errors.username?.message}
-                disabled={loading}
-                sx={{
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    '& fieldset': {
-                      borderColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: 'rgba(255, 255, 255, 0.5)',
-                    },
-                  },
-                  '& .MuiInputLabel-root': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                  '& .MuiOutlinedInput-input': {
-                    color: '#fff',
-                  },
-                  '& .MuiFormHelperText-root': {
-                    color: theme.palette.error.light,
-                  }
-                }}
-              />
-
-              <TextField
-                {...register('password')}
-                fullWidth
-                label="Password"
-                type="password"
-                variant="outlined"
-                autoComplete="current-password"
-                error={!!errors.password}
-                helperText={errors.password?.message}
-                disabled={loading}
-                sx={{
-                  mb: 2,
-                  '& .MuiOutlinedInput-root': {
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    '& fieldset': {
-                      borderColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: 'rgba(255, 255, 255, 0.5)',
-                    },
-                  },
-                  '& .MuiInputLabel-root': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                  '& .MuiOutlinedInput-input': {
-                    color: '#fff',
-                  },
-                  '& .MuiFormHelperText-root': {
-                    color: theme.palette.error.light,
-                  }
-                }}
-              />
-
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    {...register('rememberMe')}
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': {
-                        color: 'primary.main',
-                      },
-                    }}
-                  />
-                }
-                label={
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                    }}
-                  >
-                    Remember me
-                  </Typography>
-                }
-                sx={{ mb: 2 }}
-              />
-            </>
-          ) : (
+        {!need2FA ? (
+          <>
             <TextField
-              {...register('verificationCode')}
+              {...register('username')}
               fullWidth
-              label="2FA Verification Code"
+              label="Username"
               variant="outlined"
-              autoComplete="verification-code"
-              error={!!errors.verificationCode}
-              helperText={errors.verificationCode?.message}
+              autoComplete="username"
+              error={!!errors.username}
+              helperText={errors.username?.message}
               disabled={loading}
               sx={{
                 mb: 3,
                 '& .MuiOutlinedInput-root': {
                   background: 'rgba(255, 255, 255, 0.05)',
                   '& fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
                   },
                   '&:hover fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
                   },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  }
                 },
                 '& .MuiInputLabel-root': {
                   color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-focused': {
+                    color: 'rgba(255, 255, 255, 0.9)',
+                  }
                 },
                 '& .MuiOutlinedInput-input': {
                   color: '#fff',
@@ -454,39 +388,142 @@ const Login: React.FC = () => {
                 }
               }}
             />
-          )}
 
-          <Button
-            type="submit"
+            <TextField
+              {...register('password')}
+              fullWidth
+              label="Password"
+              type="password"
+              variant="outlined"
+              autoComplete="current-password"
+              error={!!errors.password}
+              helperText={errors.password?.message}
+              disabled={loading}
+              sx={{
+                mb: 2,
+                '& .MuiOutlinedInput-root': {
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  '& fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  }
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-focused': {
+                    color: 'rgba(255, 255, 255, 0.9)',
+                  }
+                },
+                '& .MuiOutlinedInput-input': {
+                  color: '#fff',
+                },
+                '& .MuiFormHelperText-root': {
+                  color: theme.palette.error.light,
+                }
+              }}
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  {...register('rememberMe')}
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    '&.Mui-checked': {
+                      color: 'rgba(255, 255, 255, 0.9)',
+                    },
+                  }}
+                />
+              }
+              label={
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  }}
+                >
+                  Remember me
+                </Typography>
+              }
+              sx={{ mb: 2 }}
+            />
+          </>
+        ) : (
+          <TextField
+            {...register('verificationCode')}
             fullWidth
-            variant="contained"
+            label="2FA Verification Code"
+            variant="outlined"
+            autoComplete="verification-code"
+            error={!!errors.verificationCode}
+            helperText={errors.verificationCode?.message}
             disabled={loading}
             sx={{
-              py: 1.5,
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#fff',
-              fontSize: '1.1rem',
-              textTransform: 'none',
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.2)',
-              },
-              '&:disabled': {
+              mb: 3,
+              '& .MuiOutlinedInput-root': {
                 background: 'rgba(255, 255, 255, 0.05)',
-                color: 'rgba(255, 255, 255, 0.5)',
+                '& fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.2)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                }
+              },
+              '& .MuiInputLabel-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.9)',
+                }
+              },
+              '& .MuiOutlinedInput-input': {
+                color: '#fff',
+              },
+              '& .MuiFormHelperText-root': {
+                color: theme.palette.error.light,
               }
             }}
-          >
-            {loading ? (
-              <CircularProgress size={24} />
-            ) : need2FA ? (
-              'Verify'
-            ) : (
-              'Sign In'
-            )}
-          </Button>
-        </Box>
+          />
+        )}
+
+        <Button
+          type="submit"
+          fullWidth
+          variant="contained"
+          disabled={loading}
+          sx={{
+            py: 1.5,
+            background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: '#fff',
+            fontSize: '1.1rem',
+            textTransform: 'none',
+            fontWeight: 600,
+            '&:hover': {
+              background: 'rgba(255, 255, 255, 0.2)',
+            },
+            '&:disabled': {
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'rgba(255, 255, 255, 0.5)',
+            }
+          }}
+        >
+          {loading ? (
+            <CircularProgress size={24} sx={{ color: '#fff' }} />
+          ) : need2FA ? (
+            'Verify'
+          ) : (
+            'Sign In'
+          )}
+        </Button>
       </Box>
     </Box>
   );

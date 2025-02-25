@@ -1,6 +1,7 @@
 ---
-description: 
+description: main project goals
 globs: 
+alwaysApply: false
 ---
 # .cursorrules for React, Typescript (Frontend) and Python, Django, Django Rest Framework, PyJWT (Backend)
 

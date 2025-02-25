@@ -268,13 +268,35 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
     <Box sx={{ 
       p: 3,
       minHeight: '100vh',
-      backgroundColor: '#f8f9fe'
+      backgroundColor: '#f8f9fe',
+      width: '100%',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflowY: 'auto',
+      '&::-webkit-scrollbar': {
+        width: '8px',
+      },
+      '&::-webkit-scrollbar-track': {
+        background: 'rgba(0,0,0,0.1)',
+      },
+      '&::-webkit-scrollbar-thumb': {
+        background: 'rgba(0,0,0,0.2)',
+        borderRadius: '4px',
+      },
+      '&::-webkit-scrollbar-thumb:hover': {
+        background: 'rgba(0,0,0,0.3)',
+      },
     }}>
       <Box sx={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        mb: 3
+        mb: 3,
+        position: 'relative',
+        zIndex: 1,
       }}>
         <Typography variant="h5" sx={{ 
           color: '#2d3436',
@@ -379,7 +401,13 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
       </Box>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <Grid container spacing={3}>
+        <Grid container spacing={3} sx={{ 
+          position: 'relative',
+          zIndex: 1,
+          mt: 2,
+          pb: 4,
+          width: '100%',
+        }}>
           {Object.entries(columns).map(([status, { title, icon, color }]) => (
             <Grid item xs={12} sm={6} md={3} key={status}>
               <Paper
@@ -392,6 +420,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   overflow: 'hidden',
+                  position: 'relative',
                 }}
               >
                 <Box sx={{ 
@@ -399,6 +428,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: 1,
+                  backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                  backdropFilter: 'blur(8px)',
                 }}>
                   <Typography sx={{ 
                     fontSize: '0.875rem',
@@ -422,34 +453,47 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     }}
                   />
                 </Box>
-                <Droppable droppableId={status} type="task">
-                  {(provided, snapshot) => (
-                    <Box
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      sx={{ 
-                        flex: 1,
-                        p: 2,
-                        transition: 'background-color 0.2s ease',
-                        backgroundColor: snapshot.isDraggingOver 
-                          ? 'rgba(52, 152, 219, 0.05)'
-                          : 'transparent',
-                        minHeight: '100px'
-                      }}
-                    >
-                      {getTasksByStatus(status as TaskStatus).map((task, index) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          index={index}
-                          onEdit={onEditTask}
-                          onDelete={onDeleteTask}
-                        />
-                      ))}
-                      {provided.placeholder}
-                    </Box>
-                  )}
-                </Droppable>
+                <Box sx={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  '&::-webkit-scrollbar': {
+                    width: '4px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'rgba(0,0,0,0.05)',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: 'rgba(0,0,0,0.1)',
+                    borderRadius: '2px',
+                  },
+                  '&::-webkit-scrollbar-thumb:hover': {
+                    background: 'rgba(0,0,0,0.2)',
+                  },
+                }}>
+                  <Droppable droppableId={status} type="task">
+                    {(provided) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        style={{ 
+                          minHeight: '100%',
+                          padding: '8px',
+                        }}
+                      >
+                        {getTasksByStatus(status as TaskStatus).map((task, index) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            index={index}
+                            onEdit={onEditTask}
+                            onDelete={onDeleteTask}
+                          />
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </Box>
               </Paper>
             </Grid>
           ))}

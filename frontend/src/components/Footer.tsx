@@ -13,27 +13,13 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
     <Box
       component="footer"
       sx={{
-        position: 'fixed',
-        bottom: 0,
-        right: 0,
-        left: { 
-          xs: 0, 
-          sm: open ? `${drawerWidth + 250}px` : `${72 + 250}px`,
-        },
-        height: '24px',
-        padding: '0.1rem',
-        background: 'rgba(255, 255, 255, 0.1)',
-        backdropFilter: 'blur(8px)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.18)',
+        width: '100%',
+        height: '100%',
+        background: 'transparent',
         display: 'flex',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 0.25,
-        zIndex: 10,
-        minWidth: { xs: '100%', sm: '300px' },
-        maxWidth: { xs: '100%', sm: '600px' },
-        marginLeft: 'auto',
-        marginRight: 'auto',
+        px: 2,
       }}
     >
       <Typography
@@ -41,13 +27,14 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
         sx={{
           color: 'rgba(255, 255, 255, 0.9)',
           fontWeight: 500,
-          fontSize: '0.6rem',
+          fontSize: '0.7rem',
           whiteSpace: 'nowrap',
         }}
       >
         Developed by Jamshid Khaksaar
       </Typography>
-      <Box sx={{ display: 'flex', gap: 0.15 }}>
+      
+      <Box sx={{ display: 'flex', gap: 0.5 }}>
         <IconButton
           component="a"
           href="https://github.com/JamshidKhaksaar"
@@ -56,15 +43,17 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
           size="small"
           sx={{
             color: 'rgba(255, 255, 255, 0.9)',
-            padding: '0px',
+            padding: '2px',
             '&:hover': {
               background: 'rgba(255, 255, 255, 0.1)',
               transform: 'translateY(-1px)',
+              color: '#fff',
             },
-            transition: 'transform 0.2s ease-in-out',
+            transition: 'all 0.2s ease-in-out',
           }}
+          aria-label="GitHub"
         >
-          <GitHubIcon sx={{ fontSize: '0.8rem' }} />
+          <GitHubIcon sx={{ fontSize: '0.9rem' }} />
         </IconButton>
         <IconButton
           component="a"
@@ -74,15 +63,17 @@ const Footer: React.FC<FooterProps> = ({ open, drawerWidth }) => {
           size="small"
           sx={{
             color: 'rgba(255, 255, 255, 0.9)',
-            padding: '0px',
+            padding: '2px',
             '&:hover': {
               background: 'rgba(255, 255, 255, 0.1)',
               transform: 'translateY(-1px)',
+              color: '#fff',
             },
-            transition: 'transform 0.2s ease-in-out',
+            transition: 'all 0.2s ease-in-out',
           }}
+          aria-label="LinkedIn"
         >
-          <LinkedInIcon sx={{ fontSize: '0.8rem' }} />
+          <LinkedInIcon sx={{ fontSize: '0.9rem' }} />
         </IconButton>
       </Box>
     </Box>

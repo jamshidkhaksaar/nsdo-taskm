@@ -1,21 +1,6 @@
 import React from 'react';
-import { Box, keyframes } from '@mui/material';
+import { Box, Typography, keyframes } from '@mui/material';
 import logoIcon from '../assets/images/logoIcon.png';
-
-const pulse = keyframes`
-  0% {
-    transform: scale(0.95);
-    opacity: 0.5;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(0.95);
-    opacity: 0.5;
-  }
-`;
 
 const rotate = keyframes`
   from {
@@ -23,6 +8,29 @@ const rotate = keyframes`
   }
   to {
     transform: rotate(360deg);
+  }
+`;
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
+
+const float = keyframes`
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
   }
 `;
 
@@ -36,18 +44,30 @@ const LoadingScreen: React.FC = () => {
         right: 0,
         bottom: 0,
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
         zIndex: 9999,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        },
       }}
     >
       <Box
         sx={{
           position: 'relative',
-          width: 100,
-          height: 100,
-          animation: `${pulse} 2s ease-in-out infinite`,
+          width: 120,
+          height: 120,
+          animation: `${float} 3s ease-in-out infinite`,
+          mb: 3,
         }}
       >
         <img
@@ -57,35 +77,48 @@ const LoadingScreen: React.FC = () => {
             width: '100%',
             height: '100%',
             objectFit: 'contain',
+            filter: 'drop-shadow(0 0 20px rgba(99, 102, 241, 0.3))',
           }}
         />
         <Box
           sx={{
             position: 'absolute',
-            top: -10,
-            left: -10,
-            right: -10,
-            bottom: -10,
+            top: -15,
+            left: -15,
+            right: -15,
+            bottom: -15,
             border: '3px solid transparent',
-            borderTopColor: '#fff',
+            borderTopColor: 'rgba(99, 102, 241, 0.8)',
             borderRadius: '50%',
-            animation: `${rotate} 1s linear infinite`,
+            animation: `${rotate} 2s cubic-bezier(0.4, 0, 0.2, 1) infinite`,
           }}
         />
         <Box
           sx={{
             position: 'absolute',
-            top: -5,
-            left: -5,
-            right: -5,
-            bottom: -5,
+            top: -8,
+            left: -8,
+            right: -8,
+            bottom: -8,
             border: '3px solid transparent',
-            borderTopColor: 'rgba(255, 255, 255, 0.5)',
+            borderTopColor: 'rgba(99, 102, 241, 0.4)',
             borderRadius: '50%',
-            animation: `${rotate} 1.5s linear infinite reverse`,
+            animation: `${rotate} 3s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse`,
           }}
         />
       </Box>
+      <Typography
+        variant="h6"
+        sx={{
+          color: 'rgba(255, 255, 255, 0.9)',
+          fontWeight: 500,
+          animation: `${fadeIn} 0.8s ease-out forwards`,
+          textAlign: 'center',
+          letterSpacing: '0.5px',
+        }}
+      >
+        Loading...
+      </Typography>
     </Box>
   );
 };
