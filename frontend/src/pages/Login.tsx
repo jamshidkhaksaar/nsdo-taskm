@@ -8,6 +8,7 @@ import {
   TextField,
   Typography,
   Alert,
+  AlertTitle,
   useTheme,
   CircularProgress,
   FormControlLabel,
@@ -104,32 +105,58 @@ const Login: React.FC = () => {
         localStorage.removeItem('rememberedUsername');
       }
 
-      const response = await AuthService.login(
-        data.username, 
-        data.password,
-        need2FA ? data.verificationCode : undefined,
-        data.rememberMe
-      );
-      
-      if (response.need_2fa) {
-        setNeed2FA(true);
-        setLoading(false);
-        return;
+      try {
+        const response = await AuthService.login(
+          data.username, 
+          data.password,
+          need2FA ? data.verificationCode : undefined,
+          data.rememberMe
+        );
+        
+        if (response.need_2fa) {
+          setNeed2FA(true);
+          setLoading(false);
+          return;
+        }
+
+        // Store tokens
+        localStorage.setItem('token', response.access);
+        localStorage.setItem('user', JSON.stringify(response.user));
+
+        dispatch(loginSuccess({
+          user: response.user,
+          token: response.access
+        }));
+        
+        navigate(from, { replace: true });
+      } catch (err: any) {
+        console.error('Login error:', err);
+        
+        let errorMessage = 'Failed to connect to the server. Please check your connection and try again.';
+        
+        if (err.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          if (err.response.status === 404) {
+            errorMessage = 'Login service not found. The server might be misconfigured.';
+          } else if (err.response.status === 401) {
+            errorMessage = 'Invalid username or password. Please try again.';
+          } else if (err.response.data?.error) {
+            errorMessage = err.response.data.error;
+          } else {
+            errorMessage = `Server error: ${err.response.status}`;
+          }
+        } else if (err.request) {
+          // The request was made but no response was received
+          errorMessage = 'No response from server. Please check if the server is running.';
+        }
+        
+        dispatch(loginFailure(errorMessage));
+        setFormError(errorMessage);
       }
-
-      // Store tokens
-      localStorage.setItem('token', response.access);
-      localStorage.setItem('user', JSON.stringify(response.user));
-
-      dispatch(loginSuccess({
-        user: response.user,
-        token: response.access
-      }));
-      
-      navigate(from, { replace: true });
     } catch (err: any) {
-      console.error('Login error:', err);
-      const errorMessage = err.response?.data?.error || 'Invalid username or password';
+      console.error('Unexpected login error:', err);
+      const errorMessage = 'An unexpected error occurred. Please try again later.';
       dispatch(loginFailure(errorMessage));
       setFormError(errorMessage);
     } finally {
@@ -332,20 +359,19 @@ const Login: React.FC = () => {
           </Typography>
         </Box>
 
-        {(formError || authError) && (
-          <Alert
-            severity="error"
-            sx={{
-              mb: 3,
-              background: 'rgba(255, 59, 59, 0.1)',
-              color: '#ff3b3b',
-              border: '1px solid rgba(255, 59, 59, 0.3)',
-              '& .MuiAlert-icon': {
-                color: '#ff3b3b'
+        {formError && (
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2, 
+              width: '100%',
+              '& .MuiAlert-message': {
+                width: '100%'
               }
             }}
           >
-            {formError || authError}
+            <AlertTitle>Login Failed</AlertTitle>
+            {formError}
           </Alert>
         )}
 
