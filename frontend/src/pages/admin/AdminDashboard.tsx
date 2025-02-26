@@ -9,12 +9,23 @@ import {
   keyframes,
   CircularProgress,
   Alert,
+  Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import AdminLayout from '../../layouts/AdminLayout';
 import axios from '../../utils/axios';
+import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
+import Sidebar from '../../components/Sidebar';
+import Footer from '../../components/Footer';
+import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+
+const DRAWER_WIDTH = 240;
 
 const fillNumberAnimation = keyframes`
   from {
@@ -43,32 +54,45 @@ interface DepartmentStat {
   members_count: number;
   active_projects: number;
   completion_rate: number;
+  head_name?: string;
 }
 
 // Add these styles for the cards
 const cardStyle = {
-  background: 'rgba(255, 255, 255, 0.1)',
+  background: 'rgba(255, 255, 255, 0.05)',
   backdropFilter: 'blur(8px)',
+  borderRadius: '12px',
   border: '1px solid rgba(255, 255, 255, 0.18)',
+  boxShadow: 'none',
   height: '100%',
-  '& .MuiTypography-root': {
-    color: '#fff',
+  transition: 'transform 0.3s ease-in-out',
+  '&:hover': {
+    transform: 'translateY(-5px)',
   },
-  '& .MuiTypography-body2': {
-    color: 'rgba(255, 255, 255, 0.7)',
-  }
 };
 
 const AdminDashboard: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [notifications, setNotifications] = useState(3);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalDepartments: 0,
+    users: 0,
+    departments: 0,
+    tasks: 0,
     activeUsers: 0,
-    totalProjects: 0,
+    inactiveUsers: 0,
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    completedTasks: 0,
+    upcomingTasks: 0
   });
-  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [departmentStats, setDepartmentStats] = useState<DepartmentStat[]>([]);
 
   useEffect(() => {
@@ -78,229 +102,375 @@ const AdminDashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/dashboard/');
-      console.log('Dashboard data:', response.data);  // Debug log
       
-      // Access stats from the nested structure
-      setStats({
-        totalUsers: response.data.stats.total_users,
-        totalDepartments: response.data.stats.total_departments,
-        activeUsers: response.data.stats.active_users,
-        totalProjects: response.data.stats.total_projects,
-      });
+      console.log('Fetching dashboard data from API...');
       
-      setRecentActivities(response.data.recent_activities);
+      // Fetch dashboard data from the API
+      const response = await axios.get('/api/admin/dashboard');
+      
+      console.log('API response:', response.data);
+      
+      // Set the stats from the API response
+      setStats(response.data.stats);
+      
+      // Set department stats
       setDepartmentStats(response.data.department_stats);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to fetch dashboard data');
+      
+      // Set activities
+      setActivities(response.data.recent_activities.map((activity: any) => ({
+        ...activity,
+        // Convert timestamp to string if it's a Date object
+        timestamp: typeof activity.timestamp === 'object' 
+          ? new Date(activity.timestamp).toISOString() 
+          : activity.timestamp
+      })));
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <AdminLayout>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ color: '#fff' }}>
-          Admin Dashboard
-        </Typography>
-        <Typography 
-          variant="body1" 
-          sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}
-        >
-          Overview of your system's statistics and activities
-        </Typography>
-      </Box>
+  const handleToggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+  const handleLogout = () => {
+    // Handle logout logic here
+    navigate('/login');
+  };
 
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
+  const getStatusColor = (status: 'success' | 'warning' | 'error') => {
+    switch (status) {
+      case 'success':
+        return '#4caf50';
+      case 'warning':
+        return '#ff9800';
+      case 'error':
+        return '#f44336';
+      default:
+        return '#4caf50';
+    }
+  };
+
+  const mainContent = (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <CircularProgress sx={{ color: '#2196f3' }} />
         </Box>
+      ) : error ? (
+        <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
       ) : (
         <>
+          <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
+            Admin Dashboard
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4 }}>
+            Overview of system statistics and recent activities
+          </Typography>
+
           <Grid container spacing={3}>
-            {/* Total Users Card */}
-            <Grid item xs={12} md={6} lg={3}>
+            {/* Stats Cards */}
+            <Grid item xs={12} md={4}>
               <Card sx={cardStyle}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <IconButton sx={{ bgcolor: 'primary.main', color: '#fff' }}>
-                      <PeopleIcon />
-                    </IconButton>
-                    <Box>
-                      <Typography variant="h5" sx={{ animation: `${fillNumberAnimation} 1s ease-out` }}>
-                        {stats.totalUsers}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Users
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Total Departments Card */}
-            <Grid item xs={12} md={6} lg={3}>
-              <Card sx={cardStyle}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <IconButton sx={{ bgcolor: 'success.main', color: '#fff' }}>
-                      <BusinessIcon />
-                    </IconButton>
-                    <Box>
-                      <Typography variant="h5" sx={{ animation: `${fillNumberAnimation} 1s ease-out` }}>
-                        {stats.totalDepartments}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Departments
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Active Users Card */}
-            <Grid item xs={12} md={6} lg={3}>
-              <Card sx={cardStyle}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <IconButton sx={{ bgcolor: 'warning.main', color: '#fff' }}>
-                      <PeopleIcon />
-                    </IconButton>
-                    <Box>
-                      <Typography variant="h5" sx={{ animation: `${fillNumberAnimation} 1s ease-out` }}>
-                        {stats.activeUsers}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Active Users
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Total Projects Card */}
-            <Grid item xs={12} md={6} lg={3}>
-              <Card sx={cardStyle}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <IconButton sx={{ bgcolor: 'error.main', color: '#fff' }}>
-                      <AssignmentIcon />
-                    </IconButton>
-                    <Box>
-                      <Typography variant="h5" sx={{ animation: `${fillNumberAnimation} 1s ease-out` }}>
-                        {stats.totalProjects}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Projects
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-          {/* Recent Activities */}
-          <Grid container spacing={3} sx={{ mt: 2 }}>
-            <Grid item xs={12} md={6}>
-              <Card sx={cardStyle}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Recent Activities
-                  </Typography>
-                  {recentActivities.map((activity: Activity) => (
-                    <Box 
-                      key={activity.id} 
-                      sx={{ 
-                        mb: 2,
-                        p: 2,
-                        borderRadius: 1,
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <IconButton
+                      sx={{
+                        backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                        color: '#2196f3',
+                        mr: 2,
                       }}
                     >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="subtitle2">
-                          {activity.action}
+                      <PeopleIcon />
+                    </IconButton>
+                    <Typography variant="h6" sx={{ color: '#fff' }}>
+                      Users
+                    </Typography>
+                  </Box>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      color: '#fff',
+                      animation: `${fillNumberAnimation} 1s ease-out`,
+                    }}
+                  >
+                    {stats.users}
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Active:</span> <span style={{ color: '#4caf50' }}>{stats.activeUsers}</span>
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Inactive:</span> <span style={{ color: '#f44336' }}>{stats.inactiveUsers}</span>
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Card sx={cardStyle}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <IconButton
+                      sx={{
+                        backgroundColor: 'rgba(156, 39, 176, 0.2)',
+                        color: '#9c27b0',
+                        mr: 2,
+                      }}
+                    >
+                      <BusinessIcon />
+                    </IconButton>
+                    <Typography variant="h6" sx={{ color: '#fff' }}>
+                      Departments
+                    </Typography>
+                  </Box>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      color: '#fff',
+                      animation: `${fillNumberAnimation} 1s ease-out`,
+                    }}
+                  >
+                    {stats.departments}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}>
+                    Active departments
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Card sx={cardStyle}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <IconButton
+                      sx={{
+                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                        color: '#4caf50',
+                        mr: 2,
+                      }}
+                    >
+                      <AssignmentIcon />
+                    </IconButton>
+                    <Typography variant="h6" sx={{ color: '#fff' }}>
+                      Tasks
+                    </Typography>
+                  </Box>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      color: '#fff',
+                      animation: `${fillNumberAnimation} 1s ease-out`,
+                    }}
+                  >
+                    {stats.tasks}
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Pending:</span> <span style={{ color: '#ff9800' }}>{stats.pendingTasks}</span>
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>In Progress:</span> <span style={{ color: '#2196f3' }}>{stats.inProgressTasks}</span>
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Completed:</span> <span style={{ color: '#4caf50' }}>{stats.completedTasks}</span>
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                      <span>Due soon:</span> <span style={{ color: '#f44336' }}>{stats.upcomingTasks}</span>
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Recent Activities */}
+            <Grid item xs={12}>
+              <Card sx={cardStyle}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
+                    Recent Activities
+                  </Typography>
+                  {activities.length > 0 ? (
+                    activities.map((activity) => (
+                      <Box
+                        key={activity.id}
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography sx={{ color: '#fff', fontWeight: 500 }}>
+                            {activity.user}
+                          </Typography>
+                          <Typography
+                            sx={{
+                              color: getStatusColor(activity.status),
+                              fontSize: '0.875rem',
+                            }}
+                          >
+                            {activity.status}
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+                          {activity.action} {activity.target}: {activity.details}
                         </Typography>
-                        <Typography 
-                          variant="caption" 
+                        <Typography
+                          variant="caption"
                           sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
                         >
-                          {new Date(activity.timestamp).toLocaleString()}
+                          {formatDate(activity.timestamp)}
                         </Typography>
                       </Box>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}
-                      >
-                        {activity.details}
-                      </Typography>
-                    </Box>
-                  ))}
+                    ))
+                  ) : (
+                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.5)', textAlign: 'center', py: 4 }}>
+                      No recent activities to display
+                    </Typography>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
 
             {/* Department Stats */}
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <Card sx={cardStyle}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Department Statistics
+                  <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
+                    Department Performance
                   </Typography>
-                  {departmentStats.map((dept: DepartmentStat) => (
-                    <Box 
-                      key={dept.id} 
-                      sx={{ 
-                        mb: 2,
-                        p: 2,
-                        borderRadius: 1,
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                      }}
-                    >
-                      <Typography variant="subtitle2">
-                        {dept.name}
-                      </Typography>
-                      <Box 
-                        sx={{ 
-                          display: 'flex', 
-                          gap: 2, 
-                          mt: 1,
-                          color: 'rgba(255, 255, 255, 0.7)' 
-                        }}
-                      >
-                        <Typography variant="body2">
-                          Members: {dept.members_count}
+                  <Grid container spacing={2}>
+                    {departmentStats.length > 0 ? (
+                      departmentStats.map((dept) => (
+                        <Grid item xs={12} md={4} key={dept.id}>
+                          <Box
+                            sx={{
+                              p: 2,
+                              borderRadius: '8px',
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                            }}
+                          >
+                            <Typography sx={{ color: '#fff', fontWeight: 500, mb: 1 }}>
+                              {dept.name}
+                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                Members:
+                              </Typography>
+                              <Typography sx={{ color: '#fff' }}>{dept.members_count}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                Active Projects:
+                              </Typography>
+                              <Typography sx={{ color: '#fff' }}>{dept.active_projects}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                Completion Rate:
+                              </Typography>
+                              <Typography sx={{ color: '#4caf50' }}>{dept.completion_rate}%</Typography>
+                            </Box>
+                            {dept.head_name && (
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                  Head:
+                                </Typography>
+                                <Typography sx={{ color: '#2196f3' }}>{dept.head_name}</Typography>
+                              </Box>
+                            )}
+                            <Box sx={{ mt: 2, position: 'relative', height: '4px', backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: '2px' }}>
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  height: '100%',
+                                  width: `${dept.completion_rate}%`,
+                                  backgroundColor: '#4caf50',
+                                  borderRadius: '2px',
+                                }}
+                              />
+                            </Box>
+                          </Box>
+                        </Grid>
+                      ))
+                    ) : (
+                      <Grid item xs={12}>
+                        <Typography sx={{ color: 'rgba(255, 255, 255, 0.5)', textAlign: 'center', py: 4 }}>
+                          No departments to display
                         </Typography>
-                        <Typography variant="body2">
-                          Active Projects: {dept.active_projects}
-                        </Typography>
-                        <Typography variant="body2">
-                          Completion Rate: {dept.completion_rate}%
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
+                      </Grid>
+                    )}
+                  </Grid>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
         </>
       )}
-    </AdminLayout>
+    </Container>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={sidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar 
+          username={user?.username || 'Admin'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+        />
+      }
+      mainContent={mainContent}
+      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

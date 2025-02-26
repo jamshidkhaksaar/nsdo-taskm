@@ -1,6 +1,7 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Task } from '../../tasks/entities/task.entity';
+import { Department } from '../../departments/entities/department.entity';
 
 export enum UserRole {
   USER = 'user',
@@ -38,6 +39,20 @@ export class User {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 
-  @OneToMany(() => Task, (task) => task.user)
-  tasks: Task[];
+  // Tasks created by this user
+  @OneToMany(() => Task, (task) => task.createdBy)
+  createdTasks: Task[];
+
+  // Tasks assigned to this user
+  @ManyToMany(() => Task, (task) => task.assignedTo)
+  assignedTasks: Task[];
+
+  // Departments this user belongs to
+  @ManyToMany(() => Department, (department) => department.members)
+  @JoinTable({
+    name: 'user_departments',
+    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'department_id', referencedColumnName: 'id' },
+  })
+  departments: Department[];
 } 

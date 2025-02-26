@@ -7,7 +7,7 @@ if (token) {
 }
 
 export const login = async (username: string, password: string, verificationCode?: string, rememberMe: boolean = false) => {
-  const response = await axios.post('/api/auth/login/', {
+  const response = await axios.post('/api/auth/signin', {
     username,
     password,
     verification_code: verificationCode,

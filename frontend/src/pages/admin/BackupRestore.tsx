@@ -24,13 +24,24 @@ import {
   FormControlLabel,
   Switch,
   TextField,
+  Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteIcon from '@mui/icons-material/Delete';
 import BackupIcon from '@mui/icons-material/Backup';
-import AdminLayout from '../../layouts/AdminLayout';
 import axios from '../../utils/axios';
+import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
+import Sidebar from '../../components/Sidebar';
+import Footer from '../../components/Footer';
+import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+
+const DRAWER_WIDTH = 240;
 
 interface Backup {
   id: string;
@@ -81,6 +92,12 @@ async function showDirectoryPicker(): Promise<string | null> {
 }
 
 const BackupRestore: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [notifications, setNotifications] = useState(3);
   const [backups, setBackups] = useState<Backup[]>([]);
   const [isBackupInProgress, setIsBackupInProgress] = useState(false);
   const [backupProgress, setBackupProgress] = useState(0);
@@ -273,28 +290,39 @@ const BackupRestore: React.FC = () => {
     }
   };
 
-  return (
-    <AdminLayout>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ color: '#fff' }}>
-          Backup & Restore
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<BackupIcon />}
-          onClick={() => setBackupDialogOpen(true)}
-          disabled={isBackupInProgress}
-          sx={{
-            background: 'rgba(255, 255, 255, 0.2)',
-            backdropFilter: 'blur(8px)',
-            '&:hover': {
-              background: 'rgba(255, 255, 255, 0.3)',
-            },
-          }}
-        >
-          Create New Backup
-        </Button>
-      </Box>
+  const handleToggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const handleLogout = () => {
+    // Handle logout logic here
+    navigate('/login');
+  };
+
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
+
+  const mainContent = (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
+        Backup & Restore
+      </Typography>
+      <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4 }}>
+        Manage system backups and restore points
+      </Typography>
 
       {isBackupInProgress && (
         <Card sx={{
@@ -659,7 +687,36 @@ const BackupRestore: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </AdminLayout>
+    </Container>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={sidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar 
+          username={user?.username || 'Admin'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+        />
+      }
+      mainContent={mainContent}
+      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

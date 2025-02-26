@@ -254,212 +254,122 @@ const Tasks: React.FC = () => {
 
   return (
     <AdminLayout>
-      <Box
-        sx={{
-          position: 'relative',
-          minHeight: 'calc(100vh - 64px)',
-          background: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)',
-          backgroundAttachment: 'fixed',
-          backgroundSize: 'cover',
-          overflow: 'hidden',
-          padding: '24px 0',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.1)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.05)' stroke-width='0.5'/%3E%3C/svg%3E")`,
-            backgroundSize: '40px 40px',
-            opacity: 0.3,
-            pointerEvents: 'none',
-            zIndex: 0,
-          },
-        }}
-      >
-        <Particles
-          id="tsparticles"
-          init={particlesInit}
-          loaded={particlesLoaded}
-          options={{
-            fullScreen: false,
-            background: {
-              color: {
-                value: "transparent",
-              },
-            },
-            fpsLimit: 120,
-            particles: {
-              color: {
-                value: "#ffffff",
-              },
-              links: {
-                color: "#ffffff",
-                distance: 150,
-                enable: true,
-                opacity: 0.15,
-                width: 1,
-              },
-              move: {
-                direction: "none",
-                enable: true,
-                outModes: {
-                  default: "bounce",
-                },
-                random: false,
-                speed: 1.5,
-                straight: false,
-              },
-              number: {
-                density: {
-                  enable: true,
-                  area: 800,
-                },
-                value: 60,
-              },
-              opacity: {
-                value: 0.15,
-              },
-              shape: {
-                type: "circle",
-              },
-              size: {
-                value: { min: 1, max: 2 },
-              },
-            },
-            detectRetina: true,
-          }}
-          style={{
-            position: 'absolute',
-            width: '100%',
-            height: '100%',
-            top: 0,
-            left: 0,
-            zIndex: 0,
-          }}
-        />
-        <Container 
-          maxWidth="xl" 
+      <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
+        {/* Header Section */}
+        <Box 
           sx={{ 
-            position: 'relative',
-            zIndex: 1,
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            mb: 3,
+            background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '12px',
+            padding: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
           }}
         >
-          {/* Header Section */}
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              mb: 3,
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(8px)',
-              borderRadius: '12px',
-              padding: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-            }}
-          >
-            <Typography variant="h4" sx={{ color: '#fff' }}>
-              Task Board
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleCreate}
-                sx={{
-                  background: '#2196f3',
-                  color: '#fff',
-                  '&:hover': {
-                    background: '#1976d2',
-                  },
-                }}
-              >
-                Create Task
-              </Button>
-            </Box>
-          </Box>
-
-          {/* Tabs */}
-          <Box sx={{ borderBottom: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}>
-            <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
+          <Typography variant="h4" sx={{ color: '#fff' }}>
+            Task Board
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleCreate}
               sx={{
-                '& .MuiTab-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-selected': {
-                    color: '#2196f3',
-                  },
-                },
-                '& .MuiTabs-indicator': {
-                  backgroundColor: '#2196f3',
+                background: '#2196f3',
+                color: '#fff',
+                '&:hover': {
+                  background: '#1976d2',
                 },
               }}
             >
-              <Tab label="My Tasks" />
-              <Tab label="Assigned to Me" />
-              <Tab label="Created by Me" />
-            </Tabs>
+              Create Task
+            </Button>
           </Box>
+        </Box>
 
-          {/* Task Board Content */}
-          <TabPanel value={tabValue} index={0}>
-            {isLoading ? (
-              <Typography sx={{ color: '#fff' }}>Loading tasks...</Typography>
-            ) : error ? (
-              <Typography sx={{ color: '#f44336' }}>{error}</Typography>
-            ) : (
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: 3,
-                  mt: 2,
-                }}
-              >
-                {renderTaskColumn('Upcoming', upcomingTasks, upcomingTasks.length)}
-                {renderTaskColumn('In Progress', inProgressTasks, inProgressTasks.length)}
-                {renderTaskColumn('Completed', completedTasks, completedTasks.length)}
-                {renderTaskColumn('Cancelled', cancelledTasks, cancelledTasks.length)}
-              </Box>
-            )}
-          </TabPanel>
-          <TabPanel value={tabValue} index={1}>
-            <Typography sx={{ color: '#fff' }}>Assigned tasks will appear here</Typography>
-          </TabPanel>
-          <TabPanel value={tabValue} index={2}>
-            <Typography sx={{ color: '#fff' }}>Created tasks will appear here</Typography>
-          </TabPanel>
-
-          {/* Profile Menu */}
-          <Menu
-            anchorEl={anchorEl}
-            open={openMenu}
-            onClose={handleProfileClose}
-            onClick={handleProfileClose}
-            PaperProps={{
-              sx: {
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
-                '& .MuiMenuItem-root': {
-                  color: '#fff',
-                  '&:hover': {
-                    background: 'rgba(255, 255, 255, 0.1)',
-                  },
+        {/* Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            sx={{
+              '& .MuiTab-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-selected': {
+                  color: '#2196f3',
                 },
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#2196f3',
               },
             }}
           >
-            <MenuItem>Profile</MenuItem>
-            <MenuItem>Settings</MenuItem>
-            <MenuItem>Logout</MenuItem>
-          </Menu>
-        </Container>
-      </Box>
+            <Tab label="My Tasks" />
+            <Tab label="Assigned to Me" />
+            <Tab label="Created by Me" />
+          </Tabs>
+        </Box>
+
+        {/* Task Board Content */}
+        <TabPanel value={tabValue} index={0}>
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+              <CircularProgress sx={{ color: '#2196f3' }} />
+            </Box>
+          ) : error ? (
+            <Typography sx={{ color: '#f44336', mt: 2 }}>{error}</Typography>
+          ) : (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 3,
+                mt: 2,
+              }}
+            >
+              {renderTaskColumn('Upcoming', upcomingTasks, upcomingTasks.length)}
+              {renderTaskColumn('In Progress', inProgressTasks, inProgressTasks.length)}
+              {renderTaskColumn('Completed', completedTasks, completedTasks.length)}
+              {renderTaskColumn('Cancelled', cancelledTasks, cancelledTasks.length)}
+            </Box>
+          )}
+        </TabPanel>
+        <TabPanel value={tabValue} index={1}>
+          <Typography sx={{ color: '#fff' }}>Assigned tasks will appear here</Typography>
+        </TabPanel>
+        <TabPanel value={tabValue} index={2}>
+          <Typography sx={{ color: '#fff' }}>Created tasks will appear here</Typography>
+        </TabPanel>
+
+        {/* Profile Menu */}
+        <Menu
+          anchorEl={anchorEl}
+          open={openMenu}
+          onClose={handleProfileClose}
+          onClick={handleProfileClose}
+          PaperProps={{
+            sx: {
+              background: 'rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
+              '& .MuiMenuItem-root': {
+                color: '#fff',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.1)',
+                },
+              },
+            },
+          }}
+        >
+          <MenuItem>Profile</MenuItem>
+          <MenuItem>Settings</MenuItem>
+          <MenuItem>Logout</MenuItem>
+        </Menu>
+      </Container>
     </AdminLayout>
   );
 };

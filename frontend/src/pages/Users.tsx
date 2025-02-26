@@ -14,6 +14,8 @@ import {
   keyframes,
   CircularProgress,
   Typography,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -27,7 +29,8 @@ import { Task } from '../types/task';
 import { UserService } from '../services/user';
 import { TaskService } from '../services/task';
 import { RootState } from '../store';
-import AdminLayout from '../components/AdminLayout';
+import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
+import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 
 const DRAWER_WIDTH = 240;
 
@@ -52,275 +55,207 @@ const numberAnimation = keyframes`
 `;
 
 const Users: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
-  const [open, setOpen] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [users, setUsers] = useState([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Add new state for real data
-  const [users, setUsers] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const currentUser = useSelector((state: RootState) => state.auth.user);
-
-  // Fetch users and tasks
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Fetch users based on current user's department
-        const usersResponse = await UserService.getUsers();
-        setUsers(usersResponse);
-
-        // If a user is selected, fetch their tasks
-        if (selectedUser) {
-          const tasksResponse = await TaskService.getAssignedTasks(selectedUser.toString());
-          setTasks(tasksResponse);
-        }
-      } catch (err) {
-        setError('Failed to fetch data. Please try again later.');
-        console.error('Error fetching data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchData();
-  }, [selectedUser]);
+  }, []);
 
-  const handleLogout = async () => {
-    // Your logout logic
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [usersResponse, tasksResponse] = await Promise.all([
+        UserService.getUsers(),
+        TaskService.getTasks(),
+      ]);
+      setUsers(usersResponse);
+      setTasks(tasksResponse);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const toggleDrawer = () => {
-    setOpen(!open);
+  const handleLogout = () => {
+    // Handle logout logic here
+    navigate('/login');
+  };
+
+  const handleToggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
   };
 
   const handleNotificationClick = () => {
     setNotifications(0);
   };
 
-  const handleProfileClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
+  const handleProfileClick = () => {
+    navigate('/profile');
   };
 
-  const handleProfileClose = () => {
-    setAnchorEl(null);
+  const handleSettingsClick = () => {
+    navigate('/settings');
   };
 
-  // Filter tasks based on selected user
-  const userTasks = tasks.filter(task => {
-    if (!selectedUser) return false;
-    const assignedToIds = task.assigned_to || [];
-    const createdById = task.created_by?.toString();
-    return assignedToIds.includes(selectedUser) || createdById === selectedUser;
-  });
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
 
-  const upcomingTasks = userTasks.filter(task => 
-    task.status === 'pending' && new Date(task.due_date) > new Date()
-  );
-  
-  const ongoingTasks = userTasks.filter(task => 
-    task.status === 'in_progress' || 
-    (task.status === 'pending' && new Date(task.due_date) <= new Date())
-  );
-  
-  const completedTasks = userTasks.filter(task => 
-    task.status === 'completed'
-  );
+  const handleSelectUser = (userId: string) => {
+    setSelectedUser(userId);
+  };
 
-  if (isLoading) {
-    return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+  };
 
-  if (error) {
-    return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh',
-          color: 'error.main' 
-        }}
-      >
-        {error}
-      </Box>
-    );
-  }
+  // Calculate user stats for the selected user
+  const selectedUserData = selectedUser 
+    ? users.find((u: any) => u.id === selectedUser) 
+    : users.length > 0 
+      ? users[0] 
+      : null;
 
-  return (
-    <AdminLayout>
-      <Typography variant="h4" sx={{ color: '#fff' }}>
-        Users Page
-      </Typography>
-      <Container maxWidth="xl">
-        {/* Header with notifications and profile */}
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            justifyContent: 'flex-end', 
-            alignItems: 'center',
-            gap: { xs: 1, sm: 2 },
-            mb: { xs: 2, sm: 3 },
-          }}
-        >
-          <IconButton
-            onClick={handleNotificationClick}
-            sx={{
-              color: '#fff',
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.2)',
-                transform: 'scale(1.05)',
-              },
-            }}
-          >
-            <Badge 
-              badgeContent={notifications} 
-              color="error"
-              sx={{
-                '& .MuiBadge-badge': {
-                  background: '#ff3c7d',
-                  color: '#fff',
-                }
-              }}
-            >
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+  // Filter tasks for the selected user
+  const userTasks = selectedUser 
+    ? tasks.filter(task => 
+        task.assigned_to?.includes(selectedUser) || 
+        task.created_by === selectedUser
+      ) 
+    : [];
 
-          <IconButton
-            onClick={handleProfileClick}
-            sx={{
-              color: '#fff',
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.2)',
-                transform: 'scale(1.05)',
-              },
-            }}
-          >
-            <Avatar 
-              sx={{ 
-                width: 32, 
-                height: 32,
-                bgcolor: 'transparent',
-                border: '2px solid rgba(255, 255, 255, 0.5)',
-              }}
-            >
-              <AccountCircleIcon />
-            </Avatar>
-          </IconButton>
+  const userCompletedTasks = userTasks.filter(task => task.status === 'completed');
+  const userOngoingTasks = userTasks.filter(task => task.status === 'in_progress');
+  const userPendingTasks = userTasks.filter(task => task.status === 'pending');
 
-          <Menu
-            anchorEl={anchorEl}
-            open={openMenu}
-            onClose={handleProfileClose}
-            onClick={handleProfileClose}
-            PaperProps={{
-              sx: {
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
-                color: '#fff',
-                mt: 1.5,
-                '& .MuiMenuItem-root': {
-                  '&:hover': {
-                    background: 'rgba(255, 255, 255, 0.1)',
-                  },
-                },
-              },
-            }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          >
-            <MenuItem onClick={() => navigate('/profile')}>
-              <ListItemIcon>
-                <AccountCircleIcon sx={{ color: '#fff' }} />
-              </ListItemIcon>
-              Profile
-            </MenuItem>
-            <MenuItem onClick={() => navigate('/settings')}>
-              <ListItemIcon>
-                <SettingsIcon sx={{ color: '#fff' }} />
-              </ListItemIcon>
-              Settings
-            </MenuItem>
-          </Menu>
+  // Create user summary data
+  const userSummaryData = selectedUserData ? {
+    username: (selectedUserData as any).username,
+    first_name: (selectedUserData as any).first_name,
+    last_name: (selectedUserData as any).last_name,
+    role: (selectedUserData as any).role || 'User',
+    avatar: (selectedUserData as any).avatar,
+    totalTasks: userTasks.length,
+    completedTasks: userCompletedTasks.length,
+    ongoingTasks: userOngoingTasks.length,
+    completionRate: userTasks.length > 0 
+      ? Math.round((userCompletedTasks.length / userTasks.length) * 100) 
+      : 0
+  } : null;
+
+  const mainContent = (
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <CircularProgress sx={{ color: '#2196f3' }} />
         </Box>
-
-        {/* Main content */}
+      ) : error ? (
+        <Typography sx={{ color: '#f44336', textAlign: 'center', mt: 4 }}>{error}</Typography>
+      ) : (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={3}>
-            <UserList
-              users={users}
-              selectedUser={selectedUser}
-              onSelectUser={setSelectedUser}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
+          <Grid item xs={12}>
+            <Box
+              sx={{
+                p: 3,
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                mb: 3,
+              }}
+            >
+              <UserSummary user={userSummaryData} />
+            </Box>
           </Grid>
-          <Grid item xs={12} md={9}>
-            <UserSummary 
-              user={selectedUser && users.length > 0 ? {
-                ...users.find(u => u.id === selectedUser),
-                totalTasks: userTasks.length,
-                completedTasks: completedTasks.length,
-                ongoingTasks: ongoingTasks.length,
-                completionRate: userTasks.length > 0 
-                  ? Math.round((completedTasks.length / userTasks.length) * 100) 
-                  : 0,
-                sx: {
-                  completionRate: {
-                    animation: `${numberAnimation} 0.8s ease-out forwards`,
-                  },
-                  progressBar: {
-                    '& .MuiLinearProgress-bar': {
-                      animation: `${fillAnimation} 1.2s ease-out`,
-                      transformOrigin: 'left',
-                    },
-                  },
-                },
-              } : null} 
-            />
-            <TasksSection
-              currentUserId={currentUser?.id ? Number(currentUser.id) : 0}
-              currentDepartmentId={selectedUser ? Number(selectedUser) : 0}
-              viewMode="user"
-              upcomingTasks={upcomingTasks}
-              ongoingTasks={ongoingTasks}
-              completedTasks={completedTasks}
-            />
+          <Grid item xs={12} md={8}>
+            <Box
+              sx={{
+                p: 3,
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                height: '100%',
+              }}
+            >
+              <UserList 
+                users={users} 
+                selectedUser={selectedUser}
+                onSelectUser={handleSelectUser}
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+              />
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Box
+              sx={{
+                p: 3,
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                height: '100%',
+              }}
+            >
+              <TasksSection 
+                currentUserId={selectedUser ? parseInt(selectedUser) : 0}
+                currentDepartmentId={0}
+                viewMode="user"
+                upcomingTasks={userPendingTasks}
+                ongoingTasks={userOngoingTasks}
+                completedTasks={userCompletedTasks}
+              />
+            </Box>
           </Grid>
         </Grid>
-      </Container>
-    </AdminLayout>
+      )}
+    </Container>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={sidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar 
+          username={user?.username || 'User'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+        />
+      }
+      mainContent={mainContent}
+      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

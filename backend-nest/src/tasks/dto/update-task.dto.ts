@@ -1,10 +1,10 @@
-import { IsBoolean, IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { TaskPriority, TaskStatus } from '../entities/task.entity';
 
-export class CreateTaskDto {
-  @IsNotEmpty()
+export class UpdateTaskDto {
+  @IsOptional()
   @IsString()
-  title: string;
+  title?: string;
 
   @IsOptional()
   @IsString()

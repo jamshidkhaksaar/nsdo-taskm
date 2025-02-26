@@ -14,6 +14,7 @@ import {
   Alert,
   CircularProgress,
   InputAdornment,
+  useMediaQuery,
 } from '@mui/material';
 import {
   LinkedIn as LinkedInIcon,
@@ -31,6 +32,8 @@ import Footer from '../components/Footer';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
+import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
+import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 
 interface UserProfile {
   avatar_url: string | null;
@@ -48,17 +51,35 @@ interface UserProfile {
 const DRAWER_WIDTH = 240;
 
 const Profile: React.FC = () => {
-  const user = useSelector((state: RootState) => state.auth.user);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user } = useSelector((state: RootState) => state.auth);
+  
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState(3);
+  
+  // Profile state
+  const [profile, setProfile] = useState<UserProfile>({
+    avatar_url: null,
+    bio: '',
+    phone_number: '',
+    location: '',
+    linkedin: '',
+    github: '',
+    twitter: '',
+    website: '',
+    skills: [],
+    theme_preference: 'dark',
+  });
+  
   const [newSkill, setNewSkill] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [open, setOpen] = useState(true);
-  const theme = useTheme();
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
 
   useEffect(() => {
     fetchProfile();
@@ -66,36 +87,42 @@ const Profile: React.FC = () => {
 
   const fetchProfile = async () => {
     try {
+      setLoading(true);
       const data = await ProfileService.getProfile();
       setProfile(data);
+      setError(null);
     } catch (err) {
-      setError('Failed to load profile');
-      console.error('Error loading profile:', err);
+      console.error('Error fetching profile:', err);
+      setError('Failed to load profile data');
     } finally {
       setLoading(false);
     }
   };
 
   const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Preview
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size should not exceed 5MB');
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.match('image.*')) {
+        setError('Please select an image file');
+        return;
+      }
+      
+      setAvatarFile(file);
+      
+      // Create preview
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
+      reader.onload = (e) => {
+        setAvatarPreview(e.target?.result as string);
       };
       reader.readAsDataURL(file);
-
-      // Upload
-      try {
-        const formData = new FormData();
-        formData.append('avatar_base64', await convertFileToBase64(file));
-        await ProfileService.updateAvatar(formData);
-        setSuccess('Profile photo updated successfully');
-      } catch (err) {
-        setError('Failed to update profile photo');
-        console.error('Error updating avatar:', err);
-      }
     }
   };
 
@@ -103,366 +130,586 @@ const Profile: React.FC = () => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
+      reader.onerror = (error) => reject(error);
       reader.readAsDataURL(file);
     });
   };
 
   const handleProfileUpdate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!profile) return;
-
     try {
-      console.log('Sending profile data:', profile); // Debug log
-      await ProfileService.updateProfile(profile);
+      setLoading(true);
+      setError(null);
+      
+      let updatedProfile = { ...profile };
+      
+      // If avatar file exists, convert to base64 and update
+      if (avatarFile) {
+        const base64 = await convertFileToBase64(avatarFile);
+        updatedProfile.avatar_url = base64;
+      }
+      
+      await ProfileService.updateProfile(updatedProfile);
       setSuccess('Profile updated successfully');
-    } catch (err: any) {
-      console.error('Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        data: err.response?.data
-      });
-      setError(err.response?.data?.error || 'Failed to update profile');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      setError('Failed to update profile');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAddSkill = () => {
-    if (newSkill.trim() && profile) {
+    if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
       setProfile({
         ...profile,
-        skills: [...profile.skills, newSkill.trim()]
+        skills: [...profile.skills, newSkill.trim()],
       });
       setNewSkill('');
     }
   };
 
   const handleRemoveSkill = (skillToRemove: string) => {
-    if (profile) {
-      setProfile({
-        ...profile,
-        skills: profile.skills.filter(skill => skill !== skillToRemove)
-      });
-    }
+    setProfile({
+      ...profile,
+      skills: profile.skills.filter(skill => skill !== skillToRemove),
+    });
   };
 
   const handleLogout = () => {
-    try {
-      dispatch(logout());
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    dispatch(logout());
+    navigate('/login');
   };
 
-  const toggleDrawer = () => {
-    setOpen(!open);
+  const handleToggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
 
-  return (
-    <Box sx={{ 
-      display: 'flex', 
-      position: 'relative',
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
-      backgroundAttachment: 'fixed',
-      backgroundSize: 'cover',
-      '&::before': {
-        content: '""',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundImage: `
-          url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.3)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/svg%3E")
-        `,
-        backgroundSize: '40px 40px',
-        opacity: 0.5,
-        pointerEvents: 'none',
-        zIndex: 0,
-      },
-    }}>
-      <Sidebar
-        open={open}
-        onToggleDrawer={toggleDrawer}
-        onLogout={handleLogout}
-        drawerWidth={DRAWER_WIDTH}
-      />
-      
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          minHeight: '100vh',
-          position: 'relative',
-          zIndex: 1,
-          pl: { sm: open ? `${DRAWER_WIDTH}px` : '73px' },
-          transition: theme.transitions.create('padding', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
-          }),
-        }}
-      >
-        <Container 
-          maxWidth="lg" 
-          sx={{ 
-            py: 4,
-            position: 'relative',
-            zIndex: 1,
-          }}
-        >
-          <Typography variant="h4" sx={{ mb: 4, color: '#fff' }}>
-            Profile Settings
-          </Typography>
+  const handleProfileClick = () => {
+    // Already on profile page
+  };
 
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
+
+  const mainContent = (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      {loading && !profile.bio ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress sx={{ color: '#2196f3' }} />
+        </Box>
+      ) : (
+        <Grid container spacing={3}>
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-              {error}
-            </Alert>
+            <Grid item xs={12}>
+              <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+            </Grid>
           )}
-
+          
           {success && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-              {success}
-            </Alert>
+            <Grid item xs={12}>
+              <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>
+            </Grid>
           )}
-
-          <form onSubmit={handleProfileUpdate}>
-            <Grid container spacing={3}>
-              {/* Profile Photo Section */}
-              <Grid item xs={12} md={4}>
-                <Card sx={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
-                }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                      <Avatar
-                        src={avatarPreview || profile?.avatar_url || undefined}
-                        sx={{ width: 150, height: 150, mb: 2, mx: 'auto' }}
+          
+          <Grid item xs={12} md={4}>
+            <Card 
+              sx={{ 
+                height: '100%',
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '12px',
+                boxShadow: 'none',
+              }}
+            >
+              <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
+                <Box sx={{ position: 'relative', mb: 2 }}>
+                  <Avatar 
+                    src={avatarPreview || profile.avatar_url || undefined} 
+                    sx={{ 
+                      width: 120, 
+                      height: 120,
+                      border: '4px solid rgba(255, 255, 255, 0.2)',
+                    }}
+                  />
+                  <IconButton 
+                    color="primary" 
+                    component="label"
+                    sx={{ 
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                      backgroundColor: 'rgba(33, 150, 243, 0.9)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(33, 150, 243, 1)',
+                      },
+                    }}
+                  >
+                    <input
+                      hidden
+                      accept="image/*"
+                      type="file"
+                      onChange={handleAvatarChange}
+                    />
+                    <PhotoCameraIcon />
+                  </IconButton>
+                </Box>
+                
+                <Typography variant="h5" sx={{ mb: 1, color: '#fff' }}>
+                  {user?.username || 'User'}
+                </Typography>
+                
+                <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center' }}>
+                  {profile.bio || 'No bio provided'}
+                </Typography>
+                
+                <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+                  {profile.linkedin && (
+                    <IconButton 
+                      href={profile.linkedin} 
+                      target="_blank"
+                      sx={{ 
+                        color: '#fff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+                      }}
+                    >
+                      <LinkedInIcon />
+                    </IconButton>
+                  )}
+                  
+                  {profile.github && (
+                    <IconButton 
+                      href={profile.github} 
+                      target="_blank"
+                      sx={{ 
+                        color: '#fff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+                      }}
+                    >
+                      <GitHubIcon />
+                    </IconButton>
+                  )}
+                  
+                  {profile.twitter && (
+                    <IconButton 
+                      href={profile.twitter} 
+                      target="_blank"
+                      sx={{ 
+                        color: '#fff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+                      }}
+                    >
+                      <TwitterIcon />
+                    </IconButton>
+                  )}
+                  
+                  {profile.website && (
+                    <IconButton 
+                      href={profile.website} 
+                      target="_blank"
+                      sx={{ 
+                        color: '#fff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+                      }}
+                    >
+                      <WebsiteIcon />
+                    </IconButton>
+                  )}
+                </Box>
+                
+                <Typography variant="h6" sx={{ mb: 2, color: '#fff', alignSelf: 'flex-start' }}>
+                  Skills
+                </Typography>
+                
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, width: '100%', mb: 2 }}>
+                  {profile.skills.map((skill) => (
+                    <Chip
+                      key={skill}
+                      label={skill}
+                      onDelete={() => handleRemoveSkill(skill)}
+                      sx={{ 
+                        backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                        color: '#fff',
+                        '& .MuiChip-deleteIcon': {
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          '&:hover': { color: '#fff' },
+                        },
+                      }}
+                    />
+                  ))}
+                </Box>
+                
+                <Box sx={{ display: 'flex', width: '100%', gap: 1 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Add skill"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        color: '#fff',
+                        '& fieldset': {
+                          borderColor: 'rgba(255, 255, 255, 0.2)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: 'rgba(255, 255, 255, 0.3)',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#2196f3',
+                        },
+                      },
+                    }}
+                  />
+                  <Button 
+                    onClick={handleAddSkill}
+                    variant="contained"
+                    sx={{ 
+                      minWidth: 'auto',
+                      backgroundColor: '#2196f3',
+                      '&:hover': { backgroundColor: '#1976d2' },
+                    }}
+                  >
+                    <AddIcon />
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={8}>
+            <Card 
+              sx={{ 
+                height: '100%',
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '12px',
+                boxShadow: 'none',
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h5" sx={{ mb: 3, color: '#fff' }}>
+                  Profile Information
+                </Typography>
+                
+                <form onSubmit={handleProfileUpdate}>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Bio"
+                        multiline
+                        rows={4}
+                        value={profile.bio}
+                        onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
                       />
-                      <input
-                        accept="image/*"
-                        type="file"
-                        id="avatar-upload"
-                        hidden
-                        onChange={handleAvatarChange}
-                      />
-                      <label htmlFor="avatar-upload">
-                        <IconButton
-                          component="span"
-                          sx={{
-                            position: 'absolute',
-                            bottom: 0,
-                            right: 0,
-                            bgcolor: 'primary.main',
-                            '&:hover': { bgcolor: 'primary.dark' },
-                          }}
-                        >
-                          <PhotoCameraIcon />
-                        </IconButton>
-                      </label>
-                    </Box>
-                    <Typography variant="h6" sx={{ color: '#fff', mt: 2 }}>
-                      {user?.username}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      {user?.email}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Profile Details Section */}
-              <Grid item xs={12} md={8}>
-                <Card sx={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
-                }}>
-                  <CardContent>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <TextField
-                          multiline
-                          rows={4}
-                          fullWidth
-                          label="Bio"
-                          value={profile?.bio || ''}
-                          onChange={(e) => setProfile(prev => prev ? { ...prev, bio: e.target.value } : null)}
-                          sx={{ mb: 2 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Phone Number"
-                          value={profile?.phone_number || ''}
-                          onChange={(e) => setProfile(prev => prev ? { ...prev, phone_number: e.target.value } : null)}
-                          sx={{ mb: 2 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Location"
-                          value={profile?.location || ''}
-                          onChange={(e) => setProfile(prev => prev ? { ...prev, location: e.target.value } : null)}
-                          sx={{ mb: 2 }}
-                        />
-                      </Grid>
-
-                      {/* Social Media Links */}
-                      <Grid item xs={12}>
-                        <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
-                          Social Media Links
-                        </Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} sm={6}>
-                            <TextField
-                              fullWidth
-                              label="LinkedIn"
-                              value={profile?.linkedin || ''}
-                              onChange={(e) => setProfile(prev => prev ? { ...prev, linkedin: e.target.value } : null)}
-                              InputProps={{
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <LinkedInIcon sx={{ color: '#fff' }} />
-                                  </InputAdornment>
-                                ),
-                              }}
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField
-                              fullWidth
-                              label="GitHub"
-                              value={profile?.github || ''}
-                              onChange={(e) => setProfile(prev => prev ? { ...prev, github: e.target.value } : null)}
-                              InputProps={{
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <GitHubIcon sx={{ color: '#fff' }} />
-                                  </InputAdornment>
-                                ),
-                              }}
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField
-                              fullWidth
-                              label="Twitter"
-                              value={profile?.twitter || ''}
-                              onChange={(e) => setProfile(prev => prev ? { ...prev, twitter: e.target.value } : null)}
-                              InputProps={{
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <TwitterIcon sx={{ color: '#fff' }} />
-                                  </InputAdornment>
-                                ),
-                              }}
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField
-                              fullWidth
-                              label="Website"
-                              value={profile?.website || ''}
-                              onChange={(e) => setProfile(prev => prev ? { ...prev, website: e.target.value } : null)}
-                              InputProps={{
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <WebsiteIcon sx={{ color: '#fff' }} />
-                                  </InputAdornment>
-                                ),
-                              }}
-                            />
-                          </Grid>
-                        </Grid>
-                      </Grid>
-
-                      {/* Skills Section */}
-                      <Grid item xs={12}>
-                        <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
-                          Skills
-                        </Typography>
-                        <Box sx={{ mb: 2 }}>
-                          <TextField
-                            value={newSkill}
-                            onChange={(e) => setNewSkill(e.target.value)}
-                            label="Add Skill"
-                            size="small"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleAddSkill();
-                              }
-                            }}
-                            InputProps={{
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <IconButton onClick={handleAddSkill} edge="end">
-                                    <AddIcon />
-                                  </IconButton>
-                                </InputAdornment>
-                              ),
-                            }}
-                          />
-                        </Box>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {profile?.skills.map((skill) => (
-                            <Chip
-                              key={skill}
-                              label={skill}
-                              onDelete={() => handleRemoveSkill(skill)}
-                              sx={{
-                                bgcolor: 'rgba(255, 255, 255, 0.1)',
-                                color: '#fff',
-                                '& .MuiChip-deleteIcon': {
-                                  color: 'rgba(255, 255, 255, 0.7)',
-                                  '&:hover': { color: '#fff' },
-                                },
-                              }}
-                            />
-                          ))}
-                        </Box>
-                      </Grid>
                     </Grid>
-
-                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Phone Number"
+                        value={profile.phone_number}
+                        onChange={(e) => setProfile({ ...profile, phone_number: e.target.value })}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Location"
+                        value={profile.location}
+                        onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="LinkedIn"
+                        value={profile.linkedin}
+                        onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LinkedInIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="GitHub"
+                        value={profile.github}
+                        onChange={(e) => setProfile({ ...profile, github: e.target.value })}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <GitHubIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Twitter"
+                        value={profile.twitter}
+                        onChange={(e) => setProfile({ ...profile, twitter: e.target.value })}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <TwitterIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Website"
+                        value={profile.website}
+                        onChange={(e) => setProfile({ ...profile, website: e.target.value })}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <WebsiteIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#2196f3',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#2196f3',
+                          },
+                        }}
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12}>
                       <Button
                         type="submit"
                         variant="contained"
-                        sx={{
-                          bgcolor: 'primary.main',
-                          color: '#fff',
-                          '&:hover': { bgcolor: 'primary.dark' },
+                        disabled={loading}
+                        sx={{ 
+                          mt: 2,
+                          backgroundColor: '#2196f3',
+                          '&:hover': { backgroundColor: '#1976d2' },
                         }}
                       >
-                        Save Changes
+                        {loading ? <CircularProgress size={24} /> : 'Update Profile'}
                       </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </form>
-        </Container>
-      </Box>
+                    </Grid>
+                  </Grid>
+                </form>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+    </Container>
+  );
 
-      <Footer open={open} drawerWidth={DRAWER_WIDTH} />
-    </Box>
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={sidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar 
+          username={user?.username || 'User'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+        />
+      }
+      mainContent={mainContent}
+      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

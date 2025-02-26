@@ -12,14 +12,25 @@ import {
   AccordionDetails,
   Alert,
   Snackbar,
+  Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SecurityIcon from '@mui/icons-material/Security';
 import BackupIcon from '@mui/icons-material/Backup';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
-import AdminLayout from '../../layouts/AdminLayout';
 import axios from '../../utils/axios';
+import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
+import Sidebar from '../../components/Sidebar';
+import Footer from '../../components/Footer';
+import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+
+const DRAWER_WIDTH = 240;
 
 interface SettingsSection {
   id: string;
@@ -237,6 +248,13 @@ const apiSettingsMap = {
 };
 
 const SystemSettings: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [notifications, setNotifications] = useState(3);
+  
   const [settings, setSettings] = useState(settingsSections);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
@@ -560,24 +578,53 @@ const SystemSettings: React.FC = () => {
     }
   };
 
-  return (
-    <AdminLayout>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ color: '#fff' }}>
-          System Settings
-        </Typography>
+  const handleToggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const handleLogout = () => {
+    // Handle logout logic here
+    navigate('/login');
+  };
+
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
+
+  const mainContent = (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
+        System Settings
+      </Typography>
+      <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4 }}>
+        Configure system-wide settings and preferences
+      </Typography>
+
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 4 }}>
         <Button
           variant="contained"
           onClick={handleSave}
           sx={{
-            background: 'rgba(255, 255, 255, 0.2)',
+            background: 'rgba(33, 150, 243, 0.8)',
             backdropFilter: 'blur(8px)',
             '&:hover': {
-              background: 'rgba(255, 255, 255, 0.3)',
+              background: 'rgba(33, 150, 243, 1)',
             },
           }}
         >
-          Save Changes
+          Save All Changes
         </Button>
       </Box>
 
@@ -585,13 +632,15 @@ const SystemSettings: React.FC = () => {
         <Accordion
           key={section.id}
           sx={{
-            background: 'rgba(255, 255, 255, 0.1)',
+            background: 'rgba(255, 255, 255, 0.05)',
             backdropFilter: 'blur(8px)',
+            borderRadius: '12px',
             border: '1px solid rgba(255, 255, 255, 0.18)',
             mb: 2,
             '&:before': {
               display: 'none',
             },
+            overflow: 'hidden',
           }}
         >
           <AccordionSummary
@@ -604,10 +653,22 @@ const SystemSettings: React.FC = () => {
               },
             }}
           >
-            {section.icon}
-            <Typography sx={{ color: '#fff', fontWeight: 500 }}>
-              {section.title}
-            </Typography>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              color: '#fff',
+              '& .MuiSvgIcon-root': {
+                color: section.id === 'security' ? '#2196f3' : 
+                       section.id === 'backup' ? '#4caf50' : 
+                       section.id === 'notifications' ? '#ff9800' : 
+                       '#9c27b0'
+              }
+            }}>
+              {section.icon}
+              <Typography sx={{ ml: 2, fontWeight: 500 }}>
+                {section.title}
+              </Typography>
+            </Box>
           </AccordionSummary>
           <AccordionDetails>
             <FormGroup>
@@ -619,7 +680,20 @@ const SystemSettings: React.FC = () => {
                         <Switch
                           checked={setting.value}
                           onChange={(e) => handleSettingChange(section.id, setting.id, e.target.checked)}
-                          sx={{ '& .MuiSwitch-track': { backgroundColor: 'rgba(255, 255, 255, 0.3)' } }}
+                          sx={{ 
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: section.id === 'security' ? '#2196f3' : 
+                                     section.id === 'backup' ? '#4caf50' : 
+                                     section.id === 'notifications' ? '#ff9800' : 
+                                     '#9c27b0'
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: section.id === 'security' ? 'rgba(33, 150, 243, 0.5)' : 
+                                              section.id === 'backup' ? 'rgba(76, 175, 80, 0.5)' : 
+                                              section.id === 'notifications' ? 'rgba(255, 152, 0, 0.5)' : 
+                                              'rgba(156, 39, 176, 0.5)'
+                            }
+                          }}
                         />
                       }
                       label={
@@ -648,10 +722,20 @@ const SystemSettings: React.FC = () => {
                         onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
                         sx={{
                           '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
                             color: '#fff',
-                            '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                            '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.4)' },
-                            '&.Mui-focused fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: section.id === 'security' ? '#2196f3' : 
+                                          section.id === 'backup' ? '#4caf50' : 
+                                          section.id === 'notifications' ? '#ff9800' : 
+                                          '#9c27b0',
+                            },
                           },
                         }}
                       />
@@ -669,10 +753,6 @@ const SystemSettings: React.FC = () => {
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        sx={{
-          mb: 4,
-          mr: 4,
-        }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
@@ -690,31 +770,41 @@ const SystemSettings: React.FC = () => {
               fontSize: '1rem',
               fontWeight: 500,
             },
-            '& .MuiAlert-action': {
-              padding: '0 8px',
-            },
-            ...(snackbar.severity === 'success' && {
-              backgroundColor: '#2e7d32',
-              color: '#fff'
-            }),
-            ...(snackbar.severity === 'error' && {
-              backgroundColor: '#d32f2f',
-              color: '#fff'
-            }),
-            ...(snackbar.severity === 'warning' && {
-              backgroundColor: '#ed6c02',
-              color: '#fff'
-            }),
-            ...(snackbar.severity === 'info' && {
-              backgroundColor: '#0288d1',
-              color: '#fff'
-            })
           }}
         >
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </AdminLayout>
+    </Container>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={sidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar 
+          username={user?.username || 'Admin'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+        />
+      }
+      mainContent={mainContent}
+      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

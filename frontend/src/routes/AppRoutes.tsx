@@ -6,7 +6,8 @@ import {
   Dashboard, 
   Departments, 
   Users, 
-  NotFound 
+  NotFound,
+  TodoPage
 } from '../pages';
 import TaskBoardPage from '../pages/TaskBoardPage';
 import AdminRoutes from './AdminRoutes';
@@ -28,6 +29,14 @@ const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute>
             <TaskBoardPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/todo"
+        element={
+          <PrivateRoute>
+            <TodoPage />
           </PrivateRoute>
         }
       />

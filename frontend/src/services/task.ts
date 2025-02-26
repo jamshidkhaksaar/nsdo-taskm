@@ -30,6 +30,11 @@ export const TaskService = {
         }
     },
 
+    // Get tasks by department (alias for getTasksByDepartment for compatibility)
+    getDepartmentTasks: async (departmentId: string | number): Promise<Task[]> => {
+        return TaskService.getTasksByDepartment(departmentId);
+    },
+
     // Get tasks assigned to user
     getAssignedTasks: async (userId: string) => {
         const response = await axios.get<Task[]>(`/api/tasks/?assigned_to=${userId}`);

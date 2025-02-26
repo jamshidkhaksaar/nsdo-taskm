@@ -12,7 +12,7 @@ const instance = axios.create({
 // Add request interceptor to add auth token
 instance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -29,7 +29,7 @@ instance.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Clear token and redirect to login
-      localStorage.removeItem('access_token');
+      localStorage.removeItem('token');
       store.dispatch(logout());
       window.location.href = '/login';
     }

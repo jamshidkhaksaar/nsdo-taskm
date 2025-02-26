@@ -28,19 +28,30 @@ import {
   MenuItem,
   Box,
   Tooltip,
+  Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import BlockIcon from '@mui/icons-material/Block';
-import AdminLayout from '../../layouts/AdminLayout';
 import axios from '../../utils/axios';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DoneIcon from '@mui/icons-material/Done';
+import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
+import Sidebar from '../../components/Sidebar';
+import Footer from '../../components/Footer';
+import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+
+const DRAWER_WIDTH = 240;
 
 interface User {
   id: string;
@@ -78,6 +89,12 @@ interface EditMode {
 }
 
 const UserManagement: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [notifications, setNotifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -281,12 +298,41 @@ const UserManagement: React.FC = () => {
     });
   };
 
-  return (
-    <AdminLayout>
+  const handleToggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const handleLogout = () => {
+    // Handle logout logic here
+    navigate('/login');
+  };
+
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
+
+  const mainContent = (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
+        User Management
+      </Typography>
+      <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4 }}>
+        Manage system users, roles, and permissions
+      </Typography>
+
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ color: '#fff' }}>
-          User Management
-        </Typography>
         {selectedUser && (
           <Typography 
             variant="subtitle1" 
@@ -621,7 +667,36 @@ const UserManagement: React.FC = () => {
           {error}
         </Alert>
       )}
-    </AdminLayout>
+    </Container>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={sidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar 
+          username={user?.username || 'Admin'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+        />
+      }
+      mainContent={mainContent}
+      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

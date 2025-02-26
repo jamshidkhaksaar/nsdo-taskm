@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box, useMediaQuery, useTheme } from '@mui/material';
+import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Button } from '@mui/material';
 
 // Custom Components
 import Sidebar from '../components/Sidebar';
@@ -28,7 +28,10 @@ import { useErrorHandler } from '../hooks/useErrorHandler';
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { Task } from '../types/task';
-import { useMockTaskContext } from '../contexts/MockTaskContext';
+import axios from '../utils/axios';
+
+// Define the task status type
+type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
 const DRAWER_WIDTH = 240;
 
@@ -47,7 +50,8 @@ const Dashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [showWeatherWidget, setShowWeatherWidget] = useState(true);
   const { error, handleError, clearError } = useErrorHandler();
-  const { tasks, loading, error: mockError, refreshTasks: fetchTasks, deleteTask } = useMockTaskContext();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Local state
   const [notifications, setNotifications] = useState(3);
@@ -66,6 +70,28 @@ const Dashboard: React.FC = () => {
       navigate('/login');
     }
   }, [isAuthenticated, token, navigate]);
+  
+  // Fetch tasks from API
+  const fetchTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      clearError();
+      console.log('Fetching tasks from API...');
+      const response = await axios.get('/api/tasks');
+      console.log('API response for tasks:', response.data);
+      setTasks(response.data);
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+      handleError('Failed to load tasks. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }, [clearError, handleError]);
+  
+  // Initial data fetch
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
   
   // Event handlers
   const handleLogout = () => {
@@ -87,17 +113,45 @@ const Dashboard: React.FC = () => {
     setEditTaskDialogOpen(true);
   };
   
+  // Delete task handler
+  const deleteTask = async (taskId: string) => {
+    try {
+      console.log('Deleting task with ID:', taskId);
+      await axios.delete(`/api/tasks/${taskId}`);
+      await fetchTasks(); // Refresh tasks after deletion
+      return true;
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      handleError('Failed to delete task. Please try again later.');
+      return false;
+    }
+  };
+  
   const handleDeleteTask = async () => {
     if (selectedTaskId) {
       try {
         const success = await deleteTask(selectedTaskId);
         if (success) {
           setDeleteDialogOpen(false);
-          // No need to call fetchTasks as it's handled in the deleteTask function
         }
-      } catch (error) {
-        console.error('Error deleting task:', error);
+      } catch (err) {
+        console.error('Error deleting task:', err);
+        handleError('Failed to delete task. Please try again later.');
       }
+    }
+  };
+  
+  // Change task status handler
+  const changeTaskStatus = async (taskId: string, status: TaskStatus) => {
+    try {
+      console.log(`Changing task ${taskId} status to ${status}`);
+      await axios.patch(`/api/tasks/${taskId}/status`, { status });
+      await fetchTasks(); // Refresh tasks after status change
+      return true;
+    } catch (err) {
+      console.error('Error changing task status:', err);
+      handleError('Failed to update task status. Please try again later.');
+      return false;
     }
   };
   
@@ -124,6 +178,23 @@ const Dashboard: React.FC = () => {
         pb: 2
       }}
     >
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Task</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this task? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteTask} color="error">Delete</Button>
+        </DialogActions>
+      </Dialog>
+      
       <Container 
         maxWidth="xl" 
         disableGutters 
@@ -167,21 +238,31 @@ const Dashboard: React.FC = () => {
             height: '100%'
           }}
         >
-          <TaskKanbanBoard
-            onCreateTask={(status) => {
-              setInitialTaskStatus(status);
-              setTaskDialogOpen(true);
-            }}
-            onEditTask={(taskId) => {
-              const taskToEdit = tasks.find(t => t.id === taskId) || null;
-              setSelectedTask(taskToEdit);
-              setEditTaskDialogOpen(true);
-            }}
-            onDeleteTask={(taskId) => {
-              setSelectedTaskId(taskId);
-              setDeleteDialogOpen(true);
-            }}
-          />
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Alert severity="error">{error}</Alert>
+          ) : (
+            <TaskKanbanBoard
+              tasks={tasks}
+              onCreateTask={(status) => {
+                setInitialTaskStatus(status);
+                setTaskDialogOpen(true);
+              }}
+              onEditTask={(taskId) => {
+                const taskToEdit = tasks.find(t => t.id === taskId) || null;
+                setSelectedTask(taskToEdit);
+                setEditTaskDialogOpen(true);
+              }}
+              onDeleteTask={(taskId) => {
+                setSelectedTaskId(taskId);
+                setDeleteDialogOpen(true);
+              }}
+              onChangeTaskStatus={changeTaskStatus}
+            />
+          )}
         </Box>
         
         {/* Task Dialogs */}
