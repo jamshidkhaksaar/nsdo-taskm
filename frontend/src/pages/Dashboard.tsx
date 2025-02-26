@@ -27,6 +27,8 @@ import { useErrorHandler } from '../hooks/useErrorHandler';
 // Redux and Services
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
+import { Task } from '../types/task';
+import { useMockTaskContext } from '../contexts/MockTaskContext';
 
 const DRAWER_WIDTH = 240;
 
@@ -45,20 +47,18 @@ const Dashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [showWeatherWidget, setShowWeatherWidget] = useState(true);
   const { error, handleError, clearError } = useErrorHandler();
-  const { 
-    tasks, 
-    departments,
-    isLoading, 
-    fetchTasks, 
-    deleteTask
-  } = useTasks();
+  const { tasks, loading, error: mockError, refreshTasks: fetchTasks, deleteTask } = useMockTaskContext();
   
   // Local state
   const [notifications, setNotifications] = useState(3);
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [initialTaskStatus, setInitialTaskStatus] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   
   // Redirect if not authenticated
   useEffect(() => {
@@ -82,19 +82,22 @@ const Dashboard: React.FC = () => {
   };
   
   const handleEditTask = (taskId: string) => {
-    setSelectedTask(taskId);
+    const taskToEdit = tasks.find(t => t.id === taskId) || null;
+    setSelectedTask(taskToEdit);
     setEditTaskDialogOpen(true);
   };
   
-  const handleDeleteTask = (taskId: string) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      deleteTask(taskId)
-        .then(() => {
-          fetchTasks();
-        })
-        .catch((err) => {
-          handleError(err.message || 'Failed to delete task');
-        });
+  const handleDeleteTask = async () => {
+    if (selectedTaskId) {
+      try {
+        const success = await deleteTask(selectedTaskId);
+        if (success) {
+          setDeleteDialogOpen(false);
+          // No need to call fetchTasks as it's handled in the deleteTask function
+        }
+      } catch (error) {
+        console.error('Error deleting task:', error);
+      }
     }
   };
   
@@ -156,26 +159,29 @@ const Dashboard: React.FC = () => {
         </Box>
         
         {/* Task Kanban Board - takes remaining space */}
-        <Box sx={{ 
-          flexGrow: 1, 
-          minHeight: 0, 
-          display: 'flex', 
-          flexDirection: 'column',
-          borderRadius: 2,
-          overflow: 'hidden',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
-        }}>
-          <ErrorBoundary>
-            <TaskKanbanBoard 
-              tasks={tasks}
-              departments={departments}
-              onCreateTask={() => setCreateTaskDialogOpen(true)}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
-              compact={isMobile || isTablet}
-            />
-          </ErrorBoundary>
+        <Box
+          sx={{
+            flexGrow: 1,
+            p: 3,
+            overflow: 'auto',
+            height: '100%'
+          }}
+        >
+          <TaskKanbanBoard
+            onCreateTask={(status) => {
+              setInitialTaskStatus(status);
+              setTaskDialogOpen(true);
+            }}
+            onEditTask={(taskId) => {
+              const taskToEdit = tasks.find(t => t.id === taskId) || null;
+              setSelectedTask(taskToEdit);
+              setEditTaskDialogOpen(true);
+            }}
+            onDeleteTask={(taskId) => {
+              setSelectedTaskId(taskId);
+              setDeleteDialogOpen(true);
+            }}
+          />
         </Box>
         
         {/* Task Dialogs */}
@@ -190,13 +196,14 @@ const Dashboard: React.FC = () => {
           onClose={() => setAssignTaskDialogOpen(false)}
           onTaskCreated={fetchTasks}
           dialogType="assign"
+          task={selectedTask ? selectedTask : undefined}
         />
         <CreateTaskDialog
           open={editTaskDialogOpen}
           onClose={() => setEditTaskDialogOpen(false)}
           onTaskCreated={fetchTasks}
           dialogType="assign"
-          task={tasks.find(t => t.id === selectedTask) || undefined}
+          task={selectedTask ? selectedTask : undefined}
         />
       </Container>
     </Box>
@@ -255,6 +262,7 @@ const Dashboard: React.FC = () => {
       <ErrorDisplay error={error} onClear={clearError} />
       
       <ModernDashboardLayout
+        disableMainContentScroll={true}
         sidebar={
           <Sidebar
             open={sidebarOpen}

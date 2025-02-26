@@ -6,30 +6,33 @@ import { AppRoutes } from './routes';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import ProtectedRoute from './routes/ProtectedRoute';
+import { MockTaskProvider } from './contexts/MockTaskContext';
 
 const App: React.FC = () => {
   return (
     <Router>
       <ThemeProvider theme={theme}>
-        <Routes>
-          <Route 
-            path="/profile" 
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/settings" 
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="*" element={<AppRoutes />} />
-        </Routes>
+        <MockTaskProvider>
+          <Routes>
+            <Route 
+              path="/profile" 
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="*" element={<AppRoutes />} />
+          </Routes>
+        </MockTaskProvider>
       </ThemeProvider>
     </Router>
   );

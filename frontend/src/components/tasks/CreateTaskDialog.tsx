@@ -21,7 +21,6 @@ import { CreateTask, Task } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
-import axios from '../../utils/axios';
 
 interface CreateTaskDialogProps {
   open: boolean;

@@ -9,6 +9,7 @@ interface ModernDashboardLayoutProps {
   footer?: ReactNode;
   sidebarOpen: boolean;
   drawerWidth: number;
+  disableMainContentScroll?: boolean;
 }
 
 const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
@@ -18,7 +19,8 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
   rightPanel,
   footer,
   sidebarOpen,
-  drawerWidth
+  drawerWidth,
+  disableMainContentScroll = false
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -62,11 +64,9 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
           display: 'flex',
           flexDirection: 'column',
           flexGrow: 1,
-          width: `calc(100% - ${sidebarWidth}px)`,
-          marginLeft: 0, // Remove the margin
-          position: 'absolute',
-          left: `${sidebarWidth}px`, // Position absolutely relative to sidebar width
-          transition: theme.transitions.create(['left', 'width'], {
+          width: { xs: '100%', md: `calc(100% - ${sidebarWidth}px)` },
+          marginLeft: { xs: 0, md: `${sidebarWidth}px` },
+          transition: theme.transitions.create(['margin-left', 'width'], {
             easing: theme.transitions.easing.easeOut,
             duration: theme.transitions.duration.enteringScreen,
           }),
@@ -111,9 +111,10 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
             <Box
               sx={{
                 flexGrow: 1,
-                overflowY: 'auto',
+                overflowY: disableMainContentScroll ? 'hidden' : 'auto',
                 overflowX: 'hidden',
                 height: '100%',
+                padding: { xs: 1, sm: 2 },
                 '&::-webkit-scrollbar': {
                   width: '8px',
                 },
@@ -121,10 +122,10 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
                   background: 'rgba(0,0,0,0.05)',
                 },
                 '&::-webkit-scrollbar-thumb': {
-                  background: 'rgba(0,0,0,0.1)',
+                  background: 'rgba(255,255,255,0.1)',
                   borderRadius: '4px',
                   '&:hover': {
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'rgba(255,255,255,0.2)',
                   },
                 },
               }}
@@ -139,10 +140,23 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
               sx={{
                 width: '300px',
                 height: '100%',
-                overflowY: 'hidden',
+                overflowY: 'auto',
                 display: { xs: 'none', lg: 'block' },
                 borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
                 flexShrink: 0,
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: 'rgba(0,0,0,0.05)',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: '4px',
+                  '&:hover': {
+                    background: 'rgba(255,255,255,0.2)',
+                  },
+                },
               }}
             >
               {rightPanel}
