@@ -278,4 +278,70 @@ export class AdminService {
     console.log('Deleting backup:', backupId);
     return { success: true, message: 'Backup deleted successfully' };
   }
+
+  async getSystemHealth() {
+    try {
+      // Get database status
+      const dbStatus = {
+        connected: true,
+        tables: {
+          users: await this.usersRepository.count(),
+          departments: await this.departmentsRepository.count(),
+          tasks: await this.tasksRepository.count()
+        }
+      };
+
+      // Get system resources
+      const memoryUsage = process.memoryUsage();
+      const systemInfo = {
+        uptime: process.uptime(),
+        memory: {
+          total: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+          used: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+          rss: Math.round(memoryUsage.rss / 1024 / 1024),
+          external: Math.round((memoryUsage.external || 0) / 1024 / 1024)
+        },
+        node: {
+          version: process.version,
+          platform: process.platform,
+          arch: process.arch
+        }
+      };
+
+      // Get recent errors (mock for now)
+      const recentErrors = [];
+      
+      // Get API endpoints status
+      const apiEndpoints = [
+        { name: 'Authentication', path: '/api/auth', status: 'operational' },
+        { name: 'Tasks', path: '/api/tasks', status: 'operational' },
+        { name: 'Departments', path: '/api/departments', status: 'operational' },
+        { name: 'Users', path: '/api/users', status: 'operational' },
+        { name: 'Admin', path: '/api/admin', status: 'operational' }
+      ];
+
+      return {
+        timestamp: new Date().toISOString(),
+        status: 'operational',
+        database: dbStatus,
+        system: systemInfo,
+        api: {
+          endpoints: apiEndpoints,
+          errors: recentErrors
+        },
+        environment: {
+          nodeEnv: process.env.NODE_ENV || 'development',
+          port: process.env.PORT || 3001,
+          dbType: process.env.DB_TYPE || 'mysql'
+        }
+      };
+    } catch (error) {
+      return {
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        message: error.message,
+        error: error.stack
+      };
+    }
+  }
 } 

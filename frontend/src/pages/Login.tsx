@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
+import { loginAsync, clearError } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
 import { loadFull } from "tsparticles";
@@ -25,20 +25,17 @@ import Particles from "react-tsparticles";
 import type { Container as ParticlesContainer, Engine } from "tsparticles-engine";
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
-import { AuthService } from '../services/auth';
 import { Link } from 'react-router-dom';
 
 interface LoginFormInputs {
   username: string;
   password: string;
-  verificationCode?: string;
   rememberMe: boolean;
 }
 
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  verificationCode: z.string().optional(),
   rememberMe: z.boolean().default(false)
 }) as z.ZodType<LoginFormInputs>;
 
@@ -48,10 +45,7 @@ const Login: React.FC = () => {
   const location = useLocation();
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
-  const [formError, setFormError] = useState('');
   const from = (location.state as any)?.from?.pathname || '/dashboard';
-  const [need2FA, setNeed2FA] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -70,12 +64,11 @@ const Login: React.FC = () => {
     defaultValues: {
       username: localStorage.getItem('rememberedUsername') || '',
       password: '',
-      verificationCode: '',
       rememberMe: localStorage.getItem('rememberedUsername') ? true : false
     }
   });
 
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -84,6 +77,13 @@ const Login: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Clear any auth errors when component unmounts
+  useEffect(() => {
+    return () => {
+      dispatch(clearError());
+    };
+  }, [dispatch]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -95,10 +95,6 @@ const Login: React.FC = () => {
 
   const onSubmit = async (data: LoginFormInputs) => {
     try {
-      setLoading(true);
-      setFormError('');
-      dispatch(loginStart());
-      
       // Handle "Remember Me" functionality
       if (data.rememberMe) {
         localStorage.setItem('rememberedUsername', data.username);
@@ -106,80 +102,20 @@ const Login: React.FC = () => {
         localStorage.removeItem('rememberedUsername');
       }
 
-      try {
-        console.log('Attempting login with:', { 
-          username: data.username, 
-          password: '***', 
-          verificationCode: need2FA ? '***' : undefined,
-          rememberMe: data.rememberMe
-        });
-        
-        const response = await AuthService.login(
-          data.username, 
-          data.password,
-          need2FA ? data.verificationCode : undefined,
-          data.rememberMe
-        );
-        
-        console.log('Login response:', response);
-        
-        if (response.need_2fa) {
-          setNeed2FA(true);
-          setLoading(false);
-          return;
-        }
-
-        // Store tokens consistently using access_token key
-        const accessToken = response.access || response.token;
-        const refreshToken = response.refresh || '';
-        
-        // Use consistent storage keys
-        localStorage.setItem('access_token', accessToken);
-        if (refreshToken) {
-          localStorage.setItem('refresh_token', refreshToken);
-        }
-        localStorage.setItem('user', JSON.stringify(response.user));
-
-        dispatch(loginSuccess({
-          user: response.user,
-          token: accessToken
-        }));
-        
+      console.log('Starting login process...');
+      
+      // Dispatch the login async action
+      const resultAction = await dispatch(loginAsync({
+        username: data.username,
+        password: data.password
+      }));
+      
+      if (loginAsync.fulfilled.match(resultAction)) {
+        console.log('Login successful, navigating to:', from);
         navigate(from, { replace: true });
-      } catch (err: any) {
-        console.error('Login error:', err);
-        
-        let errorMessage = 'Failed to connect to the server. Please check your connection and try again.';
-        
-        if (err.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          if (err.response.status === 404) {
-            errorMessage = 'User not found. Please register first or check your username.';
-          } else if (err.response.status === 401) {
-            errorMessage = 'Invalid username or password. Please try again.';
-          } else if (err.response.data?.message) {
-            errorMessage = err.response.data.message;
-          } else if (err.response.data?.error) {
-            errorMessage = err.response.data.error;
-          } else {
-            errorMessage = `Server error: ${err.response.status}`;
-          }
-        } else if (err.request) {
-          // The request was made but no response was received
-          errorMessage = 'No response from server. Please check if the server is running.';
-        }
-        
-        dispatch(loginFailure(errorMessage));
-        setFormError(errorMessage);
       }
-    } catch (err: any) {
-      console.error('Unexpected login error:', err);
-      const errorMessage = 'An unexpected error occurred. Please try again later.';
-      dispatch(loginFailure(errorMessage));
-      setFormError(errorMessage);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Unexpected error during login:', error);
     }
   };
 
@@ -244,7 +180,7 @@ const Login: React.FC = () => {
               value: "transparent",
             },
           },
-          fpsLimit: 120,
+          fpsLimit: 60,
           particles: {
             color: {
               value: "#ffffff",
@@ -253,7 +189,7 @@ const Login: React.FC = () => {
               color: "#ffffff",
               distance: 150,
               enable: true,
-              opacity: 0.15,
+              opacity: 0.2,
               width: 1,
             },
             move: {
@@ -263,7 +199,7 @@ const Login: React.FC = () => {
                 default: "bounce",
               },
               random: false,
-              speed: 1.5,
+              speed: 0.5,
               straight: false,
             },
             number: {
@@ -271,272 +207,163 @@ const Login: React.FC = () => {
                 enable: true,
                 area: 800,
               },
-              value: 60,
+              value: 50,
             },
             opacity: {
-              value: 0.15,
+              value: 0.3,
             },
             shape: {
               type: "circle",
             },
             size: {
-              value: { min: 1, max: 2 },
+              value: { min: 1, max: 3 },
             },
           },
           detectRetina: true,
         }}
         style={{
           position: 'absolute',
-          width: '100%',
-          height: '100%',
           top: 0,
           left: 0,
-          zIndex: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 1,
         }}
       />
-
+      
       <Box
         component="form"
         onSubmit={handleSubmit(onSubmit)}
-        noValidate
         sx={{
           width: '100%',
-          maxWidth: '400px',
-          background: 'rgba(255, 255, 255, 0.1)',
-          padding: '50px 35px',
-          borderRadius: '16px',
-          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
+          maxWidth: '450px',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          padding: '40px',
           position: 'relative',
-          zIndex: 1,
+          zIndex: 2,
+          backdropFilter: 'blur(10px)',
+          animation: `${fadeIn} 0.6s ease-out`,
         }}
       >
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            mb: 4,
+          }}
+        >
           <img
             src={logo}
-            alt="Company Logo"
+            alt="Logo"
             style={{
-              maxWidth: '150px',
-              marginBottom: '20px'
+              width: '120px',
+              marginBottom: '20px',
+              animation: `${slideIn} 0.8s ease-out`,
             }}
           />
-          
-          <Typography
-            variant="h6"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.9)',
-              marginBottom: '8px',
-              fontWeight: '500',
-              animation: `${fadeIn} 0.8s ease-out`,
-            }}
-          >
-            Welcome to
-          </Typography>
-          
-          <Typography
-            variant="h3"
-            sx={{
-              color: '#fff',
-              fontWeight: '700',
-              marginBottom: '16px',
-              background: 'linear-gradient(45deg, #4CAF50, #2196F3)',
-              backgroundClip: 'text',
-              textFillColor: 'transparent',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              animation: `${slideIn} 1s ease-out`,
-            }}
-          >
-            NSDO
-          </Typography>
-          
-          <Typography
-            variant="h5"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.95)',
-              marginBottom: '24px',
-              fontWeight: '500',
-              animation: `${fadeIn} 1.2s ease-out`,
-            }}
-          >
-            Task Management & Planner
-          </Typography>
-
           <Typography
             variant="h4"
+            component="h1"
             sx={{
-              color: '#fff',
-              fontWeight: '600',
-              marginBottom: '10px',
-              textShadow: '2px 2px 4px rgba(0,0,0,0.2)',
-              animation: `${fadeIn} 1.4s ease-out`,
+              fontWeight: 700,
+              color: theme.palette.primary.main,
+              mb: 1,
+              animation: `${slideIn} 0.8s ease-out`,
             }}
           >
-            Sign In
+            Welcome Back
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              animation: `${slideIn} 0.8s ease-out`,
+            }}
+          >
+            Sign in to continue to your dashboard
           </Typography>
         </Box>
 
-        {formError && (
-          <Alert 
-            severity="error" 
-            sx={{ 
-              mb: 2, 
-              width: '100%',
+        {error && (
+          <Alert
+            severity="error"
+            sx={{
+              mb: 3,
+              animation: `${fadeIn} 0.5s ease-out`,
               '& .MuiAlert-message': {
-                width: '100%'
-              }
+                width: '100%',
+              },
             }}
           >
-            <AlertTitle>Login Failed</AlertTitle>
-            {formError}
+            <AlertTitle>Error</AlertTitle>
+            {error}
           </Alert>
         )}
 
-        {!need2FA ? (
-          <>
-            <TextField
-              {...register('username')}
-              fullWidth
-              label="Username"
-              variant="outlined"
-              autoComplete="username"
-              error={!!errors.username}
-              helperText={errors.username?.message}
-              disabled={loading}
-              sx={{
-                mb: 3,
-                '& .MuiOutlinedInput-root': {
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  '& fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.2)',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  }
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-focused': {
-                    color: 'rgba(255, 255, 255, 0.9)',
-                  }
-                },
-                '& .MuiOutlinedInput-input': {
-                  color: '#fff',
-                },
-                '& .MuiFormHelperText-root': {
-                  color: theme.palette.error.light,
-                }
-              }}
-            />
-
-            <TextField
-              {...register('password')}
-              fullWidth
-              label="Password"
-              type="password"
-              variant="outlined"
-              autoComplete="current-password"
-              error={!!errors.password}
-              helperText={errors.password?.message}
-              disabled={loading}
-              sx={{
-                mb: 2,
-                '& .MuiOutlinedInput-root': {
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  '& fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.2)',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  }
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-focused': {
-                    color: 'rgba(255, 255, 255, 0.9)',
-                  }
-                },
-                '& .MuiOutlinedInput-input': {
-                  color: '#fff',
-                },
-                '& .MuiFormHelperText-root': {
-                  color: theme.palette.error.light,
-                }
-              }}
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  {...register('rememberMe')}
-                  sx={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    '&.Mui-checked': {
-                      color: 'rgba(255, 255, 255, 0.9)',
-                    },
-                  }}
-                />
-              }
-              label={
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  }}
-                >
-                  Remember me
-                </Typography>
-              }
-              sx={{ mb: 2 }}
-            />
-          </>
-        ) : (
+        <Box sx={{ mb: 3 }}>
           <TextField
-            {...register('verificationCode')}
+            label="Username"
             fullWidth
-            label="2FA Verification Code"
-            variant="outlined"
-            autoComplete="verification-code"
-            error={!!errors.verificationCode}
-            helperText={errors.verificationCode?.message}
-            disabled={loading}
+            {...register('username')}
+            error={!!errors.username}
+            helperText={errors.username?.message}
             sx={{
-              mb: 3,
+              mb: 2,
               '& .MuiOutlinedInput-root': {
-                background: 'rgba(255, 255, 255, 0.05)',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.2)',
-                },
                 '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                  borderColor: theme.palette.primary.main,
                 },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                }
               },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.9)',
-                }
-              },
-              '& .MuiOutlinedInput-input': {
-                color: '#fff',
-              },
-              '& .MuiFormHelperText-root': {
-                color: theme.palette.error.light,
-              }
             }}
           />
-        )}
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            {...register('password')}
+            error={!!errors.password}
+            helperText={errors.password?.message}
+            sx={{
+              mb: 1,
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: theme.palette.primary.main,
+                },
+              },
+            }}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 3,
+          }}
+        >
+          <FormControlLabel
+            control={<Checkbox {...register('rememberMe')} color="primary" />}
+            label="Remember me"
+          />
+          <MuiLink
+            component={Link}
+            to="/forgot-password"
+            sx={{
+              color: theme.palette.primary.main,
+              textDecoration: 'none',
+              '&:hover': {
+                textDecoration: 'underline',
+              },
+            }}
+          >
+            Forgot password?
+          </MuiLink>
+        </Box>
 
         <Button
           type="submit"
@@ -545,47 +372,43 @@ const Login: React.FC = () => {
           disabled={loading}
           sx={{
             py: 1.5,
-            background: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            color: '#fff',
-            fontSize: '1.1rem',
             textTransform: 'none',
+            fontSize: '1rem',
             fontWeight: 600,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
             '&:hover': {
-              background: 'rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)',
             },
-            '&:disabled': {
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: 'rgba(255, 255, 255, 0.5)',
-            }
           }}
         >
           {loading ? (
-            <CircularProgress size={24} sx={{ color: '#fff' }} />
-          ) : need2FA ? (
-            'Verify'
+            <CircularProgress size={24} color="inherit" />
           ) : (
             'Sign In'
           )}
         </Button>
-        
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+
+        <Box
+          sx={{
+            mt: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="body2" color="text.secondary">
             Don't have an account?{' '}
             <MuiLink
               component={Link}
               to="/register"
               sx={{
-                color: '#fff',
+                color: theme.palette.primary.main,
                 textDecoration: 'none',
-                fontWeight: 'bold',
+                fontWeight: 600,
                 '&:hover': {
                   textDecoration: 'underline',
-                }
+                },
               }}
             >
-              Sign Up
+              Sign up
             </MuiLink>
           </Typography>
         </Box>

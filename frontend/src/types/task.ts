@@ -4,6 +4,11 @@ import { User } from './user';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
+export interface DepartmentRef {
+  id: string;
+  name: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -12,10 +17,11 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   is_private: boolean;
-  department: string | null;
+  department: string | DepartmentRef | null;
   assigned_to: string[] | null;
   created_by: string | null;
   updated_at: string;
+  created_at?: string; // Add created_at field for mock data
   isUpdating?: boolean;
   comments?: Comment[];
 }
@@ -28,9 +34,10 @@ export interface CreateTask {
   due_date: string;
   created_by: string | null;
   assigned_to: string[] | null;
-  department: string | null;
+  department: string | DepartmentRef | null;
   is_private: boolean;
   updated_at: string;
+  created_at?: string; // Add created_at field for mock data
 }
 
 // Add a type for task updates
@@ -41,7 +48,7 @@ export interface TaskUpdate {
   priority?: TaskPriority;
   status?: TaskStatus;
   is_private?: boolean;
-  department?: string | null;
+  department?: string | DepartmentRef | null;
   assigned_to?: string[] | null;
   updated_at: string;
 }

@@ -41,10 +41,13 @@ const fillNumberAnimation = keyframes`
 interface Activity {
   id: string;
   user: string;
+  user_id?: string;
   action: string;
   target: string;
+  target_id?: string;
   details: string;
   timestamp: string;
+  ip_address?: string;
   status: 'success' | 'warning' | 'error';
 }
 
@@ -102,33 +105,70 @@ const AdminDashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
       console.log('Fetching dashboard data from API...');
       
-      // Fetch dashboard data from the API
+      // Fetch dashboard data from the real API
+      // The baseURL and endpoints should match your actual API
       const response = await axios.get('/api/admin/dashboard');
       
       console.log('API response:', response.data);
       
-      // Set the stats from the API response
-      setStats(response.data.stats);
-      
-      // Set department stats
-      setDepartmentStats(response.data.department_stats);
-      
-      // Set activities
-      setActivities(response.data.recent_activities.map((activity: any) => ({
-        ...activity,
-        // Convert timestamp to string if it's a Date object
-        timestamp: typeof activity.timestamp === 'object' 
-          ? new Date(activity.timestamp).toISOString() 
-          : activity.timestamp
-      })));
-      
-      setError(null);
-    } catch (err) {
+      if (response && response.data) {
+        // Set the stats from the API response
+        setStats({
+          users: response.data.stats?.users || 0,
+          departments: response.data.stats?.departments || 0,
+          tasks: response.data.stats?.tasks || 0,
+          activeUsers: response.data.stats?.activeUsers || 0,
+          inactiveUsers: response.data.stats?.inactiveUsers || 0,
+          pendingTasks: response.data.stats?.pendingTasks || 0,
+          inProgressTasks: response.data.stats?.inProgressTasks || 0,
+          completedTasks: response.data.stats?.completedTasks || 0,
+          upcomingTasks: response.data.stats?.upcomingTasks || 0
+        });
+        
+        // Set department stats
+        setDepartmentStats(response.data.department_stats || []);
+        
+        // Set activities
+        setActivities(response.data.recent_activities || []);
+      } else {
+        setError('Invalid response data from API');
+        console.error('Invalid dashboard data from API');
+      }
+    } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again later.');
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        setError(`Failed to load dashboard data: ${err.response.status} ${err.response.statusText}`);
+        console.error('Error response:', err.response.data);
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('Server did not respond. Please check your connection.');
+        console.error('No response received:', err.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError('Failed to load dashboard data. Please try again later.');
+        console.error('Error message:', err.message);
+      }
+      
+      // For development: Reset to empty states to prevent UI errors
+      setStats({
+        users: 0,
+        departments: 0,
+        tasks: 0,
+        activeUsers: 0,
+        inactiveUsers: 0,
+        pendingTasks: 0,
+        inProgressTasks: 0,
+        completedTasks: 0,
+        upcomingTasks: 0
+      });
+      setDepartmentStats([]);
+      setActivities([]);
     } finally {
       setLoading(false);
     }

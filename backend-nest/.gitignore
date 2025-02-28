@@ -18,6 +18,11 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+/test-results
+/playwright-report
+/playwright/.cache/
+/cypress/videos
+/cypress/screenshots
 
 # IDEs and editors
 /.idea
@@ -41,10 +46,12 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
+.env.production
 
 # temp directory
 .temp
 .tmp
+.cache
 
 # Runtime data
 pids
@@ -54,3 +61,32 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Backup files
+*.bak
+*.backup
+*.swp
+
+# Logs directory
+/logs
+
+# Generated documentation
+/docs
+/documentation

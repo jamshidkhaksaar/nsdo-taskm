@@ -16,7 +16,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from '@hello-pangea/dnd';
 import { Task } from '../../types/task';
 import { formatDistanceToNow } from 'date-fns';
 

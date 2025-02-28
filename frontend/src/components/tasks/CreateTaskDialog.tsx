@@ -17,7 +17,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { TaskService } from '../../services/task';
-import { CreateTask, Task } from '../../types/task';
+import { CreateTask, Task, TaskStatus } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
@@ -28,6 +28,7 @@ interface CreateTaskDialogProps {
   onTaskCreated: () => void;
   task?: Task;
   dialogType: 'personal' | 'assign'; // 'personal' for My Tasks, 'assign' for Assigned by Me
+  initialStatus?: TaskStatus; // Add initialStatus prop
 }
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
@@ -35,7 +36,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   onClose,
   onTaskCreated,
   task,
-  dialogType
+  dialogType,
+  initialStatus
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const [title, setTitle] = useState('');
@@ -58,7 +60,16 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setDescription(task.description || '');
         setDueDate(task.due_date ? new Date(task.due_date) : new Date());
         setDateError(null);
-        setDepartment(task.department || '');
+        // Handle department which can be string, DepartmentRef, or null
+        if (task.department) {
+          if (typeof task.department === 'string') {
+            setDepartment(task.department);
+          } else if (typeof task.department === 'object' && 'id' in task.department) {
+            setDepartment(task.department.id);
+          }
+        } else {
+          setDepartment('');
+        }
         
         // Fetch and set assigned users
         const fetchAssignedUsers = async () => {
@@ -167,7 +178,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         const createTaskData = {
           ...taskData,
           priority: 'medium',
-          status: 'pending',
+          status: initialStatus || 'pending', // Use initialStatus if provided
         };
         console.log('Creating task with data:', createTaskData);
         await TaskService.createTask(createTaskData as CreateTask);
@@ -188,6 +199,16 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     } catch (err: any) {
       console.error('Error creating task:', err);
       console.error('Error response:', err.response?.data);
+      // Log more specific error information
+      if (err.response?.data?.errors) {
+        console.error('Validation errors:', err.response.data.errors);
+      }
+      if (err.response?.data?.detail) {
+        console.error('Error detail:', err.response.data.detail);
+      }
+      if (err.response?.status) {
+        console.error('Error status:', err.response.status);
+      }
       const errorMessage = err.response?.data?.error || err.response?.data?.detail || 'Failed to create task. Please try again.';
       setError(errorMessage);
     } finally {

@@ -1,10 +1,24 @@
 import axios from '../utils/axios';
-import { Task, CreateTask, TaskPriority } from '../types/task';
+import { Task, CreateTask, TaskPriority, TaskStatus } from '../types/task';
 import { User } from '../types/user';
 
 interface GetTasksParams {
     task_type?: 'my_tasks' | 'assigned' | 'created' | 'all';
 }
+
+// Status mapping between frontend and backend
+const frontendToBackendStatus: Record<string, string> = {
+    'pending': 'TODO',
+    'in_progress': 'IN_PROGRESS',
+    'completed': 'DONE',
+    'cancelled': 'DONE', // Map cancelled to DONE for now
+};
+
+const backendToFrontendStatus: Record<string, TaskStatus> = {
+    'TODO': 'pending',
+    'IN_PROGRESS': 'in_progress',
+    'DONE': 'completed',
+};
 
 export const TaskService = {
     // Get all tasks
@@ -12,7 +26,14 @@ export const TaskService = {
         try {
             const response = await axios.get<Task[]>('/api/tasks/', { params });
             console.log('Tasks fetched:', response.data);
-            return response.data;
+            
+            // Map backend status to frontend status
+            const mappedTasks = response.data.map(task => ({
+                ...task,
+                status: backendToFrontendStatus[task.status as any] || 'pending'
+            }));
+            
+            return mappedTasks;
         } catch (error) {
             console.error('Error fetching tasks:', error);
             throw error;
@@ -51,24 +72,25 @@ export const TaskService = {
     createTask: async (task: CreateTask): Promise<Task> => {
         try {
             const { updated_at, ...rest } = task;
+            
             const payload = {
                 ...rest,
                 priority: task.priority?.toLowerCase() || 'medium',
                 assigned_to: task.assigned_to || [],
                 department: task.department,
                 created_by: task.created_by?.toString() || null,
-                status: task.status || 'TODO'
+                status: frontendToBackendStatus[task.status] || 'TODO'
             };
             console.log('Creating task with payload:', payload);
 
             const response = await axios.post<Task>('/api/tasks/', payload);
             console.log('Create task response:', response.data);
 
-            // Ensure the returned task has the correct format
+            // Map the response status back to frontend format
             const createdTask: Task = {
                 ...response.data,
                 priority: (response.data.priority?.toLowerCase() as TaskPriority) || payload.priority,
-                status: response.data.status as Task['status'] || 'TODO'
+                status: backendToFrontendStatus[response.data.status as any] || 'pending'
             };
 
             return createdTask;
@@ -98,8 +120,12 @@ export const TaskService = {
                 console.log('Setting priority in payload:', formattedPriority);
             }
 
+            // Handle status update - convert frontend status to backend status
+            if (updates.status) {
+                payload.status = frontendToBackendStatus[updates.status] || 'TODO';
+            }
+            
             // Handle other updates
-            if (updates.status) payload.status = updates.status;  // Don't convert status case
             if (updates.title) payload.title = updates.title;
             if (updates.description) payload.description = updates.description;
             if (updates.due_date) payload.due_date = updates.due_date;
@@ -116,43 +142,13 @@ export const TaskService = {
                 throw new Error('No data received from server');
             }
 
-            // Verify the update was successful
-            const verificationResponse = await axios.get<Task>(`/api/tasks/${taskId}/`);
-            const verifiedTask = verificationResponse.data;
-
-            // If priority was updated but verification shows mismatch, force another update
-            if (formattedPriority && verifiedTask.priority !== formattedPriority) {
-                console.warn('Priority verification failed, forcing update:', {
-                    expected: formattedPriority,
-                    actual: verifiedTask.priority
-                });
-                
-                // Force another update with just the priority
-                const forceUpdateResponse = await axios.patch<Task>(`/api/tasks/${taskId}/`, {
-                    priority: formattedPriority,
-                    updated_at: new Date().toISOString()
-                });
-                
-                return {
-                    ...forceUpdateResponse.data,
-                    priority: formattedPriority,
-                    status: forceUpdateResponse.data.status as Task['status']
-                };
-            }
-
-            // Return the verified task data
+            // Convert backend status to frontend status in the response
             return {
-                ...verifiedTask,
-                priority: (verifiedTask.priority?.toLowerCase() as TaskPriority) || 'medium',
-                status: verifiedTask.status as Task['status']
+                ...response.data,
+                status: backendToFrontendStatus[response.data.status as any] || 'pending'
             };
-
         } catch (error) {
-            if ((error as any).response?.status === 401) {
-                throw new Error('Session expired. Please login again.');
-            }
-            console.error('Task update error:', error);
-            console.error('Error response:', (error as any).response?.data);
+            console.error('Error updating task:', error);
             throw error;
         }
     },
@@ -171,18 +167,23 @@ export const TaskService = {
     },
 
     // Change task status
-    changeTaskStatus: async (taskId: string, status: Task['status']) => {
-        const response = await axios.post<Task>(`/api/tasks/${taskId}/change_status/`, {
-            status
+    changeTaskStatus: async (taskId: string, status: TaskStatus) => {
+        const backendStatus = frontendToBackendStatus[status] || 'TODO';
+        const response = await axios.patch<Task>(`/api/tasks/${taskId}/status`, {
+            status: backendStatus
         });
-        return response.data;
+        
+        // Map response back to frontend format
+        return {
+            ...response.data,
+            status: backendToFrontendStatus[response.data.status as any] || 'pending'
+        };
     },
 
     // Get all users
     getUsers: async (): Promise<User[]> => {
         try {
-            const response = await axios.get<User[]>('/api/users/');
-            console.log('Users response:', response.data); // For debugging
+            const response = await axios.get('/api/users/');
             return response.data;
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -194,10 +195,11 @@ export const TaskService = {
     getTask: async (taskId: string): Promise<Task> => {
         try {
             const response = await axios.get<Task>(`/api/tasks/${taskId}/`);
+            
+            // Convert backend status to frontend status
             return {
                 ...response.data,
-                priority: (response.data.priority?.toLowerCase() as TaskPriority) || 'medium',
-                status: response.data.status as Task['status'] || 'todo'
+                status: backendToFrontendStatus[response.data.status as any] || 'pending'
             };
         } catch (error) {
             console.error('Error fetching task:', error);

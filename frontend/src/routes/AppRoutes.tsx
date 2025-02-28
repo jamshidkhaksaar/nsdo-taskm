@@ -6,39 +6,19 @@ import {
   Dashboard, 
   Departments, 
   Users, 
-  NotFound,
-  TodoPage
+  NotFound
 } from '../pages';
-import TaskBoardPage from '../pages/TaskBoardPage';
-import Register from '../pages/Register';
 import AdminRoutes from './AdminRoutes';
 
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
       <Route
         path="/dashboard"
         element={
           <PrivateRoute>
             <Dashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/tasks"
-        element={
-          <PrivateRoute>
-            <TaskBoardPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/todo"
-        element={
-          <PrivateRoute>
-            <TodoPage />
           </PrivateRoute>
         }
       />

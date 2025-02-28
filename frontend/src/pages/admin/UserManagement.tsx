@@ -60,7 +60,7 @@ interface User {
   first_name: string;
   last_name: string;
   role: string;
-  department: string;
+  department: string; // This is just the ID
   department_name: string;
   status: 'active' | 'inactive';
   last_login: string;
@@ -86,6 +86,22 @@ interface Department {
 interface EditMode {
   isEdit: boolean;
   userId: string | null;
+}
+
+interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'manager' | 'user';
+  status: 'active' | 'inactive';
+  position: string;
+  department?: {
+    id: string;
+    name: string;
+  };
+  last_login: string;
 }
 
 const UserManagement: React.FC = () => {
@@ -122,61 +138,56 @@ const UserManagement: React.FC = () => {
 
   const handleEditUser = async (userId: string) => {
     try {
-      const user = users.find(u => u.id === userId);
+      const user = await axios.get(`/api/users/${userId}`);
       if (user) {
         setFormData({
-          username: user.username,
-          email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          role: user.role,
-          department: user.department || '',
-          position: user.position || '',
+          username: user.data.username,
+          email: user.data.email,
+          first_name: user.data.first_name,
+          last_name: user.data.last_name,
+          role: user.data.role,
+          department: user.data.department?.id || '',
+          position: user.data.position
         });
         setEditMode({ isEdit: true, userId });
         setOpenDialog(true);
       }
     } catch (error) {
-      console.error('Error preparing edit form:', error);
-      setError('Failed to load user data');
+      console.error('Error fetching user for edit:', error);
+      setError('Failed to load user data for editing');
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    
-    try {
-      await axios.delete(`/api/users/${userId}/`);
-      await fetchUsers();
-    } catch (error) {
-      console.error('Error deleting user:', error);
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await axios.delete(`/api/users/${userId}`);
+        alert('User deleted successfully!');
+        await fetchUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        setError('Failed to delete user');
+      }
     }
   };
 
   const handleResetPassword = async (userId: string) => {
     try {
-      const newPassword = prompt('Enter new password:');
-      if (!newPassword) return;  // User cancelled or entered empty password
-
-      const response = await axios.post(`/api/users/${userId}/reset_password/`, {
-        password: newPassword
-      });
-
-      if (response.data?.message) {
-        alert(response.data.message);
-      }
-    } catch (error: any) {
+      const { data } = await axios.post(`/api/users/${userId}/reset-password`);
+      alert(`Password has been reset. New password: ${data.newPassword}`);
+    } catch (error) {
       console.error('Error resetting password:', error);
-      alert(error.response?.data?.error || 'Failed to reset password');
+      setError('Failed to reset password');
     }
   };
 
   const handleToggleStatus = async (userId: string) => {
     try {
-      await axios.post(`/api/users/${userId}/toggle_status/`);
+      await axios.post(`/api/users/${userId}/toggle-status`);
       await fetchUsers();
     } catch (error) {
       console.error('Error toggling user status:', error);
+      setError('Failed to update user status');
     }
   };
 
@@ -217,24 +228,43 @@ const UserManagement: React.FC = () => {
     try {
       if (editMode.isEdit && editMode.userId) {
         // Update existing user
-        const response = await axios.put(`/api/users/${editMode.userId}/`, {
-          ...formData,
-          ...(formData.password && { password: formData.password })
-        });
+        const userData: Partial<AdminUser> = {
+          username: formData.username,
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          position: formData.position,
+          role: formData.role as 'admin' | 'manager' | 'user'
+        };
         
-        if (response.data) {
-          alert('User updated successfully!');
-          handleCloseDialog();
-          await fetchUsers();
+        // Only include department if one is selected
+        if (formData.department) {
+          // When handling the department field, pass it as a string
+          // The API will handle converting it to an object
+          userData.department = formData.department as any;
         }
+        
+        await axios.put(`/api/users/${editMode.userId}`, userData);
+        alert('User updated successfully!');
+        handleCloseDialog();
+        await fetchUsers();
       } else {
         // Create new user
-        const response = await axios.post('/api/users/', {
-          ...formData,
-          ...(formData.password && { password: formData.password })
-        });
+        // Format the data for the API
+        const createUserData = {
+          username: formData.username,
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          role: formData.role,
+          position: formData.position,
+          department: formData.department, 
+          password: formData.password
+        };
         
-        if (response.data.default_password) {
+        const response = await axios.post('/api/users/', createUserData);
+        
+        if (response.data) {
           alert(`User created successfully! ${
             formData.password 
               ? 'Password set as specified.' 
@@ -246,18 +276,33 @@ const UserManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error saving user:', error);
-      setError(error.response?.data?.error || `Failed to ${editMode.isEdit ? 'update' : 'create'} user`);
+      setError(error.message || `Failed to ${editMode.isEdit ? 'update' : 'create'} user`);
     }
   };
 
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
+      const response = await axios.get('/api/users/', {
+        params: { search: searchQuery }
+      });
       
-      const response = await axios.get(`/api/users/?${params.toString()}`);
-      setUsers(response.data);
+      // Format the users to match the interface
+      const formattedUsers = response.data.map((user: any) => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        department: user.department?.id || '',
+        department_name: user.department?.name || 'None',
+        status: user.status,
+        last_login: user.last_login,
+        position: user.position
+      }));
+      
+      setUsers(formattedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       setError('Failed to fetch users');
@@ -269,7 +314,10 @@ const UserManagement: React.FC = () => {
   const fetchDepartments = async () => {
     try {
       const response = await axios.get('/api/departments/');
-      setDepartments(response.data);
+      setDepartments(response.data.map((dept: any) => ({
+        id: dept.id,
+        name: dept.name
+      })));
     } catch (error) {
       console.error('Error fetching departments:', error);
     }

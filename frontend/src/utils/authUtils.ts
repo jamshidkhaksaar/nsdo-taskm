@@ -2,9 +2,75 @@ import axios from './axios';
 
 // Store tokens in localStorage
 export const storeTokens = (access: string, refresh: string) => {
+  if (!access) {
+    console.error('Attempted to store empty access token');
+    return;
+  }
+  
+  // Store tokens in localStorage
   localStorage.setItem('access_token', access);
-  localStorage.setItem('refresh_token', refresh);
-  axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+  
+  if (refresh) {
+    localStorage.setItem('refresh_token', refresh);
+  }
+  
+  // Set the token in axios headers - both in the instance and global axios
+  try {
+    // Import here to avoid circular dependency
+    const axiosInstance = require('./axios').default;
+    
+    // Set token in the axios instance
+    if (axiosInstance && axiosInstance.defaults) {
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+    }
+    
+    // Also set in global axios
+    axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+    
+    // Log token storage in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Tokens stored successfully. Auth headers updated.');
+      
+      // Verify the token was set correctly
+      const instanceHeader = axiosInstance?.defaults?.headers?.common?.['Authorization'];
+      const globalHeader = axios.defaults.headers.common['Authorization'];
+      
+      if (instanceHeader) {
+        console.log('Instance Authorization header set:', instanceHeader.substring(0, 15) + '...');
+      } else {
+        console.warn('Failed to set instance Authorization header');
+      }
+      
+      if (globalHeader) {
+        console.log('Global Authorization header set:', globalHeader.substring(0, 15) + '...');
+      } else {
+        console.warn('Failed to set global Authorization header');
+      }
+    }
+  } catch (error) {
+    console.error('Error setting Authorization headers:', error);
+    // Fallback to direct setting
+    axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+  }
+};
+
+// Parse JWT token to get payload
+export const parseJwt = (token: string): any => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    console.error('Failed to parse JWT token:', e);
+    return null;
+  }
+};
+
+// Check if a token is expired
+export const isTokenExpired = (token: string): boolean => {
+  const payload = parseJwt(token);
+  if (!payload || !payload.exp) return true;
+  
+  // Add 10-second buffer to prevent edge cases
+  return (payload.exp * 1000) < (Date.now() - 10000);
 };
 
 // Check if user is authenticated
@@ -13,10 +79,23 @@ export const isAuthenticated = (): boolean => {
   if (!token) return false;
   
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    // Check if token is expired
-    return payload.exp * 1000 > Date.now();
-  } catch {
+    // If token is not expired, user is authenticated
+    if (!isTokenExpired(token)) {
+      return true;
+    }
+    
+    // If access token is expired, check refresh token
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken && !isTokenExpired(refreshToken)) {
+      // We have a valid refresh token, so we consider the user authenticated
+      // The axios interceptor will handle actual token refresh when needed
+      return true;
+    }
+    
+    // Both tokens expired
+    return false;
+  } catch (error) {
+    console.error('Error checking authentication status:', error);
     return false;
   }
 };

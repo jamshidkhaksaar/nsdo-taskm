@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Task, TaskStatus } from '../types/task';
 import { TaskService } from '../services/task';
-import { DropResult } from 'react-beautiful-dnd';
+import { DropResult } from '@hello-pangea/dnd';
 
 export const useDragAndDrop = (initialTasks: Task[]) => {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);

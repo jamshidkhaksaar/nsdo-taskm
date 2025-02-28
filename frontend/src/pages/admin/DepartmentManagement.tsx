@@ -3,14 +3,10 @@ import {
   Grid,
   Card,
   CardContent,
+  CardHeader,
+  CardActions,
   Typography,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   IconButton,
   TextField,
   InputAdornment,
@@ -36,12 +32,26 @@ import {
   Container,
   useTheme,
   useMediaQuery,
+  Divider,
+  Chip,
+  LinearProgress,
+  Tabs,
+  Tab,
+  Badge,
+  Fade,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import GroupIcon from '@mui/icons-material/Group';
 import PeopleIcon from '@mui/icons-material/People';
+import AddIcon from '@mui/icons-material/Add';
+import BusinessIcon from '@mui/icons-material/Business';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import PersonIcon from '@mui/icons-material/Person';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import SortIcon from '@mui/icons-material/Sort';
 import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -51,12 +61,17 @@ import Sidebar from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 
-interface Department {
+interface AdminDepartment {
   id: string;
   name: string;
   description: string;
-  head: string;
-  head_name: string;
+  head: {
+    id: string;
+    username: string;
+    first_name: string;
+    last_name: string;
+  } | null;
+  head_name?: string;
   members_count: number;
   active_projects: number;
   completion_rate: number;
@@ -115,8 +130,8 @@ const DepartmentManagement: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [notifications, setNotifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<AdminDepartment | null>(null);
+  const [departments, setDepartments] = useState<AdminDepartment[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [formData, setFormData] = useState<DepartmentFormData>({
@@ -131,21 +146,17 @@ const DepartmentManagement: React.FC = () => {
     isEdit: false,
     departmentId: null
   });
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [tabValue, setTabValue] = useState(0);
 
   const fetchDepartments = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/departments/');
-      console.log('Received departments:', response.data);
-      const departmentsWithMembers = response.data.map((dept: Department) => {
-        console.log(`Department ${dept.name} members:`, dept.members);
-        console.log(`Department ${dept.name} members count:`, dept.members_count);
-        return {
-          ...dept,
-          members: dept.members || []
-        };
-      });
-      setDepartments(departmentsWithMembers);
+      const response = await axios.get('/api/departments');
+      const departments = response.data;
+      console.log('Received departments:', departments);
+      
+      setDepartments(departments);
     } catch (error) {
       console.error('Error fetching departments:', error);
       setError('Failed to fetch departments');
@@ -160,13 +171,12 @@ const DepartmentManagement: React.FC = () => {
 
   const fetchAvailableUsers = async () => {
     try {
-      const response = await axios.get<UserResponse[]>('/api/users/');
-      setAvailableUsers(response.data.map((user) => ({
-        id: user.id,
-        name: `${user.first_name} ${user.last_name}`.trim() || user.username,
-      })));
+      const response = await axios.get('/api/users');
+      const users = response.data;
+      setAvailableUsers(users);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error fetching available users:', error);
+      setError('Failed to fetch available users');
     }
   };
 
@@ -179,9 +189,17 @@ const DepartmentManagement: React.FC = () => {
   const handleAddDepartment = async () => {
     try {
       if (editMode.isEdit && editMode.departmentId) {
-        await axios.put(`/api/departments/${editMode.departmentId}/`, formData);
+        // Update existing department
+        const departmentData = {
+          name: formData.name,
+          description: formData.description,
+          head: formData.head // Using just the user ID string
+        };
+        
+        await axios.put(`/api/departments/${editMode.departmentId}/`, departmentData);
         alert('Department updated successfully!');
       } else {
+        // Create new department
         await axios.post('/api/departments/', formData);
         alert('Department created successfully!');
       }
@@ -200,7 +218,7 @@ const DepartmentManagement: React.FC = () => {
       setFormData({
         name: department.name,
         description: department.description,
-        head: department.head || '',
+        head: department.head?.id || ''
       });
       setEditMode({ isEdit: true, departmentId: deptId });
       setOpenDialog(true);
@@ -208,25 +226,22 @@ const DepartmentManagement: React.FC = () => {
   };
 
   const handleDeleteDepartment = async (deptId: string) => {
-    if (!window.confirm('Are you sure you want to delete this department?')) return;
-    
-    try {
-      await axios.delete(`/api/departments/${deptId}/`);
-      await fetchDepartments();
-    } catch (error) {
-      console.error('Error deleting department:', error);
-      setError('Failed to delete department');
+    if (window.confirm('Are you sure you want to delete this department?')) {
+      try {
+        await axios.delete(`/api/departments/${deptId}/`);
+        alert('Department deleted successfully!');
+        await fetchDepartments();
+      } catch (error) {
+        console.error('Error deleting department:', error);
+        setError('Failed to delete department');
+      }
     }
   };
 
   const handleViewMembers = (deptId: string) => {
     const department = departments.find(d => d.id === deptId);
     if (department) {
-      // You can either:
-      // 1. Open a dialog to show members
-      // 2. Navigate to a dedicated members page
-      // For now, let's show a dialog
-      setSelectedDepartment(deptId);
+      setSelectedDepartment(department);
       setOpenMembersDialog(true);
     }
   };
@@ -266,162 +281,254 @@ const DepartmentManagement: React.FC = () => {
     console.log('Help clicked');
   };
 
-  const mainContent = (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
-        Department Management
-      </Typography>
-      <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4 }}>
-        Manage departments, members, and assignments
-      </Typography>
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
 
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ color: '#fff' }}>
+  const getRandomGradient = (id: string) => {
+    // Generate a consistent gradient based on the department ID
+    const hash = id.split('').reduce((acc, char) => {
+      return char.charCodeAt(0) + ((acc << 5) - acc);
+    }, 0);
+    
+    const h1 = Math.abs(hash % 360);
+    const h2 = (h1 + 40) % 360;
+    
+    return `linear-gradient(135deg, hsl(${h1}, 70%, 35%) 0%, hsl(${h2}, 80%, 25%) 100%)`;
+  };
+
+  const mainContent = (
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column' }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ 
+          color: '#fff',
+          fontWeight: 700,
+          letterSpacing: '0.5px',
+          textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+        }}>
           Department Management
         </Typography>
-        {selectedDepartment && (
-          <Typography 
-            variant="subtitle1" 
-            component="div"
-            sx={{ 
-              color: 'rgba(255, 255, 255, 0.7)', 
-              mt: 1 
-            }}
-          >
-            Selected Department: {departments.find(d => d.id === selectedDepartment)?.name}
-          </Typography>
-        )}
+        <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2 }}>
+          Manage departments, assign leaders, and organize team members
+        </Typography>
       </Box>
 
-      <Card sx={{
-        background: 'rgba(255, 255, 255, 0.1)',
-        backdropFilter: 'blur(8px)',
-        border: '1px solid rgba(255, 255, 255, 0.18)',
-        mb: 3,
+      <Paper sx={{
+        background: 'rgba(255, 255, 255, 0.08)',
+        backdropFilter: 'blur(10px)',
+        borderRadius: 2,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        mb: 4,
+        overflow: 'hidden',
       }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                placeholder="Search departments..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    color: '#fff',
-                    '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                    '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.4)' },
-                    '&.Mui-focused fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
-                  },
-                }}
-              />
-            </Grid>
-            <Grid item>
-              <Tooltip title="Create a new department">
-                <Button
-                  variant="contained"
-                  onClick={() => setOpenDialog(true)}
-                  sx={{
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    backdropFilter: 'blur(8px)',
-                    '&:hover': {
-                      background: 'rgba(255, 255, 255, 0.3)',
-                    },
-                  }}
-                >
-                  Add New Department
-                </Button>
-              </Tooltip>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      <Paper 
-        component={Card} 
-        sx={{
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          position: 'relative',
-        }}
-      >
-        {loading && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1,
+        <Box sx={{ p: 3, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: { xs: '100%', md: 'auto' } }}>
+            <TextField
+              placeholder="Search departments..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              variant="outlined"
+              size="small"
+              sx={{
+                minWidth: { xs: '100%', md: 300 },
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                  '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' },
+                  '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Tooltip title="Filter departments">
+              <IconButton sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                <FilterListIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Sort departments">
+              <IconButton sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                <SortIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setOpenDialog(true)}
+              sx={{
+                borderRadius: '8px',
+                px: 3,
+                py: 1,
+                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                boxShadow: '0 4px 10px rgba(33, 150, 243, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1976D2 30%, #00B0FF 90%)',
+                  boxShadow: '0 6px 12px rgba(33, 150, 243, 0.4)',
+                },
+              }}
+            >
+              Add Department
+            </Button>
+          </Box>
+        </Box>
+        
+        <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+        
+        <Box sx={{ px: 2 }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange}
+            textColor="inherit"
+            sx={{ 
+              '& .MuiTab-root': { 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-selected': { color: '#fff' }
+              },
+              '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main }
             }}
           >
-            <CircularProgress />
-          </Box>
-        )}
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ color: '#fff' }}>Name</TableCell>
-                <TableCell sx={{ color: '#fff' }}>Description</TableCell>
-                <TableCell sx={{ color: '#fff' }}>Head</TableCell>
-                <TableCell sx={{ color: '#fff' }}>Members</TableCell>
-                <TableCell sx={{ color: '#fff' }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    <CircularProgress size={24} />
-                  </TableCell>
-                </TableRow>
-              ) : departments.length === 0 ? (
-                <TableRow>
-                  <TableCell 
-                    colSpan={5} 
-                    sx={{ 
-                      color: '#fff', 
-                      textAlign: 'center',
-                      py: 4,
-                    }}
-                  >
-                    No departments found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                departments.map((dept) => (
-                  <TableRow key={dept.id}>
-                    <TableCell sx={{ color: '#fff' }}>{dept.name}</TableCell>
-                    <TableCell sx={{ color: '#fff' }}>{dept.description}</TableCell>
-                    <TableCell sx={{ color: '#fff' }}>
-                      {dept.head_name || 'No Head Assigned'}
-                    </TableCell>
-                    <TableCell>
+            <Tab label="All Departments" />
+            <Tab label="Active Projects" />
+            <Tab label="Performance" />
+          </Tabs>
+        </Box>
+      </Paper>
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
+          <CircularProgress size={60} thickness={4} sx={{ color: theme.palette.primary.main }} />
+        </Box>
+      ) : departments.length === 0 ? (
+        <Paper sx={{
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          borderRadius: 2,
+          p: 6,
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <BusinessIcon sx={{ fontSize: 60, color: 'rgba(255, 255, 255, 0.2)' }} />
+          <Typography variant="h6" sx={{ color: '#fff' }}>
+            No Departments Found
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', maxWidth: 500, mx: 'auto', mb: 2 }}>
+            There are no departments in the system yet. Create your first department to get started.
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenDialog(true)}
+            sx={{
+              borderRadius: '8px',
+              px: 3,
+              py: 1,
+              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+              boxShadow: '0 4px 10px rgba(33, 150, 243, 0.3)',
+            }}
+          >
+            Create First Department
+          </Button>
+        </Paper>
+      ) : (
+        <Fade in={true} timeout={500}>
+          <Grid container spacing={3}>
+            {departments.map((dept) => (
+              <Grid item xs={12} sm={6} md={4} key={dept.id}>
+                <Card sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: 'rgba(255, 255, 255, 0.07)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                  },
+                  position: 'relative',
+                }}>
+                  <Box sx={{ 
+                    height: 80, 
+                    background: getRandomGradient(dept.id),
+                    position: 'relative',
+                  }}>
+                    <Avatar 
+                      sx={{ 
+                        position: 'absolute', 
+                        bottom: -24, 
+                        left: 24, 
+                        width: 48, 
+                        height: 48,
+                        backgroundColor: theme.palette.primary.main,
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                        border: '2px solid rgba(255, 255, 255, 0.8)',
+                      }}
+                    >
+                      <BusinessIcon />
+                    </Avatar>
+                    <IconButton 
+                      sx={{ 
+                        position: 'absolute', 
+                        top: 8, 
+                        right: 8,
+                        color: 'rgba(255, 255, 255, 0.8)',
+                      }}
+                    >
+                      <MoreVertIcon />
+                    </IconButton>
+                  </Box>
+                  
+                  <CardContent sx={{ pt: 4, pb: 2, flexGrow: 1 }}>
+                    <Typography variant="h6" sx={{ color: '#fff', mb: 1, fontWeight: 600 }}>
+                      {dept.name}
+                    </Typography>
+                    
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2, minHeight: 40 }}>
+                      {dept.description || 'No description provided'}
+                    </Typography>
+                    
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block', mb: 0.5 }}>
+                        Department Head
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar sx={{ width: 24, height: 24, bgcolor: dept.head ? theme.palette.success.main : 'rgba(255, 255, 255, 0.1)' }}>
+                          <PersonIcon sx={{ fontSize: 16 }} />
+                        </Avatar>
+                        <Typography variant="body2" sx={{ color: '#fff' }}>
+                          {dept.head_name || 'No Head Assigned'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Box sx={{ mb: 1 }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block', mb: 0.5 }}>
+                        Team Members
+                      </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AvatarGroup 
-                          max={3}
+                          max={5}
                           sx={{
                             '& .MuiAvatar-root': {
-                              width: 24,
-                              height: 24,
+                              width: 28,
+                              height: 28,
                               fontSize: '0.75rem',
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              border: '2px solid rgba(255, 255, 255, 0.2)',
                             }
                           }}
                         >
@@ -431,51 +538,109 @@ const DepartmentManagement: React.FC = () => {
                               <Avatar 
                                 key={member.id || 'unknown'} 
                                 src={member.avatar}
+                                sx={{ bgcolor: theme.palette.primary.dark }}
                               >
                                 {member.name.charAt(0)}
                               </Avatar>
                             ))}
+                          {dept.members_count > 5 && (
+                            <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)', color: '#fff' }}>
+                              +{dept.members_count - 5}
+                            </Avatar>
+                          )}
                         </AvatarGroup>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                           {dept.members_count || 0} members
                         </Typography>
                       </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="Edit department details">
-                          <IconButton
-                            onClick={() => handleEditDepartment(dept.id)}
-                            sx={{ color: '#fff' }}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="View department members">
-                          <IconButton
-                            onClick={() => handleViewMembers(dept.id)}
-                            sx={{ color: '#fff' }}
-                          >
-                            <GroupIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete department">
-                          <IconButton
-                            onClick={() => handleDeleteDepartment(dept.id)}
-                            sx={{ color: '#fff' }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                    </Box>
+                    
+                    {dept.active_projects > 0 && (
+                      <Box sx={{ mb: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block', mb: 0.5 }}>
+                          Active Projects
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip 
+                            size="small" 
+                            label={`${dept.active_projects} projects`} 
+                            sx={{ 
+                              bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                              color: '#fff',
+                              borderRadius: '4px',
+                            }} 
+                          />
+                        </Box>
                       </Box>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+                    )}
+                    
+                    {dept.completion_rate > 0 && (
+                      <Box sx={{ mb: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                            Completion Rate
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                            {dept.completion_rate}%
+                          </Typography>
+                        </Box>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={dept.completion_rate} 
+                          sx={{ 
+                            height: 6, 
+                            borderRadius: 3,
+                            bgcolor: 'rgba(255, 255, 255, 0.1)',
+                            '& .MuiLinearProgress-bar': {
+                              bgcolor: dept.completion_rate > 75 
+                                ? theme.palette.success.main 
+                                : dept.completion_rate > 50 
+                                  ? theme.palette.warning.main 
+                                  : theme.palette.error.main
+                            }
+                          }} 
+                        />
+                      </Box>
+                    )}
+                  </CardContent>
+                  
+                  <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+                  
+                  <CardActions sx={{ p: 1.5, justifyContent: 'space-between' }}>
+                    <Tooltip title="Edit department details">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleEditDepartment(dept.id)}
+                        sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="View department members">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleViewMembers(dept.id)}
+                        sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                      >
+                        <GroupIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete department">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleDeleteDepartment(dept.id)}
+                        sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </CardActions>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Fade>
+      )}
 
       <Dialog 
         open={openDialog} 
@@ -493,6 +658,15 @@ const DepartmentManagement: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               fullWidth
               required
+              variant="outlined"
+              placeholder="Enter department name"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <BusinessIcon color="primary" />
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Description"
@@ -501,13 +675,20 @@ const DepartmentManagement: React.FC = () => {
               multiline
               rows={3}
               fullWidth
+              placeholder="Enter department description"
+              variant="outlined"
             />
-            <FormControl fullWidth>
+            <FormControl fullWidth variant="outlined">
               <InputLabel>Department Head</InputLabel>
               <Select
                 value={formData.head || ''}
                 onChange={(e) => setFormData({ ...formData, head: e.target.value })}
                 label="Department Head"
+                startAdornment={
+                  <InputAdornment position="start">
+                    <PersonIcon color="primary" />
+                  </InputAdornment>
+                }
               >
                 <MenuItem value="">None</MenuItem>
                 {availableUsers.map((user) => (
@@ -548,36 +729,33 @@ const DepartmentManagement: React.FC = () => {
               Department Members
             </Typography>
             {selectedDepartment && (
-              <Typography 
-                variant="body2" 
-                component="div" 
+              <Typography
+                variant="h6"
                 sx={{ mt: 1, color: 'text.secondary' }}
               >
-                {departments.find(d => d.id === selectedDepartment)?.name}
+                {selectedDepartment.name}
               </Typography>
             )}
           </Box>
         </DialogTitle>
         <DialogContent>
           <List>
-            {selectedDepartment && departments.find(d => d.id === selectedDepartment)?.members?.map((member) => (
+            {selectedDepartment && selectedDepartment.members?.map((member) => (
               <ListItem key={member?.id || 'unknown'}>
                 <ListItemAvatar>
-                  <Avatar src={member?.avatar}>
-                    {member?.name ? member.name.charAt(0) : '?'}
+                  <Avatar>
+                    <PeopleIcon />
                   </Avatar>
                 </ListItemAvatar>
-                <ListItemText 
-                  primary={member?.name || 'Unknown Member'}
-                />
+                <ListItemText primary={member.name} />
               </ListItem>
             ))}
             {(!selectedDepartment || 
-              !departments.find(d => d.id === selectedDepartment)?.members?.length) && (
+              !selectedDepartment.members?.length) && (
               <ListItem>
                 <ListItemText 
-                  primary="No members in this department"
-                  sx={{ textAlign: 'center', color: 'text.secondary' }}
+                  primary="No members found" 
+                  secondary="This department doesn't have any members yet." 
                 />
               </ListItem>
             )}

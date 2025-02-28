@@ -27,11 +27,8 @@ import { useErrorHandler } from '../hooks/useErrorHandler';
 // Redux and Services
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
-import { Task } from '../types/task';
+import { Task, TaskStatus } from '../types/task';
 import axios from '../utils/axios';
-
-// Define the task status type
-type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
 const DRAWER_WIDTH = 240;
 
@@ -59,7 +56,7 @@ const Dashboard: React.FC = () => {
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [initialTaskStatus, setInitialTaskStatus] = useState('');
+  const [initialTaskStatus, setInitialTaskStatus] = useState<TaskStatus>('pending');
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -249,7 +246,7 @@ const Dashboard: React.FC = () => {
               tasks={tasks}
               onCreateTask={(status) => {
                 setInitialTaskStatus(status);
-                setTaskDialogOpen(true);
+                setCreateTaskDialogOpen(true);
               }}
               onEditTask={(taskId) => {
                 const taskToEdit = tasks.find(t => t.id === taskId) || null;
@@ -271,6 +268,7 @@ const Dashboard: React.FC = () => {
           onClose={() => setCreateTaskDialogOpen(false)}
           onTaskCreated={fetchTasks}
           dialogType="personal"
+          initialStatus={initialTaskStatus}
         />
         <CreateTaskDialog
           open={assignTaskDialogOpen}

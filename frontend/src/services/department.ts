@@ -30,89 +30,102 @@ export interface DepartmentPerformer {
 export const DepartmentService = {
     // Get all departments
     getDepartments: async () => {
-        const response = await axios.get('/api/departments/');
-        return response.data;
+        try {
+            const response = await axios.get('/api/departments/');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching departments:', error);
+            throw error;
+        }
     },
 
     // Get a single department
     getDepartment: async (id: string) => {
-        const response = await axios.get(`/api/departments/${id}/`);
-        return response.data;
+        try {
+            const response = await axios.get(`/api/departments/${id}/`);
+            if (!response.data) {
+                throw new Error(`Department with ID ${id} not found`);
+            }
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching department ${id}:`, error);
+            throw error;
+        }
     },
 
     // Get department members
     getDepartmentMembers: async (id: string) => {
-        const response = await axios.get(`/api/departments/${id}/members/`);
-        return response.data;
+        try {
+            const response = await axios.get(`/api/departments/${id}/members/`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching members for department ${id}:`, error);
+            throw error;
+        }
     },
 
     // Create a department
     createDepartment: async (department: Omit<Department, 'id' | 'created_at' | 'updated_at'>) => {
-        const response = await axios.post('/api/departments/', department);
-        return response.data;
+        try {
+            const response = await axios.post('/api/departments/', department);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating department:', error);
+            throw error;
+        }
     },
 
     // Update a department
     updateDepartment: async (id: string, department: Partial<Department>) => {
-        const response = await axios.patch(`/api/departments/${id}/`, department);
-        return response.data;
+        try {
+            const response = await axios.put(`/api/departments/${id}/`, department);
+            return response.data;
+        } catch (error) {
+            console.error(`Error updating department ${id}:`, error);
+            throw error;
+        }
     },
 
     // Delete a department
     deleteDepartment: async (id: string) => {
-        await axios.delete(`/api/departments/${id}/`);
-    },
-
-    // Update department head
-    updateDepartmentHead: async (id: string, headId: string) => {
-        const response = await axios.post(`/api/departments/${id}/update_head/`, {
-            head_id: headId
-        });
-        return response.data;
-    },
-
-    // Get department performance metrics
-    getDepartmentPerformance: async (id: string) => {
-        const response = await axios.get(`/api/departments/${id}/performance/`);
-        return response.data;
-    },
-
-    // Get department top performers (alias for getDepartmentPerformance for compatibility)
-    getDepartmentPerformers: async (id: string): Promise<DepartmentPerformer[]> => {
         try {
-            // For now, we'll return mock data since the backend endpoint might not exist
-            return [
-                {
-                    id: '1',
-                    username: 'johndoe',
-                    first_name: 'John',
-                    last_name: 'Doe',
-                    completed_tasks: 15,
-                    total_tasks: 20,
-                    completion_rate: 75
-                },
-                {
-                    id: '2',
-                    username: 'janesmith',
-                    first_name: 'Jane',
-                    last_name: 'Smith',
-                    completed_tasks: 12,
-                    total_tasks: 15,
-                    completion_rate: 80
-                },
-                {
-                    id: '3',
-                    username: 'mikejohnson',
-                    first_name: 'Mike',
-                    last_name: 'Johnson',
-                    completed_tasks: 8,
-                    total_tasks: 10,
-                    completion_rate: 80
-                }
-            ];
+            await axios.delete(`/api/departments/${id}/`);
         } catch (error) {
-            console.error('Error fetching department performers:', error);
-            return [];
+            console.error(`Error deleting department ${id}:`, error);
+            throw error;
+        }
+    },
+
+    // Get department statistics
+    getDepartmentStats: async () => {
+        try {
+            const response = await axios.get('/api/department-stats/');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching department statistics:', error);
+            throw error;
+        }
+    },
+
+    // Get department tasks
+    getDepartmentTasks: async (id: string) => {
+        try {
+            const response = await axios.get(`/api/departments/${id}/tasks/`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching tasks for department ${id}:`, error);
+            throw error;
+        }
+    },
+
+    // Get top performers in a department
+    getDepartmentPerformers: async (id: string) => {
+        try {
+            const response = await axios.get(`/api/departments/${id}/performers/`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching performers for department ${id}:`, error);
+            throw error;
         }
     }
 }; 

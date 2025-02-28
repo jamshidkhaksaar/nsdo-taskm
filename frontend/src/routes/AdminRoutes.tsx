@@ -9,6 +9,8 @@ import {
   ActivityLogs,
   SystemSettings,
   BackupRestore,
+  ApiHealthDashboard,
+  ApiTester
 } from '../pages/admin';
 
 const AdminRoutes: React.FC = () => {
@@ -27,6 +29,8 @@ const AdminRoutes: React.FC = () => {
       <Route path="activity-logs" element={<ActivityLogs />} />
       <Route path="settings" element={<SystemSettings />} />
       <Route path="backup" element={<BackupRestore />} />
+      <Route path="api-health" element={<ApiHealthDashboard />} />
+      <Route path="api-tester" element={<ApiTester />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

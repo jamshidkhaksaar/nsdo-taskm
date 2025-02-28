@@ -26,10 +26,13 @@ import {
   Container,
   useTheme,
   useMediaQuery,
+  Button,
+  Tooltip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -44,8 +47,10 @@ const DRAWER_WIDTH = 240;
 interface ActivityLog {
   id: string;
   user: string;
+  user_id?: string;
   action: string;
   target: string;
+  target_id?: string;
   details: string;
   timestamp: string;
   ip_address: string;
@@ -69,70 +74,60 @@ const ActivityLogs: React.FC = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [actionFilter, setActionFilter] = useState<string>('all');
+  const [targetFilter, setTargetFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchLogs();
-  }, []);
-
-  useEffect(() => {
-    filterLogs();
-  }, [logs, searchQuery, statusFilter, actionFilter]);
+  }, [page, rowsPerPage, statusFilter, actionFilter, targetFilter]);
 
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      // In a real app, you would fetch this data from your API
-      // For now, we'll simulate a delay and use mock data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Mock data
-      const mockLogs: ActivityLog[] = Array.from({ length: 50 }, (_, i) => ({
-        id: `log-${i + 1}`,
-        user: `user${Math.floor(Math.random() * 10) + 1}`,
-        action: ['login', 'logout', 'create', 'update', 'delete', 'view'][Math.floor(Math.random() * 6)],
-        target: ['user', 'department', 'task', 'system', 'file'][Math.floor(Math.random() * 5)],
-        details: `Details for activity ${i + 1}`,
-        timestamp: new Date(Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)).toISOString(),
-        ip_address: `192.168.1.${Math.floor(Math.random() * 255) + 1}`,
-        status: ['success', 'warning', 'error'][Math.floor(Math.random() * 3)] as 'success' | 'warning' | 'error',
-      }));
-
-      setLogs(mockLogs);
       setError(null);
-    } catch (err) {
+      
+      // Connect to the real API endpoint
+      const response = await axios.get('/api/activity-logs/', {
+        params: {
+          search: searchQuery || undefined,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          action: actionFilter !== 'all' ? actionFilter : undefined,
+          target: targetFilter !== 'all' ? targetFilter : undefined,
+          page: page,
+          limit: rowsPerPage
+        }
+      });
+      
+      // Use the logs from the response
+      if (response && response.data && response.data.logs) {
+        setLogs(response.data.logs);
+        setFilteredLogs(response.data.logs);
+      } else {
+        setError('Invalid response data from API');
+        console.error('Invalid response from activity logs API:', response);
+        setLogs([]);
+        setFilteredLogs([]);
+      }
+    } catch (err: any) {
       console.error('Error fetching logs:', err);
-      setError('Failed to load activity logs. Please try again later.');
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        setError(`Failed to load activity logs: ${err.response.status} ${err.response.statusText}`);
+        console.error('Error response:', err.response.data);
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('Server did not respond. Please check your connection.');
+        console.error('No response received:', err.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError('Failed to load activity logs. Please try again later.');
+        console.error('Error message:', err.message);
+      }
+      setLogs([]);
+      setFilteredLogs([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterLogs = () => {
-    let filtered = [...logs];
-
-    // Apply search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        log =>
-          log.user.toLowerCase().includes(query) ||
-          log.action.toLowerCase().includes(query) ||
-          log.target.toLowerCase().includes(query) ||
-          log.details.toLowerCase().includes(query)
-      );
-    }
-
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(log => log.status === statusFilter);
-    }
-
-    // Apply action filter
-    if (actionFilter !== 'all') {
-      filtered = filtered.filter(log => log.action === actionFilter);
-    }
-
-    setFilteredLogs(filtered);
   };
 
   const handleChangePage = (event: unknown, newPage: number) => {
@@ -206,6 +201,20 @@ const ActivityLogs: React.FC = () => {
     }
   };
 
+  const handleSearch = () => {
+    fetchLogs();
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const handleRefresh = () => {
+    fetchLogs();
+  };
+
   const mainContent = (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
@@ -237,6 +246,7 @@ const ActivityLogs: React.FC = () => {
                 placeholder="Search logs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={handleKeyPress}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -328,7 +338,59 @@ const ActivityLogs: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControl fullWidth>
+                <InputLabel id="target-filter-label" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Target</InputLabel>
+                <Select
+                  labelId="target-filter-label"
+                  value={targetFilter}
+                  onChange={(e) => setTargetFilter(e.target.value)}
+                  label="Target"
+                  sx={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    color: '#fff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255, 255, 255, 0.2)',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#2196f3',
+                    },
+                    '& .MuiSvgIcon-root': {
+                      color: 'rgba(255, 255, 255, 0.7)',
+                    },
+                  }}
+                >
+                  <MenuItem value="all">All Targets</MenuItem>
+                  <MenuItem value="user">User</MenuItem>
+                  <MenuItem value="department">Department</MenuItem>
+                  <MenuItem value="task">Task</MenuItem>
+                  <MenuItem value="system">System</MenuItem>
+                  <MenuItem value="file">File</MenuItem>
+                  <MenuItem value="project">Project</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
           </Grid>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Tooltip title="Refresh activity logs">
+              <Button
+                startIcon={<RefreshIcon />}
+                onClick={handleRefresh}
+                sx={{
+                  color: '#fff',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  }
+                }}
+              >
+                Refresh
+              </Button>
+            </Tooltip>
+          </Box>
         </CardContent>
       </Card>
 

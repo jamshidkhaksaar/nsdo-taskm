@@ -15,12 +15,52 @@
 
 # testing
 /coverage
+/cypress/videos
+/cypress/screenshots
+/cypress/downloads
 
 # production
 /build
+/dist
+/storybook-static
 
 # misc
 .DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.pem
+*.log
+
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
+
+# local netlify folder
+.netlify
+
+# TypeScript cache
+*.tsbuildinfo
+next-env.d.ts
+
+# Temporary files
+.temp
+.tmp
+.cache
+
+# Editor directories and files
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Bundle analyzer
+stats.html
+bundle-stats.json

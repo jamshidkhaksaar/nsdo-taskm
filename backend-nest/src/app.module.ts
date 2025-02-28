@@ -3,9 +3,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
-import { TasksModule } from './tasks/tasks.module';
+import { UsersModule } from './users/users.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AdminModule } from './admin/admin.module';
 
@@ -28,9 +27,8 @@ import { AdminModule } from './admin/admin.module';
         synchronize: configService.get('DATABASE_SYNC') === 'true',
       }),
     }),
-    UsersModule,
     AuthModule,
-    TasksModule,
+    UsersModule,
     DepartmentsModule,
     AdminModule,
   ],

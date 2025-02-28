@@ -28,6 +28,11 @@ export class AdminController {
     return this.adminService.getDashboardStats();
   }
 
+  @Get('health')
+  async getSystemHealth() {
+    return this.adminService.getSystemHealth();
+  }
+
   @Get('users')
   getAllUsers(@Query('search') search?: string) {
     return this.adminService.getAllUsers(search);

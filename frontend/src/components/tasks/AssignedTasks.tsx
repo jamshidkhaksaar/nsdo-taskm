@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Box, Typography, Button, Tabs, Tab, Chip, IconButton } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Button, Tabs, Tab, Chip, IconButton, Card, CardContent, Tooltip, CircularProgress, useTheme } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import { Task } from '../../types/task';
+import PersonIcon from '@mui/icons-material/Person';
+import { Task, TaskStatus, TaskPriority, DepartmentRef } from '../../types/task';
 import { Department } from '../../services/department';
 import { format } from 'date-fns';
 
@@ -41,11 +42,22 @@ const AssignedTasks: React.FC<AssignedTasksProps> = ({
   
   const filteredTasks = getFilteredTasks();
 
-  // Helper function to get department name from ID
-  const getDepartmentName = (departmentId: string | null) => {
-    if (!departmentId) return null;
-    const department = departments.find((d: Department) => d.id === departmentId);
-    return department ? department.name : 'Unknown Department';
+  // Update the getDepartmentName function to handle both string and DepartmentRef
+  const getDepartmentName = (department: string | DepartmentRef | null) => {
+    if (!department) return null;
+    
+    // If department is already a DepartmentRef object with a name property
+    if (typeof department !== 'string' && 'name' in department) {
+      return department.name;
+    }
+    
+    // If department is a string ID, find it in the departments array
+    if (typeof department === 'string') {
+      const dept = departments.find((d: Department) => d.id === department);
+      return dept ? dept.name : 'Unknown Department';
+    }
+    
+    return 'Unknown Department';
   };
 
   return (

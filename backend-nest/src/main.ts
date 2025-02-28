@@ -24,7 +24,8 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
   }));
   
-  const port = configService.get('PORT') || 3000;
+  // Use port 3001 by default or from config
+  const port = configService.get('PORT') || 3001;
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
 }
