@@ -38,7 +38,6 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 
 const DRAWER_WIDTH = 240;
@@ -713,7 +712,6 @@ const BackupRestore: React.FC = () => {
         />
       }
       mainContent={mainContent}
-      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
       sidebarOpen={sidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />

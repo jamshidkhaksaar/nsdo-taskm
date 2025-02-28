@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Box, useTheme, useMediaQuery } from '@mui/material';
+import { standardBackgroundStyle } from '../../utils/backgroundStyles';
 
 interface ModernDashboardLayoutProps {
   sidebar: ReactNode;
@@ -36,9 +37,7 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
         height: '100vh',
         width: '100vw',
         overflow: 'hidden',
-        background: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)',
-        backgroundAttachment: 'fixed',
-        backgroundSize: 'cover',
+        ...standardBackgroundStyle,
         position: 'relative',
         '&::before': {
           content: '""',
@@ -164,21 +163,23 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
           )}
         </Box>
 
-        {/* Footer */}
-        <Box
-          sx={{
-            height: '40px',
-            flexShrink: 0,
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.1)',
-            width: '100%',
-          }}
-        >
-          {footer}
-        </Box>
+        {/* Footer - only render if provided */}
+        {footer && (
+          <Box
+            sx={{
+              height: '40px',
+              flexShrink: 0,
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.1)',
+              width: '100%',
+            }}
+          >
+            {footer}
+          </Box>
+        )}
       </Box>
     </Box>
   );

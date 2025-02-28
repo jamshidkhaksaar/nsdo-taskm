@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
 import logoIcon from '../assets/images/logoIcon.png';
+import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
 
 const rotate = keyframes`
   from {
@@ -47,18 +48,8 @@ const LoadingScreen: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+        ...standardBackgroundStyleNoPosition,
         zIndex: 9999,
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        },
       }}
     >
       <Box

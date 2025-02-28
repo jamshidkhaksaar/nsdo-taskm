@@ -17,6 +17,7 @@ import {
   RadioGroup,
   Radio,
   CircularProgress,
+  useTheme,
 } from '@mui/material';
 import {
   Lock as LockIcon,
@@ -26,11 +27,11 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer';
-import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
 import { SettingsService } from '../services/settings';
+import { standardBackgroundStyle } from '../utils/backgroundStyles';
+import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -68,7 +69,7 @@ const Settings: React.FC = () => {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
-  const [downloadFormat, setDownloadFormat] = useState('csv');
+  const [exportOption, setExportOption] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -77,6 +78,7 @@ const Settings: React.FC = () => {
   const [processing2FA, setProcessing2FA] = useState(false);
   
   const theme = useTheme();
+  const glassStyles = getGlassmorphismStyles(theme);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
@@ -89,7 +91,7 @@ const Settings: React.FC = () => {
     setTabValue(newValue);
   };
 
-  const handlePasswordUpdate = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setError("New passwords don't match");
@@ -171,32 +173,29 @@ const Settings: React.FC = () => {
   const handleDownload = async () => {
     setLoading(true);
     try {
-        const blob = await SettingsService.downloadTasks(downloadFormat as 'csv' | 'pdf');
-        
-        if (!(blob instanceof Blob)) {
-            throw new Error('Invalid response format');
-        }
-
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `tasks.${downloadFormat}`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        setSuccess('File downloaded successfully');
-    } catch (err: any) {
-        const errorMessage = err.response?.data?.error || err.message || 'Failed to download file';
-        console.error('Download error details:', {
-            status: err.response?.status,
-            message: errorMessage,
-            error: err
-        });
-        setError(errorMessage);
+      // Convert the export option to the format expected by the service
+      const format = exportOption === 'all' || exportOption === 'tasks' ? 'csv' : 'pdf';
+      const blob = await SettingsService.downloadTasks(format);
+      
+      if (!(blob instanceof Blob)) {
+        throw new Error('Download failed');
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${exportOption}_data.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setSuccess('Data downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      setError('Failed to download data');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -216,26 +215,8 @@ const Settings: React.FC = () => {
   return (
     <Box sx={{ 
       display: 'flex', 
-      position: 'relative',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1e2a78 0%, #ff3c7d 100%)',
-      backgroundAttachment: 'fixed',
-      backgroundSize: 'cover',
-      '&::before': {
-        content: '""',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundImage: `
-          url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.3)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/svg%3E")
-        `,
-        backgroundSize: '40px 40px',
-        opacity: 0.5,
-        pointerEvents: 'none',
-        zIndex: 0,
-      },
+      ...standardBackgroundStyle
     }}>
       <Sidebar
         open={open}
@@ -249,206 +230,237 @@ const Settings: React.FC = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          minHeight: '100vh',
-          position: 'relative',
-          zIndex: 1,
-          pl: { sm: open ? `${DRAWER_WIDTH}px` : '73px' },
-          transition: theme.transitions.create('padding', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
-          }),
+          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
+          ml: { sm: `${DRAWER_WIDTH}px` },
         }}
       >
-        <Container maxWidth="lg" sx={{ py: 4 }}>
-          <Typography variant="h4" sx={{ mb: 4, color: '#fff' }}>
-            Settings for {user?.username}
+        <Container maxWidth="lg" sx={{ mt: 4 }}>
+          <Typography variant="h4" gutterBottom sx={{ color: 'white', mb: 3 }}>
+            Settings
           </Typography>
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
-
-          {success && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-              {success}
-            </Alert>
-          )}
-
-          <Card sx={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-          }}>
+          
+          <Card sx={{ ...glassStyles.card, mb: 4 }}>
             <CardContent>
               <Tabs
                 value={tabValue}
                 onChange={handleTabChange}
+                aria-label="settings tabs"
                 sx={{
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  '& .MuiTab-root': { color: '#fff' },
-                  '& .Mui-selected': { color: '#fff' },
+                  mb: 3,
+                  '& .MuiTab-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-selected': {
+                      color: 'white',
+                    },
+                  },
                 }}
               >
-                <Tab icon={<LockIcon />} label="Password" />
-                <Tab icon={<SecurityIcon />} label="2FA Settings" />
-                <Tab icon={<DownloadIcon />} label="Download Tasks" />
+                <Tab label="Account" icon={<LockIcon />} iconPosition="start" />
+                <Tab label="Security" icon={<SecurityIcon />} iconPosition="start" />
+                <Tab label="Data" icon={<DownloadIcon />} iconPosition="start" />
               </Tabs>
 
               <TabPanel value={tabValue} index={0}>
-                <form onSubmit={handlePasswordUpdate}>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        type="password"
-                        label="Current Password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        type="password"
-                        label="New Password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        type="password"
-                        label="Confirm New Password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button
-                        type="submit"
-                        variant="contained"
+                <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+                  Change Password
+                </Typography>
+                
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                    {error}
+                  </Alert>
+                )}
+                
+                {success && (
+                  <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+                    {success}
+                  </Alert>
+                )}
+                
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Current Password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      fullWidth
+                      margin="normal"
+                      required
+                      InputLabelProps={{
+                        style: glassStyles.inputLabel
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': glassStyles.input,
+                      }}
+                    />
+                    <TextField
+                      label="New Password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      fullWidth
+                      margin="normal"
+                      required
+                      InputLabelProps={{
+                        style: glassStyles.inputLabel
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': glassStyles.input,
+                      }}
+                    />
+                    <TextField
+                      label="Confirm New Password"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      fullWidth
+                      margin="normal"
+                      required
+                      InputLabelProps={{
+                        style: glassStyles.inputLabel
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': glassStyles.input,
+                      }}
+                    />
+                    <Box sx={{ mt: 2 }}>
+                      <Button 
+                        variant="contained" 
+                        onClick={handleChangePassword}
                         disabled={loading}
-                        sx={{
-                          bgcolor: 'primary.main',
-                          color: '#fff',
-                          '&:hover': { bgcolor: 'primary.dark' },
-                        }}
+                        sx={glassStyles.button}
                       >
-                        {loading ? <CircularProgress size={24} /> : 'Update Password'}
+                        {loading ? <CircularProgress size={24} /> : 'Change Password'}
                       </Button>
-                    </Grid>
+                    </Box>
                   </Grid>
-                </form>
+                </Grid>
               </TabPanel>
 
               <TabPanel value={tabValue} index={1}>
+                <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+                  Two-Factor Authentication
+                </Typography>
+                
                 <Grid container spacing={3}>
-                  <Grid item xs={12}>
-                    {initializing ? (
-                      <CircularProgress />
-                    ) : (
+                  <Grid item xs={12} md={6}>
+                    <FormControl component="fieldset" sx={{ mb: 2 }}>
                       <FormControlLabel
                         control={
-                          <Switch
-                            checked={twoFactorEnabled}
-                            onChange={() => {
-                              if (!processing2FA) {
-                                handleSetup2FA();
-                              }
+                          <Switch 
+                            checked={twoFactorEnabled} 
+                            onChange={(e) => setTwoFactorEnabled(e.target.checked)}
+                            sx={{
+                              '& .MuiSwitch-switchBase.Mui-checked': {
+                                color: 'white',
+                              },
+                              '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                              },
                             }}
-                            disabled={processing2FA || loading}
                           />
                         }
-                        label={
-                          processing2FA 
-                            ? "Setting up 2FA..." 
-                            : "Enable Two-Factor Authentication"
-                        }
+                        label={<Typography sx={{ color: 'white' }}>Enable Two-Factor Authentication</Typography>}
                       />
+                    </FormControl>
+                    
+                    {twoFactorEnabled && (
+                      <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
+                        <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
+                          Scan this QR code with your authenticator app:
+                        </Typography>
+                        <Box sx={{ textAlign: 'center', my: 2 }}>
+                          {qrCode ? (
+                            <img src={qrCode} alt="2FA QR Code" style={{ width: '200px', height: '200px' }} />
+                          ) : (
+                            <Box 
+                              sx={{ 
+                                width: 200, 
+                                height: 200, 
+                                bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                                mx: 'auto',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                borderRadius: 1
+                              }}
+                            >
+                              QR Code will appear here
+                            </Box>
+                          )}
+                        </Box>
+                        <TextField
+                          label="Verification Code"
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value)}
+                          fullWidth
+                          margin="normal"
+                          InputLabelProps={{
+                            style: glassStyles.inputLabel
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': glassStyles.input,
+                          }}
+                        />
+                        <Button 
+                          variant="contained" 
+                          onClick={handleVerify2FA}
+                          sx={glassStyles.button}
+                          fullWidth
+                        >
+                          Verify and Enable
+                        </Button>
+                      </Box>
                     )}
                   </Grid>
-                  {qrCode && (
-                    <Grid item xs={12}>
-                      <Box sx={{ textAlign: 'center', my: 2 }}>
-                        <Typography variant="body1" gutterBottom>
-                          1. Scan this QR code with your authenticator app (e.g., Google Authenticator)
-                        </Typography>
-                        <img src={qrCode} alt="2FA QR Code" style={{ margin: '20px 0' }} />
-                        <Typography variant="body1" gutterBottom>
-                          2. Enter the 6-digit code from your authenticator app below
-                        </Typography>
-                      </Box>
-                      <TextField
-                        fullWidth
-                        label="Verification Code"
-                        value={verificationCode}
-                        onChange={(e) => setVerificationCode(e.target.value)}
-                        error={!!error}
-                        helperText={error}
-                        sx={{ mb: 2 }}
-                      />
-                      <Button
-                        variant="contained"
-                        onClick={handleVerify2FA}
-                        disabled={loading || !verificationCode.trim()}
-                        sx={{
-                          bgcolor: 'primary.main',
-                          color: '#fff',
-                          '&:hover': { bgcolor: 'primary.dark' },
-                        }}
-                      >
-                        {loading ? <CircularProgress size={24} /> : 'Verify'}
-                      </Button>
-                    </Grid>
-                  )}
                 </Grid>
               </TabPanel>
 
               <TabPanel value={tabValue} index={2}>
+                <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+                  Data Export
+                </Typography>
+                
                 <Grid container spacing={3}>
-                  <Grid item xs={12}>
-                    <FormControl component="fieldset">
-                      <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
-                        Download Format
+                  <Grid item xs={12} md={6}>
+                    <FormControl component="fieldset" sx={{ mb: 2 }}>
+                      <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
+                        Select data to export:
                       </Typography>
                       <RadioGroup
-                        value={downloadFormat}
-                        onChange={(e) => setDownloadFormat(e.target.value)}
+                        value={exportOption}
+                        onChange={(e) => setExportOption(e.target.value)}
                       >
-                        <FormControlLabel
-                          value="csv"
-                          control={<Radio />}
-                          label="CSV"
+                        <FormControlLabel 
+                          value="all" 
+                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                          label={<Typography sx={{ color: 'white' }}>All Data</Typography>} 
                         />
-                        <FormControlLabel
-                          value="pdf"
-                          control={<Radio />}
-                          label="PDF"
+                        <FormControlLabel 
+                          value="tasks" 
+                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                          label={<Typography sx={{ color: 'white' }}>Tasks Only</Typography>} 
+                        />
+                        <FormControlLabel 
+                          value="profile" 
+                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                          label={<Typography sx={{ color: 'white' }}>Profile Only</Typography>} 
                         />
                       </RadioGroup>
                     </FormControl>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      onClick={handleDownload}
-                      disabled={loading}
-                      startIcon={<DownloadIcon />}
-                      sx={{
-                        bgcolor: 'primary.main',
-                        color: '#fff',
-                        '&:hover': { bgcolor: 'primary.dark' },
-                      }}
-                    >
-                      {loading ? <CircularProgress size={24} /> : 'Download Tasks'}
-                    </Button>
+                    
+                    <Box sx={{ mt: 2 }}>
+                      <Button 
+                        variant="contained" 
+                        startIcon={<DownloadIcon />}
+                        onClick={handleDownload}
+                        sx={glassStyles.button}
+                      >
+                        Export Data
+                      </Button>
+                    </Box>
                   </Grid>
                 </Grid>
               </TabPanel>
@@ -456,8 +468,6 @@ const Settings: React.FC = () => {
           </Card>
         </Container>
       </Box>
-
-      <Footer open={open} drawerWidth={DRAWER_WIDTH} />
     </Box>
   );
 };

@@ -24,7 +24,6 @@ import Sidebar from '../components/Sidebar';
 import UserList from '../components/users/UserList';
 import UserSummary from '../components/users/UserSummary';
 import TasksSection from '../components/departments/TasksSection';
-import Footer from '../components/Footer';
 import { Task } from '../types/task';
 import { UserService } from '../services/user';
 import { TaskService } from '../services/task';
@@ -252,7 +251,6 @@ const Users: React.FC = () => {
         />
       }
       mainContent={mainContent}
-      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
       sidebarOpen={sidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />

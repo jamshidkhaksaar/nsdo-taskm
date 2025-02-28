@@ -48,8 +48,8 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 
 const DRAWER_WIDTH = 240;
 
@@ -130,6 +130,7 @@ const UserManagement: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState<EditMode>({ isEdit: false, userId: null });
+  const glassStyles = getGlassmorphismStyles(theme);
 
   const handleUserSelect = (userId: string) => {
     setSelectedUser(userId);
@@ -559,20 +560,18 @@ const UserManagement: React.FC = () => {
         onClose={handleCloseDialog}
         PaperProps={{
           sx: {
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(8px)',
+            ...glassStyles.form,
             minWidth: '500px',
-            borderRadius: '12px',
+            borderRadius: '16px',
             '& .MuiDialogTitle-root': {
-              background: 'rgba(0, 0, 0, 0.05)',
               padding: '16px 24px',
+              color: 'white',
             },
             '& .MuiDialogContent-root': {
               padding: '24px',
             },
             '& .MuiDialogActions-root': {
               padding: '16px 24px',
-              background: 'rgba(0, 0, 0, 0.05)',
             },
           }
         }}
@@ -589,6 +588,12 @@ const UserManagement: React.FC = () => {
               fullWidth
               required
               disabled={editMode.isEdit}
+              InputLabelProps={{
+                style: glassStyles.inputLabel
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': glassStyles.input,
+              }}
             />
             <TextField
               label="Email"
@@ -597,6 +602,12 @@ const UserManagement: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               fullWidth
               required
+              InputLabelProps={{
+                style: glassStyles.inputLabel
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': glassStyles.input,
+              }}
             />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
@@ -604,32 +615,52 @@ const UserManagement: React.FC = () => {
                 value={formData.first_name}
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                 fullWidth
+                InputLabelProps={{
+                  style: glassStyles.inputLabel
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                }}
               />
               <TextField
                 label="Last Name"
                 value={formData.last_name}
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                 fullWidth
+                InputLabelProps={{
+                  style: glassStyles.inputLabel
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                }}
               />
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <FormControl fullWidth required>
-                <InputLabel>Role</InputLabel>
+                <InputLabel sx={glassStyles.inputLabel}>Role</InputLabel>
                 <Select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   label="Role"
+                  sx={{
+                    '& .MuiOutlinedInput-root': glassStyles.input,
+                    ...glassStyles.input
+                  }}
                 >
                   <MenuItem value="user">User</MenuItem>
                   <MenuItem value="admin">Admin</MenuItem>
                 </Select>
               </FormControl>
               <FormControl fullWidth>
-                <InputLabel>Department</InputLabel>
+                <InputLabel sx={glassStyles.inputLabel}>Department</InputLabel>
                 <Select
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                   label="Department"
+                  sx={{
+                    '& .MuiOutlinedInput-root': glassStyles.input,
+                    ...glassStyles.input
+                  }}
                 >
                   <MenuItem value="">None</MenuItem>
                   {departments.map((dept) => (
@@ -645,6 +676,12 @@ const UserManagement: React.FC = () => {
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
               fullWidth
+              InputLabelProps={{
+                style: glassStyles.inputLabel
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': glassStyles.input,
+              }}
             />
             {!editMode.isEdit && (
               <TextField
@@ -653,6 +690,12 @@ const UserManagement: React.FC = () => {
                 value={formData.password || ''}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 fullWidth
+                InputLabelProps={{
+                  style: glassStyles.inputLabel
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                }}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -660,6 +703,7 @@ const UserManagement: React.FC = () => {
                         onClick={generatePassword}
                         edge="end"
                         title="Generate secure password"
+                        sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
                       >
                         <AutorenewIcon />
                       </IconButton>
@@ -669,6 +713,7 @@ const UserManagement: React.FC = () => {
                           edge="end"
                           title="Copy password"
                           color={copied ? "success" : "default"}
+                          sx={{ color: copied ? '#4caf50' : 'rgba(255, 255, 255, 0.7)' }}
                         >
                           {copied ? <DoneIcon /> : <ContentCopyIcon />}
                         </IconButton>
@@ -677,6 +722,7 @@ const UserManagement: React.FC = () => {
                         onClick={() => setShowPassword(!showPassword)}
                         edge="end"
                         title={showPassword ? "Hide password" : "Show password"}
+                        sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
@@ -688,6 +734,9 @@ const UserManagement: React.FC = () => {
                     ? "Make sure to copy this password before saving" 
                     : "Leave empty to use system-generated password"
                 }
+                FormHelperTextProps={{
+                  sx: { color: 'rgba(255, 255, 255, 0.7)' }
+                }}
               />
             )}
           </Box>
@@ -695,17 +744,22 @@ const UserManagement: React.FC = () => {
         <DialogActions>
           <Button 
             onClick={handleCloseDialog}
-            sx={{ color: 'text.secondary' }}
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.7)',
+              '&:hover': {
+                color: 'white',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              }
+            }}
           >
             Cancel
           </Button>
           <Button 
-            onClick={handleAddUser} 
-            variant="contained" 
-            color="primary"
-            disabled={!formData.username || !formData.email || !formData.role}
+            onClick={handleAddUser}
+            variant="contained"
+            sx={glassStyles.button}
           >
-            {editMode.isEdit ? 'Update User' : 'Create User'}
+            {editMode.isEdit ? 'Update User' : 'Add User'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -741,7 +795,6 @@ const UserManagement: React.FC = () => {
         />
       }
       mainContent={mainContent}
-      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
       sidebarOpen={sidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />

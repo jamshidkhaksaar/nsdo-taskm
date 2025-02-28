@@ -12,6 +12,7 @@ import {
   Autocomplete,
   Chip,
   MenuItem,
+  useTheme,
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -21,6 +22,7 @@ import { CreateTask, Task, TaskStatus } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
+import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -40,6 +42,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   initialStatus
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
+  const theme = useTheme();
+  const glassStyles = getGlassmorphismStyles(theme);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(new Date());
@@ -222,14 +226,12 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       onClose={onClose}
       PaperProps={{
         sx: {
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
+          ...glassStyles.form,
           minWidth: '500px',
         },
       }}
     >
-      <DialogTitle sx={{ color: '#fff' }}>
+      <DialogTitle sx={{ ...glassStyles.text.primary }}>
         {task ? 'Edit Task' : dialogType === 'personal' ? 'Create Personal Task' : 'Assign New Task'}
       </DialogTitle>
       <DialogContent>
@@ -240,28 +242,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             onChange={(e) => setTitle(e.target.value)}
             required
             fullWidth
+            InputLabelProps={{
+              style: glassStyles.inputLabel
+            }}
             sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.23)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.4)',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: '#fff',
-                },
-              },
-              '& .MuiInputBase-input': {
-                color: '#fff',
-              },
+              '& .MuiOutlinedInput-root': glassStyles.input,
             }}
           />
           <TextField
@@ -271,28 +256,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             multiline
             rows={4}
             fullWidth
+            InputLabelProps={{
+              style: glassStyles.inputLabel
+            }}
             sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.23)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.4)',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: '#fff',
-                },
-              },
-              '& .MuiInputBase-input': {
-                color: '#fff',
-              },
+              '& .MuiOutlinedInput-root': glassStyles.input,
             }}
           />
           <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -300,17 +268,16 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               label="Due Date"
               value={dueDate}
               onChange={handleDueDateChange}
-              sx={{
-                width: '100%',
-                '& .MuiOutlinedInput-root': {
-                  color: '#fff',
-                  '& fieldset': {
-                    borderColor: dateError ? 'error.main' : 'rgba(255, 255, 255, 0.23)',
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  InputLabelProps: {
+                    style: glassStyles.inputLabel
                   },
-                },
-                '& .MuiInputLabel-root': {
-                  color: dateError ? 'error.main' : 'rgba(255, 255, 255, 0.7)',
-                },
+                  sx: {
+                    '& .MuiOutlinedInput-root': glassStyles.input,
+                  }
+                }
               }}
             />
           </LocalizationProvider>
@@ -332,16 +299,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                   {...params}
                   label="Collaborate with (optional)"
                   placeholder="Search users to collaborate with..."
+                  InputLabelProps={{
+                    style: glassStyles.inputLabel
+                  }}
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      color: '#fff',
-                      '& fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.23)',
-                      },
-                    },
-                    '& .MuiInputLabel-root': {
-                      color: 'rgba(255, 255, 255, 0.7)',
-                    },
+                    '& .MuiOutlinedInput-root': glassStyles.input,
                   }}
                 />
               )}
@@ -351,8 +313,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                     label={`${option.first_name} ${option.last_name}`}
                     {...getTagProps({ index })}
                     sx={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      color: '#fff',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'white',
                       '& .MuiChip-deleteIcon': {
                         color: 'rgba(255, 255, 255, 0.7)',
                         '&:hover': {
@@ -378,16 +340,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                     label="Assign To"
                     placeholder="Select users to assign task..."
                     required
+                    InputLabelProps={{
+                      style: glassStyles.inputLabel
+                    }}
                     sx={{
-                      '& .MuiOutlinedInput-root': {
-                        color: '#fff',
-                        '& fieldset': {
-                          borderColor: 'rgba(255, 255, 255, 0.23)',
-                        },
-                      },
-                      '& .MuiInputLabel-root': {
-                        color: 'rgba(255, 255, 255, 0.7)',
-                      },
+                      '& .MuiOutlinedInput-root': glassStyles.input,
                     }}
                   />
                 )}
@@ -397,19 +354,12 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 label="Department"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
+                fullWidth
+                InputLabelProps={{
+                  style: glassStyles.inputLabel
+                }}
                 sx={{
-                  '& .MuiOutlinedInput-root': {
-                    color: '#fff',
-                    '& fieldset': {
-                      borderColor: 'rgba(255, 255, 255, 0.23)',
-                    },
-                  },
-                  '& .MuiInputLabel-root': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                  '& .MuiSelect-icon': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
+                  '& .MuiOutlinedInput-root': glassStyles.input,
                 }}
               >
                 <MenuItem value="">No Department</MenuItem>
@@ -423,42 +373,32 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           )}
 
           {error && (
-            <FormHelperText error>
+            <FormHelperText error sx={{ fontSize: '0.9rem', mt: 1 }}>
               {error}
             </FormHelperText>
           )}
         </Box>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button 
-          onClick={onClose}
+          onClick={onClose} 
           sx={{ 
             color: 'rgba(255, 255, 255, 0.7)',
             '&:hover': {
-              color: '#fff',
-              bgcolor: 'rgba(255, 255, 255, 0.1)',
+              color: 'white',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
             }
           }}
         >
           Cancel
         </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
+        <Button 
+          onClick={handleSubmit} 
+          variant="contained" 
           disabled={loading}
-          sx={{
-            bgcolor: 'rgba(255, 255, 255, 0.1)',
-            color: '#fff',
-            '&:hover': {
-              bgcolor: 'rgba(255, 255, 255, 0.2)',
-            },
-            '&:disabled': {
-              bgcolor: 'rgba(255, 255, 255, 0.05)',
-              color: 'rgba(255, 255, 255, 0.3)',
-            }
-          }}
+          sx={glassStyles.button}
         >
-          {task ? 'Update Task' : dialogType === 'personal' ? 'Create Task' : 'Assign Task'}
+          {loading ? 'Saving...' : task ? 'Update Task' : dialogType === 'personal' ? 'Create Task' : 'Assign Task'}
         </Button>
       </DialogActions>
     </Dialog>

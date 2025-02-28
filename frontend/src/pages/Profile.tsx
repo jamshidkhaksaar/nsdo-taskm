@@ -706,7 +706,6 @@ const Profile: React.FC = () => {
         />
       }
       mainContent={mainContent}
-      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
       sidebarOpen={sidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />

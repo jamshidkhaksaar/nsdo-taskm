@@ -6,7 +6,6 @@ import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialo
 
 // Custom Components
 import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer';
 import ErrorDisplay from '../components/common/ErrorDisplay';
 import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -175,47 +174,8 @@ const Dashboard: React.FC = () => {
         pb: 2
       }}
     >
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Task</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete this task? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteTask} color="error">Delete</Button>
-        </DialogActions>
-      </Dialog>
-      
-      <Container 
-        maxWidth="xl" 
-        disableGutters 
-        sx={{ 
-          py: isSmallScreen ? 1 : 2,
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* Weather Widget (conditionally shown) */}
-        {showWeatherWidget && (
-          <Box sx={{ 
-            mb: isSmallScreen ? 1 : 2,
-            borderRadius: 2,
-            overflow: 'hidden',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
-          }}>
-            <WeatherWidget compact={isSmallScreen} />
-          </Box>
-        )}
-        
-        {/* Task Summary - use compact mode on mobile */}
+      {/* Weather Widget (conditionally shown) */}
+      {showWeatherWidget && (
         <Box sx={{ 
           mb: isSmallScreen ? 1 : 2,
           borderRadius: 2,
@@ -223,68 +183,79 @@ const Dashboard: React.FC = () => {
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
           border: '1px solid rgba(255, 255, 255, 0.08)'
         }}>
-          <TaskSummary tasks={tasks} compact={isMobile || isTablet} />
+          <WeatherWidget compact={isSmallScreen} />
         </Box>
-        
-        {/* Task Kanban Board - takes remaining space */}
-        <Box
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            overflow: 'auto',
-            height: '100%'
-          }}
-        >
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-              <CircularProgress />
-            </Box>
-          ) : error ? (
-            <Alert severity="error">{error}</Alert>
-          ) : (
-            <TaskKanbanBoard
-              tasks={tasks}
-              onCreateTask={(status) => {
-                setInitialTaskStatus(status);
-                setCreateTaskDialogOpen(true);
-              }}
-              onEditTask={(taskId) => {
-                const taskToEdit = tasks.find(t => t.id === taskId) || null;
-                setSelectedTask(taskToEdit);
-                setEditTaskDialogOpen(true);
-              }}
-              onDeleteTask={(taskId) => {
-                setSelectedTaskId(taskId);
-                setDeleteDialogOpen(true);
-              }}
-              onChangeTaskStatus={changeTaskStatus}
-            />
-          )}
-        </Box>
-        
-        {/* Task Dialogs */}
-        <CreateTaskDialog
-          open={createTaskDialogOpen}
-          onClose={() => setCreateTaskDialogOpen(false)}
-          onTaskCreated={fetchTasks}
-          dialogType="personal"
-          initialStatus={initialTaskStatus}
-        />
-        <CreateTaskDialog
-          open={assignTaskDialogOpen}
-          onClose={() => setAssignTaskDialogOpen(false)}
-          onTaskCreated={fetchTasks}
-          dialogType="assign"
-          task={selectedTask ? selectedTask : undefined}
-        />
-        <CreateTaskDialog
-          open={editTaskDialogOpen}
-          onClose={() => setEditTaskDialogOpen(false)}
-          onTaskCreated={fetchTasks}
-          dialogType="assign"
-          task={selectedTask ? selectedTask : undefined}
-        />
-      </Container>
+      )}
+      
+      {/* Task Summary - use compact mode on mobile */}
+      <Box sx={{ 
+        mb: isSmallScreen ? 1 : 2,
+        borderRadius: 2,
+        overflow: 'hidden',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+        border: '1px solid rgba(255, 255, 255, 0.08)'
+      }}>
+        <TaskSummary tasks={tasks} compact={isMobile || isTablet} />
+      </Box>
+      
+      {/* Task Kanban Board - takes remaining space */}
+      <Box
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          overflow: 'auto',
+          height: '100%'
+        }}
+      >
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : (
+          <TaskKanbanBoard
+            tasks={tasks}
+            onCreateTask={(status) => {
+              setInitialTaskStatus(status);
+              setCreateTaskDialogOpen(true);
+            }}
+            onEditTask={(taskId) => {
+              const taskToEdit = tasks.find(t => t.id === taskId) || null;
+              setSelectedTask(taskToEdit);
+              setEditTaskDialogOpen(true);
+            }}
+            onDeleteTask={(taskId) => {
+              setSelectedTaskId(taskId);
+              setDeleteDialogOpen(true);
+            }}
+            onChangeTaskStatus={changeTaskStatus}
+          />
+        )}
+      </Box>
+      
+      {/* Task Dialogs */}
+      <CreateTaskDialog
+        open={createTaskDialogOpen}
+        onClose={() => setCreateTaskDialogOpen(false)}
+        onTaskCreated={fetchTasks}
+        dialogType="personal"
+        initialStatus={initialTaskStatus}
+      />
+      <CreateTaskDialog
+        open={assignTaskDialogOpen}
+        onClose={() => setAssignTaskDialogOpen(false)}
+        onTaskCreated={fetchTasks}
+        dialogType="assign"
+        task={selectedTask ? selectedTask : undefined}
+      />
+      <CreateTaskDialog
+        open={editTaskDialogOpen}
+        onClose={() => setEditTaskDialogOpen(false)}
+        onTaskCreated={fetchTasks}
+        dialogType="assign"
+        task={selectedTask ? selectedTask : undefined}
+      />
     </Box>
   );
 
@@ -364,7 +335,6 @@ const Dashboard: React.FC = () => {
         }
         mainContent={mainContent}
         rightPanel={!isMobile && rightPanelContent}
-        footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
         sidebarOpen={sidebarOpen}
         drawerWidth={DRAWER_WIDTH}
       />

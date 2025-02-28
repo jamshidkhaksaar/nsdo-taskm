@@ -58,8 +58,8 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 
 interface AdminDepartment {
   id: string;
@@ -102,26 +102,6 @@ interface UserResponse {
 
 const DRAWER_WIDTH = 240;
 
-const dialogPaperProps = {
-  sx: {
-    background: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(8px)',
-    minWidth: '500px',
-    borderRadius: '12px',
-    '& .MuiDialogTitle-root': {
-      background: 'rgba(0, 0, 0, 0.05)',
-      padding: '16px 24px',
-    },
-    '& .MuiDialogContent-root': {
-      padding: '24px',
-    },
-    '& .MuiDialogActions-root': {
-      padding: '16px 24px',
-      background: 'rgba(0, 0, 0, 0.05)',
-    },
-  }
-};
-
 const DepartmentManagement: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -148,6 +128,26 @@ const DepartmentManagement: React.FC = () => {
   });
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [tabValue, setTabValue] = useState(0);
+  const glassStyles = getGlassmorphismStyles(theme);
+  
+  // Define dialogPaperProps with glassmorphism styles
+  const dialogPaperProps = {
+    sx: {
+      ...glassStyles.form,
+      minWidth: '500px',
+      borderRadius: '16px',
+      '& .MuiDialogTitle-root': {
+        padding: '16px 24px',
+        color: 'white',
+      },
+      '& .MuiDialogContent-root': {
+        padding: '24px',
+      },
+      '& .MuiDialogActions-root': {
+        padding: '16px 24px',
+      },
+    }
+  };
 
   const fetchDepartments = useCallback(async () => {
     try {
@@ -660,10 +660,16 @@ const DepartmentManagement: React.FC = () => {
               required
               variant="outlined"
               placeholder="Enter department name"
+              InputLabelProps={{
+                style: glassStyles.inputLabel
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': glassStyles.input,
+              }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <BusinessIcon color="primary" />
+                    <BusinessIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                   </InputAdornment>
                 ),
               }}
@@ -677,16 +683,26 @@ const DepartmentManagement: React.FC = () => {
               fullWidth
               placeholder="Enter department description"
               variant="outlined"
+              InputLabelProps={{
+                style: glassStyles.inputLabel
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': glassStyles.input,
+              }}
             />
             <FormControl fullWidth variant="outlined">
-              <InputLabel>Department Head</InputLabel>
+              <InputLabel sx={glassStyles.inputLabel}>Department Head</InputLabel>
               <Select
                 value={formData.head || ''}
                 onChange={(e) => setFormData({ ...formData, head: e.target.value })}
                 label="Department Head"
+                sx={{
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                  ...glassStyles.input
+                }}
                 startAdornment={
                   <InputAdornment position="start">
-                    <PersonIcon color="primary" />
+                    <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                   </InputAdornment>
                 }
               >
@@ -703,15 +719,21 @@ const DepartmentManagement: React.FC = () => {
         <DialogActions>
           <Button 
             onClick={handleCloseDialog}
-            sx={{ color: 'text.secondary' }}
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.7)',
+              '&:hover': {
+                color: 'white',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              }
+            }}
           >
             Cancel
           </Button>
           <Button 
             onClick={handleAddDepartment} 
             variant="contained" 
-            color="primary"
             disabled={!formData.name}
+            sx={glassStyles.button}
           >
             {editMode.isEdit ? 'Update Department' : 'Create Department'}
           </Button>
@@ -797,7 +819,6 @@ const DepartmentManagement: React.FC = () => {
         />
       }
       mainContent={mainContent}
-      footer={<Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />}
       sidebarOpen={sidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />

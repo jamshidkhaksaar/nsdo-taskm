@@ -14,6 +14,7 @@ import {
   FormControlLabel,
   Checkbox,
   Link as MuiLink,
+  alpha,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
@@ -26,6 +27,9 @@ import type { Container as ParticlesContainer, Engine } from "tsparticles-engine
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
 import { Link } from 'react-router-dom';
+import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
+import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
+import LoginFooter from '../components/LoginFooter';
 
 interface LoginFormInputs {
   username: string;
@@ -46,6 +50,7 @@ const Login: React.FC = () => {
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const glassStyles = getGlassmorphismStyles(theme);
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -150,23 +155,8 @@ const Login: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        background: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)',
-        backgroundAttachment: 'fixed',
-        backgroundSize: 'cover',
+        ...standardBackgroundStyleNoPosition,
         overflow: 'hidden',
-        '&::before': {
-          content: '""',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.1)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.05)' stroke-width='0.5'/%3E%3C/svg%3E")`,
-          backgroundSize: '40px 40px',
-          opacity: 0.3,
-          pointerEvents: 'none',
-          zIndex: 0,
-        },
       }}
     >
       <Particles
@@ -237,13 +227,10 @@ const Login: React.FC = () => {
         sx={{
           width: '100%',
           maxWidth: '450px',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          ...glassStyles.form,
           padding: '40px',
           position: 'relative',
           zIndex: 2,
-          backdropFilter: 'blur(10px)',
           animation: `${fadeIn} 0.6s ease-out`,
         }}
       >
@@ -269,9 +256,10 @@ const Login: React.FC = () => {
             component="h1"
             sx={{
               fontWeight: 700,
-              color: theme.palette.primary.main,
+              ...glassStyles.text.primary,
               mb: 1,
               animation: `${slideIn} 0.8s ease-out`,
+              textShadow: '0 2px 10px rgba(0,0,0,0.2)',
             }}
           >
             Welcome Back
@@ -279,7 +267,7 @@ const Login: React.FC = () => {
           <Typography
             variant="body1"
             sx={{
-              color: theme.palette.text.secondary,
+              ...glassStyles.text.secondary,
               textAlign: 'center',
               animation: `${slideIn} 0.8s ease-out`,
             }}
@@ -297,9 +285,16 @@ const Login: React.FC = () => {
               '& .MuiAlert-message': {
                 width: '100%',
               },
+              backgroundColor: 'rgba(211, 47, 47, 0.15)',
+              backdropFilter: 'blur(10px)',
+              color: '#fff',
+              border: '1px solid rgba(211, 47, 47, 0.3)',
+              '& .MuiAlert-icon': {
+                color: '#fff'
+              }
             }}
           >
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle sx={{ color: '#fff' }}>Error</AlertTitle>
             {error}
           </Alert>
         )}
@@ -311,13 +306,13 @@ const Login: React.FC = () => {
             {...register('username')}
             error={!!errors.username}
             helperText={errors.username?.message}
+            variant="outlined"
+            InputLabelProps={{
+              style: glassStyles.inputLabel
+            }}
             sx={{
               mb: 2,
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: theme.palette.primary.main,
-                },
-              },
+              '& .MuiOutlinedInput-root': glassStyles.input,
             }}
           />
           <TextField
@@ -327,13 +322,13 @@ const Login: React.FC = () => {
             {...register('password')}
             error={!!errors.password}
             helperText={errors.password?.message}
+            variant="outlined"
+            InputLabelProps={{
+              style: glassStyles.inputLabel
+            }}
             sx={{
               mb: 1,
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: theme.palette.primary.main,
-                },
-              },
+              '& .MuiOutlinedInput-root': glassStyles.input,
             }}
           />
         </Box>
@@ -347,17 +342,28 @@ const Login: React.FC = () => {
           }}
         >
           <FormControlLabel
-            control={<Checkbox {...register('rememberMe')} color="primary" />}
-            label="Remember me"
+            control={
+              <Checkbox 
+                {...register('rememberMe')} 
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-checked': {
+                    color: 'rgba(255, 255, 255, 0.9)',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={glassStyles.text.secondary}>Remember me</Typography>}
           />
           <MuiLink
             component={Link}
             to="/forgot-password"
             sx={{
-              color: theme.palette.primary.main,
+              ...glassStyles.text.secondary,
               textDecoration: 'none',
               '&:hover': {
                 textDecoration: 'underline',
+                color: 'white',
               },
             }}
           >
@@ -375,10 +381,7 @@ const Login: React.FC = () => {
             textTransform: 'none',
             fontSize: '1rem',
             fontWeight: 600,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            '&:hover': {
-              boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)',
-            },
+            ...glassStyles.button,
           }}
         >
           {loading ? (
@@ -394,17 +397,18 @@ const Login: React.FC = () => {
             textAlign: 'center',
           }}
         >
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={glassStyles.text.muted}>
             Don't have an account?{' '}
             <MuiLink
               component={Link}
               to="/register"
               sx={{
-                color: theme.palette.primary.main,
+                color: 'rgba(255, 255, 255, 0.9)',
                 textDecoration: 'none',
                 fontWeight: 600,
                 '&:hover': {
                   textDecoration: 'underline',
+                  color: 'white',
                 },
               }}
             >
@@ -413,6 +417,8 @@ const Login: React.FC = () => {
           </Typography>
         </Box>
       </Box>
+      
+      <LoginFooter />
     </Box>
   );
 };

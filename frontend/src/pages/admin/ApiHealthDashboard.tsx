@@ -38,6 +38,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
 import { logout } from '../../store/slices/authSlice';
 import { useNavigate } from 'react-router-dom';
+import { standardBackgroundStyle } from '../../utils/backgroundStyles';
 
 // Define endpoint groups for testing
 const API_ENDPOINTS = {
@@ -505,9 +506,7 @@ const ApiHealthDashboard: React.FC = () => {
     <Box sx={{ 
       display: 'flex',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a237e 0%, #121212 100%)',
-      backgroundSize: 'cover',
-      backgroundAttachment: 'fixed',
+      ...standardBackgroundStyle,
       color: 'white'
     }}>
       <Sidebar 

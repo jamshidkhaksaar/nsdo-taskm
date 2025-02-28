@@ -27,12 +27,12 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import apiTester from '../../utils/apiTester';
 import Sidebar from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { logout } from '../../store/slices/authSlice';
+import { standardBackgroundStyle } from '../../utils/backgroundStyles';
 
 const ApiTesterPage: React.FC = () => {
   const [results, setResults] = useState<Record<string, any>>({});
@@ -200,9 +200,7 @@ const ApiTesterPage: React.FC = () => {
     <Box sx={{ 
       display: 'flex',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a237e 0%, #121212 100%)',
-      backgroundSize: 'cover',
-      backgroundAttachment: 'fixed',
+      ...standardBackgroundStyle,
       color: 'white'
     }}>
       <Sidebar 
@@ -402,7 +400,6 @@ const ApiTesterPage: React.FC = () => {
             </Box>
           </Paper>
         </Container>
-        <Footer open={sidebarOpen} drawerWidth={DRAWER_WIDTH} />
       </Box>
     </Box>
   );
