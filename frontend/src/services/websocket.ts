@@ -18,7 +18,7 @@ class WebSocketService {
 
   private connect() {
     try {
-      const wsUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws';
+      const wsUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:3001/ws';
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onopen = () => {

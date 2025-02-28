@@ -51,4 +51,30 @@ export class AuthService {
       throw new UnauthorizedException('Please check your login credentials');
     }
   }
+  
+  async refreshToken(refreshToken: string): Promise<{ access: string, refresh: string }> {
+    try {
+      // Verify the refresh token
+      const payload = this.jwtService.verify(refreshToken);
+      
+      // Find the user
+      const user = await this.usersService.findOne(payload.username);
+      
+      if (!user) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+      
+      // Generate a new access token
+      const newPayload: JwtPayload = { username: user.username, sub: user.id };
+      const accessToken = this.jwtService.sign(newPayload);
+      
+      // Return new tokens
+      return {
+        access: accessToken,
+        refresh: accessToken, // Using the same token for refresh for now
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
 } 

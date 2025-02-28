@@ -34,6 +34,8 @@ export const getRefreshToken = (): string | null => {
 export const logout = () => {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
+  localStorage.removeItem('token'); // Remove legacy token key
+  localStorage.removeItem('user');
   delete axios.defaults.headers.common['Authorization'];
 };
 
@@ -41,19 +43,41 @@ export const logout = () => {
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
+    console.log('No refresh token found, logging out');
     logout();
     return null;
   }
 
   try {
-    const response = await axios.post('/api/auth/token/refresh/', {
-      refresh: refreshToken
+    console.log('Attempting to refresh token...');
+    // Use the correct refresh token endpoint
+    const response = await axios.post('/api/auth/refresh', {
+      refresh_token: refreshToken
     });
     
-    const { access } = response.data;
-    storeTokens(access, refreshToken);
-    return access;
+    console.log('Token refresh response:', response.status);
+    
+    // Handle the response based on the backend's structure
+    if (response.data.access) {
+      // If the backend returns access and refresh tokens
+      const { access, refresh } = response.data;
+      console.log('New tokens received, storing them');
+      storeTokens(access, refresh || refreshToken);
+      return access;
+    } else if (response.data.token) {
+      // If the backend returns a token property instead
+      const { token, refresh } = response.data;
+      console.log('New token received, storing it');
+      storeTokens(token, refresh || refreshToken);
+      return token;
+    }
+    
+    // If we couldn't get a new token
+    console.log('No valid token in response, logging out');
+    logout();
+    return null;
   } catch (error) {
+    console.error('Token refresh failed:', error);
     logout();
     return null;
   }

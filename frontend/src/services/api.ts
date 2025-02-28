@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { LoginResponse, JWTResponse } from '../types';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'http://localhost:3001/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

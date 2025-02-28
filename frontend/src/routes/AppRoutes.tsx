@@ -10,12 +10,14 @@ import {
   TodoPage
 } from '../pages';
 import TaskBoardPage from '../pages/TaskBoardPage';
+import Register from '../pages/Register';
 import AdminRoutes from './AdminRoutes';
 
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route
         path="/dashboard"
         element={

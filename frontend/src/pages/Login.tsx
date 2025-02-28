@@ -13,6 +13,7 @@ import {
   CircularProgress,
   FormControlLabel,
   Checkbox,
+  Link as MuiLink,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
@@ -25,6 +26,7 @@ import type { Container as ParticlesContainer, Engine } from "tsparticles-engine
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
 import { AuthService } from '../services/auth';
+import { Link } from 'react-router-dom';
 
 interface LoginFormInputs {
   username: string;
@@ -62,7 +64,6 @@ const Login: React.FC = () => {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors }
   } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
@@ -74,7 +75,7 @@ const Login: React.FC = () => {
     }
   });
 
-  const { isAuthenticated, error: authError } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -106,6 +107,13 @@ const Login: React.FC = () => {
       }
 
       try {
+        console.log('Attempting login with:', { 
+          username: data.username, 
+          password: '***', 
+          verificationCode: need2FA ? '***' : undefined,
+          rememberMe: data.rememberMe
+        });
+        
         const response = await AuthService.login(
           data.username, 
           data.password,
@@ -113,19 +121,28 @@ const Login: React.FC = () => {
           data.rememberMe
         );
         
+        console.log('Login response:', response);
+        
         if (response.need_2fa) {
           setNeed2FA(true);
           setLoading(false);
           return;
         }
 
-        // Store tokens
-        localStorage.setItem('token', response.access);
+        // Store tokens consistently using access_token key
+        const accessToken = response.access || response.token;
+        const refreshToken = response.refresh || '';
+        
+        // Use consistent storage keys
+        localStorage.setItem('access_token', accessToken);
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
+        }
         localStorage.setItem('user', JSON.stringify(response.user));
 
         dispatch(loginSuccess({
           user: response.user,
-          token: response.access
+          token: accessToken
         }));
         
         navigate(from, { replace: true });
@@ -138,9 +155,11 @@ const Login: React.FC = () => {
           // The request was made and the server responded with a status code
           // that falls out of the range of 2xx
           if (err.response.status === 404) {
-            errorMessage = 'Login service not found. The server might be misconfigured.';
+            errorMessage = 'User not found. Please register first or check your username.';
           } else if (err.response.status === 401) {
             errorMessage = 'Invalid username or password. Please try again.';
+          } else if (err.response.data?.message) {
+            errorMessage = err.response.data.message;
           } else if (err.response.data?.error) {
             errorMessage = err.response.data.error;
           } else {
@@ -550,6 +569,26 @@ const Login: React.FC = () => {
             'Sign In'
           )}
         </Button>
+        
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+            Don't have an account?{' '}
+            <MuiLink
+              component={Link}
+              to="/register"
+              sx={{
+                color: '#fff',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                '&:hover': {
+                  textDecoration: 'underline',
+                }
+              }}
+            >
+              Sign Up
+            </MuiLink>
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
