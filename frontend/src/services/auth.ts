@@ -1,6 +1,5 @@
 import axios, { AxiosError } from 'axios';
 import { storeTokens } from '../utils/authUtils';
-import { CONFIG } from '../utils/config';
 import axiosInstance from '../utils/axios';
 
 // Define interfaces
@@ -31,62 +30,29 @@ export const login = async (username: string, password: string): Promise<LoginRe
   console.log(`Login attempt with username: ${username}, password: ${'*'.repeat(password.length)}`);
   
   try {
-    if (CONFIG.USE_MOCK_DATA) {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+    const response = await axiosInstance.post('/api/auth/login', { username, password });
+    
+    if (response.data && response.data.token) {
+      // Store tokens in localStorage
+      storeTokens(response.data.token, response.data.refresh || '');
       
-      // Create mock user data
-      const mockUser: User = {
-        id: '1',
-        username,
-        email: `${username}@example.com`,
-        role: 'admin',
-        firstName: 'Mock',
-        lastName: 'User',
-      };
+      // Set the token in axios headers for future requests
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       
-      // Generate mock tokens
-      const mockAccessToken = `mock_access_token_${Date.now()}`;
-      const mockRefreshToken = `mock_refresh_token_${Date.now()}`;
-      
-      // Store tokens and user data
-      storeTokens(mockAccessToken, mockRefreshToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      
-      console.log('Mock login successful');
-      
-      // Return mock response
       return {
         success: true,
         message: 'Login successful',
-        user: mockUser,
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
+        user: response.data.user,
+        accessToken: response.data.token,
+        refreshToken: response.data.refresh
+      };
+    } else {
+      console.error('Login response missing token:', response.data);
+      return {
+        success: false,
+        message: 'Invalid login response from server'
       };
     }
-    
-    // Real API login
-    const response = await axiosInstance.post<LoginResponse>('/auth/login', { username, password });
-    
-    if (response.data.success && response.data.accessToken) {
-      // Store tokens and user data
-      storeTokens(response.data.accessToken, response.data.refreshToken || '');
-      
-      if (response.data.user) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-      }
-      
-      console.log('Login successful');
-      
-      // Verify the token was set in axios instance
-      const authHeader = axiosInstance.defaults.headers.common['Authorization'];
-      if (!authHeader && process.env.NODE_ENV !== 'production') {
-        console.warn('Authorization header not set after login. Attempting to set it manually.');
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.accessToken}`;
-      }
-    }
-    
-    return response.data;
   } catch (error) {
     console.error('Login error:', error);
     
@@ -133,16 +99,13 @@ export const logout = async (): Promise<{ success: boolean; message: string }> =
       }
     }
     
-    // If not using mock data, call the logout endpoint
-    if (!CONFIG.USE_MOCK_DATA) {
-      try {
-        // We don't await this because we want to log out even if the server request fails
-        axiosInstance.post('/auth/logout').catch(error => {
-          console.warn('Error calling logout endpoint:', error);
-        });
-      } catch (error) {
-        console.warn('Error during server logout:', error);
-      }
+    try {
+      // We don't await this because we want to log out even if the server request fails
+      axiosInstance.post('/auth/logout').catch(error => {
+        console.warn('Error calling logout endpoint:', error);
+      });
+    } catch (error) {
+      console.warn('Error during server logout:', error);
     }
     
     return {

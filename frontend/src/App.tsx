@@ -6,7 +6,6 @@ import { AppRoutes } from './routes';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import ProtectedRoute from './routes/ProtectedRoute';
-import ConnectionStatus from './components/ConnectionStatus';
 
 const App: React.FC = () => {
   return (
@@ -31,7 +30,6 @@ const App: React.FC = () => {
           />
           <Route path="*" element={<AppRoutes />} />
         </Routes>
-        <ConnectionStatus position="bottom-right" />
       </ThemeProvider>
     </Router>
   );

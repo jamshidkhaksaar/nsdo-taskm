@@ -20,8 +20,8 @@ export interface Task {
   department: string | DepartmentRef | null;
   assigned_to: string[] | null;
   created_by: string | null;
-  updated_at: string;
-  created_at?: string; // Add created_at field for mock data
+  updated_at?: string;
+  created_at?: string;
   isUpdating?: boolean;
   comments?: Comment[];
 }
@@ -36,8 +36,8 @@ export interface CreateTask {
   assigned_to: string[] | null;
   department: string | DepartmentRef | null;
   is_private: boolean;
-  updated_at: string;
-  created_at?: string; // Add created_at field for mock data
+  updated_at?: string;
+  created_at?: string;
 }
 
 // Add a type for task updates
@@ -50,7 +50,7 @@ export interface TaskUpdate {
   is_private?: boolean;
   department?: string | DepartmentRef | null;
   assigned_to?: string[] | null;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface Comment {
