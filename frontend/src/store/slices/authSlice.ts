@@ -63,6 +63,11 @@ export const loginAsync = createAsyncThunk(
         return rejectWithValue(response.message || 'Login failed');
       }
       
+      // Store user data in localStorage for persistence
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+      }
+      
       // Ensure token is set in axios
       ensureAuthToken();
       

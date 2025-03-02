@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AdminModule } from './admin/admin.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AdminModule } from './admin/admin.module';
     UsersModule,
     DepartmentsModule,
     AdminModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

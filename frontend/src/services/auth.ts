@@ -32,18 +32,19 @@ export const login = async (username: string, password: string): Promise<LoginRe
   try {
     const response = await axiosInstance.post('/api/auth/login', { username, password });
     
-    if (response.data && response.data.token) {
+    // The backend returns { access, refresh, user }
+    if (response.data && response.data.access) {
       // Store tokens in localStorage
-      storeTokens(response.data.token, response.data.refresh || '');
+      storeTokens(response.data.access, response.data.refresh || '');
       
       // Set the token in axios headers for future requests
-      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
       
       return {
         success: true,
         message: 'Login successful',
         user: response.data.user,
-        accessToken: response.data.token,
+        accessToken: response.data.access,
         refreshToken: response.data.refresh
       };
     } else {

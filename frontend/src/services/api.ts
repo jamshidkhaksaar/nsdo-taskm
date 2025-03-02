@@ -32,7 +32,8 @@ export const login = async (username: string, password: string): Promise<LoginRe
     
     return {
       user: response.data.user,
-      token: response.data.access
+      access: response.data.access,
+      refresh: response.data.refresh
     };
   } catch (error) {
     console.error('Login error:', error);

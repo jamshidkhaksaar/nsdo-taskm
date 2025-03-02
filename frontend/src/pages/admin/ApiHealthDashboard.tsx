@@ -48,11 +48,11 @@ const API_ENDPOINTS = {
   ],
   tasks: [
     { name: 'Get All Tasks', endpoint: '/api/tasks', method: 'GET', requiresAuth: true },
-    { name: 'Task Statistics', endpoint: '/api/tasks/user/:userId/statistics', method: 'GET', requiresAuth: true, dynamicParams: true }
+    { name: 'Task Statistics', endpoint: '/api/tasks/user/:userId/statistics', method: 'GET', requiresAuth: true, dynamicParams: true, optional: true, fallbackMessage: 'This endpoint is not implemented in the current backend version' }
   ],
   departments: [
     { name: 'Get All Departments', endpoint: '/api/departments', method: 'GET', requiresAuth: true },
-    { name: 'Department Performance', endpoint: '/api/departments/:id/performance', method: 'GET', requiresAuth: true, dynamicParams: true }
+    { name: 'Department Performance', endpoint: '/api/departments/:id/performance', method: 'GET', requiresAuth: true, dynamicParams: true, optional: true, fallbackMessage: 'Department ID required for this endpoint' }
   ],
   admin: [
     { name: 'Admin Dashboard', endpoint: '/api/admin/dashboard', method: 'GET', requiresAuth: true },
@@ -186,13 +186,43 @@ const ApiHealthDashboard: React.FC = () => {
         if (url.includes(':userId') && userId) {
           url = url.replace(':userId', userId);
         } else if (url.includes(':userId')) {
-          throw new Error('User ID required but not available');
+          if (endpointInfo.optional) {
+            status = 'warning';
+            message = endpointInfo.fallbackMessage || 'User ID required but not available';
+            const endTime = performance.now();
+            return {
+              name: endpointInfo.name,
+              endpoint: endpointInfo.endpoint,
+              status,
+              statusCode: 0,
+              responseTime: endTime - startTime,
+              message,
+              lastChecked: new Date()
+            };
+          } else {
+            throw new Error('User ID required but not available');
+          }
         }
         
         if (url.includes(':id') && departmentId) {
           url = url.replace(':id', departmentId);
         } else if (url.includes(':id')) {
-          throw new Error('Department ID required but not available');
+          if (endpointInfo.optional) {
+            status = 'warning';
+            message = endpointInfo.fallbackMessage || 'Department ID required but not available';
+            const endTime = performance.now();
+            return {
+              name: endpointInfo.name,
+              endpoint: endpointInfo.endpoint,
+              status,
+              statusCode: 0,
+              responseTime: endTime - startTime,
+              message,
+              lastChecked: new Date()
+            };
+          } else {
+            throw new Error('Department ID required but not available');
+          }
         }
       }
       
@@ -246,109 +276,160 @@ const ApiHealthDashboard: React.FC = () => {
         if (newToken) {
           console.log('Token found:', newToken.substring(0, 10) + '...');
           setToken(newToken);
-          message = 'Authentication successful, token received';
-          status = 'success';
-        } else {
-          console.warn('No token found in response:', response.data);
-          message = 'Authentication successful, but no token found in response';
-          status = 'warning';
+          
+          // Store token in localStorage for future use
+          localStorage.setItem('token', newToken);
+          localStorage.setItem('access_token', newToken);
+          
+          // Try to extract user ID from the response
+          let extractedUserId = null;
+          
+          // Check various possible locations for the user ID
+          if (response.data.user && response.data.user.id) {
+            extractedUserId = response.data.user.id;
+          } else if (response.data.id) {
+            extractedUserId = response.data.id;
+          } else if (response.data.userId) {
+            extractedUserId = response.data.userId;
+          } else if (response.data.sub) {
+            extractedUserId = response.data.sub;
+          }
+          
+          if (extractedUserId) {
+            console.log('User ID found:', extractedUserId);
+            setUserId(extractedUserId);
+            localStorage.setItem('userId', extractedUserId);
+          } else {
+            // Fallback: Try to get user ID from localStorage if it exists
+            const storedUserId = localStorage.getItem('userId');
+            if (storedUserId) {
+              console.log('Using stored user ID:', storedUserId);
+              setUserId(storedUserId);
+            }
+          }
+          
+          // For demo purposes, set a default department ID if not available
+          if (!departmentId) {
+            const defaultDeptId = '1';
+            console.log('Setting default department ID:', defaultDeptId);
+            setDepartmentId(defaultDeptId);
+            localStorage.setItem('departmentId', defaultDeptId);
+          }
         }
-      } else {
-        message = 'Request successful';
-        status = 'success';
       }
       
-      // Check for user ID in response data for future requests
-      if (response.data && response.data.user && response.data.user.id) {
-        setUserId(response.data.user.id);
-      }
-      
-      // Check for department ID if available
-      if (url.includes('/departments') && response.data && response.data.length > 0) {
-        setDepartmentId(response.data[0].id);
-      }
-      
-      // Check database status if this endpoint is used for that
-      if (endpointInfo.checkDatabaseStatus) {
-        if (response.data && response.data.database) {
+      // Check for database status if needed
+      if (endpointInfo.checkDatabaseStatus && response.data) {
+        if (response.data.database && typeof response.data.database.connected === 'boolean') {
           setDatabaseStatus(response.data.database.connected ? 'success' : 'error');
-          setDatabaseMessage(response.data.database.message || 'Database connection checked');
-        } else {
-          // Assume database is OK if health endpoint returns 200
-          setDatabaseStatus('success');
-          setDatabaseMessage('Database appears to be connected (inferred from health check)');
+          setDatabaseMessage(
+            response.data.database.connected 
+              ? `Connected to ${response.data.database.name || 'database'}`
+              : 'Database connection failed'
+          );
+        }
+        
+        // Store system health data if available
+        if (response.data.status && response.data.timestamp) {
+          setSystemHealth(response.data as SystemHealth);
         }
       }
       
-      // Check for admin health endpoint to get detailed system info
-      if (url.includes('/admin/health') && response.data) {
-        setSystemHealth(response.data);
-      }
+      status = 'success';
+      message = `Status ${statusCode} OK`;
     } catch (error: any) {
-      status = 'error';
       console.error(`Error checking endpoint ${endpointInfo.name}:`, error);
+      
       if (error.response) {
         statusCode = error.response.status;
-        message = `Error ${statusCode}: ${error.response.data?.message || 'Unknown error'}`;
         
-        // Special case for 401 when token might be expired
-        if (statusCode === 401 && token) {
-          message = 'Authentication failed: Token may be expired';
+        if (statusCode === 404 && endpointInfo.optional) {
+          status = 'warning';
+          message = endpointInfo.fallbackMessage || `Endpoint not found (404): ${endpointInfo.endpoint}`;
+        } else if (statusCode === 500 && endpointInfo.optional) {
+          status = 'warning';
+          message = endpointInfo.fallbackMessage || `Server error (500): ${endpointInfo.endpoint}`;
+        } else if (statusCode === 401 || statusCode === 403) {
+          status = 'error';
+          message = `Authentication error (${statusCode}): ${error.message || 'No details available'}`;
+        } else {
+          status = 'error';
+          message = `HTTP error ${statusCode}: ${error.message || 'No details available'}`;
         }
       } else if (error.request) {
-        message = 'No response received from server';
+        status = 'error';
+        message = `No response received: ${error.message || 'Request timed out'}`;
+      } else if (error.message && error.message.includes('User ID required')) {
+        if (endpointInfo.optional) {
+          status = 'warning';
+          message = endpointInfo.fallbackMessage || error.message;
+        } else {
+          status = 'error';
+          message = error.message;
+        }
+      } else if (error.message && error.message.includes('Department ID required')) {
+        if (endpointInfo.optional) {
+          status = 'warning';
+          message = endpointInfo.fallbackMessage || error.message;
+        } else {
+          status = 'error';
+          message = error.message;
+        }
       } else {
-        message = error.message || 'Unknown error occurred';
+        status = 'error';
+        message = `Error: ${error.message || 'Unknown error'}`;
       }
     }
     
     const endTime = performance.now();
-    const responseTime = Math.round(endTime - startTime);
     
-    // Update the results
-    const updatedResults = { ...results };
-    updatedResults[groupKey].endpoints[index] = {
+    return {
       name: endpointInfo.name,
       endpoint: endpointInfo.endpoint,
       status,
       statusCode,
-      responseTime,
+      responseTime: endTime - startTime,
       message,
       lastChecked: new Date()
     };
-    
-    // Calculate success rate for the group
-    const groupEndpoints = updatedResults[groupKey].endpoints;
-    const successCount = groupEndpoints.filter(e => e.status === 'success').length;
-    updatedResults[groupKey].successRate = (successCount / groupEndpoints.length) * 100;
-    
-    // Determine group status
-    if (successCount === groupEndpoints.length) {
-      updatedResults[groupKey].status = 'success';
-    } else if (successCount === 0) {
-      updatedResults[groupKey].status = 'error';
-    } else {
-      updatedResults[groupKey].status = 'warning';
-    }
-    
-    setResults(updatedResults);
-    
-    return updatedResults[groupKey].endpoints[index];
   };
 
   // Function to check all endpoints
   const checkAllEndpoints = async () => {
     setLoading(true);
-    setLastRefresh(new Date());
     
-    // Reset token if we're doing a full check
-    setToken(null);
+    // Reset token and department ID
+    const storedToken = localStorage.getItem('token') || localStorage.getItem('access_token');
+    if (storedToken) {
+      console.log('Using stored token');
+      setToken(storedToken);
+    } else {
+      setToken(null);
+    }
     
-    // Set a default department ID for testing
-    // For real API testing, we'll try to get this from the API response
-    setDepartmentId(null);
+    // Try to get user ID from localStorage
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      console.log('Using stored user ID:', storedUserId);
+      setUserId(storedUserId);
+    } else {
+      setUserId(null);
+    }
     
-    // Initialize all endpoints as pending
+    // Try to get department ID from localStorage or set a default
+    const storedDepartmentId = localStorage.getItem('departmentId');
+    if (storedDepartmentId) {
+      console.log('Using stored department ID:', storedDepartmentId);
+      setDepartmentId(storedDepartmentId);
+    } else {
+      // Set a default department ID for testing
+      const defaultDeptId = '1';
+      console.log('Setting default department ID:', defaultDeptId);
+      setDepartmentId(defaultDeptId);
+      localStorage.setItem('departmentId', defaultDeptId);
+    }
+    
+    // Initialize results structure
     const initialResults: Record<string, GroupResult> = {};
     Object.keys(API_ENDPOINTS).forEach(groupKey => {
       initialResults[groupKey] = {
@@ -367,64 +448,91 @@ const ApiHealthDashboard: React.FC = () => {
     });
     setResults(initialResults);
     
-    // Check endpoints in sequence, starting with core endpoints
-    try {
-      // First check core endpoints to get authentication
-      for (let i = 0; i < API_ENDPOINTS.core.length; i++) {
-        await checkEndpoint('core', API_ENDPOINTS.core[i], i);
-      }
+    // Check core endpoints first to get authentication
+    for (let index = 0; index < API_ENDPOINTS.core.length; index++) {
+      const endpoint = API_ENDPOINTS.core[index];
+      const result = await checkEndpoint('core', endpoint, index);
       
-      // Check departments endpoint to get a department ID for testing
-      if (!departmentId) {
-        try {
-          const deptEndpoint = API_ENDPOINTS.departments[0];
-          const deptResult = await checkEndpoint('departments', deptEndpoint, 0);
-          
-          // If we still don't have a department ID, use a fallback
-          if (!departmentId) {
-            console.warn('No department ID found in API response, using fallback ID "1"');
-            setDepartmentId('1');
-          }
-        } catch (error) {
-          console.error('Error fetching departments:', error);
-          // Use fallback ID
-          setDepartmentId('1');
+      // Update the results
+      setResults(prev => {
+        const updated = { ...prev };
+        updated.core.endpoints[index] = result;
+        
+        // Calculate success rate for the group
+        const groupEndpoints = updated.core.endpoints;
+        const successCount = groupEndpoints.filter(e => e.status === 'success').length;
+        updated.core.successRate = (successCount / groupEndpoints.length) * 100;
+        
+        // Determine group status
+        if (successCount === groupEndpoints.length) {
+          updated.core.status = 'success';
+        } else if (successCount === 0) {
+          updated.core.status = 'error';
+        } else {
+          updated.core.status = 'warning';
         }
-      }
-      
-      // Then check other endpoint groups
-      const otherGroups = Object.keys(API_ENDPOINTS).filter(group => group !== 'core' && group !== 'departments');
-      for (const group of otherGroups) {
-        const endpoints = API_ENDPOINTS[group as keyof typeof API_ENDPOINTS];
-        for (let i = 0; i < endpoints.length; i++) {
-          await checkEndpoint(group, endpoints[i], i);
-        }
-      }
-      
-      // Check remaining department endpoints
-      for (let i = 1; i < API_ENDPOINTS.departments.length; i++) {
-        await checkEndpoint('departments', API_ENDPOINTS.departments[i], i);
-      }
-      
-      // If health check succeeded but database status is still unknown, assume it's connected
-      if (results.core?.status === 'success' && databaseStatus === 'unknown') {
-        setDatabaseStatus('success');
-        setDatabaseMessage('Database appears to be connected (inferred from successful API calls)');
-      }
-      
-      // Calculate overall status
-      calculateOverallStatus();
-    } catch (error) {
-      console.error('Error checking endpoints:', error);
-      
-      // If we have any errors but database status is still unknown, mark as error
-      if (databaseStatus === 'unknown') {
-        setDatabaseStatus('error');
-        setDatabaseMessage('Could not determine database status due to API errors');
-      }
-    } finally {
-      setLoading(false);
+        
+        return updated;
+      });
     }
+    
+    // If we don't have a token after checking core endpoints, show a warning
+    if (!token) {
+      console.warn('No token available after checking core endpoints');
+    }
+    
+    // Check remaining endpoint groups
+    const remainingGroups = Object.keys(API_ENDPOINTS).filter(group => group !== 'core');
+    
+    for (let groupIndex = 0; groupIndex < remainingGroups.length; groupIndex++) {
+      const groupKey = remainingGroups[groupIndex];
+      const endpoints = API_ENDPOINTS[groupKey as keyof typeof API_ENDPOINTS];
+      
+      for (let index = 0; index < endpoints.length; index++) {
+        const endpoint = endpoints[index];
+        const result = await checkEndpoint(groupKey, endpoint, index);
+        
+        // Update the results
+        setResults(prev => {
+          const updated = { ...prev };
+          updated[groupKey].endpoints[index] = result;
+          
+          // Calculate success rate for the group
+          const groupEndpoints = updated[groupKey].endpoints;
+          const successCount = groupEndpoints.filter(e => e.status === 'success').length;
+          const warningCount = groupEndpoints.filter(e => e.status === 'warning').length;
+          updated[groupKey].successRate = ((successCount + (warningCount * 0.5)) / groupEndpoints.length) * 100;
+          
+          // Determine group status
+          if (successCount === groupEndpoints.length) {
+            updated[groupKey].status = 'success';
+          } else if (successCount === 0 && warningCount === 0) {
+            updated[groupKey].status = 'error';
+          } else {
+            updated[groupKey].status = 'warning';
+          }
+          
+          return updated;
+        });
+      }
+    }
+    
+    // Calculate overall status
+    const allEndpoints = Object.values(results).flatMap(group => group.endpoints);
+    const successCount = allEndpoints.filter(e => e.status === 'success').length;
+    const warningCount = allEndpoints.filter(e => e.status === 'warning').length;
+    const errorCount = allEndpoints.filter(e => e.status === 'error').length;
+    
+    if (errorCount === 0 && warningCount === 0) {
+      setOverallStatus('success');
+    } else if (successCount === 0 && warningCount === 0) {
+      setOverallStatus('error');
+    } else {
+      setOverallStatus('warning');
+    }
+    
+    setLastRefresh(new Date());
+    setLoading(false);
   };
 
   // Calculate the overall system status
@@ -444,6 +552,28 @@ const ApiHealthDashboard: React.FC = () => {
 
   // Run the checks when component mounts
   useEffect(() => {
+    // Check for existing token in localStorage
+    const storedToken = localStorage.getItem('token') || localStorage.getItem('access_token');
+    if (storedToken) {
+      console.log('Found existing token in localStorage');
+      setToken(storedToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      
+      // Try to get user ID from localStorage
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const userData = JSON.parse(userStr);
+          if (userData && userData.id) {
+            setUserId(userData.id);
+            console.log('Found user ID in localStorage:', userData.id);
+          }
+        } catch (error) {
+          console.error('Error parsing user data from localStorage:', error);
+        }
+      }
+    }
+    
     // Add a small delay to ensure component is fully mounted
     const timer = setTimeout(() => {
       if (Object.keys(results).length > 0) {

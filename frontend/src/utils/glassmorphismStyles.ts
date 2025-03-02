@@ -64,11 +64,11 @@ export const glassmorphismCardStyle = {
 };
 
 // Function to get theme-aware glassmorphism styles
-export const getGlassmorphismStyles = (theme: Theme) => ({
+export const getGlassmorphismStyles = (theme: Theme = { palette: { error: { light: '#f44336' } } } as Theme) => ({
   input: {
     ...glassmorphismInputStyle,
     '& .MuiFormHelperText-root': {
-      color: theme.palette.error.light,
+      color: theme?.palette?.error?.light || '#f44336',
     },
   },
   form: glassmorphismFormStyle,

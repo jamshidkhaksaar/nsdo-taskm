@@ -1,0 +1,172 @@
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { BrowserRouter } from 'react-router-dom';
+import configureStore from 'redux-mock-store';
+import Dashboard from '../../pages/Dashboard';
+import axios from '../../utils/axios';
+
+// Mock axios
+jest.mock('../../utils/axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
+
+// Mock the components used in Dashboard
+jest.mock('../../components/dashboard/WeatherWidget', () => {
+  return function MockWeatherWidget() {
+    return <div data-testid="weather-widget">Weather Widget</div>;
+  };
+});
+
+jest.mock('../../components/dashboard/TaskSummary', () => {
+  return function MockTaskSummary({ tasks }: { tasks: any[] }) {
+    return <div data-testid="task-summary">Task Summary: {tasks.length} tasks</div>;
+  };
+});
+
+jest.mock('../../components/dashboard/TaskKanbanBoard', () => {
+  return function MockTaskKanbanBoard({ tasks }: { tasks: any[] }) {
+    return <div data-testid="task-kanban-board">Task Kanban Board: {tasks.length} tasks</div>;
+  };
+});
+
+jest.mock('../../components/tasks/CreateTaskDialog', () => {
+  return function MockCreateTaskDialog() {
+    return <div data-testid="create-task-dialog">Create Task Dialog</div>;
+  };
+});
+
+jest.mock('../../components/Sidebar', () => {
+  return function MockSidebar() {
+    return <div data-testid="sidebar">Sidebar</div>;
+  };
+});
+
+// Create mock store
+const mockStore = configureStore([]);
+
+describe('Dashboard Page', () => {
+  let store: any;
+  
+  beforeEach(() => {
+    // Reset mocks
+    jest.clearAllMocks();
+    
+    // Setup mock store with authenticated user
+    store = mockStore({
+      auth: {
+        isAuthenticated: true,
+        token: 'mock-token',
+        user: {
+          id: 'user1',
+          name: 'Test User',
+          email: 'test@example.com',
+        },
+      },
+    });
+    
+    // Mock successful API response
+    mockedAxios.get.mockResolvedValue({
+      data: [
+        {
+          id: '1',
+          title: 'Task 1',
+          description: 'Description 1',
+          status: 'pending',
+          priority: 'medium',
+          due_date: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          user_id: 'user1',
+        },
+        {
+          id: '2',
+          title: 'Task 2',
+          description: 'Description 2',
+          status: 'in_progress',
+          priority: 'high',
+          due_date: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          user_id: 'user1',
+        },
+      ],
+    });
+  });
+  
+  test('renders dashboard components when authenticated', async () => {
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Dashboard />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Check if API was called to fetch tasks
+    expect(mockedAxios.get).toHaveBeenCalledWith('/api/tasks');
+    
+    // Wait for tasks to load
+    await waitFor(() => {
+      // Check if dashboard components are rendered
+      expect(screen.getByTestId('weather-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('task-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('task-kanban-board')).toBeInTheDocument();
+      
+      // Check if task count is correct
+      expect(screen.getByText('Task Summary: 2 tasks')).toBeInTheDocument();
+      expect(screen.getByText('Task Kanban Board: 2 tasks')).toBeInTheDocument();
+    });
+  });
+  
+  test('handles API error when fetching tasks', async () => {
+    // Mock API error
+    mockedAxios.get.mockRejectedValue(new Error('Failed to fetch tasks'));
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Dashboard />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Wait for error to be handled
+    await waitFor(() => {
+      // Error should be displayed
+      expect(screen.getByText('Failed to load tasks. Please try again later.')).toBeInTheDocument();
+    });
+  });
+  
+  test('redirects to login when not authenticated', () => {
+    // Setup store with unauthenticated user
+    const unauthenticatedStore = mockStore({
+      auth: {
+        isAuthenticated: false,
+        token: null,
+        user: null,
+      },
+    });
+    
+    // Mock navigate function
+    const mockNavigate = jest.fn();
+    jest.mock('react-router-dom', () => ({
+      ...jest.requireActual('react-router-dom'),
+      useNavigate: () => mockNavigate,
+    }));
+    
+    render(
+      <Provider store={unauthenticatedStore}>
+        <BrowserRouter>
+          <Dashboard />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Check if redirect happens
+    // Note: Since we can't easily test useNavigate in this setup,
+    // we're just checking if the dashboard components are not rendered
+    expect(screen.queryByTestId('weather-widget')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-summary')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-kanban-board')).not.toBeInTheDocument();
+  });
+}); 

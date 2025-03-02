@@ -32,7 +32,8 @@ export interface AuthState {
 
 export interface LoginResponse {
   user: User;
-  token: string;
+  access: string;
+  refresh?: string;
 }
 
 export interface JWTResponse {

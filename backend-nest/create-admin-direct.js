@@ -36,7 +36,7 @@ async function createAdminUser() {
     port: process.env.DATABASE_PORT || 3306,
     user: process.env.DATABASE_USERNAME || 'root',
     password: process.env.DATABASE_PASSWORD || 'root',
-    database: process.env.DATABASE_NAME || 'taskmanagement'
+    database: process.env.DATABASE_NAME || 'taskmanagement_new'
   });
 
   try {

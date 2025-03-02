@@ -61,9 +61,20 @@
     ]
   },
   "devDependencies": {
+    "@babel/runtime": "^7.26.9",
     "@craco/craco": "^7.1.0",
+    "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^29.5.14",
+    "@types/jest-axe": "^3.5.9",
     "@types/node": "^16.0.0",
-    "@types/uuid": "^10.0.0"
+    "@types/redux-mock-store": "^1.5.0",
+    "@types/uuid": "^10.0.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest-axe": "^9.0.0",
+    "msw": "^2.7.3",
+    "redux-mock-store": "^1.5.5",
+    "ts-jest": "^29.2.6"
   }
 }
