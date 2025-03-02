@@ -176,4 +176,8 @@ You can use the provided test scripts to test the API:
 
 ## License
 
+<<<<<<< HEAD
 This project is licensed under the MIT License. 
+=======
+This project is licensed under the MIT License. 
+>>>>>>> c707b325ea05d61f3e6853678609a8bbf3cd3417
