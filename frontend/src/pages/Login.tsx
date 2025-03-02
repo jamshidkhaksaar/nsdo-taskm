@@ -30,6 +30,9 @@ import { Link } from 'react-router-dom';
 import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
 import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 import LoginFooter from '../components/LoginFooter';
+import axiosInstance from '../utils/axios';
+import axios from 'axios';
+import { setCredentials } from '../store/slices/authSlice';
 
 interface LoginFormInputs {
   username: string;
@@ -51,6 +54,7 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const from = (location.state as any)?.from?.pathname || '/dashboard';
   const glassStyles = getGlassmorphismStyles(theme);
+  const [error, setError] = useState('');
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -62,7 +66,7 @@ const Login: React.FC = () => {
 
   const {
     register,
-    handleSubmit,
+    handleSubmit: formSubmit,
     formState: { errors }
   } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
@@ -73,7 +77,7 @@ const Login: React.FC = () => {
     }
   });
 
-  const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, loading, error: reduxError } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -107,20 +111,84 @@ const Login: React.FC = () => {
         localStorage.removeItem('rememberedUsername');
       }
 
-      console.log('Starting login process...');
+      console.log('Attempting login with:', { username: data.username, password: '***' });
+      setIsLoading(true);
       
-      // Dispatch the login async action
-      const resultAction = await dispatch(loginAsync({
-        username: data.username,
-        password: data.password
-      }));
-      
-      if (loginAsync.fulfilled.match(resultAction)) {
-        console.log('Login successful, navigating to:', from);
-        navigate(from, { replace: true });
+      try {
+        // Use our configured axios instance instead of the default axios
+        const response = await axiosInstance.post('/api/auth/login', { 
+          username: data.username, 
+          password: data.password 
+        });
+        
+        console.log('Login response:', response.data);
+        
+        if (response.data) {
+          // Extract tokens and user data
+          const accessToken = response.data.access || response.data.accessToken || response.data.token;
+          const refreshToken = response.data.refresh || response.data.refreshToken || '';
+          const userData = response.data.user || {};
+          
+          if (!accessToken) {
+            throw new Error('No access token received from server');
+          }
+          
+          // Store tokens in localStorage
+          localStorage.setItem('access_token', accessToken);
+          if (refreshToken) {
+            localStorage.setItem('refresh_token', refreshToken);
+          }
+          
+          // Store user data
+          if (userData) {
+            localStorage.setItem('user', JSON.stringify(userData));
+          }
+          
+          // Set token in axios headers - use our configured instance
+          axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+          
+          // Dispatch login action to Redux
+          dispatch(setCredentials({
+            user: userData,
+            token: accessToken
+          }));
+          
+          // Redirect to dashboard
+          console.log('Login successful, navigating to:', from);
+          navigate(from, { replace: true });
+        } else {
+          throw new Error('Invalid response from server');
+        }
+      } catch (err: any) {
+        console.error('Login error:', err);
+        
+        // Handle different error types
+        if (axios.isAxiosError(err)) {
+          if (err.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            const errorMessage = err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
+            setError(errorMessage);
+            dispatch({ type: 'auth/loginAsync/rejected', payload: errorMessage });
+          } else if (err.request) {
+            // The request was made but no response was received
+            setError('No response from server. Please check your connection.');
+            dispatch({ type: 'auth/loginAsync/rejected', payload: 'No response from server. Please check your connection.' });
+          } else {
+            // Something happened in setting up the request that triggered an Error
+            setError(err.message || 'An error occurred during login');
+            dispatch({ type: 'auth/loginAsync/rejected', payload: err.message || 'An error occurred during login' });
+          }
+        } else {
+          setError(err.message || 'An unknown error occurred');
+          dispatch({ type: 'auth/loginAsync/rejected', payload: err.message || 'An unknown error occurred' });
+        }
+      } finally {
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('Unexpected error during login:', error);
+      setIsLoading(false);
     }
   };
 
@@ -223,7 +291,7 @@ const Login: React.FC = () => {
       
       <Box
         component="form"
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={formSubmit(onSubmit)}
         sx={{
           width: '100%',
           maxWidth: '450px',

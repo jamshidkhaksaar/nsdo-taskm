@@ -28,6 +28,7 @@ import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { SettingsService } from '../../services/settings';
 
 const DRAWER_WIDTH = 240;
 
@@ -260,17 +261,19 @@ const SystemSettings: React.FC = () => {
     message: '',
     severity: 'success'
   });
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [generatingApiKey, setGeneratingApiKey] = useState(false);
 
   // Update useEffect to fetch notification settings too
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        // Fetch all settings
+        // Fetch all settings using SettingsService
         const [securityResponse, backupResponse, notificationResponse, apiResponse] = await Promise.all([
-          axios.get('/api/security-settings/1/'),
-          axios.get('/api/backup-settings/1/'),
-          axios.get('/api/notification-settings/1/'),
-          axios.get('/api/api-settings/1/')
+          SettingsService.getSecuritySettings(),
+          SettingsService.getBackupSettings(),
+          SettingsService.getNotificationSettings(),
+          SettingsService.getApiSettings()
         ]);
         
         // Update settings in state
@@ -281,10 +284,10 @@ const SystemSettings: React.FC = () => {
                 ...section,
                 settings: section.settings.map(setting => {
                   const backendField = securitySettingsMap[setting.id as keyof typeof securitySettingsMap];
-                  if (backendField && backendField in securityResponse.data) {
+                  if (backendField && backendField in securityResponse) {
                     return {
                       ...setting,
-                      value: securityResponse.data[backendField]
+                      value: securityResponse[backendField]
                     };
                   }
                   return setting;
@@ -296,10 +299,10 @@ const SystemSettings: React.FC = () => {
                 ...section,
                 settings: section.settings.map(setting => {
                   const backendField = backupSettingsMap[setting.id as keyof typeof backupSettingsMap];
-                  if (backendField && backendField in backupResponse.data) {
+                  if (backendField && backendField in backupResponse) {
                     return {
                       ...setting,
-                      value: backupResponse.data[backendField]
+                      value: backupResponse[backendField]
                     };
                   }
                   return setting;
@@ -311,10 +314,10 @@ const SystemSettings: React.FC = () => {
                 ...section,
                 settings: section.settings.map(setting => {
                   const backendField = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
-                  if (backendField && backendField in notificationResponse.data) {
+                  if (backendField && backendField in notificationResponse) {
                     return {
                       ...setting,
-                      value: notificationResponse.data[backendField]
+                      value: notificationResponse[backendField]
                     };
                   }
                   return setting;
@@ -326,10 +329,10 @@ const SystemSettings: React.FC = () => {
                 ...section,
                 settings: section.settings.map(setting => {
                   const backendField = apiSettingsMap[setting.id as keyof typeof apiSettingsMap];
-                  if (backendField && backendField in apiResponse.data) {
+                  if (backendField && backendField in apiResponse) {
                     return {
                       ...setting,
-                      value: apiResponse.data[backendField]
+                      value: apiResponse[backendField]
                     };
                   }
                   return setting;
@@ -505,7 +508,7 @@ const SystemSettings: React.FC = () => {
           return acc;
         }, {} as Record<string, any>);
 
-        await axios.patch('/api/security-settings/1/', securitySettings);
+        await SettingsService.updateSecuritySettings(securitySettings);
       }
 
       // Save backup settings
@@ -523,7 +526,7 @@ const SystemSettings: React.FC = () => {
           return acc;
         }, {} as Record<string, any>);
 
-        await axios.patch('/api/backup-settings/1/', backupSettings);
+        await SettingsService.updateBackupSettings(backupSettings);
       }
 
       // Save notification settings
@@ -541,7 +544,7 @@ const SystemSettings: React.FC = () => {
           return acc;
         }, {} as Record<string, any>);
 
-        await axios.patch('/api/notification-settings/1/', notificationSettings);
+        await SettingsService.updateNotificationSettings(notificationSettings);
       }
 
       // Save API settings
@@ -559,7 +562,7 @@ const SystemSettings: React.FC = () => {
           return acc;
         }, {} as Record<string, any>);
 
-        await axios.patch('/api/api-settings/1/', apiSettings);
+        await SettingsService.updateApiSettings(apiSettings);
       }
 
       setSnackbar({
@@ -574,6 +577,96 @@ const SystemSettings: React.FC = () => {
         message: 'Failed to save settings',
         severity: 'error'
       });
+    }
+  };
+
+  // Add test email function
+  const handleTestEmailSettings = async () => {
+    try {
+      setTestingEmail(true);
+      setSnackbar({
+        open: true,
+        message: 'Sending test email...',
+        severity: 'info'
+      });
+      
+      const notificationSection = settings.find(s => s.id === 'notifications');
+      if (notificationSection) {
+        const notificationSettings = notificationSection.settings.reduce((acc, setting) => {
+          const backendFieldName = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
+          if (backendFieldName) {
+            let processedValue = setting.value;
+            if (setting.type === 'number') {
+              processedValue = parseInt(setting.value, 10);
+            }
+            acc[backendFieldName] = processedValue;
+          }
+          return acc;
+        }, {} as Record<string, any>);
+
+        // Use SettingsService instead of direct axios call
+        await SettingsService.testEmailSettings(notificationSettings);
+        
+        setSnackbar({
+          open: true,
+          message: 'Test email sent successfully',
+          severity: 'success'
+        });
+      }
+    } catch (error) {
+      console.error('Error testing email settings:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to send test email',
+        severity: 'error'
+      });
+    } finally {
+      setTestingEmail(false);
+    }
+  };
+
+  // Add generate API key function
+  const handleGenerateApiKey = async () => {
+    try {
+      setGeneratingApiKey(true);
+      // Use SettingsService instead of direct axios call
+      const response = await SettingsService.generateApiKey();
+      
+      // Update the API key in the settings
+      setSettings(prevSettings => 
+        prevSettings.map(section => {
+          if (section.id === 'api') {
+            return {
+              ...section,
+              settings: section.settings.map(setting => {
+                if (setting.id === 'apiKey') {
+                  return {
+                    ...setting,
+                    value: response.api_key || response.apiKey
+                  };
+                }
+                return setting;
+              })
+            };
+          }
+          return section;
+        })
+      );
+      
+      setSnackbar({
+        open: true,
+        message: 'New API key generated successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error generating API key:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to generate new API key',
+        severity: 'error'
+      });
+    } finally {
+      setGeneratingApiKey(false);
     }
   };
 
@@ -743,6 +836,44 @@ const SystemSettings: React.FC = () => {
                 </Box>
               ))}
             </FormGroup>
+
+            {section.id === 'notifications' && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleTestEmailSettings}
+                  disabled={testingEmail}
+                  sx={{
+                    color: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      borderColor: 'rgba(255, 255, 255, 0.8)',
+                    },
+                  }}
+                >
+                  {testingEmail ? 'Sending...' : 'Test Email Settings'}
+                </Button>
+              </Box>
+            )}
+            
+            {section.id === 'api' && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleGenerateApiKey}
+                  disabled={generatingApiKey}
+                  sx={{
+                    color: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      borderColor: 'rgba(255, 255, 255, 0.8)',
+                    },
+                  }}
+                >
+                  {generatingApiKey ? 'Generating...' : 'Generate New API Key'}
+                </Button>
+              </Box>
+            )}
           </AccordionDetails>
         </Accordion>
       ))}

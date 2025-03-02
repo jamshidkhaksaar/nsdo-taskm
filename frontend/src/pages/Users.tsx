@@ -76,16 +76,41 @@ const Users: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
+      console.log('[Users] Fetching users and tasks data...');
+      
       const [usersResponse, tasksResponse] = await Promise.all([
         UserService.getUsers(),
         TaskService.getTasks(),
       ]);
-      setUsers(usersResponse);
-      setTasks(tasksResponse);
-      setError(null);
+      
+      console.log('[Users] Users data received:', usersResponse);
+      console.log('[Users] Tasks data received:', tasksResponse);
+      
+      // Check if users data is valid
+      if (!usersResponse || (Array.isArray(usersResponse) && usersResponse.length === 0)) {
+        console.warn('[Users] No users data returned from API');
+        setUsers([]);
+        // Don't set an error, just show empty state
+      } else {
+        setUsers(usersResponse);
+      }
+      
+      // Check if tasks data is valid
+      if (!tasksResponse || (Array.isArray(tasksResponse) && tasksResponse.length === 0)) {
+        console.warn('[Users] No tasks data returned from API');
+        setTasks([]);
+      } else {
+        setTasks(tasksResponse);
+      }
+      
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error('[Users] Error fetching data:', err);
       setError('Failed to load data. Please try again later.');
+      // Initialize with empty arrays to prevent undefined errors
+      setUsers([]);
+      setTasks([]);
     } finally {
       setLoading(false);
     }

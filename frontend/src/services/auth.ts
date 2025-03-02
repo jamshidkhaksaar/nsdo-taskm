@@ -143,9 +143,14 @@ export const refreshToken = async (): Promise<{access: string, refresh: string} 
   }
   
   try {
-    const response = await axios.post('/api/auth/refresh', {
+    console.log('Attempting to refresh token using auth service...');
+    
+    // Use the axiosInstance with the correct baseURL
+    const response = await axiosInstance.post('/api/auth/refresh', {
       refresh_token: refreshToken
     });
+    
+    console.log('Token refresh response:', response.status);
     
     const { access, refresh } = response.data;
     

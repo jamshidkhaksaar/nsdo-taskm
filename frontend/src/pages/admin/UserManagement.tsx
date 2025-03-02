@@ -50,6 +50,7 @@ import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLay
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
+import { AdminService } from '../../services/admin';
 
 const DRAWER_WIDTH = 240;
 
@@ -284,12 +285,13 @@ const UserManagement: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/users/', {
-        params: { search: searchQuery }
-      });
+      console.log('[UserManagement] Fetching users with search:', searchQuery);
+      
+      // Use AdminService instead of direct axios call
+      const userData = await AdminService.getUsers(searchQuery);
       
       // Format the users to match the interface
-      const formattedUsers = response.data.map((user: any) => ({
+      const formattedUsers = userData.map((user: any) => ({
         id: user.id,
         username: user.username,
         email: user.email,
@@ -314,8 +316,10 @@ const UserManagement: React.FC = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await axios.get('/api/departments/');
-      setDepartments(response.data.map((dept: any) => ({
+      // Use AdminService instead of direct axios call
+      const departmentData = await AdminService.getDepartments();
+      
+      setDepartments(departmentData.map((dept: any) => ({
         id: dept.id,
         name: dept.name
       })));

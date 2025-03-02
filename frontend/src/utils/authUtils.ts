@@ -129,26 +129,46 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 
   try {
     console.log('Attempting to refresh token...');
-    // Use the correct refresh token endpoint
-    const response = await axios.post('/api/auth/refresh', {
-      refresh_token: refreshToken
+    
+    // Import the CONFIG to get the correct API URL
+    const { CONFIG } = require('./config');
+    const apiUrl = CONFIG.API_URL || 'http://localhost:3001';
+    
+    // Use the correct API URL for the refresh endpoint
+    const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refresh_token: refreshToken })
     });
     
-    console.log('Token refresh response:', response.status);
+    if (!response.ok) {
+      throw new Error(`Token refresh failed with status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Token refresh response received');
     
     // Handle the response based on the backend's structure
-    if (response.data.access) {
+    if (data.access) {
       // If the backend returns access and refresh tokens
-      const { access, refresh } = response.data;
+      const { access, refresh } = data;
       console.log('New tokens received, storing them');
       storeTokens(access, refresh || refreshToken);
       return access;
-    } else if (response.data.token) {
+    } else if (data.token) {
       // If the backend returns a token property instead
-      const { token, refresh } = response.data;
+      const { token, refresh } = data;
       console.log('New token received, storing it');
       storeTokens(token, refresh || refreshToken);
       return token;
+    } else if (data.accessToken) {
+      // Another possible format
+      const { accessToken, refreshToken: newRefreshToken } = data;
+      console.log('New tokens received in different format, storing them');
+      storeTokens(accessToken, newRefreshToken || refreshToken);
+      return accessToken;
     }
     
     // If we couldn't get a new token

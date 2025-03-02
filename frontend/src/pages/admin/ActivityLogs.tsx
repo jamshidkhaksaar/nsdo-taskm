@@ -33,28 +33,16 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { ActivityLogsService } from '../../services/activityLogs';
+import { ActivityLog } from '../../services/mockActivityLogsService';
 
 const DRAWER_WIDTH = 240;
-
-interface ActivityLog {
-  id: string;
-  user: string;
-  user_id?: string;
-  action: string;
-  target: string;
-  target_id?: string;
-  details: string;
-  timestamp: string;
-  ip_address: string;
-  status: 'success' | 'warning' | 'error';
-}
 
 const ActivityLogs: React.FC = () => {
   const theme = useTheme();
@@ -84,22 +72,20 @@ const ActivityLogs: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Connect to the real API endpoint
-      const response = await axios.get('/api/activity-logs/', {
-        params: {
-          search: searchQuery || undefined,
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          action: actionFilter !== 'all' ? actionFilter : undefined,
-          target: targetFilter !== 'all' ? targetFilter : undefined,
-          page: page,
-          limit: rowsPerPage
-        }
+      // Use the ActivityLogsService instead of direct axios call
+      const response = await ActivityLogsService.getLogs({
+        search: searchQuery || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        action: actionFilter !== 'all' ? actionFilter : undefined,
+        target: targetFilter !== 'all' ? targetFilter : undefined,
+        page: page,
+        limit: rowsPerPage
       });
       
       // Use the logs from the response
-      if (response && response.data && response.data.logs) {
-        setLogs(response.data.logs);
-        setFilteredLogs(response.data.logs);
+      if (response && response.logs) {
+        setLogs(response.logs);
+        setFilteredLogs(response.logs);
       } else {
         setError('Invalid response data from API');
         console.error('Invalid response from activity logs API:', response);
@@ -108,20 +94,7 @@ const ActivityLogs: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error fetching logs:', err);
-      if (err.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        setError(`Failed to load activity logs: ${err.response.status} ${err.response.statusText}`);
-        console.error('Error response:', err.response.data);
-      } else if (err.request) {
-        // The request was made but no response was received
-        setError('Server did not respond. Please check your connection.');
-        console.error('No response received:', err.request);
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        setError('Failed to load activity logs. Please try again later.');
-        console.error('Error message:', err.message);
-      }
+      setError('Failed to load activity logs. Please try again later.');
       setLogs([]);
       setFilteredLogs([]);
     } finally {

@@ -31,14 +31,13 @@ import {
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteIcon from '@mui/icons-material/Delete';
-import BackupIcon from '@mui/icons-material/Backup';
-import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { BackupService } from '../../services/backupService';
 
 const DRAWER_WIDTH = 240;
 
@@ -133,8 +132,8 @@ const BackupRestore: React.FC = () => {
 
   const fetchBackups = async () => {
     try {
-      const response = await axios.get('/api/backups/');
-      setBackups(response.data);
+      const backupData = await BackupService.getBackups();
+      setBackups(backupData);
     } catch (error) {
       console.error('Error fetching backups:', error);
       setSnackbar({
@@ -153,29 +152,15 @@ const BackupRestore: React.FC = () => {
 
       console.log('Sending backup request with options:', options);
 
-      // Create FormData
-      const formData = new FormData();
-      Object.entries(options).forEach(([key, value]) => {
-        if (value !== undefined) {
-          formData.append(key, value.toString());
-        }
-      });
-
-      const response = await axios.post('/api/backups/create_backup/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      console.log('Backup creation response:', response.data);
+      const backup = await BackupService.createBackup(options);
+      console.log('Backup creation response:', backup);
 
       // Start polling for backup progress
       const pollInterval = setInterval(async () => {
         try {
-          const pollResponse = await axios.get(`/api/backups/${response.data.id}/`);
-          const backup = pollResponse.data;
-
-          if (backup.status === 'completed') {
+          const backupStatus = await BackupService.checkBackupStatus(backup.id);
+          
+          if (backupStatus.status === 'completed') {
             clearInterval(pollInterval);
             setIsBackupInProgress(false);
             await fetchBackups();
@@ -184,12 +169,12 @@ const BackupRestore: React.FC = () => {
               message: 'Backup completed successfully',
               severity: 'success'
             });
-          } else if (backup.status === 'failed') {
+          } else if (backupStatus.status === 'failed') {
             clearInterval(pollInterval);
             setIsBackupInProgress(false);
             setSnackbar({
               open: true,
-              message: `Backup failed: ${backup.error_message}`,
+              message: `Backup failed: ${backupStatus.error_message}`,
               severity: 'error'
             });
           } else {
@@ -227,7 +212,7 @@ const BackupRestore: React.FC = () => {
   const handleConfirmRestore = async () => {
     if (selectedBackup) {
       try {
-        await axios.post(`/api/backups/${selectedBackup.id}/restore/`);
+        await BackupService.restoreBackup(selectedBackup.id);
         setSnackbar({
           open: true,
           message: 'System restored successfully',
@@ -247,7 +232,7 @@ const BackupRestore: React.FC = () => {
 
   const handleDelete = async (backupId: string) => {
     try {
-      await axios.delete(`/api/backups/${backupId}/`);
+      await BackupService.deleteBackup(backupId);
       await fetchBackups();
       setSnackbar({
         open: true,
@@ -266,12 +251,10 @@ const BackupRestore: React.FC = () => {
 
   const handleDownload = async (backup: Backup) => {
     try {
-      const response = await axios.get(`/api/backups/${backup.id}/download/`, {
-        responseType: 'blob'
-      });
+      const blobData = await BackupService.downloadBackup(backup.id);
       
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([blobData]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `${backup.name}.zip`);

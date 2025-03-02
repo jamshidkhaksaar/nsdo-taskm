@@ -73,16 +73,51 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       clearError();
       console.log('Fetching tasks from API...');
+      
+      // Get the current token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.warn('No access token found, redirecting to login');
+        dispatch(logout());
+        navigate('/login');
+        return;
+      }
+      
+      // Ensure the token is set in axios headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Log the API URL being used
+      console.log('Using API URL:', axios.defaults.baseURL);
+      
+      // Make the API request
       const response = await axios.get('/api/tasks');
       console.log('API response for tasks:', response.data);
-      setTasks(response.data);
-    } catch (err) {
+      
+      // Check if the response is valid
+      if (Array.isArray(response.data)) {
+        setTasks(response.data);
+      } else {
+        console.warn('Unexpected response format:', response.data);
+        setTasks([]);
+      }
+    } catch (err: any) {
       console.error('Error fetching tasks:', err);
-      handleError('Failed to load tasks. Please try again later.');
+      
+      // Check if this is an authentication error
+      if (err.response && err.response.status === 401) {
+        console.log('Authentication error (401) when fetching tasks');
+        handleError('Your session has expired. Please log in again.');
+        setTimeout(() => {
+          dispatch(logout());
+          navigate('/login');
+        }, 2000);
+      } else {
+        handleError(`Failed to load tasks: ${err.message || 'Unknown error'}`);
+      }
     } finally {
       setLoading(false);
     }
-  }, [clearError, handleError]);
+  }, [clearError, handleError, dispatch, navigate]);
   
   // Initial data fetch
   useEffect(() => {

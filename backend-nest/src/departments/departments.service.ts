@@ -15,118 +15,176 @@ export class DepartmentsService {
   ) {}
 
   async findAll(): Promise<Department[]> {
-    return this.departmentsRepository.find({
-      relations: ['members', 'head', 'tasks'],
-    });
+    try {
+      return await this.departmentsRepository.find({
+        relations: {
+          members: true,
+          head: true,
+          tasks: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      throw error;
+    }
   }
 
   async findOne(id: string): Promise<Department> {
-    const department = await this.departmentsRepository.findOne({
-      where: { id },
-      relations: ['members', 'head', 'tasks'],
-    });
+    try {
+      const department = await this.departmentsRepository.findOne({
+        where: { id },
+        relations: {
+          members: true,
+          head: true,
+          tasks: true
+        }
+      });
 
-    if (!department) {
-      throw new NotFoundException(`Department with ID "${id}" not found`);
+      if (!department) {
+        throw new NotFoundException(`Department with ID "${id}" not found`);
+      }
+
+      return department;
+    } catch (error) {
+      console.error(`Error fetching department ${id}:`, error);
+      throw error;
     }
-
-    return department;
   }
 
   async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
-    const { name, description, headId } = createDepartmentDto;
+    try {
+      const { name, description, headId } = createDepartmentDto;
 
-    // Check if department with same name exists
-    const existingDepartment = await this.departmentsRepository.findOne({
-      where: { name },
-    });
+      // Check if department with same name exists
+      const existingDepartment = await this.departmentsRepository.findOne({
+        where: { name },
+      });
 
-    if (existingDepartment) {
-      throw new ConflictException(`Department with name "${name}" already exists`);
+      if (existingDepartment) {
+        throw new ConflictException(`Department with name "${name}" already exists`);
+      }
+
+      const department = this.departmentsRepository.create({
+        name,
+        description,
+      });
+
+      if (headId) {
+        const head = await this.usersService.findById(headId);
+        if (!head) {
+          throw new NotFoundException(`User with ID "${headId}" not found`);
+        }
+        department.headId = headId;
+        department.head = head;
+      }
+
+      return await this.departmentsRepository.save(department);
+    } catch (error) {
+      console.error('Error creating department:', error);
+      throw error;
     }
-
-    const department = this.departmentsRepository.create({
-      name,
-      description,
-      headId,
-    });
-
-    if (headId) {
-      const head = await this.usersService.findById(headId);
-      department.head = head;
-    }
-
-    return this.departmentsRepository.save(department);
   }
 
   async update(id: string, updateDepartmentDto: UpdateDepartmentDto): Promise<Department> {
-    const department = await this.findOne(id);
+    try {
+      const department = await this.findOne(id);
 
-    // Apply updates
-    if (updateDepartmentDto.name !== undefined) {
-      department.name = updateDepartmentDto.name;
-    }
-    
-    if (updateDepartmentDto.description !== undefined) {
-      department.description = updateDepartmentDto.description;
-    }
-    
-    if (updateDepartmentDto.headId !== undefined) {
-      department.headId = updateDepartmentDto.headId;
-      
+      if (updateDepartmentDto.name) {
+        const existingDepartment = await this.departmentsRepository.findOne({
+          where: { name: updateDepartmentDto.name },
+        });
+
+        if (existingDepartment && existingDepartment.id !== id) {
+          throw new ConflictException(`Department with name "${updateDepartmentDto.name}" already exists`);
+        }
+      }
+
       if (updateDepartmentDto.headId) {
         const head = await this.usersService.findById(updateDepartmentDto.headId);
+        if (!head) {
+          throw new NotFoundException(`User with ID "${updateDepartmentDto.headId}" not found`);
+        }
+        department.headId = updateDepartmentDto.headId;
         department.head = head;
       }
-      // If headId is empty/null/undefined, we just update the headId field
-      // but don't try to set the head relation to null
-    }
 
-    return this.departmentsRepository.save(department);
+      Object.assign(department, updateDepartmentDto);
+      return await this.departmentsRepository.save(department);
+    } catch (error) {
+      console.error(`Error updating department ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async addMember(id: string, userId: string): Promise<Department> {
+    try {
+      const department = await this.findOne(id);
+      const user = await this.usersService.findById(userId);
+
+      if (!user) {
+        throw new NotFoundException(`User with ID "${userId}" not found`);
+      }
+
+      if (!department.members) {
+        department.members = [];
+      }
+
+      if (!department.members.some(member => member.id === userId)) {
+        department.members.push(user);
+        await this.departmentsRepository.save(department);
+      }
+
+      return department;
+    } catch (error) {
+      console.error(`Error adding member ${userId} to department ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async removeMember(id: string, userId: string): Promise<Department> {
+    try {
+      const department = await this.findOne(id);
+
+      if (!department.members) {
+        throw new NotFoundException(`No members found in department "${id}"`);
+      }
+
+      department.members = department.members.filter(member => member.id !== userId);
+      return await this.departmentsRepository.save(department);
+    } catch (error) {
+      console.error(`Error removing member ${userId} from department ${id}:`, error);
+      throw error;
+    }
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.departmentsRepository.delete(id);
+    try {
+      const result = await this.departmentsRepository.delete(id);
 
-    if (result.affected === 0) {
-      throw new NotFoundException(`Department with ID "${id}" not found`);
+      if (result.affected === 0) {
+        throw new NotFoundException(`Department with ID "${id}" not found`);
+      }
+    } catch (error) {
+      console.error(`Error removing department ${id}:`, error);
+      throw error;
     }
-  }
-
-  async addMember(departmentId: string, userId: string): Promise<Department> {
-    const department = await this.findOne(departmentId);
-    const user = await this.usersService.findById(userId);
-
-    if (!department.members) {
-      department.members = [];
-    }
-
-    department.members.push(user);
-    return this.departmentsRepository.save(department);
-  }
-
-  async removeMember(departmentId: string, userId: string): Promise<Department> {
-    const department = await this.findOne(departmentId);
-
-    if (!department.members) {
-      return department;
-    }
-
-    department.members = department.members.filter(member => member.id !== userId);
-    return this.departmentsRepository.save(department);
   }
 
   async getDepartmentPerformance(id: string): Promise<any> {
-    const department = await this.findOne(id);
-    const totalTasks = department.tasks ? department.tasks.length : 0;
-    const completedTasks = department.tasks 
-      ? department.tasks.filter(task => task.status === 'DONE').length 
-      : 0;
-    
-    return {
-      totalTasks,
-      completedTasks,
-      performance: totalTasks ? (completedTasks / totalTasks) * 100 : 0,
-    };
+    try {
+      const department = await this.findOne(id);
+      
+      // Add your performance calculation logic here
+      return {
+        departmentId: department.id,
+        name: department.name,
+        totalMembers: department.members?.length || 0,
+        totalTasks: department.tasks?.length || 0,
+        // Add more metrics as needed
+      };
+    } catch (error) {
+      console.error(`Error getting performance for department ${id}:`, error);
+      throw error;
+    }
   }
 } 
