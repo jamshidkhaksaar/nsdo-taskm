@@ -177,18 +177,18 @@ const Departments: React.FC = () => {
           </Box>
           
           {/* Content Section */}
-          <Grid container spacing={3}>
+        <Grid container spacing={3}>
             {/* Left Column - Departments */}
             <Grid item xs={12} md={4} lg={3}>
               <Paper 
                 elevation={0}
-                sx={{
+              sx={{
                   borderRadius: 2,
                   overflow: 'hidden',
                   background: 'rgba(255, 255, 255, 0.08)',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid rgba(255, 255, 255, 0.12)',
-                  height: '100%',
+                height: '100%',
                   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
                 }}
               >
@@ -207,14 +207,14 @@ const Departments: React.FC = () => {
                 </Box>
                 <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
                 <Box>
-                  <DepartmentList
-                    departments={departments}
-                    selectedDepartment={selectedDepartment}
-                    onSelectDepartment={setSelectedDepartment}
-                  />
-                </Box>
+              <DepartmentList
+                departments={departments}
+                selectedDepartment={selectedDepartment}
+                onSelectDepartment={setSelectedDepartment}
+              />
+            </Box>
               </Paper>
-            </Grid>
+          </Grid>
             
             {/* Right Column - Department Details */}
             <Grid item xs={12} md={8} lg={9}>
@@ -364,7 +364,7 @@ const Departments: React.FC = () => {
                                         </Typography>
                                         <Typography variant="caption" color="#4caf50" fontWeight="bold">
                                           {performer.completion_rate}%
-                                        </Typography>
+                </Typography>
                                       </Box>
                                     </Box>
                                   </Box>
@@ -373,14 +373,14 @@ const Departments: React.FC = () => {
                             ))}
                           </Grid>
                         </Box>
-                      )}
-                    </Box>
+              )}
+            </Box>
                   </Paper>
                   
                   {/* Tasks Section */}
                   <Paper 
                     elevation={0}
-                    sx={{
+              sx={{
                       borderRadius: 2,
                       overflow: 'hidden',
                       background: 'rgba(255, 255, 255, 0.08)',
@@ -405,17 +405,17 @@ const Departments: React.FC = () => {
                           ))}
                         </AvatarGroup>
                       </Box>
-                      <TasksSection
-                        currentUserId={user?.id ? Number(user.id) : 0}
-                        currentDepartmentId={selectedDepartment ? Number(selectedDepartment) : 0}
-                        viewMode="department"
-                        upcomingTasks={upcomingTasks}
-                        ongoingTasks={ongoingTasks}
-                        completedTasks={completedTasks}
+              <TasksSection
+                currentUserId={user?.id ? Number(user.id) : 0}
+                currentDepartmentId={selectedDepartment ? Number(selectedDepartment) : 0}
+                viewMode="department"
+                upcomingTasks={upcomingTasks}
+                ongoingTasks={ongoingTasks}
+                completedTasks={completedTasks}
                         onAddTask={handleCreateTask}
                         showAddButton={true}
-                      />
-                    </Box>
+              />
+            </Box>
                   </Paper>
                 </>
               ) : (

@@ -78,15 +78,18 @@ export class TasksService {
         queryBuilder = queryBuilder.andWhere('task.context = :context', { context: query.context });
       }
       
+      // Check if we should include all tasks (for TasksOverview)
+      const includeAll = query.include_all === 'true' || query.include_all === true;
+      
       // Filter by user role
       if (user.role === UserRole.GENERAL_MANAGER) {
         // General managers can see all tasks across all departments and users
         // No additional filters needed
         
         // But if they specifically request tasks for a context, apply that filter
-        if (query.task_type === 'my_tasks') {
+        if (query.task_type === 'my_tasks' && !includeAll) {
           queryBuilder = queryBuilder.andWhere('task.createdById = :userId', { userId: user.userId });
-        } else if (query.task_type === 'assigned') {
+        } else if (query.task_type === 'assigned' && !includeAll) {
           queryBuilder = queryBuilder.andWhere('task.id IN (SELECT task_id FROM task_assignees WHERE user_id = :userId)', { userId: user.userId });
         }
       } else if (user.role === UserRole.ADMIN) {

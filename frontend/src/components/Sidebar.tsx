@@ -27,6 +27,7 @@ import ChecklistIcon from '@mui/icons-material/Checklist';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import logo from '../assets/images/logo.png';
 import logoIcon from '../assets/images/logoIcon.png';
 
@@ -36,6 +37,11 @@ const mainMenuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { title: 'Departments', path: '/departments', icon: <BusinessIcon /> },
   { title: 'Users', path: '/users', icon: <PeopleIcon /> },
+];
+
+// Items visible only to General Managers and Admins
+const managerMenuItems = [
+  { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> },
 ];
 
 const adminMenuItems = [
@@ -105,6 +111,11 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
   const isAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');
     return role === 'admin';
+  }, [user?.role]);
+
+  const isManagerOrAdmin = React.useMemo(() => {
+    const role = user?.role || localStorage.getItem('user_role');
+    return role === 'admin' || role === 'general_manager';
   }, [user?.role]);
 
   const getMenuItemStyles = (isActive: boolean) => ({
@@ -244,6 +255,51 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
             </ListItem>
           ))}
         </List>
+
+        {/* Manager menu section - visible to General Managers and Admins */}
+        {isManagerOrAdmin && (
+          <>
+            <Divider sx={{ 
+              my: 1, 
+              borderColor: 'rgba(255, 255, 255, 0.08)',
+              mx: 2
+            }} />
+            <List>
+              {managerMenuItems.map((item) => (
+                <ListItem key={item.title} disablePadding>
+                  <ListItemButton
+                    onClick={() => navigate(item.path)}
+                    selected={isActive(item.path)}
+                    sx={getMenuItemStyles(isActive(item.path))}
+                  >
+                    <Tooltip title={!open ? item.title : ''} placement="right">
+                      <ListItemIcon sx={{ 
+                        color: 'inherit', 
+                        minWidth: 0, 
+                        mr: open ? 3 : 'auto',
+                        transition: 'transform 0.2s ease',
+                        transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
+                      }}>
+                        {item.icon}
+                      </ListItemIcon>
+                    </Tooltip>
+                    {open && (
+                      <ListItemText 
+                        primary={item.title} 
+                        sx={{ 
+                          opacity: 1,
+                          '& .MuiListItemText-primary': {
+                            fontWeight: isActive(item.path) ? 600 : 400,
+                          }
+                        }} 
+                      />
+                    )}
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </>
+        )}
 
         {/* Admin menu section */}
         {isAdmin && (

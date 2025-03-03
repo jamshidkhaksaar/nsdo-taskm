@@ -6,7 +6,8 @@ import {
   Dashboard, 
   Departments, 
   Users, 
-  NotFound
+  NotFound,
+  TasksOverview
 } from '../pages';
 import AdminRoutes from './AdminRoutes';
 
@@ -35,6 +36,14 @@ const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute>
             <Users />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/tasks-overview"
+        element={
+          <PrivateRoute>
+            <TasksOverview />
           </PrivateRoute>
         }
       />

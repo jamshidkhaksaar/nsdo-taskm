@@ -31,6 +31,9 @@ interface CreateTaskDialogProps {
   task?: Task;
   dialogType: 'personal' | 'assign'; // 'personal' for My Tasks, 'assign' for Assigned by Me
   initialStatus?: TaskStatus; // Add initialStatus prop
+  dialogMode?: 'dashboard' | 'department' | 'user'; // Control which fields are shown
+  preSelectedDepartment?: string; // For pre-selecting a department
+  preSelectedUsers?: User[]; // For pre-selecting users
 }
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
@@ -39,7 +42,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   onTaskCreated,
   task,
   dialogType,
-  initialStatus
+  initialStatus,
+  dialogMode,
+  preSelectedDepartment,
+  preSelectedUsers
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const theme = useTheme();
@@ -57,11 +63,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [departments, setDepartments] = useState<Department[]>([]);
   const [dateError, setDateError] = useState<string | null>(null);
   
-  // Store the current page context - this will be set based on the dialogType prop
-  // or by general manager selection if they have that capability
+  // Store the current page context - this will be set based on props
   const [pageContext, setPageContext] = useState<'dashboard' | 'department' | 'user'>(
-    dialogType === 'personal' ? 'dashboard' : 
-    dialogType === 'assign' ? 'user' : 'department'
+    dialogMode || (dialogType === 'personal' ? 'dashboard' : 
+    dialogType === 'assign' ? 'user' : 'department')
   );
 
   // Check if user has general manager or admin role
@@ -91,6 +96,19 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     if (open) {
       fetchDepartments();
       fetchUsers();
+      
+      // Set pre-selected values if provided
+      if (preSelectedDepartment) {
+        setDepartment(preSelectedDepartment);
+      }
+      
+      if (preSelectedUsers && preSelectedUsers.length > 0) {
+        if (pageContext === 'dashboard') {
+          setCollaborators(preSelectedUsers);
+        } else if (pageContext === 'user') {
+          setSelectedUsers(preSelectedUsers);
+        }
+      }
       
       if (task) {
         // Edit mode - populate form with task data
@@ -131,7 +149,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         resetForm();
       }
     }
-  }, [open, task, users]);
+  }, [open, task, users, preSelectedDepartment, preSelectedUsers, pageContext]);
 
   // Helper function to reset the form
   const resetForm = () => {
