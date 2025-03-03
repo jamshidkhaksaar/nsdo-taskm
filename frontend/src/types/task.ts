@@ -3,6 +3,7 @@ import { User } from './user';
 
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export type TaskContext = 'personal' | 'department' | 'user';
 
 export interface DepartmentRef {
   id: string;
@@ -24,6 +25,7 @@ export interface Task {
   created_at?: string;
   isUpdating?: boolean;
   comments?: Comment[];
+  context: TaskContext;
 }
 
 export interface CreateTask {
@@ -38,6 +40,7 @@ export interface CreateTask {
   is_private: boolean;
   updated_at?: string;
   created_at?: string;
+  context: TaskContext;
 }
 
 // Add a type for task updates

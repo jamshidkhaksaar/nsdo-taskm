@@ -45,7 +45,8 @@ describe.skip('TaskKanbanBoard Component', () => {
       is_private: false,
       department: 'Engineering',
       assigned_to: ['user1'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     },
     {
       id: '2',
@@ -58,7 +59,8 @@ describe.skip('TaskKanbanBoard Component', () => {
       is_private: false,
       department: 'Engineering',
       assigned_to: ['user2'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     },
     {
       id: '3',
@@ -71,7 +73,8 @@ describe.skip('TaskKanbanBoard Component', () => {
       is_private: true,
       department: 'Marketing',
       assigned_to: ['user3'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     }
   ];
 

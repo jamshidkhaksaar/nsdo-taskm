@@ -16,7 +16,8 @@ describe('TaskSummary Component', () => {
       is_private: false,
       department: 'Engineering',
       assigned_to: ['user1'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     },
     {
       id: '2',
@@ -27,9 +28,10 @@ describe('TaskSummary Component', () => {
       due_date: '2023-12-02',
       created_at: '2023-11-02',
       is_private: false,
-      department: 'Engineering',
+      department: 'Marketing',
       assigned_to: ['user2'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     },
     {
       id: '3',
@@ -40,9 +42,10 @@ describe('TaskSummary Component', () => {
       due_date: '2023-12-03',
       created_at: '2023-11-03',
       is_private: true,
-      department: 'Marketing',
+      department: 'Sales',
       assigned_to: ['user3'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     },
     {
       id: '4',
@@ -53,9 +56,10 @@ describe('TaskSummary Component', () => {
       due_date: '2023-12-04',
       created_at: '2023-11-04',
       is_private: false,
-      department: 'Sales',
+      department: 'HR',
       assigned_to: ['user4'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     },
     {
       id: '5',
@@ -66,9 +70,10 @@ describe('TaskSummary Component', () => {
       due_date: '2023-12-05',
       created_at: '2023-11-05',
       is_private: true,
-      department: 'HR',
+      department: 'Finance',
       assigned_to: ['user5'],
-      created_by: 'admin'
+      created_by: 'admin',
+      context: 'personal'
     }
   ];
 

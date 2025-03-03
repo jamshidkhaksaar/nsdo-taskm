@@ -2,8 +2,12 @@ import axios from '../utils/axios';
 import { Task, CreateTask, TaskPriority, TaskStatus } from '../types/task';
 import { User } from '../types/user';
 
+// Enhanced interface to support role-based task creation
 interface GetTasksParams {
     task_type?: 'my_tasks' | 'assigned' | 'created' | 'all';
+    department_id?: string;
+    user_id?: string;
+    include_all?: boolean; // For general managers and admins to see all tasks
 }
 
 // Status mapping between frontend and backend
@@ -21,9 +25,10 @@ const backendToFrontendStatus: Record<string, TaskStatus> = {
 };
 
 export const TaskService = {
-    // Get all tasks
+    // Get all tasks with enhanced filtering for different user roles
     getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
+            // Add support for role-based filtering
             const response = await axios.get<Task[]>('/api/tasks/', { params });
             console.log('Tasks fetched:', response.data);
             
@@ -68,19 +73,22 @@ export const TaskService = {
         return response.data;
     },
 
-    // Create a new task
-    createTask: async (task: CreateTask): Promise<Task> => {
+    // Create a new task with enhanced support for different creation contexts
+    createTask: async (task: CreateTask, context?: 'personal' | 'department' | 'user'): Promise<Task> => {
         try {
             const { updated_at, ...rest } = task;
             
+            // Prepare the payload with context-specific logic
             const payload = {
                 ...rest,
                 priority: task.priority?.toLowerCase() || 'medium',
                 assigned_to: task.assigned_to || [],
                 department: task.department,
                 created_by: task.created_by?.toString() || null,
-                status: frontendToBackendStatus[task.status] || 'TODO'
+                status: frontendToBackendStatus[task.status] || 'TODO',
+                context: context // Pass context to help the backend with permissions
             };
+            
             console.log('Creating task with payload:', payload);
 
             const response = await axios.post<Task>('/api/tasks/', payload);
@@ -203,6 +211,29 @@ export const TaskService = {
             };
         } catch (error) {
             console.error('Error fetching task:', error);
+            throw error;
+        }
+    },
+
+    // Get tasks that user can see based on role
+    getAllVisibleTasks: async (userRole: string): Promise<Task[]> => {
+        try {
+            const params: GetTasksParams = {};
+            
+            // General managers and admins can see all tasks
+            if (userRole === 'general_manager' || userRole === 'admin') {
+                params.include_all = true;
+            }
+            
+            const response = await axios.get<Task[]>('/api/tasks/', { params });
+            
+            // Map backend status to frontend status
+            return response.data.map(task => ({
+                ...task,
+                status: backendToFrontendStatus[task.status as any] || 'pending'
+            }));
+        } catch (error) {
+            console.error('Error fetching visible tasks:', error);
             throw error;
         }
     }

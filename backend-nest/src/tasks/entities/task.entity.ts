@@ -9,6 +9,12 @@ export enum TaskStatus {
   DONE = 'DONE',
 }
 
+export enum TaskContext {
+  PERSONAL = 'personal',
+  DEPARTMENT = 'department',
+  USER = 'user',
+}
+
 @Entity()
 export class Task {
   @PrimaryGeneratedColumn()
@@ -26,6 +32,13 @@ export class Task {
     default: TaskStatus.OPEN,
   })
   status: TaskStatus;
+
+  @Column({
+    type: 'enum',
+    enum: TaskContext,
+    default: TaskContext.PERSONAL,
+  })
+  context: TaskContext;
 
   @Column({ nullable: true })
   createdById: string;

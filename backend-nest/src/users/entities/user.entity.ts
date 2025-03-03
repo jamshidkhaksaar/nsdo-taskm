@@ -5,6 +5,7 @@ import { Department } from '../../departments/entities/department.entity';
 
 export enum UserRole {
   USER = 'user',
+  GENERAL_MANAGER = 'general_manager',
   ADMIN = 'admin',
 }
 

@@ -60,7 +60,8 @@ describe('TaskService', () => {
           created_at: '2023-01-01',
           is_private: true,
           assigned_to: null,
-          created_by: 'user1'
+          created_by: 'user1',
+          context: 'personal'
         },
         {
           id: '2',
@@ -71,7 +72,8 @@ describe('TaskService', () => {
           created_at: '2023-01-01',
           is_private: false,
           assigned_to: 'user2',
-          created_by: 'user1'
+          created_by: 'user1',
+          context: 'department'
         }
       ];
 
@@ -114,7 +116,7 @@ describe('TaskService', () => {
   describe('getTasksByDepartment', () => {
     test('fetches tasks by department successfully', async () => {
       // Mock response
-      const mockTasks = [{ id: '1', title: 'Department Task' }];
+      const mockTasks = [{ id: '1', title: 'Department Task', context: 'department' }];
       mockedAxios.get.mockResolvedValueOnce({ data: mockTasks });
 
       // Call the service
@@ -138,7 +140,8 @@ describe('TaskService', () => {
         priority: 'medium',
         created_by: 'user1',
         assigned_to: [],
-        department: null
+        department: null,
+        context: 'personal'
       };
 
       // Mock response
@@ -247,6 +250,7 @@ describe('TaskService', () => {
         id: '123',
         title: 'Single Task',
         status: 'IN_PROGRESS', // Backend status
+        context: 'personal'
       };
 
       mockedAxios.get.mockResolvedValueOnce({ data: mockTask });
