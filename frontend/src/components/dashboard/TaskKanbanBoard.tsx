@@ -236,22 +236,24 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         )}
       </Droppable>
       
-      <Button
-        variant="text"
-        startIcon={<AddIcon />}
-        onClick={() => onAddTask(status as TaskStatus)}
-        sx={{
-          mt: 2,
-          color: getStatusColor(status),
-          borderColor: alpha(getStatusColor(status), 0.5),
-          '&:hover': {
-            borderColor: getStatusColor(status),
-            backgroundColor: alpha(getStatusColor(status), 0.1),
-          },
-        }}
-      >
-        Add Task
-      </Button>
+      {status === 'pending' && (
+        <Button
+          variant="text"
+          startIcon={<AddIcon />}
+          onClick={() => onAddTask(status as TaskStatus)}
+          sx={{
+            mt: 2,
+            color: getStatusColor(status),
+            borderColor: alpha(getStatusColor(status), 0.5),
+            '&:hover': {
+              borderColor: getStatusColor(status),
+              backgroundColor: alpha(getStatusColor(status), 0.1),
+            },
+          }}
+        >
+          Add Task
+        </Button>
+      )}
     </Box>
   );
 };

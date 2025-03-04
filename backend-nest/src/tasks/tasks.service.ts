@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task, TaskStatus, TaskContext } from './entities/task.entity';
@@ -13,51 +13,100 @@ export class TasksService {
     private tasksRepository: Repository<Task>,
   ) {}
 
-  async create(createTaskDto: CreateTaskDto, user: any): Promise<Task> {
-    // Create a new task entity with the correct properties
-    const task = new Task();
-    task.title = createTaskDto.title;
-    task.description = createTaskDto.description;
-    task.createdById = user.userId;
+  async create(createTaskDto: CreateTaskDto & Record<string, any>, user: any): Promise<Task> {
+    console.log('Creating task with DTO:', JSON.stringify(createTaskDto, null, 2));
     
-    // Set context based on DTO or default to PERSONAL
-    if (createTaskDto.context) {
-      task.context = createTaskDto.context;
-    } else {
-      task.context = TaskContext.PERSONAL;
+    try {
+      // Create a new task entity with the correct properties
+      const task = new Task();
+      task.title = createTaskDto.title;
+      task.description = createTaskDto.description;
+      task.createdById = user.userId;
+      
+      // Set context based on DTO or default to PERSONAL
+      if (createTaskDto.context) {
+        task.context = createTaskDto.context.toUpperCase() === 'PERSONAL' ? 
+                      TaskContext.PERSONAL : 
+                      createTaskDto.context.toUpperCase() === 'DEPARTMENT' ? 
+                      TaskContext.DEPARTMENT : 
+                      TaskContext.USER;
+      } else {
+        task.context = TaskContext.PERSONAL;
+      }
+      
+      console.log('Task context set to:', task.context);
+      
+      // Handle role-based permissions for task creation contexts
+      if (user.role !== UserRole.GENERAL_MANAGER && user.role !== UserRole.ADMIN) {
+        // Normal users have context-specific permissions
+        console.log('User role:', user.role);
+      }
+      
+      if (createTaskDto.status) {
+        const statusValue = createTaskDto.status.toUpperCase();
+        if (Object.values(TaskStatus).includes(statusValue as TaskStatus)) {
+          task.status = statusValue as TaskStatus;
+        } else {
+          console.log('Invalid status value:', createTaskDto.status);
+          // Default to OPEN if invalid
+          task.status = TaskStatus.OPEN;
+        }
+      } else {
+        task.status = TaskStatus.OPEN;
+      }
+      
+      console.log('Task status set to:', task.status);
+      
+      // Set department - handle both departmentId and department fields from frontend
+      const departmentId = createTaskDto.departmentId || 
+                           (createTaskDto.department && typeof createTaskDto.department === 'string' ? 
+                            createTaskDto.department : null);
+                            
+      if (departmentId && 
+          (task.context === TaskContext.DEPARTMENT || user.role === UserRole.GENERAL_MANAGER || user.role === UserRole.ADMIN)) {
+        task.departmentId = departmentId;
+        console.log('Task department set to:', task.departmentId);
+      }
+      
+      // Map due_date to dueDate if it exists in the incoming data
+      if ('due_date' in createTaskDto) {
+        task.dueDate = new Date(createTaskDto.due_date as string);
+        console.log('Setting due date from due_date:', task.dueDate);
+      } else if (createTaskDto.dueDate) {
+        task.dueDate = new Date(createTaskDto.dueDate);
+        console.log('Setting due date from dueDate:', task.dueDate);
+      }
+      
+      console.log('Task object before save:', JSON.stringify(task, null, 2));
+      
+      // Save the task first to get an ID
+      const savedTask = await this.tasksRepository.save(task);
+      console.log('Task saved successfully with ID:', savedTask.id);
+      
+      // Handle assignedTo separately if provided
+      // Look for both assignedTo and assigned_to from the request
+      const assignedUsers = createTaskDto.assignedTo || createTaskDto.assigned_to;
+      if (assignedUsers && assignedUsers.length > 0) {
+        console.log('Assigned users found:', assignedUsers);
+        // For personal tasks, these are collaborators
+        // For user tasks, these are assignees
+        // In this step we would typically set up the relationships
+        savedTask.assignedTo = [];
+      } else {
+        console.log('No assigned users found');
+      }
+      
+      return savedTask;
+    } catch (error) {
+      console.error('Error creating task:', error);
+      if (error.code === '23505') {
+        throw new BadRequestException('Task with that title already exists');
+      } else if (error.message) {
+        throw new BadRequestException(`Failed to create task: ${error.message}`);
+      } else {
+        throw new BadRequestException('Failed to create task');
+      }
     }
-    
-    // Handle role-based permissions for task creation contexts
-    if (user.role !== UserRole.GENERAL_MANAGER && user.role !== UserRole.ADMIN) {
-      // Normal users have context-specific permissions
-      // For now, we trust the frontend to enforce this, but could add additional validation here
-    }
-    
-    if (createTaskDto.status) {
-      task.status = createTaskDto.status;
-    }
-    
-    // Set department only for appropriate contexts
-    if (createTaskDto.departmentId && 
-        (task.context === TaskContext.DEPARTMENT || user.role === UserRole.GENERAL_MANAGER || user.role === UserRole.ADMIN)) {
-      task.departmentId = createTaskDto.departmentId;
-    }
-    
-    if (createTaskDto.dueDate) {
-      task.dueDate = new Date(createTaskDto.dueDate);
-    }
-    
-    // Save the task first to get an ID
-    const savedTask = await this.tasksRepository.save(task);
-    
-    // Handle assignedTo separately if provided
-    if (createTaskDto.assignedTo && createTaskDto.assignedTo.length > 0) {
-      // For personal tasks, these are collaborators
-      // For user tasks, these are assignees
-      savedTask.assignedTo = [];
-    }
-    
-    return savedTask;
   }
 
   async findAll(query: any, user: any): Promise<Task[]> {

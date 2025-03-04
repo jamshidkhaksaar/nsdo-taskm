@@ -72,86 +72,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   // Check if user has general manager or admin role
   const isGeneralManagerOrAdmin = user?.role === 'general_manager' || user?.role === 'admin';
 
-  useEffect(() => {
-    // Fetch departments for the dropdown
-    const fetchDepartments = async () => {
-      try {
-        const deptResponse = await DepartmentService.getDepartments();
-        setDepartments(deptResponse);
-      } catch (err) {
-        console.error('Error fetching departments:', err);
-      }
-    };
-    
-    // Fetch users for assignments or collaborators
-    const fetchUsers = async () => {
-      try {
-        const response = await TaskService.getUsers();
-        setUsers(response);
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-    
-    if (open) {
-      fetchDepartments();
-      fetchUsers();
-      
-      // Set pre-selected values if provided
-      if (preSelectedDepartment) {
-        setDepartment(preSelectedDepartment);
-      }
-      
-      if (preSelectedUsers && preSelectedUsers.length > 0) {
-        if (pageContext === 'dashboard') {
-          setCollaborators(preSelectedUsers);
-        } else if (pageContext === 'user') {
-          setSelectedUsers(preSelectedUsers);
-        }
-      }
-      
-      if (task) {
-        // Edit mode - populate form with task data
-        setTitle(task.title);
-        setDescription(task.description || '');
-        setDueDate(task.due_date ? new Date(task.due_date) : new Date());
-        setDateError(null);
-        
-        // Handle department which can be string, DepartmentRef, or null
-        if (task.department) {
-          if (typeof task.department === 'string') {
-            setDepartment(task.department);
-          } else if (typeof task.department === 'object' && 'id' in task.department) {
-            setDepartment(task.department.id);
-          }
-        } else {
-          setDepartment('');
-        }
-        
-        // Determine if users are collaborators or assignees based on task context
-        if (task && task.context === 'personal') {
-          // For personal tasks, we treat assigned_to as collaborators
-          const taskCollaborators = users.filter(user => 
-            task.assigned_to?.includes(user.id.toString())
-          );
-          setCollaborators(taskCollaborators);
-          setSelectedUsers([]);
-        } else if (task) {
-          // For department or user tasks, these are assignees
-          const assignedUsers = users.filter(user => 
-            task.assigned_to?.includes(user.id.toString())
-          );
-          setSelectedUsers(assignedUsers);
-          setCollaborators([]);
-        }
-      } else {
-        // Create mode - reset form
-        resetForm();
-      }
-    }
-  }, [open, task, users, preSelectedDepartment, preSelectedUsers, pageContext]);
-
-  // Helper function to reset the form
+  // Helper function to reset the form - defined early so it can be used in useEffect
   const resetForm = () => {
     setTitle('');
     setDescription('');
@@ -164,6 +85,91 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setCollaborators([]);
     setDepartment('');
   };
+  
+  // Split the effects to separate concerns
+  // First effect: handles data fetching when dialog opens
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Only fetch if dialog is open
+        if (open) {
+          // Fetch departments
+          const deptResponse = await DepartmentService.getDepartments();
+          setDepartments(deptResponse);
+          
+          // Fetch users
+          const response = await TaskService.getUsers();
+          setUsers(response);
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      }
+    };
+    
+    fetchData();
+  }, [open]); // Only depend on dialog open state
+
+  // Second effect: handles form initialization with existing data
+  useEffect(() => {
+    if (!open) return; // Don't do anything if dialog is closed
+    
+    // Set pre-selected values if provided
+    if (preSelectedDepartment) {
+      setDepartment(preSelectedDepartment);
+    }
+    
+    if (preSelectedUsers && preSelectedUsers.length > 0) {
+      if (pageContext === 'dashboard') {
+        setCollaborators(preSelectedUsers);
+      } else if (pageContext === 'user') {
+        setSelectedUsers(preSelectedUsers);
+      }
+    }
+    
+    if (task) {
+      // Edit mode - populate form with task data
+      setTitle(task.title);
+      setDescription(task.description || '');
+      setDueDate(task.due_date ? new Date(task.due_date) : new Date());
+      setDateError(null);
+      
+      // Handle department which can be string, DepartmentRef, or null
+      if (task.department) {
+        if (typeof task.department === 'string') {
+          setDepartment(task.department);
+        } else if (typeof task.department === 'object' && 'id' in task.department) {
+          setDepartment(task.department.id);
+        }
+      } else {
+        setDepartment('');
+      }
+    } else {
+      // Create mode - reset form
+      resetForm();
+    }
+  }, [open, task, preSelectedDepartment, preSelectedUsers, pageContext]); // Removed users dependency
+  
+  // Third effect: Update user assignments after users are loaded
+  useEffect(() => {
+    if (!open || !task || users.length === 0) return;
+    
+    // Determine if users are collaborators or assignees based on task context
+    if (task.context === 'personal') {
+      // For personal tasks, we treat assigned_to as collaborators
+      const taskCollaborators = users.filter(user => 
+        task.assigned_to?.includes(user.id.toString())
+      );
+      setCollaborators(taskCollaborators);
+      setSelectedUsers([]);
+    } else {
+      // For department or user tasks, these are assignees
+      const assignedUsers = users.filter(user => 
+        task.assigned_to?.includes(user.id.toString())
+      );
+      setSelectedUsers(assignedUsers);
+      setCollaborators([]);
+    }
+  }, [open, task, users]); // Only run when users or task changes
 
   const validateDueDate = (date: Date | null): boolean => {
     if (!date) {
@@ -230,7 +236,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       } else if (pageContext === 'department') {
         // Department task
         taskData.context = 'department';
-        taskData.department = department;
+        taskData.department = department; // This will be mapped to departmentId in the service
       } else if (pageContext === 'user') {
         // User assignment
         taskData.context = 'user';
@@ -277,6 +283,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         sx: {
           ...glassStyles.form,
           minWidth: '500px',
+          // Ensure dialog doesn't interfere with poppers
+          overflow: 'visible',
         },
       }}
     >
@@ -284,7 +292,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         {task ? 'Edit Task' : getDialogTitle()}
       </DialogTitle>
       
-      <DialogContent>
+      <DialogContent sx={{ overflow: 'visible' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
           {/* Only show context selector for general managers who can create any type of task */}
           {isGeneralManagerOrAdmin && !task && (
@@ -351,6 +359,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                   sx: {
                     '& .MuiOutlinedInput-root': glassStyles.input,
                   }
+                },
+                popper: { 
+                  sx: { zIndex: 9999 } 
                 }
               }}
             />
@@ -394,6 +405,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               value={selectedUsers}
               onChange={(_: any, newValue: User[]) => setSelectedUsers(newValue)}
               getOptionLabel={(option: User) => `${option.first_name} ${option.last_name} (${option.username})`}
+              componentsProps={{
+                popper: {
+                  sx: { zIndex: 9999 }
+                }
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -419,6 +435,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               value={collaborators}
               onChange={(_: any, newValue: User[]) => setCollaborators(newValue)}
               getOptionLabel={(option: User) => `${option.first_name} ${option.last_name} (${option.username})`}
+              componentsProps={{
+                popper: {
+                  sx: { zIndex: 9999 }
+                }
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}

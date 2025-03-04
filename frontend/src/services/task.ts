@@ -73,20 +73,31 @@ export const TaskService = {
         return response.data;
     },
 
-    // Create a new task with enhanced support for different creation contexts
-    createTask: async (task: CreateTask, context?: 'personal' | 'department' | 'user'): Promise<Task> => {
+    // Create a new task
+    createTask: async (task: CreateTask, context: string = 'personal'): Promise<Task> => {
         try {
-            const { updated_at, ...rest } = task;
+            // Map frontend status to backend status
+            const status = task.status?.toLowerCase() || 'pending';
+            const backendStatus = frontendToBackendStatus[status] || 'TODO';
             
-            // Prepare the payload with context-specific logic
+            console.log('Mapping status:', status, 'to backend status:', backendStatus);
+            
+            // Normalize context
+            const normalizedContext = context.toLowerCase();
+            
+            // Extract fields to be renamed
+            const { due_date, assigned_to, department, created_by, ...rest } = task;
+            
+            // Prepare the payload with context-specific logic and proper field names
             const payload = {
                 ...rest,
                 priority: task.priority?.toLowerCase() || 'medium',
-                assigned_to: task.assigned_to || [],
-                department: task.department,
-                created_by: task.created_by?.toString() || null,
-                status: frontendToBackendStatus[task.status] || 'TODO',
-                context: context // Pass context to help the backend with permissions
+                departmentId: department, // Map department to departmentId
+                assignedTo: assigned_to || [], // Map assigned_to to assignedTo
+                createdById: created_by?.toString() || null, // Map created_by to createdById
+                status: backendStatus,
+                context: normalizedContext, // Pass context to help the backend with permissions
+                dueDate: due_date // Map due_date to dueDate
             };
             
             console.log('Creating task with payload:', payload);
@@ -104,6 +115,10 @@ export const TaskService = {
             return createdTask;
         } catch (error) {
             console.error('Error creating task:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Request failed with status:', error.response?.status);
+                console.error('Error response data:', error.response?.data);
+            }
             throw error;
         }
     },

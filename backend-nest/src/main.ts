@@ -7,10 +7,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   
-  // Enable CORS
+  // Enable CORS with multiple origins
   app.enableCors({
-    origin: 'http://localhost:3000', // Frontend URL
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    origin: [
+      configService.get('FRONTEND_URL') || 'http://localhost:3000',
+      'http://192.168.3.90:3000',  // Add your local network IP
+      'http://localhost:3000'
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
   
@@ -24,9 +28,9 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
   }));
   
-  // Use port 3001 by default or from config
+  // Use port from config
   const port = configService.get('PORT') || 3001;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  console.log(`Application is running in ${configService.get('NODE_ENV') || 'development'} mode on: http://localhost:${port}`);
 }
 bootstrap();

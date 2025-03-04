@@ -15,6 +15,8 @@ import {
   Checkbox,
   Link as MuiLink,
   alpha,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
@@ -33,6 +35,8 @@ import LoginFooter from '../components/LoginFooter';
 import axiosInstance from '../utils/axios';
 import axios from 'axios';
 import { setCredentials } from '../store/slices/authSlice';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 interface LoginFormInputs {
   username: string;
@@ -55,6 +59,7 @@ const Login: React.FC = () => {
   const from = (location.state as any)?.from?.pathname || '/dashboard';
   const glassStyles = getGlassmorphismStyles(theme);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -213,6 +218,11 @@ const Login: React.FC = () => {
       transform: translateX(0);
     }
   `;
+
+  // Add a function to toggle password visibility
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   return (
     <Box
@@ -385,7 +395,7 @@ const Login: React.FC = () => {
           />
           <TextField
             label="Password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             fullWidth
             {...register('password')}
             error={!!errors.password}
@@ -393,6 +403,20 @@ const Login: React.FC = () => {
             variant="outlined"
             InputLabelProps={{
               style: glassStyles.inputLabel
+            }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={handleTogglePasswordVisibility}
+                    edge="end"
+                    title={showPassword ? "Hide password" : "Show password"}
+                    sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
             }}
             sx={{
               mb: 1,
