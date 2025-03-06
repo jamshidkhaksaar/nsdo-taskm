@@ -1,4 +1,5 @@
-import axios from '../utils/axios';
+import axios, { AxiosError, isAxiosError } from 'axios';
+import axiosInstance from '../utils/axios';
 import { Task, CreateTask, TaskPriority, TaskStatus } from '../types/task';
 import { User } from '../types/user';
 
@@ -29,7 +30,7 @@ export const TaskService = {
     getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
             // Add support for role-based filtering
-            const response = await axios.get<Task[]>('/api/tasks/', { params });
+            const response = await axiosInstance.get<Task[]>('/api/tasks/', { params });
             console.log('Tasks fetched:', response.data);
             
             // Map backend status to frontend status
@@ -48,7 +49,7 @@ export const TaskService = {
     // Get tasks by department
     getTasksByDepartment: async (departmentId: string | number): Promise<Task[]> => {
         try {
-            const response = await axios.get<Task[]>(`/api/tasks/?department=${departmentId}`);
+            const response = await axiosInstance.get<Task[]>(`/api/tasks/?department=${departmentId}`);
             return response.data;
         } catch (error) {
             console.error('Error fetching department tasks:', error);
@@ -63,13 +64,13 @@ export const TaskService = {
 
     // Get tasks assigned to user
     getAssignedTasks: async (userId: string) => {
-        const response = await axios.get<Task[]>(`/api/tasks/?assigned_to=${userId}`);
+        const response = await axiosInstance.get<Task[]>(`/api/tasks/?assigned_to=${userId}`);
         return response.data;
     },
 
     // Get tasks created by user
     getCreatedTasks: async (userId: string) => {
-        const response = await axios.get<Task[]>(`/api/tasks/?created_by=${userId}`);
+        const response = await axiosInstance.get<Task[]>(`/api/tasks/?created_by=${userId}`);
         return response.data;
     },
 
@@ -102,7 +103,7 @@ export const TaskService = {
             
             console.log('Creating task with payload:', payload);
 
-            const response = await axios.post<Task>('/api/tasks/', payload);
+            const response = await axiosInstance.post<Task>('/api/tasks/', payload);
             console.log('Create task response:', response.data);
 
             // Map the response status back to frontend format
@@ -115,7 +116,7 @@ export const TaskService = {
             return createdTask;
         } catch (error) {
             console.error('Error creating task:', error);
-            if (axios.isAxiosError(error)) {
+            if (isAxiosError(error)) {
                 console.error('Request failed with status:', error.response?.status);
                 console.error('Error response data:', error.response?.data);
             }
@@ -158,7 +159,7 @@ export const TaskService = {
 
             console.log('Sending update payload:', payload);
 
-            const response = await axios.patch<Task>(`/api/tasks/${taskId}/`, payload);
+            const response = await axiosInstance.patch<Task>(`/api/tasks/${taskId}/`, payload);
             console.log('Task update response:', response.data);
 
             if (!response.data) {
@@ -178,12 +179,12 @@ export const TaskService = {
 
     // Delete a task
     deleteTask: async (taskId: string) => {
-        await axios.delete(`/api/tasks/${taskId}/`);
+        await axiosInstance.delete(`/api/tasks/${taskId}/`);
     },
 
     // Assign a task to a user
     assignTask: async (taskId: string, userId: string) => {
-        const response = await axios.post<Task>(`/api/tasks/${taskId}/assign/`, {
+        const response = await axiosInstance.post<Task>(`/api/tasks/${taskId}/assign/`, {
             user_id: userId
         });
         return response.data;
@@ -192,7 +193,7 @@ export const TaskService = {
     // Change task status
     changeTaskStatus: async (taskId: string, status: TaskStatus) => {
         const backendStatus = frontendToBackendStatus[status] || 'TODO';
-        const response = await axios.patch<Task>(`/api/tasks/${taskId}/status`, {
+        const response = await axiosInstance.patch<Task>(`/api/tasks/${taskId}/status`, {
             status: backendStatus
         });
         
@@ -206,7 +207,7 @@ export const TaskService = {
     // Get all users
     getUsers: async (): Promise<User[]> => {
         try {
-            const response = await axios.get('/api/users/');
+            const response = await axiosInstance.get('/api/users/');
             return response.data;
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -217,7 +218,7 @@ export const TaskService = {
     // Get a single task by ID
     getTask: async (taskId: string): Promise<Task> => {
         try {
-            const response = await axios.get<Task>(`/api/tasks/${taskId}/`);
+            const response = await axiosInstance.get<Task>(`/api/tasks/${taskId}/`);
             
             // Convert backend status to frontend status
             return {
@@ -240,7 +241,7 @@ export const TaskService = {
                 params.include_all = true;
             }
             
-            const response = await axios.get<Task[]>('/api/tasks/', { params });
+            const response = await axiosInstance.get<Task[]>('/api/tasks/', { params });
             
             // Map backend status to frontend status
             return response.data.map(task => ({
