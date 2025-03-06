@@ -264,6 +264,7 @@ const SystemSettings: React.FC = () => {
   const [testingEmail, setTestingEmail] = useState(false);
   const [generatingApiKey, setGeneratingApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     // Function to fetch settings
@@ -349,38 +350,45 @@ const SystemSettings: React.FC = () => {
   }, []);
 
   const handleSettingChange = async (sectionId: string, settingId: string, value: any) => {
-    // Update local state first
-    setSettings(prevSettings => 
-      prevSettings.map(section => {
-        if (section.id === sectionId) {
-          return {
-            ...section,
-            settings: section.settings.map(setting => 
-              setting.id === settingId ? { ...setting, value } : setting
-            ),
-          };
-        }
-        return section;
-      })
-    );
-
     try {
+      setSaving(true);
+      
+      // Find the section and setting
+      const section = settings.find(s => s.id === sectionId);
+      if (!section) {
+        throw new Error(`Section ${sectionId} not found`);
+      }
+      
+      const setting = section.settings.find(s => s.id === settingId);
+      if (!setting) {
+        throw new Error(`Setting ${settingId} not found in section ${sectionId}`);
+      }
+      
+      // Update the setting value locally
+      setting.value = value;
+      
+      // Trigger re-render
+      setSettings([...settings]);
+      
+      console.log(`Updating ${sectionId} setting ${settingId} to:`, value);
+      
+      // Now update on the server based on the section
       if (sectionId === 'security') {
         const backendFieldName = securitySettingsMap[settingId as keyof typeof securitySettingsMap];
         if (backendFieldName) {
           // Convert value types appropriately
           let processedValue = value;
-          if (settingId === 'passwordExpiry' || settingId === 'maxLoginAttempts') {
+          if (typeof setting.value === 'number') {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await axios.patch('/api/security-settings/1/', {
+          const { data } = await SettingsService.updateSecuritySettings({
             [backendFieldName]: processedValue
           });
 
           setSnackbar({
             open: true,
-            message: 'Setting updated successfully',
+            message: 'Security setting updated successfully',
             severity: 'success'
           });
 
@@ -392,11 +400,11 @@ const SystemSettings: React.FC = () => {
         if (backendFieldName) {
           // Convert value types appropriately
           let processedValue = value;
-          if (settingId === 'backupFrequency' || settingId === 'retentionPeriod') {
+          if (typeof setting.value === 'number') {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await axios.patch('/api/backup-settings/1/', {
+          const { data } = await SettingsService.updateBackupSettings({
             [backendFieldName]: processedValue
           });
 
@@ -418,7 +426,7 @@ const SystemSettings: React.FC = () => {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await axios.patch('/api/notification-settings/1/', {
+          const { data } = await SettingsService.updateNotificationSettings({
             [backendFieldName]: processedValue
           });
 
@@ -440,7 +448,7 @@ const SystemSettings: React.FC = () => {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await axios.patch('/api/api-settings/1/', {
+          const { data } = await SettingsService.updateApiSettings({
             [backendFieldName]: processedValue
           });
 
@@ -455,37 +463,25 @@ const SystemSettings: React.FC = () => {
       }
     } catch (error) {
       console.error(`Error updating ${sectionId} settings:`, error);
-      // Revert local state on error
-      setSettings(prevSettings => 
-        prevSettings.map(section => {
-          if (section.id === sectionId) {
-            return {
-              ...section,
-              settings: section.settings.map(setting => {
-                if (setting.id === settingId) {
-                  return {
-                    ...setting,
-                    value: setting.value // Revert to previous value
-                  };
-                }
-                return setting;
-              })
-            };
-          }
-          return section;
-        })
-      );
-
       setSnackbar({
         open: true,
-        message: `Failed to update ${settingId}`,
+        message: `Failed to update ${sectionId} setting`,
         severity: 'error'
       });
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleSave = async () => {
     try {
+      setSaving(true);
+      setSnackbar({
+        open: true,
+        message: 'Saving settings...',
+        severity: 'info'
+      });
+      
       // Save security settings
       const securitySection = settings.find(s => s.id === 'security');
       if (securitySection) {
@@ -570,6 +566,8 @@ const SystemSettings: React.FC = () => {
         message: 'Failed to save settings',
         severity: 'error'
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -577,37 +575,38 @@ const SystemSettings: React.FC = () => {
   const handleTestEmailSettings = async () => {
     try {
       setTestingEmail(true);
+      
+      // Get notification settings
+      const notificationSection = settings.find(s => s.id === 'notifications');
+      if (!notificationSection) {
+        throw new Error('Notification settings not found');
+      }
+      
+      // Convert to backend format
+      const notificationSettings = notificationSection.settings.reduce((acc, setting) => {
+        const backendFieldName = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
+        if (backendFieldName) {
+          let processedValue = setting.value;
+          if (setting.type === 'number') {
+            processedValue = parseInt(setting.value, 10);
+          }
+          acc[backendFieldName] = processedValue;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+      
+      // Send test email
+      const response = await SettingsService.testEmailSettings(notificationSettings);
+      
       setSnackbar({
         open: true,
-        message: 'Sending test email...',
-        severity: 'info'
+        message: 'Test email sent successfully!',
+        severity: 'success'
       });
       
-      const notificationSection = settings.find(s => s.id === 'notifications');
-      if (notificationSection) {
-        const notificationSettings = notificationSection.settings.reduce((acc, setting) => {
-          const backendFieldName = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
-          if (backendFieldName) {
-            let processedValue = setting.value;
-            if (setting.type === 'number') {
-              processedValue = parseInt(setting.value, 10);
-            }
-            acc[backendFieldName] = processedValue;
-          }
-          return acc;
-        }, {} as Record<string, any>);
-
-        // Use SettingsService instead of direct axios call
-        await SettingsService.testEmailSettings(notificationSettings);
-        
-        setSnackbar({
-          open: true,
-          message: 'Test email sent successfully',
-          severity: 'success'
-        });
-      }
+      console.log('Test email response:', response.data);
     } catch (error) {
-      console.error('Error testing email settings:', error);
+      console.error('Error sending test email:', error);
       setSnackbar({
         open: true,
         message: 'Failed to send test email',
@@ -622,10 +621,11 @@ const SystemSettings: React.FC = () => {
   const handleGenerateApiKey = async () => {
     try {
       setGeneratingApiKey(true);
-      // Use SettingsService instead of direct axios call
-      const response = await SettingsService.generateApiKey();
       
-      // Update the API key in the settings
+      // Generate new API key
+      const { data } = await SettingsService.generateApiKey();
+      
+      // Update local state
       setSettings(prevSettings => 
         prevSettings.map(section => {
           if (section.id === 'api') {
@@ -633,10 +633,7 @@ const SystemSettings: React.FC = () => {
               ...section,
               settings: section.settings.map(setting => {
                 if (setting.id === 'apiKey') {
-                  return {
-                    ...setting,
-                    value: response.api_key || response.apiKey
-                  };
+                  return { ...setting, value: data.api_key };
                 }
                 return setting;
               })
@@ -648,14 +645,14 @@ const SystemSettings: React.FC = () => {
       
       setSnackbar({
         open: true,
-        message: 'New API key generated successfully',
+        message: 'New API key generated!',
         severity: 'success'
       });
     } catch (error) {
       console.error('Error generating API key:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to generate new API key',
+        message: 'Failed to generate API key',
         severity: 'error'
       });
     } finally {

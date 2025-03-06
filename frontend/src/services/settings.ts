@@ -18,7 +18,7 @@ export const SettingsService = {
   getSecuritySettings: async () => {
     try {
       console.log('[SettingsService] Fetching security settings');
-      const response = await axios.get('/api/security-settings/1/');
+      const response = await axios.get('/api/settings/security-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching security settings:', error);
@@ -48,7 +48,7 @@ export const SettingsService = {
   updateSecuritySettings: async (settings: Partial<SecuritySettings>) => {
     try {
       console.log('[SettingsService] Updating security settings');
-      const response = await axios.patch('/api/security-settings/1/', settings);
+      const response = await axios.patch('/api/settings/security-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating security settings:', error);
@@ -67,7 +67,7 @@ export const SettingsService = {
   getBackupSettings: async () => {
     try {
       console.log('[SettingsService] Fetching backup settings');
-      const response = await axios.get('/api/backup-settings/1/');
+      const response = await axios.get('/api/settings/backup-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching backup settings:', error);
@@ -97,7 +97,7 @@ export const SettingsService = {
   updateBackupSettings: async (settings: Partial<BackupSettings>) => {
     try {
       console.log('[SettingsService] Updating backup settings');
-      const response = await axios.patch('/api/backup-settings/1/', settings);
+      const response = await axios.patch('/api/settings/backup-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating backup settings:', error);
@@ -116,7 +116,7 @@ export const SettingsService = {
   getNotificationSettings: async () => {
     try {
       console.log('[SettingsService] Fetching notification settings');
-      const response = await axios.get('/api/notification-settings/1/');
+      const response = await axios.get('/api/settings/notification-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching notification settings:', error);
@@ -146,7 +146,7 @@ export const SettingsService = {
   updateNotificationSettings: async (settings: Partial<NotificationSettings>) => {
     try {
       console.log('[SettingsService] Updating notification settings');
-      const response = await axios.patch('/api/notification-settings/1/', settings);
+      const response = await axios.patch('/api/settings/notification-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating notification settings:', error);
@@ -214,7 +214,7 @@ export const SettingsService = {
   testEmailSettings: async (settings: Partial<NotificationSettings>) => {
     try {
       console.log('[SettingsService] Testing email settings');
-      const response = await axios.post('/api/notification-settings/test-email/', settings);
+      const response = await axios.post('/api/settings/notification-settings/test-email/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error testing email settings:', error);
