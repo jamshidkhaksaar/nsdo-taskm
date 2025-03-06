@@ -7,6 +7,8 @@ import ThunderstormIcon from '@mui/icons-material/Thunderstorm';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
+import axios from 'axios';
+import { SettingsService } from '../../services/settings';
 
 interface WeatherWidgetProps {
   compact?: boolean;
@@ -32,64 +34,97 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
     setError(null);
     
     try {
-      // Get user's location - this is a browser feature and requires permission
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by your browser');
+      // Get API settings to retrieve the weather API key using SettingsService
+      const apiSettings = await SettingsService.getApiSettings();
+      const weatherApiKey = apiSettings.weather_api_key;
+      const weatherApiEnabled = apiSettings.weather_api_enabled;
+      
+      if (!weatherApiEnabled || !weatherApiKey) {
+        throw new Error('Weather API is not configured or disabled');
       }
       
-      // Use a free weather API service (replace with your preferred service)
-      // For demonstration - let's create some mock data since we can't guarantee API access
-      // In a real app, you would use your API key and fetch from a weather service
+      // Get user's location - this is a browser feature and requires permission
+      if (!navigator.geolocation) {
+        // Fallback to IP-based location if geolocation is not supported
+        await fetchWeatherWithIP(weatherApiKey);
+        return;
+      }
       
-      // Mock data for demonstration
-      setTimeout(() => {
-        const mockWeather: WeatherData = {
-          location: 'San Francisco, CA',
-          temperature: 18,
-          condition: 'Partly Cloudy',
-          humidity: 65,
-          wind: 12,
-          icon: 'cloud'
-        };
-        
-        setWeather(mockWeather);
-        setLoading(false);
-      }, 1000);
-      
-      // Real implementation would look like this:
-      /*
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
-        
-        // Replace with your actual weather API endpoint and key
-        const response = await fetch(
-          `https://api.weatherapi.com/v1/current.json?key=YOUR_API_KEY&q=${latitude},${longitude}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Weather service unavailable');
+      // Use geolocation to get precise coordinates
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          // Fetch from WeatherAPI.com with coordinates
+          const response = await fetch(
+            `https://api.weatherapi.com/v1/current.json?key=${weatherApiKey}&q=${latitude},${longitude}&aqi=no`
+          );
+          
+          if (!response.ok) {
+            throw new Error('Weather service unavailable');
+          }
+          
+          const data = await response.json();
+          
+          console.log('Weather API response:', data);
+          
+          setWeather({
+            location: `${data.location.name}, ${data.location.country}`,
+            temperature: data.current.temp_c,
+            condition: data.current.condition.text,
+            humidity: data.current.humidity,
+            wind: data.current.wind_kph,
+            icon: data.current.condition.code ? data.current.condition.code.toString() : data.current.condition.icon
+          });
+          
+          setLoading(false);
+        },
+        async (err) => {
+          // Fallback to IP-based location if permission denied
+          console.log('Location permission denied, falling back to IP-based location');
+          await fetchWeatherWithIP(weatherApiKey);
         }
-        
-        const data = await response.json();
-        
-        setWeather({
-          location: `${data.location.name}, ${data.location.country}`,
-          temperature: data.current.temp_c,
-          condition: data.current.condition.text,
-          humidity: data.current.humidity,
-          wind: data.current.wind_kph,
-          icon: data.current.condition.icon
-        });
-        
-        setLoading(false);
-      }, (err) => {
-        setError('Location access denied. Please enable location services.');
-        setLoading(false);
-      });
-      */
-      
+      );
     } catch (err) {
+      console.error('Weather error:', err);
       setError('Unable to fetch weather data. Please try again later.');
+      setLoading(false);
+    }
+  };
+  
+  // Fallback method using IP for location
+  const fetchWeatherWithIP = async (apiKey: string) => {
+    try {
+      // Get location from IP
+      const locationResponse = await fetch('https://ipapi.co/json/');
+      const locationData = await locationResponse.json();
+      
+      // Fetch weather data from WeatherAPI.com
+      const weatherResponse = await fetch(
+        `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${locationData.city}&aqi=no`
+      );
+      
+      if (!weatherResponse.ok) {
+        throw new Error('Weather API request failed');
+      }
+      
+      const data = await weatherResponse.json();
+      
+      console.log('Weather API response (IP-based):', data);
+      
+      setWeather({
+        location: `${data.location.name}, ${data.location.country}`,
+        temperature: data.current.temp_c,
+        condition: data.current.condition.text,
+        humidity: data.current.humidity,
+        wind: data.current.wind_kph,
+        icon: data.current.condition.code ? data.current.condition.code.toString() : data.current.condition.icon
+      });
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching weather with IP:', error);
+      setError('Unable to determine your location.');
       setLoading(false);
     }
   };
@@ -97,25 +132,56 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
   // Fetch weather data on component mount
   useEffect(() => {
     fetchWeatherData();
+    // Periodically update weather data every 15 minutes
+    const interval = setInterval(fetchWeatherData, 15 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
   
-  // Function to get appropriate weather icon
+  // Function to get appropriate weather icon based on condition code
   const getWeatherIcon = () => {
     if (!weather) return <CloudIcon fontSize="large" sx={{ color: '#3498db' }} />;
     
-    switch(weather.icon) {
-      case 'sun':
-        return <WbSunnyIcon fontSize="large" sx={{ color: '#f39c12' }} />;
-      case 'snow':
-        return <AcUnitIcon fontSize="large" sx={{ color: '#ecf0f1' }} />;
-      case 'rain':
-        return <BeachAccessIcon fontSize="large" sx={{ color: '#3498db' }} />;
-      case 'storm':
-        return <ThunderstormIcon fontSize="large" sx={{ color: '#9b59b6' }} />;
-      case 'cloud':
-      default:
-        return <CloudIcon fontSize="large" sx={{ color: '#bdc3c7' }} />;
+    // Check if icon is a URL (from the API's icon field)
+    if (typeof weather.icon === 'string' && weather.icon.includes('//')) {
+      return (
+        <Box sx={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img 
+            src={`https:${weather.icon}`} 
+            alt={weather.condition}
+            style={{ width: 24, height: 24 }}
+          />
+        </Box>
+      );
     }
+    
+    // Otherwise, map condition codes to our icon set
+    try {
+      // Try to parse as a number if it's a condition code
+      const conditionCode = parseInt(weather.icon);
+      
+      // Sunny conditions (1000 = clear, 1003 = partly cloudy)
+      if (conditionCode === 1000) {
+        return <WbSunnyIcon fontSize="large" sx={{ color: '#f39c12' }} />;
+      }
+      // Snow conditions (1066, 1114, 1117, 1210 etc.)
+      else if ([1066, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1255, 1258].includes(conditionCode)) {
+        return <AcUnitIcon fontSize="large" sx={{ color: '#ecf0f1' }} />;
+      }
+      // Rain conditions (1063, 1180, 1183 etc.)
+      else if ([1063, 1150, 1153, 1180, 1183, 1186, 1189, 1192, 1195, 1240, 1243, 1246].includes(conditionCode)) {
+        return <BeachAccessIcon fontSize="large" sx={{ color: '#3498db' }} />;
+      }
+      // Storm conditions (1087, 1273, 1276 etc.)
+      else if ([1087, 1273, 1276, 1279, 1282].includes(conditionCode)) {
+        return <ThunderstormIcon fontSize="large" sx={{ color: '#9b59b6' }} />;
+      }
+    } catch (e) {
+      // If parsing as a number fails, just use default icon
+      console.warn('Could not parse condition code:', weather.icon);
+    }
+    
+    // Default to cloudy for all other conditions
+    return <CloudIcon fontSize="large" sx={{ color: '#bdc3c7' }} />;
   };
   
   return (

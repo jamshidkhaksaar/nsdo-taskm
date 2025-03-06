@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AdminModule } from './admin/admin.module';
 import { TasksModule } from './tasks/tasks.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TasksModule } from './tasks/tasks.module';
     DepartmentsModule,
     AdminModule,
     TasksModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

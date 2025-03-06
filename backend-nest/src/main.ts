@@ -2,10 +2,20 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SettingsService } from './settings/settings.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  
+  // Initialize settings on app startup
+  try {
+    const settingsService = app.get(SettingsService);
+    await settingsService.initializeSettings();
+    console.log('Settings initialized successfully');
+  } catch (error) {
+    console.error('Error initializing settings:', error);
+  }
   
   // Enable CORS with multiple origins
   app.enableCors({

@@ -165,7 +165,7 @@ export const SettingsService = {
   getApiSettings: async () => {
     try {
       console.log('[SettingsService] Fetching API settings');
-      const response = await axios.get('/api/api-settings/1/');
+      const response = await axios.get('/api/settings/api-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching API settings:', error);
@@ -195,7 +195,7 @@ export const SettingsService = {
   updateApiSettings: async (settings: Partial<ApiSettings>) => {
     try {
       console.log('[SettingsService] Updating API settings');
-      const response = await axios.patch('/api/api-settings/1/', settings);
+      const response = await axios.patch('/api/settings/api-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating API settings:', error);
@@ -233,7 +233,7 @@ export const SettingsService = {
   generateApiKey: async () => {
     try {
       console.log('[SettingsService] Generating new API key');
-      const response = await axios.post('/api/api-settings/generate-key/');
+      const response = await axios.post('/api/settings/api-settings/generate-key/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error generating API key:', error);

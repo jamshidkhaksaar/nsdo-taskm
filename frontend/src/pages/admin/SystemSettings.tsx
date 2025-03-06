@@ -263,95 +263,88 @@ const SystemSettings: React.FC = () => {
   });
   const [testingEmail, setTestingEmail] = useState(false);
   const [generatingApiKey, setGeneratingApiKey] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Update useEffect to fetch notification settings too
   useEffect(() => {
+    // Function to fetch settings
     const fetchSettings = async () => {
       try {
-        // Fetch all settings using SettingsService
-        const [securityResponse, backupResponse, notificationResponse, apiResponse] = await Promise.all([
-          SettingsService.getSecuritySettings(),
-          SettingsService.getBackupSettings(),
-          SettingsService.getNotificationSettings(),
-          SettingsService.getApiSettings()
-        ]);
+        setLoading(true);
         
-        // Update settings in state
-        setSettings(prevSettings => 
-          prevSettings.map(section => {
-            if (section.id === 'security') {
-              return {
-                ...section,
-                settings: section.settings.map(setting => {
-                  const backendField = securitySettingsMap[setting.id as keyof typeof securitySettingsMap];
-                  if (backendField && backendField in securityResponse) {
-                    return {
-                      ...setting,
-                      value: securityResponse[backendField]
-                    };
-                  }
-                  return setting;
-                })
-              };
-            }
-            if (section.id === 'backup') {
-              return {
-                ...section,
-                settings: section.settings.map(setting => {
-                  const backendField = backupSettingsMap[setting.id as keyof typeof backupSettingsMap];
-                  if (backendField && backendField in backupResponse) {
-                    return {
-                      ...setting,
-                      value: backupResponse[backendField]
-                    };
-                  }
-                  return setting;
-                })
-              };
-            }
-            if (section.id === 'notifications') {
-              return {
-                ...section,
-                settings: section.settings.map(setting => {
-                  const backendField = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
-                  if (backendField && backendField in notificationResponse) {
-                    return {
-                      ...setting,
-                      value: notificationResponse[backendField]
-                    };
-                  }
-                  return setting;
-                })
-              };
-            }
-            if (section.id === 'api') {
-              return {
-                ...section,
-                settings: section.settings.map(setting => {
-                  const backendField = apiSettingsMap[setting.id as keyof typeof apiSettingsMap];
-                  if (backendField && backendField in apiResponse) {
-                    return {
-                      ...setting,
-                      value: apiResponse[backendField]
-                    };
-                  }
-                  return setting;
-                })
-              };
-            }
-            return section;
-          })
-        );
+        // Fetch security settings
+        const securitySettings = await SettingsService.getSecuritySettings();
+        console.log('Security settings loaded:', securitySettings);
+        
+        // Fetch backup settings
+        const backupSettings = await SettingsService.getBackupSettings();
+        console.log('Backup settings loaded:', backupSettings);
+        
+        // Fetch notification settings
+        const notificationSettings = await SettingsService.getNotificationSettings();
+        console.log('Notification settings loaded:', notificationSettings);
+        
+        // Fetch API settings
+        const apiSettings = await SettingsService.getApiSettings();
+        console.log('API settings loaded:', apiSettings);
+        
+        // Map the settings to the UI format
+        const mappedSettings = settingsSections.map(section => {
+          if (section.id === 'security') {
+            return {
+              ...section,
+              settings: section.settings.map(setting => {
+                const backendField = securitySettingsMap[setting.id as keyof typeof securitySettingsMap];
+                if (backendField && securitySettings[backendField] !== undefined) {
+                  return { ...setting, value: securitySettings[backendField] };
+                }
+                return setting;
+              })
+            };
+          } else if (section.id === 'backup') {
+            return {
+              ...section,
+              settings: section.settings.map(setting => {
+                const backendField = backupSettingsMap[setting.id as keyof typeof backupSettingsMap];
+                if (backendField && backupSettings[backendField] !== undefined) {
+                  return { ...setting, value: backupSettings[backendField] };
+                }
+                return setting;
+              })
+            };
+          } else if (section.id === 'notifications') {
+            return {
+              ...section,
+              settings: section.settings.map(setting => {
+                const backendField = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
+                if (backendField && notificationSettings[backendField] !== undefined) {
+                  return { ...setting, value: notificationSettings[backendField] };
+                }
+                return setting;
+              })
+            };
+          } else if (section.id === 'api') {
+            return {
+              ...section,
+              settings: section.settings.map(setting => {
+                const backendField = apiSettingsMap[setting.id as keyof typeof apiSettingsMap];
+                if (backendField && apiSettings[backendField] !== undefined) {
+                  return { ...setting, value: apiSettings[backendField] };
+                }
+                return setting;
+              })
+            };
+          }
+          return section;
+        });
+        
+        setSettings(mappedSettings);
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching settings:', error);
-        setSnackbar({
-          open: true,
-          message: 'Failed to fetch settings',
-          severity: 'error'
-        });
+        setLoading(false);
       }
     };
-
+    
     fetchSettings();
   }, []);
 

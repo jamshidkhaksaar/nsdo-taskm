@@ -24,7 +24,7 @@ const HeaderWidget: React.FC<HeaderWidgetProps> = ({ username }) => {
     const fetchWeather = async () => {
       try {
         // Use the configured axios instance
-        const settingsResponse = await axios.get('/api/api-settings/1/');
+        const settingsResponse = await axios.get('/api/settings/api-settings/1/');
         const weatherApiKey = settingsResponse.data.weather_api_key;
         const weatherApiEnabled = settingsResponse.data.weather_api_enabled;
         
