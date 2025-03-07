@@ -127,15 +127,35 @@ export class DepartmentsController {
       console.log(`Set head_name to ${head_name} for department ${department.id}`);
     }
     
-    // Get members count
-    const members_count = department.members ? department.members.length : 0;
+    // Get members count - first try from the department.members array
+    let members_count = department.members ? department.members.length : 0;
+    
+    // If members_count is 0, try a direct query to double-check
+    if (members_count === 0) {
+      try {
+        // Get count directly from the junction table
+        const memberCountResult = await this.departmentsService.getMemberCount(department.id);
+        if (memberCountResult > 0) {
+          members_count = memberCountResult;
+          console.log(`Updated member count from direct query: ${members_count}`);
+        }
+      } catch (error) {
+        console.error(`Error getting direct member count: ${error.message}`);
+      }
+    }
     
     // Format members data properly for the frontend
-    const members = department.members ? department.members.map(member => ({
-      id: member.id,
-      name: member.username,
-      avatar: null
-    })) : [];
+    const members = department.members ? department.members.map(member => {
+      // Simplify to use just the available properties
+      return {
+        id: member.id,
+        name: member.username || 'Unknown User',
+        avatar: null
+      };
+    }) : [];
+    
+    console.log(`Department ${department.id} has ${members_count} members:`, 
+      members.length > 0 ? members.map(m => `${m.name} (${m.id})`).join(', ') : 'None');
     
     // Get tasks count for active projects (simplified)
     const active_projects = department.tasks ? 

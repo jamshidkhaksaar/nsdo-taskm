@@ -62,19 +62,30 @@ export class DepartmentsService {
       // If there are members, ensure they are properly loaded
       if (department.members && department.members.length > 0) {
         console.log(`Department ${id} has ${department.members.length} members`);
-      } else if (department.headId) {
+      } else {
         // Check if we need to manually load members
         try {
-          const members = await this.departmentsRepository.manager.query(
-            `SELECT u.* FROM user u JOIN department_members dm ON u.id = dm.user_id WHERE dm.department_id = ?`,
+          // Simplify the SQL query to only select columns that exist in the database
+          const memberResults = await this.departmentsRepository.manager.query(
+            `SELECT u.id, u.username 
+             FROM user u 
+             JOIN department_members dm ON u.id = dm.user_id 
+             WHERE dm.department_id = ?`,
             [id]
           );
-          if (members && members.length > 0) {
-            department.members = members;
-            console.log(`Manually loaded ${members.length} members for department ${id}`);
+          
+          if (memberResults && memberResults.length > 0) {
+            console.log(`Manually loaded ${memberResults.length} members for department ${id}`);
+            // Map the results to correct user objects
+            department.members = memberResults;
+            console.log('Member results:', memberResults);
+          } else {
+            console.log(`No members found for department ${id} through direct query`);
+            department.members = [];
           }
         } catch (error) {
           console.error(`Error manually loading members: ${error.message}`);
+          department.members = [];
         }
       }
 
@@ -371,6 +382,23 @@ export class DepartmentsService {
     } catch (error) {
       console.error(`Error getting user by ID ${id}: ${error.message}`);
       return null;
+    }
+  }
+
+  // Helper method to get member count directly from junction table
+  async getMemberCount(departmentId: string): Promise<number> {
+    try {
+      const result = await this.departmentsRepository.manager.query(
+        `SELECT COUNT(*) as count FROM department_members WHERE department_id = ?`,
+        [departmentId]
+      );
+      
+      const count = parseInt(result[0]?.count || '0', 10);
+      console.log(`Direct member count query for department ${departmentId}: ${count}`);
+      return count;
+    } catch (error) {
+      console.error(`Error getting member count for department ${departmentId}: ${error.message}`);
+      return 0;
     }
   }
 } 

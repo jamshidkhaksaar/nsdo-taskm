@@ -206,6 +206,32 @@ const DepartmentManagement: React.FC = () => {
     }
   }, [openDialog]);
 
+  // Add effect to fetch users when add member dialog opens
+  useEffect(() => {
+    if (openAddMemberDialog) {
+      fetchAvailableUsers();
+      console.log('Fetching available users for member dialog');
+    }
+  }, [openAddMemberDialog]);
+
+  // Add effect to refresh department data when members dialog opens
+  useEffect(() => {
+    if (openMembersDialog && selectedDepartment) {
+      // Refresh the selected department data to get latest members
+      const refreshDepartmentData = async () => {
+        try {
+          const response = await axios.get(`/api/departments/${selectedDepartment.id}`);
+          console.log('Refreshed department data for members dialog:', response.data);
+          setSelectedDepartment(response.data);
+        } catch (error) {
+          console.error('Error refreshing department data:', error);
+        }
+      };
+      
+      refreshDepartmentData();
+    }
+  }, [openMembersDialog, selectedDepartment?.id]);
+
   const handleAddDepartment = async () => {
     try {
       if (editMode.isEdit && editMode.departmentId) {
@@ -258,11 +284,19 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  const handleViewMembers = (deptId: string) => {
-    const department = departments.find(d => d.id === deptId);
-    if (department) {
+  const handleViewMembers = async (deptId: string) => {
+    try {
+      // Get the latest department data with members
+      const response = await axios.get(`/api/departments/${deptId}`);
+      const department = response.data;
+      
       setSelectedDepartment(department);
       setOpenMembersDialog(true);
+      
+      console.log('Department members:', department.members);
+    } catch (error) {
+      console.error('Error fetching department details:', error);
+      setError('Failed to load department members');
     }
   };
 
@@ -333,19 +367,34 @@ const DepartmentManagement: React.FC = () => {
       console.log(`Adding user ${selectedMember} to department ${selectedDepartment.id}`);
       setLoading(true);
       await axios.post(`/api/departments/${selectedDepartment.id}/members/${selectedMember}/`);
-      alert('Member added successfully!');
       
       // Close the dialog
       setOpenAddMemberDialog(false);
       setSelectedMember('');
+      
+      // Find the user that was added to display in the alert
+      const addedUser = availableUsers.find(user => user.id === selectedMember);
+      alert(`Member "${addedUser?.name || 'User'}" added successfully!`);
       
       // Refresh department data
       await fetchDepartments();
       
       // Refresh the selected department to see the new member
       if (selectedDepartment && selectedDepartment.id) {
-        const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
-        setSelectedDepartment(updatedDept.data);
+        try {
+          const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
+          console.log('Updated department after adding member:', updatedDept.data);
+          setSelectedDepartment(updatedDept.data);
+          
+          // Update the department in the main departments list as well
+          setDepartments(prevDepts => 
+            prevDepts.map(dept => 
+              dept.id === selectedDepartment.id ? updatedDept.data : dept
+            )
+          );
+        } catch (fetchError) {
+          console.error('Error fetching updated department:', fetchError);
+        }
       }
     } catch (error) {
       console.error('Error adding member:', error);
@@ -480,8 +529,6 @@ const DepartmentManagement: React.FC = () => {
             }}
           >
             <Tab label="All Departments" />
-            <Tab label="Active Projects" />
-            <Tab label="Performance" />
           </Tabs>
         </Box>
       </Paper>
@@ -626,54 +673,6 @@ const DepartmentManagement: React.FC = () => {
                         </Typography>
                       </Box>
                     </Box>
-                    
-                    {dept.active_projects > 0 && (
-                      <Box sx={{ mb: 1 }}>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block', mb: 0.5 }}>
-                          Active Projects
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip 
-                            size="small" 
-                            label={`${dept.active_projects} projects`} 
-                            sx={{ 
-                              bgcolor: 'rgba(255, 255, 255, 0.1)', 
-                              color: '#fff',
-                              borderRadius: '4px',
-                            }} 
-                          />
-                        </Box>
-                      </Box>
-                    )}
-                    
-                    {dept.completion_rate > 0 && (
-                      <Box sx={{ mb: 1 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                            Completion Rate
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                            {dept.completion_rate}%
-                          </Typography>
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={dept.completion_rate} 
-                          sx={{ 
-                            height: 6, 
-                            borderRadius: 3,
-                            bgcolor: 'rgba(255, 255, 255, 0.1)',
-                            '& .MuiLinearProgress-bar': {
-                              bgcolor: dept.completion_rate > 75 
-                                ? theme.palette.success.main 
-                                : dept.completion_rate > 50 
-                                  ? theme.palette.warning.main 
-                                  : theme.palette.error.main
-                            }
-                          }} 
-                        />
-                      </Box>
-                    )}
                   </CardContent>
                   
                   <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
@@ -824,12 +823,20 @@ const DepartmentManagement: React.FC = () => {
                 Department Members
               </Typography>
               {selectedDepartment && (
-                <Typography
-                  variant="subtitle1"
-                  sx={{ mt: 0.5, color: 'text.secondary' }}
-                >
-                  {selectedDepartment.name}
-                </Typography>
+                <>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{ mt: 0.5, color: 'text.secondary' }}
+                  >
+                    {selectedDepartment.name}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}
+                  >
+                    Total Members: {selectedDepartment.members?.length || 0}
+                  </Typography>
+                </>
               )}
             </div>
             <Button 
@@ -844,33 +851,35 @@ const DepartmentManagement: React.FC = () => {
           </Box>
         </DialogTitle>
         <DialogContent>
-          <List>
-            {selectedDepartment && selectedDepartment.members?.map((member) => (
-              <ListItem key={member?.id || 'unknown'}
-                secondaryAction={
-                  <IconButton edge="end" onClick={() => handleRemoveMemberFromDepartment(member.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                }
-              >
-                <ListItemAvatar>
-                  <Avatar>
-                    <PeopleIcon />
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText primary={member.name} />
-              </ListItem>
-            ))}
-            {(!selectedDepartment || 
-              !selectedDepartment.members?.length) && (
-              <ListItem>
-                <ListItemText 
-                  primary="No members found" 
-                  secondary="This department doesn't have any members yet." 
-                />
-              </ListItem>
-            )}
-          </List>
+          {selectedDepartment && selectedDepartment.members && selectedDepartment.members.length > 0 ? (
+            <List>
+              {selectedDepartment.members.map((member) => (
+                <ListItem key={member?.id || 'unknown'}
+                  secondaryAction={
+                    <IconButton edge="end" onClick={() => handleRemoveMemberFromDepartment(member.id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  }
+                >
+                  <ListItemAvatar>
+                    <Avatar>
+                      <PersonIcon />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText primary={member.name} />
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body1" color="text.secondary">
+                No members in this department yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Click "Add Member" to assign users to this department
+              </Typography>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenMembersDialog(false)}>Close</Button>
