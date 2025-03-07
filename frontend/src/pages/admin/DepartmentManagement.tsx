@@ -130,6 +130,10 @@ const DepartmentManagement: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const glassStyles = getGlassmorphismStyles(theme);
   
+  // State for managing adding members
+  const [openAddMemberDialog, setOpenAddMemberDialog] = useState(false);
+  const [selectedMember, setSelectedMember] = useState('');
+
   // Define dialogPaperProps with glassmorphism styles
   const dialogPaperProps = {
     sx: {
@@ -173,7 +177,14 @@ const DepartmentManagement: React.FC = () => {
     try {
       const response = await axios.get('/api/users');
       const users = response.data;
-      setAvailableUsers(users);
+      
+      // Map the user data to the format expected by the dropdown
+      const formattedUsers = users.map((user: any) => ({
+        id: user.id,
+        name: `${user.first_name || user.username} ${user.last_name || ''}`.trim()
+      }));
+      
+      setAvailableUsers(formattedUsers);
     } catch (error) {
       console.error('Error fetching available users:', error);
       setError('Failed to fetch available users');
@@ -295,6 +306,62 @@ const DepartmentManagement: React.FC = () => {
     const h2 = (h1 + 40) % 360;
     
     return `linear-gradient(135deg, hsl(${h1}, 70%, 35%) 0%, hsl(${h2}, 80%, 25%) 100%)`;
+  };
+
+  // Function to open the add member dialog
+  const handleOpenAddMemberDialog = () => {
+    if (selectedDepartment) {
+      setOpenAddMemberDialog(true);
+      setSelectedMember('');
+    }
+  };
+
+  // Function to add a member to a department
+  const handleAddMemberToDepartment = async () => {
+    if (!selectedDepartment || !selectedMember) return;
+    
+    try {
+      console.log(`Adding user ${selectedMember} to department ${selectedDepartment.id}`);
+      await axios.post(`/api/departments/${selectedDepartment.id}/members/${selectedMember}/`);
+      alert('Member added successfully!');
+      
+      // Close the dialog
+      setOpenAddMemberDialog(false);
+      
+      // Refresh department data
+      await fetchDepartments();
+      
+      // Refresh the selected department to see the new member
+      const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
+      setSelectedDepartment(updatedDept.data);
+    } catch (error) {
+      console.error('Error adding member:', error);
+      setError('Failed to add member to department');
+    }
+  };
+
+  // Function to remove a member from a department
+  const handleRemoveMemberFromDepartment = async (userId: string) => {
+    if (!selectedDepartment) return;
+    
+    if (!window.confirm('Are you sure you want to remove this member?')) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`/api/departments/${selectedDepartment.id}/members/${userId}/`);
+      alert('Member removed successfully!');
+      
+      // Refresh department data
+      await fetchDepartments();
+      
+      // Refresh the selected department
+      const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
+      setSelectedDepartment(updatedDept.data);
+    } catch (error) {
+      console.error('Error removing member:', error);
+      setError('Failed to remove member from department');
+    }
   };
 
   const mainContent = (
@@ -481,16 +548,6 @@ const DepartmentManagement: React.FC = () => {
                     >
                       <BusinessIcon />
                     </Avatar>
-                    <IconButton 
-                      sx={{ 
-                        position: 'absolute', 
-                        top: 8, 
-                        right: 8,
-                        color: 'rgba(255, 255, 255, 0.8)',
-                      }}
-                    >
-                      <MoreVertIcon />
-                    </IconButton>
                   </Box>
                   
                   <CardContent sx={{ pt: 4, pb: 2, flexGrow: 1 }}>
@@ -746,24 +803,41 @@ const DepartmentManagement: React.FC = () => {
         PaperProps={dialogPaperProps}
       >
         <DialogTitle>
-          <Box>
-            <Typography variant="h6" component="div">
-              Department Members
-            </Typography>
-            {selectedDepartment && (
-              <Typography
-                variant="h6"
-                sx={{ mt: 1, color: 'text.secondary' }}
-              >
-                {selectedDepartment.name}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <Typography variant="h6" component="div">
+                Department Members
               </Typography>
-            )}
+              {selectedDepartment && (
+                <Typography
+                  variant="subtitle1"
+                  sx={{ mt: 0.5, color: 'text.secondary' }}
+                >
+                  {selectedDepartment.name}
+                </Typography>
+              )}
+            </div>
+            <Button 
+              variant="contained" 
+              onClick={handleOpenAddMemberDialog}
+              startIcon={<PersonIcon />}
+              size="small"
+              sx={glassStyles.button}
+            >
+              Add Member
+            </Button>
           </Box>
         </DialogTitle>
         <DialogContent>
           <List>
             {selectedDepartment && selectedDepartment.members?.map((member) => (
-              <ListItem key={member?.id || 'unknown'}>
+              <ListItem key={member?.id || 'unknown'}
+                secondaryAction={
+                  <IconButton edge="end" onClick={() => handleRemoveMemberFromDepartment(member.id)}>
+                    <DeleteIcon />
+                  </IconButton>
+                }
+              >
                 <ListItemAvatar>
                   <Avatar>
                     <PeopleIcon />
@@ -785,6 +859,66 @@ const DepartmentManagement: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenMembersDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Member Dialog */}
+      <Dialog 
+        open={openAddMemberDialog} 
+        onClose={() => setOpenAddMemberDialog(false)}
+        PaperProps={dialogPaperProps}
+      >
+        <DialogTitle>Add Department Member</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <FormControl fullWidth variant="outlined">
+              <InputLabel sx={glassStyles.inputLabel}>Select User</InputLabel>
+              <Select
+                value={selectedMember}
+                onChange={(e) => setSelectedMember(e.target.value)}
+                label="Select User"
+                sx={{
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                  ...glassStyles.input
+                }}
+              >
+                <MenuItem value="">None</MenuItem>
+                {availableUsers
+                  .filter(user => 
+                    // Filter out users that are already members
+                    !selectedDepartment?.members?.some(member => member.id === user.id)
+                  )
+                  .map((user) => (
+                    <MenuItem key={user.id} value={user.id.toString()}>
+                      {user.name}
+                    </MenuItem>
+                  ))
+                }
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setOpenAddMemberDialog(false)}
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.7)',
+              '&:hover': {
+                color: 'white',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAddMemberToDepartment} 
+            variant="contained" 
+            disabled={!selectedMember}
+            sx={glassStyles.button}
+          >
+            Add Member
+          </Button>
         </DialogActions>
       </Dialog>
 

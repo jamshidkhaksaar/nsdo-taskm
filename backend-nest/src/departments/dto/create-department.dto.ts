@@ -10,6 +10,6 @@ export class CreateDepartmentDto {
   description?: string;
 
   @IsOptional()
-  @IsUUID()
-  headId?: string;
+  @IsString()
+  head?: string;
 } 

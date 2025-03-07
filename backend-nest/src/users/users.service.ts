@@ -105,4 +105,96 @@ export class UsersService {
       throw error;
     }
   }
+
+  async deleteUser(id: string): Promise<void> {
+    try {
+      this.logger.log(`Deleting user with ID: ${id}`);
+      
+      // First check if the user exists
+      await this.findById(id);
+      
+      // Delete the user
+      const result = await this.usersRepository.delete(id);
+      
+      if (result.affected === 0) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+      
+      this.logger.log(`Successfully deleted user with ID: ${id}`);
+    } catch (error) {
+      this.logger.error(`Error deleting user with ID ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async updatePassword(id: string, hashedPassword: string): Promise<User> {
+    try {
+      this.logger.log(`Updating password for user with ID: ${id}`);
+      
+      // First check if the user exists
+      const user = await this.findById(id);
+      
+      // Update the password
+      user.password = hashedPassword;
+      
+      // Save the updated user
+      const updatedUser = await this.usersRepository.save(user);
+      
+      this.logger.log(`Successfully updated password for user with ID: ${id}`);
+      return updatedUser;
+    } catch (error) {
+      this.logger.error(`Error updating password for user with ID ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async updateStatus(id: string, isActive: boolean): Promise<User> {
+    try {
+      this.logger.log(`Updating status for user with ID: ${id} to ${isActive ? 'active' : 'inactive'}`);
+      
+      // First check if the user exists
+      const user = await this.findById(id);
+      
+      // Update the status
+      user.isActive = isActive;
+      
+      // Save the updated user
+      const updatedUser = await this.usersRepository.save(user);
+      
+      this.logger.log(`Successfully updated status for user with ID: ${id} to ${isActive ? 'active' : 'inactive'}`);
+      return updatedUser;
+    } catch (error) {
+      this.logger.error(`Error updating status for user with ID ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User> {
+    try {
+      this.logger.log(`Updating user with ID: ${id}`);
+      
+      // First check if the user exists
+      const user = await this.findById(id);
+      
+      // Update the user properties
+      // We'll only update the properties that are provided
+      // and we'll exclude sensitive properties like password
+      const allowedFields = ['username', 'email', 'role', 'isActive'];
+      
+      for (const field of allowedFields) {
+        if (updateData[field] !== undefined) {
+          user[field] = updateData[field];
+        }
+      }
+      
+      // Save the updated user
+      const updatedUser = await this.usersRepository.save(user);
+      
+      this.logger.log(`Successfully updated user with ID: ${id}`);
+      return updatedUser;
+    } catch (error) {
+      this.logger.error(`Error updating user with ID ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 } 

@@ -51,6 +51,7 @@ import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { AdminService } from '../../services/admin';
+import { UserService, User as ServiceUser } from '../../services/user';
 
 const DRAWER_WIDTH = 240;
 
@@ -140,16 +141,17 @@ const UserManagement: React.FC = () => {
 
   const handleEditUser = async (userId: string) => {
     try {
-      const user = await axios.get(`/api/users/${userId}`);
+      // Use UserService instead of direct axios call
+      const user = await UserService.getUserById(userId);
       if (user) {
         setFormData({
-          username: user.data.username,
-          email: user.data.email,
-          first_name: user.data.first_name,
-          last_name: user.data.last_name,
-          role: user.data.role,
-          department: user.data.department?.id || '',
-          position: user.data.position
+          username: user.username,
+          email: user.email,
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          role: user.role,
+          department: user.department?.id || '',
+          position: user.position || ''
         });
         setEditMode({ isEdit: true, userId });
         setOpenDialog(true);
@@ -163,7 +165,8 @@ const UserManagement: React.FC = () => {
   const handleDeleteUser = async (userId: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        await axios.delete(`/api/users/${userId}`);
+        // Use UserService instead of direct axios call
+        await UserService.deleteUser(userId);
         alert('User deleted successfully!');
         await fetchUsers();
       } catch (error) {
@@ -175,8 +178,9 @@ const UserManagement: React.FC = () => {
 
   const handleResetPassword = async (userId: string) => {
     try {
-      const { data } = await axios.post(`/api/users/${userId}/reset-password`);
-      alert(`Password has been reset. New password: ${data.newPassword}`);
+      // Use UserService instead of direct axios call
+      const response = await UserService.resetPassword(userId, '');
+      alert(`Password has been reset. New password: ${response.newPassword}`);
     } catch (error) {
       console.error('Error resetting password:', error);
       setError('Failed to reset password');
@@ -185,7 +189,8 @@ const UserManagement: React.FC = () => {
 
   const handleToggleStatus = async (userId: string) => {
     try {
-      await axios.post(`/api/users/${userId}/toggle-status`);
+      // Use UserService instead of direct axios call
+      await UserService.toggleUserStatus(userId);
       await fetchUsers();
     } catch (error) {
       console.error('Error toggling user status:', error);
@@ -230,7 +235,7 @@ const UserManagement: React.FC = () => {
     try {
       if (editMode.isEdit && editMode.userId) {
         // Update existing user
-        const userData: Partial<AdminUser> = {
+        const userData: Partial<ServiceUser> = {
           username: formData.username,
           email: formData.email,
           first_name: formData.first_name,
@@ -243,34 +248,40 @@ const UserManagement: React.FC = () => {
         if (formData.department) {
           // When handling the department field, pass it as a string
           // The API will handle converting it to an object
-          userData.department = formData.department as any;
+          userData.department = formData.department ? { id: formData.department, name: '' } : null;
         }
         
-        await axios.put(`/api/users/${editMode.userId}`, userData);
+        // Use UserService instead of direct axios call
+        await UserService.updateUser(editMode.userId, userData);
         alert('User updated successfully!');
         handleCloseDialog();
         await fetchUsers();
       } else {
         // Create new user
-        // Format the data for the API
+        // Format the data for the API and include all required properties
         const createUserData = {
           username: formData.username,
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          role: formData.role,
+          role: formData.role as 'admin' | 'manager' | 'user',
           position: formData.position,
-          department: formData.department, 
-          password: formData.password
+          department: formData.department ? { id: formData.department, name: '' } : null,
+          status: 'active' as const // Specify status as a literal type
         };
         
-        const response = await axios.post('/api/users/', createUserData);
+        // Use UserService instead of direct axios call
+        const response = await UserService.createUser({
+          ...createUserData,
+          // Add the password separately since it's not in the User type
+          password: formData.password
+        } as any);
         
-        if (response.data) {
+        if (response) {
           alert(`User created successfully! ${
             formData.password 
               ? 'Password set as specified.' 
-              : `Default password: ${response.data.default_password}`
+              : `Default password: ${response.default_password}`
           }`);
           handleCloseDialog();
           await fetchUsers();

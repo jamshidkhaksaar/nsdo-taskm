@@ -9,7 +9,7 @@ export interface User {
     email: string;
     first_name: string;
     last_name: string;
-    role: 'admin' | 'user';
+    role: 'admin' | 'manager' | 'user';
     department: {
         id: string;
         name: string;
@@ -51,6 +51,25 @@ export const UserService = {
             if (USE_MOCK_DATA) {
                 console.log('[UserService] Using mock data as fallback due to error');
                 return MockUserService.getUsers();
+            }
+            
+            throw error;
+        }
+    },
+
+    // Get user by ID
+    getUserById: async (id: string) => {
+        try {
+            console.log(`[UserService] Fetching user with ID: ${id}`);
+            const response = await axios.get(`/api/users/${id}`);
+            return response.data;
+        } catch (error: unknown) {
+            console.error(`[UserService] Error fetching user with ID ${id}:`, error);
+            
+            // Use mock data in development
+            if (USE_MOCK_DATA) {
+                console.log('[UserService] Using mock user as fallback');
+                return MockUserService.getUserById(id);
             }
             
             throw error;
@@ -136,7 +155,7 @@ export const UserService = {
     // Update a user
     updateUser: async (id: string, user: Partial<User>) => {
         try {
-            const response = await axios.patch(`/api/users/${id}/`, user);
+            const response = await axios.put(`/api/users/${id}`, user);
             return response.data;
         } catch (error: unknown) {
             console.error(`[UserService] Error updating user ${id}:`, error);
@@ -154,7 +173,7 @@ export const UserService = {
     // Delete a user
     deleteUser: async (id: string) => {
         try {
-            await axios.delete(`/api/users/${id}/`);
+            await axios.delete(`/api/users/${id}`);
         } catch (error: unknown) {
             console.error(`[UserService] Error deleting user ${id}:`, error);
             
@@ -172,7 +191,7 @@ export const UserService = {
     // Reset user password
     resetPassword: async (id: string, password: string) => {
         try {
-            const response = await axios.post(`/api/users/${id}/reset_password/`, {
+            const response = await axios.post(`/api/users/${id}/reset-password`, {
                 password
             });
             return response.data;
@@ -192,7 +211,7 @@ export const UserService = {
     // Toggle user status
     toggleUserStatus: async (id: string) => {
         try {
-            const response = await axios.post(`/api/users/${id}/toggle_status/`);
+            const response = await axios.post(`/api/users/${id}/toggle-status`);
             return response.data;
         } catch (error: unknown) {
             console.error(`[UserService] Error toggling status for user ${id}:`, error);

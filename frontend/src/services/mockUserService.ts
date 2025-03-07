@@ -158,5 +158,15 @@ export const MockUserService = {
       user.first_name.toLowerCase().includes(lowercaseQuery) ||
       user.last_name.toLowerCase().includes(lowercaseQuery)
     );
+  },
+
+  // Get user by ID
+  getUserById: async (id: string) => {
+    console.log(`[MockUserService] Mock fetching user with ID: ${id}`);
+    const user = mockUsers.find(u => u.id === id);
+    if (!user) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+    return user;
   }
 }; 
