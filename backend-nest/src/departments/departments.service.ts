@@ -5,6 +5,7 @@ import { Department } from './entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { UsersService } from '../users/users.service';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class DepartmentsService {
@@ -42,6 +43,39 @@ export class DepartmentsService {
 
       if (!department) {
         throw new NotFoundException(`Department with ID "${id}" not found`);
+      }
+      
+      // If there's a headId but no head loaded, load it manually
+      if (department.headId && (!department.head || !department.head.username)) {
+        console.log(`Department ${id} has headId ${department.headId} but head not loaded or incomplete, loading manually`);
+        try {
+          const headUser = await this.usersService.findById(department.headId);
+          if (headUser) {
+            department.head = headUser;
+            console.log(`Manually loaded head user: ${headUser.username} (${headUser.id})`);
+          }
+        } catch (error) {
+          console.error(`Error loading head user: ${error.message}`);
+        }
+      }
+
+      // If there are members, ensure they are properly loaded
+      if (department.members && department.members.length > 0) {
+        console.log(`Department ${id} has ${department.members.length} members`);
+      } else if (department.headId) {
+        // Check if we need to manually load members
+        try {
+          const members = await this.departmentsRepository.manager.query(
+            `SELECT u.* FROM user u JOIN department_members dm ON u.id = dm.user_id WHERE dm.department_id = ?`,
+            [id]
+          );
+          if (members && members.length > 0) {
+            department.members = members;
+            console.log(`Manually loaded ${members.length} members for department ${id}`);
+          }
+        } catch (error) {
+          console.error(`Error manually loading members: ${error.message}`);
+        }
       }
 
       return department;
@@ -86,11 +120,19 @@ export class DepartmentsService {
           console.log(`Found head user: ${headUser.username} (${headUser.id})`);
           
           // Direct SQL update of headId field
-          await this.departmentsRepository.manager.query(
-            `UPDATE department SET headId = ? WHERE id = ?`,
-            [head, savedDepartment.id]
-          );
-          console.log(`Set headId with direct SQL`);
+          try {
+            await this.departmentsRepository.manager.query(
+              `UPDATE department SET headId = ? WHERE id = ?`,
+              [head, savedDepartment.id]
+            );
+            console.log(`Set headId with direct SQL`);
+          } catch (sqlError) {
+            console.error(`Error setting headId with direct SQL: ${sqlError.message}`);
+            // Fallback to ORM approach for headId update
+            savedDepartment.headId = head;
+            await this.departmentsRepository.save(savedDepartment);
+            console.log(`Set headId with ORM approach after SQL error`);
+          }
           
           // Add entry to department_heads junction table
           await this.departmentsRepository.manager.query(
@@ -161,12 +203,20 @@ export class DepartmentsService {
           
           console.log(`Found head user: ${headUser.username} (${headUser.id})`);
           
-          // First try direct SQL update for headId
-          await this.departmentsRepository.manager.query(
-            `UPDATE department SET headId = ? WHERE id = ?`,
-            [updateDepartmentDto.head, id]
-          );
-          console.log(`Updated headId with direct SQL`);
+          // First try direct SQL update for headId - with safer SQL that works in MySQL
+          try {
+            await this.departmentsRepository.manager.query(
+              `UPDATE department SET headId = ? WHERE id = ?`,
+              [updateDepartmentDto.head, id]
+            );
+            console.log(`Updated headId with direct SQL`);
+          } catch (sqlError) {
+            console.error(`Error updating headId with direct SQL: ${sqlError.message}`);
+            // Fallback to ORM approach for headId update
+            updatedDepartment.headId = updateDepartmentDto.head;
+            await this.departmentsRepository.save(updatedDepartment);
+            console.log(`Updated headId with ORM approach after SQL error`);
+          }
           
           // Then update the head relationship in the department_heads table
           try {
@@ -175,6 +225,7 @@ export class DepartmentsService {
               `DELETE FROM department_heads WHERE department_id = ?`,
               [id]
             );
+            console.log(`Deleted existing department head relations`);
             
             // Add the new department head relation
             await this.departmentsRepository.manager.query(
@@ -226,9 +277,15 @@ export class DepartmentsService {
       if (!department.members.some(member => member.id === userId)) {
         console.log(`User ${user.username} (${userId}) not already a member, adding now`);
         
-        // Use the query builder for direct database operation
+        // Try both approaches in sequence for maximum reliability
         try {
-          // First try with a direct query to avoid errors with the ORM
+          // First try removing any existing relation to avoid duplicates
+          await this.departmentsRepository.manager.query(
+            `DELETE FROM department_members WHERE department_id = ? AND user_id = ?`,
+            [id, userId]
+          );
+          
+          // Then add with direct query
           await this.departmentsRepository.manager.query(
             `INSERT INTO department_members (department_id, user_id) VALUES (?, ?)`,
             [id, userId]
@@ -238,7 +295,11 @@ export class DepartmentsService {
           console.error(`Error with direct query, trying ORM approach: ${queryError.message}`);
           
           // If direct query fails, try the ORM approach
-          department.members.push(user);
+          // First, make sure user isn't already in the array
+          const existingIndex = department.members.findIndex(m => m.id === userId);
+          if (existingIndex === -1) {
+            department.members.push(user);
+          }
           await this.departmentsRepository.save(department);
           console.log(`Successfully added member ${userId} to department ${id} with ORM`);
         }
@@ -247,7 +308,9 @@ export class DepartmentsService {
       }
 
       // Return the updated department
-      return await this.findOne(id);
+      const updatedDepartment = await this.findOne(id);
+      console.log(`Department now has ${updatedDepartment.members?.length || 0} members`);
+      return updatedDepartment;
     } catch (error) {
       console.error(`Error adding member ${userId} to department ${id}:`, error);
       throw error;
@@ -298,6 +361,16 @@ export class DepartmentsService {
     } catch (error) {
       console.error(`Error getting performance for department ${id}:`, error);
       throw error;
+    }
+  }
+
+  // Helper method to get a user by ID (used by the controller)
+  async getUserById(id: string): Promise<User | null> {
+    try {
+      return await this.usersService.findById(id);
+    } catch (error) {
+      console.error(`Error getting user by ID ${id}: ${error.message}`);
+      return null;
     }
   }
 } 

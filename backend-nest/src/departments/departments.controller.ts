@@ -23,29 +23,36 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class DepartmentsController {
   constructor(private departmentsService: DepartmentsService) {}
 
-  @Get('/')
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   async getAllDepartments() {
     const departments = await this.departmentsService.findAll();
-    return departments.map(department => this.formatDepartmentResponse(department));
+    const formattedDepartments = await Promise.all(
+      departments.map(department => this.formatDepartmentResponse(department))
+    );
+    return formattedDepartments;
   }
 
-  @Get('/:id/')
+  @Get('/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   async getDepartmentById(@Param('id') id: string) {
     const department = await this.departmentsService.findOne(id);
-    return this.formatDepartmentResponse(department);
+    return await this.formatDepartmentResponse(department);
   }
 
-  @Post('/')
+  @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async createDepartment(
     @Body() createDepartmentDto: CreateDepartmentDto,
   ) {
     const department = await this.departmentsService.create(createDepartmentDto);
-    return this.formatDepartmentResponse(department);
+    return await this.formatDepartmentResponse(department);
   }
 
-  @Put('/:id/')
+  @Put('/:id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async updateDepartment(
@@ -53,10 +60,10 @@ export class DepartmentsController {
     @Body() updateDepartmentDto: UpdateDepartmentDto,
   ) {
     const department = await this.departmentsService.update(id, updateDepartmentDto);
-    return this.formatDepartmentResponse(department);
+    return await this.formatDepartmentResponse(department);
   }
 
-  @Delete('/:id/')
+  @Delete('/:id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   deleteDepartment(@Param('id') id: string): Promise<void> {
@@ -71,7 +78,7 @@ export class DepartmentsController {
     @Param('userId') userId: string,
   ) {
     const department = await this.departmentsService.addMember(id, userId);
-    return this.formatDepartmentResponse(department);
+    return await this.formatDepartmentResponse(department);
   }
 
   @Delete('/:id/members/:userId/')
@@ -82,26 +89,41 @@ export class DepartmentsController {
     @Param('userId') userId: string,
   ) {
     const department = await this.departmentsService.removeMember(id, userId);
-    return this.formatDepartmentResponse(department);
+    return await this.formatDepartmentResponse(department);
   }
 
-  @Get('/:id/performance/')
+  @Get('/:id/performance')
   getDepartmentPerformance(@Param('id') id: string): Promise<any> {
     return this.departmentsService.getDepartmentPerformance(id);
   }
 
   // Helper method to format department responses
-  private formatDepartmentResponse(department: Department) {
+  private async formatDepartmentResponse(department: Department) {
     console.log(`Formatting department ${department.id}: head info:`, 
       department.head ? 
       { id: department.head.id, username: department.head.username } : 
       'No head assigned');
+    console.log(`Department headId: ${department.headId}`);
     
     // Format the head name from head object if it exists
     let head_name = 'No Head Assigned';
-    if (department.head) {
-      // Using only username since first_name and last_name may not exist on User
-      head_name = department.head.username;
+    let head = department.head;
+    
+    // If we have a headId but no valid head object, try to load the head user
+    if (department.headId && (!department.head || !department.head.username)) {
+      try {
+        const headUser = await this.departmentsService.getUserById(department.headId);
+        if (headUser) {
+          head = headUser;
+          console.log(`Loaded head user for formatting: ${head.username}`);
+        }
+      } catch (error) {
+        console.error(`Error loading head user for formatting: ${error.message}`);
+      }
+    }
+    
+    if (head && head.username) {
+      head_name = head.username;
       console.log(`Set head_name to ${head_name} for department ${department.id}`);
     }
     
@@ -134,7 +156,7 @@ export class DepartmentsController {
       id: department.id,
       name: department.name,
       description: department.description,
-      head: department.head,
+      head: head || department.head,
       head_name,
       members_count,
       members,
@@ -149,7 +171,7 @@ export class DepartmentsController {
       name: result.name,
       head_name: result.head_name,
       members_count: result.members_count,
-      members: result.members.length
+      members: members.length
     });
     
     return result;

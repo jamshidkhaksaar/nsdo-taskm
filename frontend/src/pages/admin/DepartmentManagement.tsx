@@ -157,8 +157,17 @@ const DepartmentManagement: React.FC = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/departments');
-      const departments = response.data;
+      const departments: AdminDepartment[] = response.data;
       console.log('Received departments:', departments);
+      
+      // Log head information for debugging
+      departments.forEach((dept) => {
+        console.log(`Department ${dept.name} (${dept.id}):`, {
+          head: dept.head,
+          head_name: dept.head_name,
+          members_count: dept.members_count
+        });
+      });
       
       setDepartments(departments);
     } catch (error) {
@@ -322,21 +331,27 @@ const DepartmentManagement: React.FC = () => {
     
     try {
       console.log(`Adding user ${selectedMember} to department ${selectedDepartment.id}`);
+      setLoading(true);
       await axios.post(`/api/departments/${selectedDepartment.id}/members/${selectedMember}/`);
       alert('Member added successfully!');
       
       // Close the dialog
       setOpenAddMemberDialog(false);
+      setSelectedMember('');
       
       // Refresh department data
       await fetchDepartments();
       
       // Refresh the selected department to see the new member
-      const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
-      setSelectedDepartment(updatedDept.data);
+      if (selectedDepartment && selectedDepartment.id) {
+        const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
+        setSelectedDepartment(updatedDept.data);
+      }
     } catch (error) {
       console.error('Error adding member:', error);
       setError('Failed to add member to department');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -568,7 +583,7 @@ const DepartmentManagement: React.FC = () => {
                           <PersonIcon sx={{ fontSize: 16 }} />
                         </Avatar>
                         <Typography variant="body2" sx={{ color: '#fff' }}>
-                          {dept.head_name || 'No Head Assigned'}
+                          {dept.head?.username || dept.head_name || 'No Head Assigned'}
                         </Typography>
                       </Box>
                     </Box>
@@ -868,7 +883,7 @@ const DepartmentManagement: React.FC = () => {
         onClose={() => setOpenAddMemberDialog(false)}
         PaperProps={dialogPaperProps}
       >
-        <DialogTitle>Add Department Member</DialogTitle>
+        <DialogTitle>Add Member to Department</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <FormControl fullWidth variant="outlined">
@@ -882,12 +897,9 @@ const DepartmentManagement: React.FC = () => {
                   ...glassStyles.input
                 }}
               >
-                <MenuItem value="">None</MenuItem>
+                <MenuItem value="">Select a user</MenuItem>
                 {availableUsers
-                  .filter(user => 
-                    // Filter out users that are already members
-                    !selectedDepartment?.members?.some(member => member.id === user.id)
-                  )
+                  .filter(user => !selectedDepartment?.members?.some(member => member.id === user.id))
                   .map((user) => (
                     <MenuItem key={user.id} value={user.id.toString()}>
                       {user.name}
