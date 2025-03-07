@@ -1,19 +1,33 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Logger, BadRequestException, Param, Delete, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request, Logger, BadRequestException, Param, Delete, Put, Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
+import { ActivityLogService } from '../admin/services/activity-log.service';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
   
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    @Inject(forwardRef(() => ActivityLogService))
+    private readonly activityLogService: ActivityLogService,
+  ) {}
 
   @Get()
-  async getAllUsers() {
+  async getAllUsers(@Request() req) {
     this.logger.log('Getting all users');
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'view',
+      'users',
+      'User viewed all users',
+    );
+    
     const users = await this.usersService.findAll();
     // Map to only send necessary data without sensitive information
     return users.map(user => ({
@@ -28,10 +42,19 @@ export class UsersController {
   }
 
   @Get(':id')
-  async getUserById(@Param('id') id: string) {
+  async getUserById(@Param('id') id: string, @Request() req) {
     this.logger.log(`Getting user with ID: ${id}`);
-    const user = await this.usersService.findById(id);
     
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'view',
+      'user',
+      `Viewed user details`,
+      id,
+    );
+    
+    const user = await this.usersService.findById(id);
     return {
       id: user.id,
       username: user.username,
@@ -47,7 +70,7 @@ export class UsersController {
   }
 
   @Post()
-  async createUser(@Body() createUserDto: any) {
+  async createUser(@Body() createUserDto: any, @Request() req) {
     this.logger.log(`Creating new user: ${JSON.stringify(createUserDto)}`);
     
     if (!createUserDto.username || !createUserDto.email || !createUserDto.password) {
@@ -64,6 +87,15 @@ export class UsersController {
       role
     );
     
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'create',
+      'user',
+      `Created new user: ${user.username}`,
+      user.id,
+    );
+    
     return {
       id: user.id,
       username: user.username,
@@ -77,13 +109,22 @@ export class UsersController {
   }
 
   @Delete(':id')
-  async deleteUser(@Param('id') id: string) {
+  async deleteUser(@Param('id') id: string, @Request() req) {
     this.logger.log(`Deleting user with ID: ${id}`);
     // First verify the user exists
     const user = await this.usersService.findById(id);
     
     // We'll need to add a method to the service to delete users
     await this.usersService.deleteUser(id);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'delete',
+      'user',
+      `Deleted user: ${user.username}`,
+      id,
+    );
     
     return { message: `User ${user.username} deleted successfully` };
   }
@@ -129,18 +170,28 @@ export class UsersController {
   }
 
   @Put(':id')
-  async updateUser(@Param('id') id: string, @Body() updateUserDto: any) {
-    this.logger.log(`Updating user with ID: ${id}, data: ${JSON.stringify(updateUserDto)}`);
-    // First verify the user exists
-    const user = await this.usersService.findById(id);
+  async updateUser(@Param('id') id: string, @Body() updateUserDto: any, @Request() req) {
+    this.logger.log(`Updating user with ID: ${id}`);
     
-    // Here you would update the user properties
-    // This is a simplistic implementation - in a real app, you'd validate the fields
-    await this.usersService.updateUser(id, updateUserDto);
+    const updatedUser = await this.usersService.updateUser(id, updateUserDto);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'update',
+      'user',
+      `Updated user: ${updatedUser.username}`,
+      id,
+    );
     
     return {
-      message: `User ${user.username} updated successfully`,
-      id: user.id
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      isActive: updatedUser.isActive,
+      first_name: updateUserDto.first_name || updatedUser.username,
+      last_name: updateUserDto.last_name || '',
     };
   }
 } 

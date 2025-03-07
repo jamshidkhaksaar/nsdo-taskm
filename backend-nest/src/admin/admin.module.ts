@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { UsersModule } from '../users/users.module';
@@ -8,15 +8,19 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
 import { Department } from '../departments/entities/department.entity';
 import { Task } from '../tasks/entities/task.entity';
+import { ActivityLog } from './entities/activity-log.entity';
+import { ActivityLogService } from './services/activity-log.service';
+import { ActivityLogsController } from './controllers/activity-logs.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Department, Task]),
-    UsersModule,
-    DepartmentsModule,
+    TypeOrmModule.forFeature([User, Department, Task, ActivityLog]),
+    forwardRef(() => UsersModule),
+    forwardRef(() => DepartmentsModule),
     TasksModule,
   ],
-  controllers: [AdminController],
-  providers: [AdminService],
+  controllers: [AdminController, ActivityLogsController],
+  providers: [AdminService, ActivityLogService],
+  exports: [ActivityLogService],
 })
 export class AdminModule {} 

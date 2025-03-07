@@ -7,6 +7,9 @@ import {
   Put,
   Post,
   UseGuards,
+  Request,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
@@ -17,17 +20,31 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ActivityLogService } from '../admin/services/activity-log.service';
 
 @Controller('departments')
 @UseGuards(JwtAuthGuard)
 export class DepartmentsController {
-  constructor(private departmentsService: DepartmentsService) {}
+  constructor(
+    private departmentsService: DepartmentsService,
+    @Inject(forwardRef(() => ActivityLogService))
+    private activityLogService: ActivityLogService,
+  ) {}
 
   @Get()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  async getAllDepartments() {
+  async getAllDepartments(@Request() req) {
     const departments = await this.departmentsService.findAll();
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'view',
+      'departments',
+      'Viewed all departments',
+    );
+    
     const formattedDepartments = await Promise.all(
       departments.map(department => this.formatDepartmentResponse(department))
     );
@@ -37,8 +54,18 @@ export class DepartmentsController {
   @Get('/:id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  async getDepartmentById(@Param('id') id: string) {
+  async getDepartmentById(@Param('id') id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'view',
+      'department',
+      `Viewed department: ${department.name}`,
+      id,
+    );
+    
     return await this.formatDepartmentResponse(department);
   }
 
@@ -47,8 +74,19 @@ export class DepartmentsController {
   @Roles(UserRole.ADMIN)
   async createDepartment(
     @Body() createDepartmentDto: CreateDepartmentDto,
+    @Request() req,
   ) {
     const department = await this.departmentsService.create(createDepartmentDto);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'create',
+      'department',
+      `Created new department: ${department.name}`,
+      department.id,
+    );
+    
     return await this.formatDepartmentResponse(department);
   }
 
@@ -58,16 +96,39 @@ export class DepartmentsController {
   async updateDepartment(
     @Param('id') id: string,
     @Body() updateDepartmentDto: UpdateDepartmentDto,
+    @Request() req,
   ) {
     const department = await this.departmentsService.update(id, updateDepartmentDto);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'update',
+      'department',
+      `Updated department: ${department.name}`,
+      id,
+    );
+    
     return await this.formatDepartmentResponse(department);
   }
 
   @Delete('/:id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  deleteDepartment(@Param('id') id: string): Promise<void> {
-    return this.departmentsService.remove(id);
+  async deleteDepartment(@Param('id') id: string, @Request() req) {
+    const department = await this.departmentsService.findOne(id);
+    
+    // Log the activity before deletion
+    await this.activityLogService.logFromRequest(
+      req,
+      'delete',
+      'department',
+      `Deleted department: ${department.name}`,
+      id,
+    );
+    
+    await this.departmentsService.remove(id);
+    return { success: true, message: 'Department deleted successfully' };
   }
 
   @Post('/:id/members/:userId/')
@@ -76,8 +137,19 @@ export class DepartmentsController {
   async addMember(
     @Param('id') id: string,
     @Param('userId') userId: string,
+    @Request() req,
   ) {
     const department = await this.departmentsService.addMember(id, userId);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'add',
+      'department_member',
+      `Added member to department: ${department.name}`,
+      id,
+    );
+    
     return await this.formatDepartmentResponse(department);
   }
 
@@ -87,8 +159,19 @@ export class DepartmentsController {
   async removeMember(
     @Param('id') id: string,
     @Param('userId') userId: string,
+    @Request() req,
   ) {
     const department = await this.departmentsService.removeMember(id, userId);
+    
+    // Log the activity
+    await this.activityLogService.logFromRequest(
+      req,
+      'remove',
+      'department_member',
+      `Removed member from department: ${department.name}`,
+      id,
+    );
+    
     return await this.formatDepartmentResponse(department);
   }
 

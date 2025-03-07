@@ -4,6 +4,7 @@ import { Like, Repository, Between } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Department } from '../departments/entities/department.entity';
 import { Task, TaskStatus } from '../tasks/entities/task.entity';
+import { ActivityLogService } from './services/activity-log.service';
 
 // Mock activity log entity until we create a real one
 class ActivityLog {
@@ -25,6 +26,7 @@ export class AdminService {
     private departmentsRepository: Repository<Department>,
     @InjectRepository(Task)
     private tasksRepository: Repository<Task>,
+    private activityLogService: ActivityLogService,
   ) {}
 
   async getDashboardStats() {
@@ -179,13 +181,11 @@ export class AdminService {
   }
 
   async getActivityLogs(filters: any) {
-    // Mock implementation - in a real app, you would query a logs table
-    return this.generateMockActivities();
+    return this.activityLogService.getLogs(filters);
   }
 
   async clearAllLogs() {
-    // Mock implementation - in a real app, you would clear the logs table
-    return { success: true, message: 'All logs cleared successfully' };
+    return this.activityLogService.clearLogs();
   }
 
   async getSystemSettings() {

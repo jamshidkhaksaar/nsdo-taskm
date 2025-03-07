@@ -44,6 +44,28 @@ import { ActivityLog } from '../../services/mockActivityLogsService';
 
 const DRAWER_WIDTH = 240;
 
+// Add these interfaces before the component definition
+interface FormattedActivityLog {
+  id: string;
+  user: string;
+  user_id?: string;
+  action: string;
+  target: string;
+  target_id?: string;
+  details: string;
+  timestamp: Date;
+  ip_address: string;
+  status: 'success' | 'warning' | 'error';
+}
+
+interface ActivityLogResponse {
+  logs: ActivityLog[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 const ActivityLogs: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -52,8 +74,8 @@ const ActivityLogs: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [notifications, setNotifications] = useState(3);
   
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [filteredLogs, setFilteredLogs] = useState<ActivityLog[]>([]);
+  const [logs, setLogs] = useState<FormattedActivityLog[]>([]);
+  const [filteredLogs, setFilteredLogs] = useState<FormattedActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,38 +84,44 @@ const ActivityLogs: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [targetFilter, setTargetFilter] = useState<string>('all');
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
+  const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
+  const [filterUserId, setFilterUserId] = useState<string>('');
 
   useEffect(() => {
     fetchLogs();
   }, [page, rowsPerPage, statusFilter, actionFilter, targetFilter]);
 
   const fetchLogs = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Use the ActivityLogsService instead of direct axios call
       const response = await ActivityLogsService.getLogs({
-        search: searchQuery || undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
+        page: page,
+        limit: rowsPerPage,
         action: actionFilter !== 'all' ? actionFilter : undefined,
         target: targetFilter !== 'all' ? targetFilter : undefined,
-        page: page,
-        limit: rowsPerPage
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchQuery || undefined,
       });
       
-      // Use the logs from the response
-      if (response && response.logs) {
-        setLogs(response.logs);
-        setFilteredLogs(response.logs);
-      } else {
-        setError('Invalid response data from API');
-        console.error('Invalid response from activity logs API:', response);
-        setLogs([]);
-        setFilteredLogs([]);
-      }
-    } catch (err: any) {
-      console.error('Error fetching logs:', err);
+      // Ensure that logs have the correct format
+      const formattedLogs = response.logs.map((log: ActivityLog) => ({
+        ...log,
+        // Make sure user is a string, not an object
+        user: typeof log.user === 'object' && log.user !== null 
+          ? ((log.user as any).username || 'Unknown User') 
+          : log.user || 'Unknown User',
+        timestamp: new Date(log.timestamp)
+      }));
+
+      setLogs(formattedLogs);
+      setFilteredLogs(formattedLogs);
+      setTotalRows(response.total);
+      setTotalPages(response.totalPages);
+    } catch (error) {
+      console.error('Failed to fetch activity logs', error);
       setError('Failed to load activity logs. Please try again later.');
       setLogs([]);
       setFilteredLogs([]);
@@ -412,7 +440,7 @@ const ActivityLogs: React.FC = () => {
                           </TableCell>
                           <TableCell sx={{ color: '#fff', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>{log.target}</TableCell>
                           <TableCell sx={{ color: '#fff', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>{log.details}</TableCell>
-                          <TableCell sx={{ color: '#fff', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>{formatDate(log.timestamp)}</TableCell>
+                          <TableCell sx={{ color: '#fff', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>{formatDate(log.timestamp.toISOString())}</TableCell>
                           <TableCell sx={{ color: '#fff', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>{log.ip_address}</TableCell>
                           <TableCell sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                             <Chip 
@@ -433,7 +461,7 @@ const ActivityLogs: React.FC = () => {
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25]}
                 component="div"
-                count={filteredLogs.length}
+                count={totalRows}
                 rowsPerPage={rowsPerPage}
                 page={page}
                 onPageChange={handleChangePage}
