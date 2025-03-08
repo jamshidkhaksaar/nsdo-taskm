@@ -38,6 +38,7 @@ import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLay
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { BackupService } from '../../services/backupService';
+import { testBackupApi, testBackupStatusEndpoint } from '../../utils/testBackupAPI';
 
 const DRAWER_WIDTH = 240;
 
@@ -158,7 +159,9 @@ const BackupRestore: React.FC = () => {
       // Start polling for backup progress
       const pollInterval = setInterval(async () => {
         try {
+          console.log(`Checking status for backup: ${backup.id}`);
           const backupStatus = await BackupService.checkBackupStatus(backup.id);
+          console.log('Backup status:', backupStatus);
           
           if (backupStatus.status === 'completed') {
             clearInterval(pollInterval);
@@ -182,17 +185,33 @@ const BackupRestore: React.FC = () => {
             setBackupProgress((prev) => Math.min(prev + 10, 90));
           }
         } catch (error) {
-          clearInterval(pollInterval);
-          setIsBackupInProgress(false);
           console.error('Error polling backup status:', error);
-          setSnackbar({
-            open: true,
-            message: 'Failed to check backup status',
-            severity: 'error'
-          });
+          // Don't immediately stop on the first error - give it a few tries
+          setBackupProgress((prev) => Math.min(prev + 5, 95));
+          
+          // After a certain number of consecutive errors, give up
+          if (backupProgress >= 95) {
+            clearInterval(pollInterval);
+            setIsBackupInProgress(false);
+            
+            // Try one last fetch of the backups to see if it was created
+            try {
+              await fetchBackups();
+              setSnackbar({
+                open: true,
+                message: 'Backup might have completed, but status could not be verified',
+                severity: 'warning'
+              });
+            } catch (fetchError) {
+              setSnackbar({
+                open: true,
+                message: 'Failed to check backup status',
+                severity: 'error'
+              });
+            }
+          }
         }
-      }, 1000);
-
+      }, 2000); // Check every 2 seconds instead of 1
     } catch (error: any) {
       console.error('Error creating backup:', error);
       setIsBackupInProgress(false);
@@ -251,17 +270,15 @@ const BackupRestore: React.FC = () => {
 
   const handleDownload = async (backup: Backup) => {
     try {
-      const blobData = await BackupService.downloadBackup(backup.id);
+      // The downloadBackup service now handles the download directly
+      await BackupService.downloadBackup(backup.id);
       
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([blobData]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${backup.name}.zip`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      // Show success message to the user
+      setSnackbar({
+        open: true,
+        message: 'Backup downloaded successfully',
+        severity: 'success'
+      });
     } catch (error) {
       console.error('Error downloading backup:', error);
       setSnackbar({
@@ -295,6 +312,46 @@ const BackupRestore: React.FC = () => {
 
   const handleHelpClick = () => {
     console.log('Help clicked');
+  };
+
+  // Add function to test the API
+  const handleTestApi = async () => {
+    try {
+      const result = await testBackupApi();
+      console.log(result);
+      setSnackbar({
+        open: true,
+        message: 'API test completed - check browser console',
+        severity: 'info'
+      });
+    } catch (error) {
+      console.error('Error testing API:', error);
+      setSnackbar({
+        open: true,
+        message: 'API test failed - check browser console',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Add function to test a specific backup ID status
+  const handleTestBackupStatus = async (backupId: string) => {
+    try {
+      const result = await testBackupStatusEndpoint(backupId);
+      console.log(`Status test for ${backupId}:`, result);
+      setSnackbar({
+        open: true,
+        message: `Status check for ${backupId} completed - see console`,
+        severity: 'info'
+      });
+    } catch (error) {
+      console.error(`Error testing status for ${backupId}:`, error);
+      setSnackbar({
+        open: true,
+        message: `Status check failed for ${backupId} - see console`,
+        severity: 'error'
+      });
+    }
   };
 
   const mainContent = (
@@ -333,6 +390,89 @@ const BackupRestore: React.FC = () => {
         </Card>
       )}
 
+      {/* Debug buttons for development */}
+      {process.env.NODE_ENV === 'development' && (
+        <Box sx={{ mb: 3, p: 2, background: 'rgba(255, 100, 100, 0.1)', borderRadius: 2 }}>
+          <Typography variant="subtitle2" sx={{ color: '#ff5555', mb: 1 }}>
+            Debug Tools
+          </Typography>
+          <Button 
+            variant="outlined" 
+            size="small" 
+            onClick={handleTestApi}
+            sx={{ mr: 1, borderColor: '#ff5555', color: '#ff5555' }}
+          >
+            Test API
+          </Button>
+          <Button 
+            variant="outlined" 
+            size="small" 
+            onClick={() => handleTestBackupStatus('backup-001')}
+            sx={{ mr: 1, borderColor: '#ff5555', color: '#ff5555' }}
+          >
+            Test Status 001
+          </Button>
+          <Button 
+            variant="outlined" 
+            size="small" 
+            onClick={() => handleTestBackupStatus(backups[0]?.id || 'backup-000')}
+            sx={{ borderColor: '#ff5555', color: '#ff5555' }}
+            disabled={backups.length === 0}
+          >
+            Test Latest Backup
+          </Button>
+        </Box>
+      )}
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setBackupDialogOpen(true)}
+            sx={{
+              mr: 2,
+              background: 'rgba(255, 255, 255, 0.2)',
+              '&:hover': {
+                background: 'rgba(255, 255, 255, 0.3)',
+              },
+            }}
+          >
+            Create Backup
+          </Button>
+          
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              // Set up options for a database-only backup
+              setBackupOptions({
+                type: 'partial',
+                includeDatabases: true,
+                includeMedia: false,
+                includeSettings: false,
+                customPath: ''
+              });
+              // Create the backup immediately
+              handleCreateBackup({
+                type: 'partial',
+                includeDatabases: true,
+                includeMedia: false,
+                includeSettings: false
+              });
+            }}
+            sx={{
+              background: 'rgba(64, 196, 255, 0.2)',
+              '&:hover': {
+                background: 'rgba(64, 196, 255, 0.3)',
+              },
+            }}
+          >
+            MySQL Database Backup
+          </Button>
+        </Box>
+      </Box>
+
       <TableContainer component={Card} sx={{
         background: 'rgba(255, 255, 255, 0.1)',
         backdropFilter: 'blur(8px)',
@@ -341,12 +481,12 @@ const BackupRestore: React.FC = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ color: '#fff' }}>Backup Name</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Date & Time</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Size</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Type</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Status</TableCell>
-              <TableCell sx={{ color: '#fff' }}>Actions</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Name</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Date</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Size</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Type</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Status</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

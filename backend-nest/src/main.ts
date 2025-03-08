@@ -5,7 +5,9 @@ import { ConfigService } from '@nestjs/config';
 import { SettingsService } from './settings/settings.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'], // Enable all log levels
+  });
   const configService = app.get(ConfigService);
   
   // Initialize settings on app startup
@@ -41,6 +43,31 @@ async function bootstrap() {
   // Use port from config
   const port = configService.get('PORT') || 3001;
   await app.listen(port);
-  console.log(`Application is running in ${configService.get('NODE_ENV') || 'development'} mode on: http://localhost:${port}`);
+  console.log(`Application is running in ${configService.get('NODE_ENV') || 'development'} mode on: http://localhost:${port}/api`);
+  
+  // Try to log available routes but handle errors properly
+  try {
+    // This will only work if the router is available as expected
+    const server = app.getHttpServer();
+    if (server && server._events && server._events.request && server._events.request._router) {
+      const router = server._events.request._router;
+      const availableRoutes = router.stack
+        .filter(layer => layer.route)
+        .map(layer => {
+          const route = layer.route;
+          return {
+            path: route.path,
+            method: Object.keys(route.methods)[0].toUpperCase(),
+          };
+        });
+      
+      console.log('Available routes:', availableRoutes.length);
+    } else {
+      console.log('Router information not available in the expected format.');
+    }
+  } catch (error) {
+    console.error('Error retrieving routes information:', error.message);
+  }
 }
+
 bootstrap();

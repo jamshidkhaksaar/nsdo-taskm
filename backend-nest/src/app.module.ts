@@ -9,6 +9,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { AdminModule } from './admin/admin.module';
 import { TasksModule } from './tasks/tasks.module';
 import { SettingsModule } from './settings/settings.module';
+import { BackupModule } from './backup/backup.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SettingsModule } from './settings/settings.module';
     AdminModule,
     TasksModule,
     SettingsModule,
+    BackupModule,
   ],
   controllers: [AppController],
   providers: [AppService],
