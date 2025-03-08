@@ -131,8 +131,8 @@ export class TasksService {
       const includeAll = query.include_all === 'true' || query.include_all === true;
       
       // Filter by user role
-      if (user.role === UserRole.GENERAL_MANAGER) {
-        // General managers can see all tasks across all departments and users
+      if (user.role === UserRole.MANAGER || user.role === UserRole.GENERAL_MANAGER) {
+        // Managers and General managers can see all tasks across all departments and users
         // No additional filters needed
         
         // But if they specifically request tasks for a context, apply that filter

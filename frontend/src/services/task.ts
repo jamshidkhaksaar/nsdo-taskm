@@ -236,8 +236,8 @@ export const TaskService = {
         try {
             const params: GetTasksParams = {};
             
-            // General managers and admins can see all tasks
-            if (userRole === 'general_manager' || userRole === 'admin') {
+            // Managers, General managers and admins can see all tasks
+            if (userRole === 'manager' || userRole === 'general_manager' || userRole === 'admin') {
                 params.include_all = true;
             }
             

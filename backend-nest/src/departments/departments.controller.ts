@@ -32,8 +32,6 @@ export class DepartmentsController {
   ) {}
 
   @Get()
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
   async getAllDepartments(@Request() req) {
     const departments = await this.departmentsService.findAll();
     
@@ -52,8 +50,6 @@ export class DepartmentsController {
   }
 
   @Get('/:id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
   async getDepartmentById(@Param('id') id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
     
@@ -71,7 +67,7 @@ export class DepartmentsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
   async createDepartment(
     @Body() createDepartmentDto: CreateDepartmentDto,
     @Request() req,
@@ -92,7 +88,7 @@ export class DepartmentsController {
 
   @Put('/:id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
   async updateDepartment(
     @Param('id') id: string,
     @Body() updateDepartmentDto: UpdateDepartmentDto,
@@ -114,7 +110,7 @@ export class DepartmentsController {
 
   @Delete('/:id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
   async deleteDepartment(@Param('id') id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
     
@@ -133,7 +129,7 @@ export class DepartmentsController {
 
   @Post('/:id/members/:userId/')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.MANAGER)
   async addMember(
     @Param('id') id: string,
     @Param('userId') userId: string,
@@ -155,7 +151,7 @@ export class DepartmentsController {
 
   @Delete('/:id/members/:userId/')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.MANAGER)
   async removeMember(
     @Param('id') id: string,
     @Param('userId') userId: string,

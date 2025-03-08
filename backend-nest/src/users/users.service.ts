@@ -54,6 +54,24 @@ export class UsersService {
     }
   }
 
+  async findUsersByDepartment(departmentId: string): Promise<User[]> {
+    try {
+      this.logger.log(`Finding users in department with ID: ${departmentId}`);
+      
+      const users = await this.usersRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.departments', 'department')
+        .where('department.id = :departmentId', { departmentId })
+        .getMany();
+      
+      this.logger.log(`Found ${users.length} users in department with ID: ${departmentId}`);
+      return users;
+    } catch (error) {
+      this.logger.error(`Error finding users in department ${departmentId}: ${error.message}`, error.stack);
+      return [];
+    }
+  }
+
   async findAll(): Promise<User[]> {
     try {
       this.logger.log('Finding all users');

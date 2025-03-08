@@ -33,59 +33,51 @@ export class DepartmentsService {
 
   async findOne(id: string): Promise<Department> {
     try {
-      const department = await this.departmentsRepository.findOne({
-        where: { id },
-        relations: {
-          members: true,
-          head: true,
-          tasks: true
-        }
-      });
+      // Use a more explicit query to ensure all relations are loaded correctly
+      const department = await this.departmentsRepository
+        .createQueryBuilder('department')
+        .leftJoinAndSelect('department.members', 'members')
+        .leftJoinAndSelect('department.head', 'head')
+        .leftJoinAndSelect('department.tasks', 'tasks')
+        .where('department.id = :id', { id })
+        .getOne();
 
       if (!department) {
         throw new NotFoundException(`Department with ID "${id}" not found`);
       }
       
-      // If there's a headId but no head loaded, load it manually
+      // If there's a headId but no head loaded, load it explicitly
       if (department.headId && (!department.head || !department.head.username)) {
-        console.log(`Department ${id} has headId ${department.headId} but head not loaded or incomplete, loading manually`);
         try {
+          console.log(`Loading head for department ${id} with headId ${department.headId}`);
           const headUser = await this.usersService.findById(department.headId);
           if (headUser) {
             department.head = headUser;
-            console.log(`Manually loaded head user: ${headUser.username} (${headUser.id})`);
+            console.log(`Successfully loaded head user: ${headUser.username}`);
           }
         } catch (error) {
           console.error(`Error loading head user: ${error.message}`);
+          // Don't throw here, just log the error and continue
         }
       }
 
-      // If there are members, ensure they are properly loaded
-      if (department.members && department.members.length > 0) {
-        console.log(`Department ${id} has ${department.members.length} members`);
-      } else {
-        // Check if we need to manually load members
+      // Ensure members array exists
+      if (!department.members) {
+        department.members = [];
+      }
+
+      // If members array is empty, try to load them directly
+      if (department.members.length === 0) {
         try {
-          // Simplify the SQL query to only select columns that exist in the database
-          const memberResults = await this.departmentsRepository.manager.query(
-            `SELECT u.id, u.username 
-             FROM user u 
-             JOIN department_members dm ON u.id = dm.user_id 
-             WHERE dm.department_id = ?`,
-            [id]
-          );
+          // Use TypeORM's query builder for loading members instead of raw SQL
+          const memberResults = await this.usersService.findUsersByDepartment(id);
           
           if (memberResults && memberResults.length > 0) {
-            console.log(`Manually loaded ${memberResults.length} members for department ${id}`);
-            // Map the results to correct user objects
+            console.log(`Loaded ${memberResults.length} members for department ${id}`);
             department.members = memberResults;
-            console.log('Member results:', memberResults);
-          } else {
-            console.log(`No members found for department ${id} through direct query`);
-            department.members = [];
           }
         } catch (error) {
-          console.error(`Error manually loading members: ${error.message}`);
+          console.error(`Error loading members: ${error.message}`);
           department.members = [];
         }
       }
@@ -99,171 +91,128 @@ export class DepartmentsService {
 
   async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
     try {
-      console.log(`Creating new department: ${JSON.stringify(createDepartmentDto)}`);
-      const { name, description, head } = createDepartmentDto;
-
-      // Check if department with same name exists
-      const existingDepartment = await this.departmentsRepository.findOne({
-        where: { name },
-      });
-
-      if (existingDepartment) {
-        throw new ConflictException(`Department with name "${name}" already exists`);
+      console.log('Creating department with DTO:', JSON.stringify(createDepartmentDto, null, 2));
+      
+      // Create new department entity
+      const department = new Department();
+      department.name = createDepartmentDto.name;
+      
+      if (createDepartmentDto.description) {
+        department.description = createDepartmentDto.description;
       }
-
-      // Create and save the basic department first
-      const department = this.departmentsRepository.create({
-        name,
-        description,
-      });
-
-      // First save the department to get an ID
+      
+      // Save department to get an ID
       const savedDepartment = await this.departmentsRepository.save(department);
-      console.log(`Created department: ${savedDepartment.id}`);
-
-      // If a head is specified, set it using direct SQL for reliability
-      if (head) {
+      console.log(`Created department with ID: ${savedDepartment.id}`);
+      
+      // If head is provided, set the department head
+      if (createDepartmentDto.head) {
         try {
-          const headUser = await this.usersService.findById(head);
-          if (!headUser) {
-            throw new NotFoundException(`User with ID "${head}" not found`);
-          }
+          console.log(`Setting head for department ${savedDepartment.id} to user with ID: ${createDepartmentDto.head}`);
+          const headUser = await this.usersService.findById(createDepartmentDto.head);
           
-          console.log(`Found head user: ${headUser.username} (${headUser.id})`);
-          
-          // Direct SQL update of headId field
-          try {
-            await this.departmentsRepository.manager.query(
-              `UPDATE department SET headId = ? WHERE id = ?`,
-              [head, savedDepartment.id]
-            );
-            console.log(`Set headId with direct SQL`);
-          } catch (sqlError) {
-            console.error(`Error setting headId with direct SQL: ${sqlError.message}`);
-            // Fallback to ORM approach for headId update
-            savedDepartment.headId = head;
+          if (headUser) {
+            savedDepartment.headId = headUser.id;
+            savedDepartment.head = headUser;
+            
+            // Save the department with the head
             await this.departmentsRepository.save(savedDepartment);
-            console.log(`Set headId with ORM approach after SQL error`);
+            console.log(`Set head for department ${savedDepartment.id} to user: ${headUser.username}`);
+            
+            // Add head as a member of the department if not already
+            const isDepartmentMember = await this.isDepartmentMember(savedDepartment.id, headUser.id);
+            if (!isDepartmentMember) {
+              console.log(`Adding head ${headUser.username} as member of department ${savedDepartment.id}`);
+              await this.addMember(savedDepartment.id, headUser.id);
+            }
+          } else {
+            console.warn(`Head user with ID ${createDepartmentDto.head} not found, cannot set as department head`);
           }
-          
-          // Add entry to department_heads junction table
-          await this.departmentsRepository.manager.query(
-            `INSERT INTO department_heads (department_id, head_id) VALUES (?, ?)`,
-            [savedDepartment.id, head]
-          );
-          console.log(`Added entry to department_heads junction table`);
-          
-          // Update the local object for consistency
-          savedDepartment.headId = head;
-          savedDepartment.head = headUser;
-          
-          console.log(`Successfully set head for department ${savedDepartment.id} to user ${headUser.username} (${headUser.id})`);
         } catch (error) {
           console.error(`Error setting department head: ${error.message}`);
-          // Don't throw here, we'll continue even if head setting fails
         }
       }
-
-      // Fetch the complete department with relationships
-      return await this.findOne(savedDepartment.id);
+      
+      // Reload department with all relations
+      return this.findOne(savedDepartment.id);
     } catch (error) {
       console.error('Error creating department:', error);
+      
+      if (error.code === '23505') {
+        throw new ConflictException(`Department with name '${createDepartmentDto.name}' already exists`);
+      }
+      
       throw error;
     }
   }
 
   async update(id: string, updateDepartmentDto: UpdateDepartmentDto): Promise<Department> {
     try {
-      console.log(`Updating department ${id} with data:`, updateDepartmentDto);
+      console.log(`Updating department ${id} with DTO:`, JSON.stringify(updateDepartmentDto, null, 2));
       
+      // Get the existing department
       const department = await this.findOne(id);
-      console.log(`Found department ${id}: ${department.name}`);
-
-      if (updateDepartmentDto.name) {
-        const existingDepartment = await this.departmentsRepository.findOne({
-          where: { name: updateDepartmentDto.name },
-        });
-
-        if (existingDepartment && existingDepartment.id !== id) {
-          throw new ConflictException(`Department with name "${updateDepartmentDto.name}" already exists`);
-        }
-      }
-
-      // Update basic properties first
-      if (updateDepartmentDto.name) {
+      
+      // Update simple properties
+      if (updateDepartmentDto.name !== undefined) {
         department.name = updateDepartmentDto.name;
-        console.log(`Updated name to '${updateDepartmentDto.name}'`);
       }
       
-      if (updateDepartmentDto.description) {
+      if (updateDepartmentDto.description !== undefined) {
         department.description = updateDepartmentDto.description;
-        console.log(`Updated description`);
       }
       
-      // Save basic changes
-      let updatedDepartment = await this.departmentsRepository.save(department);
-      console.log(`Saved basic department updates`);
-
-      // Handle head assignment separately
-      if (updateDepartmentDto.head) {
-        console.log(`Handling head assignment: ${updateDepartmentDto.head}`);
-        try {
-          const headUser = await this.usersService.findById(updateDepartmentDto.head);
-          if (!headUser) {
-            throw new NotFoundException(`User with ID "${updateDepartmentDto.head}" not found`);
-          }
-          
-          console.log(`Found head user: ${headUser.username} (${headUser.id})`);
-          
-          // First try direct SQL update for headId - with safer SQL that works in MySQL
+      // Save the updated basic properties
+      await this.departmentsRepository.save(department);
+      
+      // If head is included in the update, handle it separately
+      if (updateDepartmentDto.head !== undefined) {
+        const newHeadId = updateDepartmentDto.head;
+        
+        // If head is null or empty string, remove the head
+        if (!newHeadId) {
+          console.log(`Removing head from department ${id}`);
+          department.headId = null as unknown as string;
+          department.head = null as unknown as User;
+          await this.departmentsRepository.save(department);
+        } else {
+          // Otherwise, set the new head
           try {
-            await this.departmentsRepository.manager.query(
-              `UPDATE department SET headId = ? WHERE id = ?`,
-              [updateDepartmentDto.head, id]
-            );
-            console.log(`Updated headId with direct SQL`);
-          } catch (sqlError) {
-            console.error(`Error updating headId with direct SQL: ${sqlError.message}`);
-            // Fallback to ORM approach for headId update
-            updatedDepartment.headId = updateDepartmentDto.head;
-            await this.departmentsRepository.save(updatedDepartment);
-            console.log(`Updated headId with ORM approach after SQL error`);
-          }
-          
-          // Then update the head relationship in the department_heads table
-          try {
-            // Remove any existing department head relations
-            await this.departmentsRepository.manager.query(
-              `DELETE FROM department_heads WHERE department_id = ?`,
-              [id]
-            );
-            console.log(`Deleted existing department head relations`);
+            console.log(`Setting head for department ${id} to user with ID: ${newHeadId}`);
+            const headUser = await this.usersService.findById(newHeadId);
             
-            // Add the new department head relation
-            await this.departmentsRepository.manager.query(
-              `INSERT INTO department_heads (department_id, head_id) VALUES (?, ?)`,
-              [id, updateDepartmentDto.head]
-            );
-            console.log(`Updated department_heads table with direct SQL`);
+            if (headUser) {
+              department.headId = headUser.id;
+              department.head = headUser;
+              
+              // Save the department with the head
+              await this.departmentsRepository.save(department);
+              console.log(`Set head for department ${id} to user: ${headUser.username}`);
+              
+              // Add head as a member of the department if not already
+              const isDepartmentMember = await this.isDepartmentMember(id, headUser.id);
+              if (!isDepartmentMember) {
+                console.log(`Adding head ${headUser.username} as member of department ${id}`);
+                await this.addMember(id, headUser.id);
+              }
+            } else {
+              console.warn(`Head user with ID ${newHeadId} not found, cannot set as department head`);
+            }
           } catch (error) {
-            console.error(`Error updating department_heads table: ${error.message}`);
-            // Fallback to ORM approach
-            updatedDepartment.headId = updateDepartmentDto.head;
-            updatedDepartment.head = headUser;
-            await this.departmentsRepository.save(updatedDepartment);
-            console.log(`Updated head with ORM approach`);
+            console.error(`Error setting department head: ${error.message}`);
           }
-        } catch (error) {
-          console.error(`Error assigning head: ${error.message}`);
-          throw error;
         }
       }
-
-      // Fetch the complete updated department with relationships
-      console.log(`Fetching updated department`);
-      return await this.findOne(id);
+      
+      // Reload department with all relations
+      return this.findOne(id);
     } catch (error) {
       console.error(`Error updating department ${id}:`, error);
+      
+      if (error.code === '23505') {
+        throw new ConflictException(`Department with name '${updateDepartmentDto.name}' already exists`);
+      }
+      
       throw error;
     }
   }
@@ -389,17 +338,29 @@ export class DepartmentsService {
   // Helper method to get member count directly from junction table
   async getMemberCount(departmentId: string): Promise<number> {
     try {
-      const result = await this.departmentsRepository.manager.query(
-        `SELECT COUNT(*) as count FROM department_members WHERE department_id = ?`,
-        [departmentId]
-      );
-      
-      const count = parseInt(result[0]?.count || '0', 10);
-      console.log(`Direct member count query for department ${departmentId}: ${count}`);
-      return count;
+      const department = await this.findOne(departmentId);
+      if (department.members) {
+        return department.members.length;
+      }
+      return 0;
     } catch (error) {
       console.error(`Error getting member count for department ${departmentId}: ${error.message}`);
       return 0;
+    }
+  }
+
+  // Helper method to check if a user is already a member of a department
+  private async isDepartmentMember(departmentId: string, userId: string): Promise<boolean> {
+    try {
+      const count = await this.departmentsRepository.manager.query(
+        `SELECT COUNT(*) as count FROM department_members WHERE department_id = ? AND user_id = ?`,
+        [departmentId, userId]
+      );
+      
+      return parseInt(count[0]?.count || '0', 10) > 0;
+    } catch (error) {
+      console.error(`Error checking if user ${userId} is member of department ${departmentId}: ${error.message}`);
+      return false;
     }
   }
 } 

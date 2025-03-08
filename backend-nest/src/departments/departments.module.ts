@@ -5,6 +5,7 @@ import { DepartmentsController } from './departments.controller';
 import { DepartmentsService } from './departments.service';
 import { UsersModule } from '../users/users.module';
 import { AdminModule } from '../admin/admin.module';
+import { DepartmentPerformersController } from './controllers/performers.controller';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { AdminModule } from '../admin/admin.module';
     forwardRef(() => UsersModule),
     forwardRef(() => AdminModule),
   ],
-  controllers: [DepartmentsController],
+  controllers: [DepartmentsController, DepartmentPerformersController],
   providers: [DepartmentsService],
   exports: [DepartmentsService],
 })
