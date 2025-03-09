@@ -249,12 +249,26 @@ export const SettingsService = {
   },
 
   updatePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
-    const response = await axios.post('/api/settings/update_password/', {
-      current_password: currentPassword,
-      new_password: newPassword,
-      confirm_password: confirmPassword,
-    });
-    return response.data;
+    try {
+      const response = await axios.patch('/api/profile/me/password', {
+        currentPassword,
+        newPassword,
+        confirmPassword
+      });
+      
+      // Don't refresh token or logout on successful password change
+      return response.data;
+    } catch (error) {
+      console.error('Error updating password:', error);
+      
+      // Use mock data in development
+      if (USE_MOCK_DATA) {
+        console.log('[SettingsService] Using mock password update as fallback');
+        return { success: true, message: 'Password updated successfully (mock)' };
+      }
+      
+      throw error;
+    }
   },
 
   get2FAStatus: async () => {

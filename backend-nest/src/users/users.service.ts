@@ -200,7 +200,17 @@ export class UsersService {
       // Update the user properties
       // We'll only update the properties that are provided
       // and we'll exclude sensitive properties like password
-      const allowedFields = ['username', 'email', 'role', 'isActive'];
+      const allowedFields = [
+        'username', 
+        'email', 
+        'role', 
+        'isActive', 
+        'bio', 
+        'avatarUrl', 
+        'skills', 
+        'socialLinks', 
+        'preferences'
+      ];
       
       for (const field of allowedFields) {
         if (updateData[field] !== undefined) {

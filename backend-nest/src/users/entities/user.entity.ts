@@ -35,6 +35,30 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
+  // 2FA fields
+  @Column({ default: false })
+  twoFactorEnabled: boolean;
+
+  @Column({ nullable: true })
+  @Exclude({ toPlainOnly: true })
+  twoFactorSecret: string;
+
+  // Profile fields
+  @Column({ nullable: true, type: 'text' })
+  bio: string;
+
+  @Column({ nullable: true })
+  avatarUrl: string;
+
+  @Column({ type: 'simple-array', nullable: true })
+  skills: string[];
+
+  @Column({ type: 'json', nullable: true })
+  socialLinks: Record<string, string>;
+
+  @Column({ type: 'json', nullable: true })
+  preferences: Record<string, any>;
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 

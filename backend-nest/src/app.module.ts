@@ -10,6 +10,7 @@ import { AdminModule } from './admin/admin.module';
 import { TasksModule } from './tasks/tasks.module';
 import { SettingsModule } from './settings/settings.module';
 import { BackupModule } from './backup/backup.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { BackupModule } from './backup/backup.module';
     TasksModule,
     SettingsModule,
     BackupModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [AppService],

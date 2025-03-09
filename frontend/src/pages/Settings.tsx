@@ -99,9 +99,10 @@ const Settings: React.FC = () => {
     }
     
     setLoading(true);
+    setError(null);
     try {
       await SettingsService.updatePassword(currentPassword, newPassword, confirmPassword);
-      setSuccess('Password updated successfully');
+      setSuccess('Password updated successfully - you will not be logged out.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
