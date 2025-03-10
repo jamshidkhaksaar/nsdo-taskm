@@ -12,6 +12,7 @@ import {
   Tooltip,
   useTheme,
   alpha,
+  AvatarGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -19,15 +20,33 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from '@hello-pangea/dnd';
 import { Task } from '../../types/task';
 import { formatDistanceToNow } from 'date-fns';
+import { UserService } from '../../services/user';
+import { TaskService } from '../../services/task';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import DoneIcon from '@mui/icons-material/Done';
+import CancelIcon from '@mui/icons-material/Cancel';
 
 // Define the task status type
 type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
+// Define the grouped tasks interface
+interface GroupedTasks {
+  pending: Task[];
+  in_progress: Task[];
+  completed: Task[];
+}
+
 // Define props interface
 interface TaskKanbanBoardProps {
+  tasks?: Task[];
+  loading?: boolean;
+  error?: string | null;
   onCreateTask?: (initialStatus: TaskStatus) => void;
   onEditTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
+  onChangeTaskStatus?: (taskId: string, status: TaskStatus) => Promise<boolean>;
+  onTaskUpdate?: (taskId: string, taskUpdate: any) => void;
+  onError?: (error: any) => void;
 }
 
 // Helper component for React Beautiful DnD in StrictMode
@@ -60,14 +79,30 @@ const getDragStyle = (isDragging: boolean, draggableStyle: DraggingStyle | NotDr
   ...draggableStyle,
 });
 
+// Format date in a compact way
+const formatCompactDate = (dateString: string) => {
+  try {
+    const date = new Date(dateString);
+    const month = date.toLocaleString('default', { month: 'short' });
+    const day = date.getDate();
+    return `${month} ${day}`;
+  } catch (error) {
+    console.error('Error formatting compact date:', error);
+    return '';
+  }
+};
+
 // Task Column Component
 interface TaskColumnProps {
   title: string;
   tasks: Task[];
   status: string;
-  onAddTask: (status: TaskStatus) => void;
-  onEditTask: (task: Task) => void;
-  onDeleteTask: (taskId: string) => void;
+  onAddTask?: (status: TaskStatus) => void;
+  onEditTask?: (taskId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
+  onChangeTaskStatus?: (taskId: string, newStatus: TaskStatus) => Promise<boolean> | void;
+  getUserName: (userId: string) => string;
+  theme: any;
 }
 
 const TaskColumn: React.FC<TaskColumnProps> = ({
@@ -77,9 +112,10 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
   onAddTask,
   onEditTask,
   onDeleteTask,
+  onChangeTaskStatus,
+  getUserName,
+  theme
 }) => {
-  const theme = useTheme();
-  
   // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -113,11 +149,11 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         flexDirection: 'column',
         bgcolor: 'rgba(255, 255, 255, 0.03)',
         borderRadius: 2,
-        p: 2,
+        p: 1,
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ color: getStatusColor(status), fontWeight: 'bold' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Typography variant="h6" sx={{ color: getStatusColor(status), fontWeight: 'bold', fontSize: '1rem' }}>
           {title}
         </Typography>
         <Chip 
@@ -126,7 +162,11 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
           sx={{ 
             bgcolor: alpha(getStatusColor(status), 0.2),
             color: getStatusColor(status),
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            height: '20px',
+            '& .MuiChip-label': {
+              padding: '0 6px'
+            }
           }} 
         />
       </Box>
@@ -138,14 +178,26 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
             {...provided.droppableProps}
             sx={{
               flexGrow: 1,
-              minHeight: '100px',
+              minHeight: '250px',
+              maxHeight: '500px',
               overflowY: 'auto',
               transition: 'background-color 0.2s ease',
               backgroundColor: snapshot.isDraggingOver
                 ? alpha(getStatusColor(status), 0.05)
                 : 'transparent',
               borderRadius: 1,
-              p: 1,
+              p: 0.5,
+              '&::-webkit-scrollbar': {
+                width: '4px',
+              },
+              '&::-webkit-scrollbar-track': {
+                backgroundColor: 'rgba(0,0,0,0.1)',
+                borderRadius: '2px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: alpha(getStatusColor(status), 0.2),
+                borderRadius: '2px',
+              },
             }}
             className={`droppable-column ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
           >
@@ -159,74 +211,223 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
                     sx={{
                       ...getDragStyle(snapshot.isDragging, provided.draggableProps.style),
                       border: `1px solid ${alpha(getStatusColor(status), 0.3)}`,
+                      mb: 1,
+                      pt: 0.5,
+                      pb: 0.5,
+                      px: 1,
                     }}
                   >
-                    <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'medium', color: '#fff', mb: 1 }}>
+                    {/* Main content without CardContent to save space */}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                      {/* Title row with actions */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.25 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'medium', color: '#fff', fontSize: '0.9rem' }}>
                           {task.title}
                         </Typography>
-                        <Box>
-                          <Tooltip title="Edit">
-                            <IconButton 
-                              size="small" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEditTask(task);
-                              }}
-                              sx={{ color: theme.palette.info.main, p: 0.5 }}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton 
-                              size="small" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteTask(task.id);
-                              }}
-                              sx={{ color: theme.palette.error.main, p: 0.5 }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                        <Box sx={{ display: 'flex', ml: 0.5 }}>
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onEditTask) onEditTask(task.id);
+                            }}
+                            sx={{ color: theme.palette.info.main, p: 0.25, ml: 0.25 }}
+                          >
+                            <EditIcon fontSize="small" sx={{ fontSize: '0.8rem' }} />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onDeleteTask) onDeleteTask(task.id);
+                            }}
+                            sx={{ color: theme.palette.error.main, p: 0.25, ml: 0.25 }}
+                          >
+                            <DeleteIcon fontSize="small" sx={{ fontSize: '0.8rem' }} />
+                          </IconButton>
                         </Box>
                       </Box>
                       
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: 'rgba(255, 255, 255, 0.7)',
-                          mb: 1,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                      {/* Description - allow more lines */}
+                      <Tooltip 
+                        title={task.description || "No description"}
+                        placement="top"
+                        enterDelay={500}
+                        leaveDelay={200}
+                        arrow
+                        sx={{
+                          maxWidth: 300,
+                          bgcolor: 'rgba(0,0,0,0.9)',
+                          '& .MuiTooltip-arrow': {
+                            color: 'rgba(0,0,0,0.9)',
+                          },
                         }}
                       >
-                        {task.description}
-                      </Typography>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            fontSize: '0.75rem',
+                            lineHeight: 1.3,
+                            mb: 0.5,
+                            cursor: 'help', // Show pointer on hover
+                          }}
+                        >
+                          {task.description}
+                        </Typography>
+                      </Tooltip>
                       
+                      {/* Info row with dates and collaborators */}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {task.due_date && (
-                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                            Due {formatDate(task.due_date)}
+                        {/* Dates section */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                          {/* Created date */}
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: 'rgba(255, 255, 255, 0.5)',
+                              fontSize: '0.65rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <span style={{ opacity: 0.7, marginRight: '4px' }}>Created:</span> 
+                            {task.created_at ? formatCompactDate(task.created_at) : 'N/A'}
                           </Typography>
-                        )}
-                        
-                        {task.assigned_to && task.assigned_to.length > 0 && (
-                          <Tooltip title="Assigned Users">
-                            <Avatar 
-                              sx={{ width: 24, height: 24 }} 
+                          
+                          {/* Due date - more prominent */}
+                          {task.due_date && (
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                color: new Date(task.due_date) < new Date() ? theme.palette.error.main : theme.palette.success.main,
+                                fontSize: '0.65rem',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
                             >
-                              {task.assigned_to.length}
-                            </Avatar>
-                          </Tooltip>
-                        )}
+                              <span style={{ opacity: 0.7, marginRight: '4px', fontWeight: 'normal' }}>Due:</span>
+                              {formatCompactDate(task.due_date)}
+                            </Typography>
+                          )}
+                        </Box>
+                        
+                        {/* Right side - avatars and action buttons */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {/* Display Collaborators */}
+                          {task.assigned_to && task.assigned_to.length > 0 && (
+                            <AvatarGroup 
+                              max={3} 
+                              sx={{ 
+                                '& .MuiAvatar-root': { 
+                                  width: 20, 
+                                  height: 20, 
+                                  fontSize: '0.7rem',
+                                  border: 'none'
+                                },
+                                mr: 0.5 
+                              }}
+                            >
+                              {task.assigned_to.map((userId, index) => (
+                                <Tooltip 
+                                  key={index} 
+                                  title={getUserName(userId)}
+                                  placement="top"
+                                >
+                                  <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
+                                    {getUserName(userId).charAt(0).toUpperCase()}
+                                  </Avatar>
+                                </Tooltip>
+                              ))}
+                            </AvatarGroup>
+                          )}
+                          
+                          {/* Action buttons */}
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            {/* Start button for pending tasks */}
+                            {status === 'pending' && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="info"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onChangeTaskStatus) {
+                                    onChangeTaskStatus(task.id, 'in_progress');
+                                  }
+                                }}
+                                sx={{ 
+                                  minWidth: '20px', 
+                                  height: '18px', 
+                                  fontSize: '0.55rem',
+                                  padding: '0px 4px',
+                                  borderRadius: '2px',
+                                  lineHeight: 1
+                                }}
+                              >
+                                Start
+                              </Button>
+                            )}
+                            
+                            {/* Complete button for pending or in-progress tasks */}
+                            {(status === 'pending' || status === 'in_progress') && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="success"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onChangeTaskStatus) {
+                                    onChangeTaskStatus(task.id, 'completed');
+                                  }
+                                }}
+                                sx={{ 
+                                  minWidth: '20px', 
+                                  height: '18px', 
+                                  fontSize: '0.55rem',
+                                  padding: '0px 4px',
+                                  borderRadius: '2px',
+                                  lineHeight: 1
+                                }}
+                              >
+                                Done
+                              </Button>
+                            )}
+                            
+                            {/* Cancel button for in-progress or completed tasks */}
+                            {(status === 'in_progress' || status === 'completed') && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onChangeTaskStatus) {
+                                    onChangeTaskStatus(task.id, 'pending');
+                                  }
+                                }}
+                                sx={{ 
+                                  minWidth: '20px', 
+                                  height: '18px', 
+                                  fontSize: '0.55rem',
+                                  padding: '0px 4px',
+                                  borderRadius: '2px',
+                                  lineHeight: 1
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </Box>
+                        </Box>
                       </Box>
-                    </CardContent>
+                    </Box>
                   </Card>
                 )}
               </Draggable>
@@ -236,97 +437,87 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         )}
       </Droppable>
       
-      {status === 'pending' && (
-        <Button
-          variant="text"
-          startIcon={<AddIcon />}
-          onClick={() => onAddTask(status as TaskStatus)}
-          sx={{
-            mt: 2,
-            color: getStatusColor(status),
-            borderColor: alpha(getStatusColor(status), 0.5),
-            '&:hover': {
-              borderColor: getStatusColor(status),
-              backgroundColor: alpha(getStatusColor(status), 0.1),
-            },
-          }}
-        >
-          Add Task
-        </Button>
+      {/* Add task button at bottom of column */}
+      {onAddTask && (
+        <Box sx={{ mt: 1, textAlign: 'center' }}>
+          <Button 
+            startIcon={<AddIcon />} 
+            onClick={() => onAddTask(status as TaskStatus)}
+            variant="outlined"
+            size="small"
+            color="primary"
+            sx={{ fontSize: '0.75rem', textTransform: 'none' }}
+          >
+            Add Task
+          </Button>
+        </Box>
       )}
     </Box>
   );
 };
 
-// Auto-scroll provider for drag and drop
+// Auto-scroll provider component 
 const AutoScrollProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isDragging, setIsDragging] = useState(false);
+  const [autoScrollInterval, setAutoScrollInterval] = useState<number | null>(null);
   
-  // Handle drag start
   const handleDragStart = () => {
-    setIsDragging(true);
+    // Reset auto-scroll on drag start
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
   };
   
-  // Handle drag end
   const handleDragEnd = () => {
-    setIsDragging(false);
+    // Clean up auto-scroll on drag end
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
   };
   
   useEffect(() => {
-    if (!isDragging) return;
-    
-    // Handle drag over for auto-scrolling
     const handleDragOver = (e: DragEvent) => {
       const { clientY } = e;
-      const scrollZoneSize = 150; // Size of the scroll zone in pixels
-      const scrollSpeed = 15; // Pixels to scroll per frame
+      const scrollContainer = document.querySelector('.droppable-column');
       
-      const viewportHeight = window.innerHeight;
-      const topScrollZone = scrollZoneSize;
-      const bottomScrollZone = viewportHeight - scrollZoneSize;
+      if (!scrollContainer) return;
       
-      let scrollDirection = 0;
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const topScrollZone = containerRect.top + 50;
+      const bottomScrollZone = containerRect.bottom - 50;
       
-      if (clientY < topScrollZone) {
-        // Scroll up when near the top
-        scrollDirection = -1;
-      } else if (clientY > bottomScrollZone) {
-        // Scroll down when near the bottom
-        scrollDirection = 1;
+      // Clear existing interval
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        setAutoScrollInterval(null);
       }
       
-      if (scrollDirection !== 0) {
-        // Calculate scroll amount based on how close to the edge
-        let scrollAmount = scrollSpeed;
-        
-        if (scrollDirection < 0) {
-          // For upward scrolling, calculate based on distance from top
-          const distanceFromTop = clientY;
-          const scrollFactor = 1 - (distanceFromTop / topScrollZone);
-          scrollAmount = Math.ceil(scrollSpeed * scrollFactor);
-        } else {
-          // For downward scrolling, calculate based on distance from bottom
-          const distanceFromBottom = viewportHeight - clientY;
-          const scrollFactor = 1 - (distanceFromBottom / scrollZoneSize);
-          scrollAmount = Math.ceil(scrollSpeed * scrollFactor);
-        }
-        
-        // Apply scrolling
-        window.scrollBy({
-          top: scrollDirection * scrollAmount,
-          behavior: 'auto'
-        });
+      // Set new interval if in scroll zones
+      if (clientY < topScrollZone) {
+        // Scroll up
+        const interval = window.setInterval(() => {
+          scrollContainer.scrollTop -= 10;
+        }, 50);
+        setAutoScrollInterval(interval);
+      } else if (clientY > bottomScrollZone) {
+        // Scroll down
+        const interval = window.setInterval(() => {
+          scrollContainer.scrollTop += 10;
+        }, 50);
+        setAutoScrollInterval(interval);
       }
     };
     
-    // Add event listener for drag over
     document.addEventListener('dragover', handleDragOver);
     
-    // Clean up
     return () => {
       document.removeEventListener('dragover', handleDragOver);
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+      }
     };
-  }, [isDragging]);
+  }, [autoScrollInterval]);
   
   return (
     <div onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -336,16 +527,6 @@ const AutoScrollProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 // Main TaskKanbanBoard component
-interface TaskKanbanBoardProps {
-  tasks?: Task[];
-  loading?: boolean;
-  error?: string | null;
-  onCreateTask?: (initialStatus: TaskStatus) => void;
-  onEditTask?: (taskId: string) => void;
-  onDeleteTask?: (taskId: string) => void;
-  onChangeTaskStatus?: (taskId: string, status: TaskStatus) => Promise<boolean>;
-}
-
 const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   tasks = [],
   loading = false,
@@ -353,23 +534,57 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   onCreateTask,
   onEditTask,
   onDeleteTask,
-  onChangeTaskStatus
+  onChangeTaskStatus,
+  onTaskUpdate,
+  onError
 }) => {
-  // Local state for tasks to enable drag and drop without waiting for API
+  const theme = useTheme();
+  const [tasksByStatus, setTasksByStatus] = useState<GroupedTasks>({
+    pending: [],
+    in_progress: [],
+    completed: []
+  });
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [users, setUsers] = useState<Map<string, any>>(new Map());
   
   // Update local tasks when props change
   useEffect(() => {
-    setLocalTasks(tasks);
+    console.log('TaskKanbanBoard received tasks:', tasks);
+    
+    // Process tasks - ensure assigned_to is an array
+    const processedTasks = tasks.map(task => {
+      console.log(`Processing task ${task.id}:`, task);
+      console.log(`Task ${task.id} assigned_to:`, task.assigned_to);
+      
+      return {
+        ...task,
+        assigned_to: Array.isArray(task.assigned_to) 
+          ? task.assigned_to 
+          : (task.assigned_to ? [task.assigned_to] : [])
+      };
+    });
+    
+    console.log('Processed tasks in TaskKanbanBoard:', processedTasks);
+    setLocalTasks(processedTasks);
   }, [tasks]);
   
   // Group tasks by status
-  const tasksByStatus = {
-    pending: localTasks.filter(task => task.status === 'pending'),
-    in_progress: localTasks.filter(task => task.status === 'in_progress'),
-    completed: localTasks.filter(task => task.status === 'completed'),
-  };
+  useEffect(() => {
+    const grouped = localTasks.reduce((acc, task) => {
+      if (task.status === 'pending') {
+        acc.pending.push(task);
+      } else if (task.status === 'in_progress') {
+        acc.in_progress.push(task);
+      } else if (task.status === 'completed') {
+        acc.completed.push(task);
+      }
+      return acc;
+    }, { pending: [] as Task[], in_progress: [] as Task[], completed: [] as Task[] });
+    
+    console.log('Tasks grouped by status:', grouped);
+    setTasksByStatus(grouped);
+  }, [localTasks]);
   
   // Handle drag end
   const handleDragEnd = useCallback((result: DropResult) => {
@@ -394,7 +609,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     };
     
     // Get the new status
-    const newStatus = statusMap[destination.droppableId];
+    const newStatus = statusMap[destination.droppableId as string];
     
     // Find the task
     const taskToUpdate = localTasks.find(task => task.id === draggableId);
@@ -427,9 +642,9 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   }, [onCreateTask]);
   
   // Handle task editing
-  const handleEditTask = useCallback((task: Task) => {
+  const handleEditTask = useCallback((taskId: string) => {
     if (onEditTask) {
-      onEditTask(task.id);
+      onEditTask(taskId);
     }
   }, [onEditTask]);
   
@@ -440,6 +655,52 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     }
   }, [onDeleteTask]);
   
+  // Handle task status change
+  const handleChangeTaskStatus = useCallback((taskId: string, newStatus: TaskStatus) => {
+    if (onChangeTaskStatus) {
+      // Optimistically update the UI
+      const updatedTasks = localTasks.map(task => 
+        task.id === taskId ? { ...task, status: newStatus } : task
+      );
+      
+      setLocalTasks(updatedTasks);
+      
+      // Call the API to update the task status
+      onChangeTaskStatus(taskId, newStatus)
+        .catch(() => {
+          // Revert to original state if the API call fails
+          setLocalTasks(localTasks);
+        });
+    }
+  }, [localTasks, onChangeTaskStatus]);
+  
+  // Add a function to fetch user information
+  const fetchUsers = async () => {
+    try {
+      const usersList = await UserService.getUsers();
+      const usersMap = new Map();
+      usersList.forEach((user: any) => {
+        usersMap.set(user.id, user);
+      });
+      setUsers(usersMap);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  // Function to get user name from the users map
+  const getUserName = (userId: string) => {
+    if (users.has(userId)) {
+      return users.get(userId).name || users.get(userId).username || users.get(userId).first_name || userId;
+    }
+    return userId;
+  };
+
+  useEffect(() => {
+    // Fetch users when component mounts
+    fetchUsers();
+  }, []);
+
   return (
     <ReactBeautifulDndContext>
       <AutoScrollProvider>
@@ -472,6 +733,9 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
                   onAddTask={handleCreateTask}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
+                  onChangeTaskStatus={handleChangeTaskStatus}
+                  getUserName={getUserName}
+                  theme={theme}
                 />
               </Grid>
               <Grid item xs={12} md={4} sx={{ height: { md: '100%' } }}>
@@ -482,6 +746,9 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
                   onAddTask={handleCreateTask}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
+                  onChangeTaskStatus={handleChangeTaskStatus}
+                  getUserName={getUserName}
+                  theme={theme}
                 />
               </Grid>
               <Grid item xs={12} md={4} sx={{ height: { md: '100%' } }}>
@@ -492,6 +759,9 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
                   onAddTask={handleCreateTask}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
+                  onChangeTaskStatus={handleChangeTaskStatus}
+                  getUserName={getUserName}
+                  theme={theme}
                 />
               </Grid>
             </Grid>

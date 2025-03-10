@@ -54,6 +54,7 @@ export interface TaskUpdate {
   department?: string | DepartmentRef | null;
   assigned_to?: string[] | null;
   updated_at?: string;
+  context?: TaskContext;
 }
 
 export interface Comment {

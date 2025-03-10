@@ -238,14 +238,20 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       if (pageContext === 'dashboard') {
         // Personal task with optional collaborators
         taskData.context = 'personal';
+        // Make sure collaborators is always an array of strings (user IDs)
         taskData.assigned_to = collaborators.map(user => user.id.toString());
       } else if (pageContext === 'department') {
         // Department task
         taskData.context = 'department';
         taskData.department = department; // This will be mapped to departmentId in the service
+        // Add collaborators if any are selected
+        if (collaborators && collaborators.length > 0) {
+          taskData.assigned_to = collaborators.map(user => user.id.toString());
+        }
       } else if (pageContext === 'user') {
         // User assignment
         taskData.context = 'user';
+        // Make sure selected users is always an array of strings (user IDs)
         taskData.assigned_to = selectedUsers.map(user => user.id.toString());
       }
 
@@ -257,7 +263,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         // Create new task
         const createTaskData = {
           ...taskData,
-          context: taskData.context || 'personal'
+          context: taskData.context || 'personal',
+          // Ensure assigned_to is always included
+          assigned_to: taskData.assigned_to || []
         };
         console.log('Creating task with data:', createTaskData);
         await TaskService.createTask(createTaskData as CreateTask);

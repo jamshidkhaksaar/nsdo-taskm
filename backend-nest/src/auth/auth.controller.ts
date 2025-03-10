@@ -20,7 +20,7 @@ export class AuthController {
   @Post('/signin')
   async signIn(
     @Body() loginCredentialsDto: LoginCredentialsDto,
-  ): Promise<{ access: string, refresh: string, user: any, need_2fa?: boolean, method?: string }> {
+  ): Promise<{ access: string | null, refresh: string | null, user: any | null, need_2fa?: boolean, method?: string }> {
     try {
       // Check if the user has 2FA enabled and if the browser is remembered
       const user = await this.authService.validateUser(
@@ -82,7 +82,7 @@ export class AuthController {
   @Post('/login')
   login(
     @Body() loginCredentialsDto: LoginCredentialsDto,
-  ): Promise<{ access: string, refresh: string, user: any }> {
+  ): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
     return this.authService.signIn(loginCredentialsDto);
   }
 

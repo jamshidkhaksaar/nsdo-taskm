@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Button } from '@mui/material';
+import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Button, Grid } from '@mui/material';
 
 // Custom Components
 import Sidebar from '../components/Sidebar';
@@ -28,6 +28,7 @@ import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { Task, TaskStatus } from '../types/task';
 import axios from '../utils/axios';
+import { TaskService } from '../services/task';
 
 const DRAWER_WIDTH = 240;
 
@@ -89,13 +90,39 @@ const Dashboard: React.FC = () => {
       // Log the API URL being used
       console.log('Using API URL:', axios.defaults.baseURL);
       
-      // Make the API request
-      const response = await axios.get('/api/tasks');
+      // Make the API request - use proper filters based on task type and createdById
+      console.log('Making request to /api/tasks');
+      // We need to include all tasks, regardless of who created them or which department they belong to
+      const response = await axios.get('/api/tasks', {
+        params: {
+          // No filtering to get ALL tasks
+          include_all: true
+        }
+      });
       console.log('API response for tasks:', response.data);
+      console.log('Response status:', response.status);
       
       // Check if the response is valid
       if (Array.isArray(response.data)) {
-        setTasks(response.data);
+        console.log(`Received ${response.data.length} tasks from API`);
+        
+        // Map backend status to frontend status
+        const mappedTasks = response.data.map(task => ({
+          ...task,
+          status: task.status === 'TODO' ? 'pending' : 
+                  task.status === 'IN_PROGRESS' ? 'in_progress' : 
+                  task.status === 'DONE' ? 'completed' : 'pending',
+          // Ensure all required fields are present
+          id: task.id.toString(),
+          title: task.title || '',
+          description: task.description || '',
+          // If created_at is missing, set it to the current date
+          created_at: task.created_at || new Date().toISOString(),
+          context: task.context || 'personal',
+        }));
+        
+        console.log('Mapped tasks:', mappedTasks);
+        setTasks(mappedTasks);
       } else {
         console.warn('Unexpected response format:', response.data);
         setTasks([]);
@@ -175,12 +202,13 @@ const Dashboard: React.FC = () => {
   // Change task status handler
   const changeTaskStatus = async (taskId: string, status: TaskStatus) => {
     try {
-      console.log(`Changing task ${taskId} status to ${status}`);
-      await axios.patch(`/api/tasks/${taskId}/status`, { status });
+      console.log(`Dashboard: Changing task ${taskId} status to ${status}`);
+      // Use the TaskService instead of direct axios call
+      await TaskService.changeTaskStatus(taskId, status);
       await fetchTasks(); // Refresh tasks after status change
       return true;
     } catch (err) {
-      console.error('Error changing task status:', err);
+      console.error('Error changing task status in Dashboard:', err);
       handleError('Failed to update task status. Please try again later.');
       return false;
     }
@@ -205,89 +233,112 @@ const Dashboard: React.FC = () => {
       sx={{ 
         height: '100%', 
         overflow: 'visible',
-        px: { xs: 1, sm: 2 },
-        pb: 2
+        px: { xs: 0.5, sm: 1 },
+        pb: 1
       }}
     >
-      {/* Weather Widget (conditionally shown) */}
-      {showWeatherWidget && (
-        <Box sx={{ 
-          mb: isSmallScreen ? 1 : 2,
-          borderRadius: 2,
-          overflow: 'hidden',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
-        }}>
-          <WeatherWidget compact={isSmallScreen} />
-        </Box>
-      )}
-      
-      {/* Task Summary - use compact mode on mobile */}
-      <Box sx={{ 
-        mb: isSmallScreen ? 1 : 2,
-        borderRadius: 2,
-        overflow: 'hidden',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.08)'
-      }}>
-        <TaskSummary tasks={tasks} compact={isMobile || isTablet} />
-      </Box>
-      
-      {/* Task Kanban Board - takes remaining space */}
-      <Box
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          overflow: 'auto',
-          height: '100%'
-        }}
-      >
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-            <CircularProgress />
+      <Grid container spacing={1}>
+        {/* Top row with Weather Widget and Task Summary */}
+        <Grid item xs={12}>
+          <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, mb: 1 }}>
+            {/* Weather Widget (conditionally shown) */}
+            {showWeatherWidget && (
+              <Box sx={{ 
+                flexBasis: '30%',
+                borderRadius: 2,
+                overflow: 'hidden',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <WeatherWidget compact={true} />
+              </Box>
+            )}
+            
+            {/* Task Summary - always in compact mode */}
+            <Box sx={{ 
+              flexGrow: 1,
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}>
+              <TaskSummary tasks={tasks} compact={true} />
+            </Box>
           </Box>
-        ) : error ? (
-          <Alert severity="error">{error}</Alert>
-        ) : (
-          <TaskKanbanBoard
-            tasks={tasks}
-            onCreateTask={(status) => {
-              setInitialTaskStatus(status);
-              setCreateTaskDialogOpen(true);
+        </Grid>
+        
+        {/* Task Kanban Board - takes remaining space */}
+        <Grid item xs={12} sx={{ flexGrow: 1, height: 'calc(100vh - 180px)' }}>
+          <Box
+            sx={{
+              height: '100%',
+              p: { xs: 1, sm: 1.5 },
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              bgcolor: 'rgba(255, 255, 255, 0.02)',
             }}
-            onEditTask={(taskId) => {
-              const taskToEdit = tasks.find(t => t.id === taskId) || null;
-              setSelectedTask(taskToEdit);
-              setEditTaskDialogOpen(true);
-            }}
-            onDeleteTask={(taskId) => {
-              setSelectedTaskId(taskId);
-              setDeleteDialogOpen(true);
-            }}
-            onChangeTaskStatus={changeTaskStatus}
-          />
-        )}
-      </Box>
+          >
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+                <CircularProgress />
+              </Box>
+            ) : error ? (
+              <Alert severity="error">{error}</Alert>
+            ) : (
+              <TaskKanbanBoard
+                tasks={tasks}
+                onCreateTask={(status) => {
+                  setInitialTaskStatus(status);
+                  setCreateTaskDialogOpen(true);
+                }}
+                onEditTask={(taskId) => {
+                  const taskToEdit = tasks.find(t => t.id === taskId) || null;
+                  setSelectedTask(taskToEdit);
+                  setEditTaskDialogOpen(true);
+                }}
+                onDeleteTask={(taskId) => {
+                  setSelectedTaskId(taskId);
+                  setDeleteDialogOpen(true);
+                }}
+                onChangeTaskStatus={changeTaskStatus}
+              />
+            )}
+          </Box>
+        </Grid>
+      </Grid>
       
       {/* Task Dialogs */}
       <CreateTaskDialog
         open={createTaskDialogOpen}
         onClose={() => setCreateTaskDialogOpen(false)}
-        onTaskCreated={fetchTasks}
+        onTaskCreated={async () => {
+          console.log('Task created, refreshing tasks...');
+          await fetchTasks();
+          console.log('Tasks refreshed');
+        }}
         dialogType="personal"
         initialStatus={initialTaskStatus}
       />
       <CreateTaskDialog
         open={assignTaskDialogOpen}
         onClose={() => setAssignTaskDialogOpen(false)}
-        onTaskCreated={fetchTasks}
+        onTaskCreated={async () => {
+          console.log('Task created, refreshing tasks...');
+          await fetchTasks();
+          console.log('Tasks refreshed');
+        }}
         dialogType="assign"
         task={selectedTask ? selectedTask : undefined}
       />
       <CreateTaskDialog
         open={editTaskDialogOpen}
         onClose={() => setEditTaskDialogOpen(false)}
-        onTaskCreated={fetchTasks}
+        onTaskCreated={async () => {
+          console.log('Task created, refreshing tasks...');
+          await fetchTasks();
+          console.log('Tasks refreshed');
+        }}
         dialogType="assign"
         task={selectedTask ? selectedTask : undefined}
       />

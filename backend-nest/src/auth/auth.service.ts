@@ -33,7 +33,7 @@ export class AuthService {
     }
   }
 
-  async signIn(loginCredentialsDto: LoginCredentialsDto): Promise<{ access: string, refresh: string, user: any }> {
+  async signIn(loginCredentialsDto: LoginCredentialsDto): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
     const { username, password } = loginCredentialsDto;
     this.logger.log(`Login attempt for user: ${username}`);
     
