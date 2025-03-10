@@ -2,6 +2,7 @@ import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColum
 import { Exclude } from 'class-transformer';
 import { Task } from '../../tasks/entities/task.entity';
 import { Department } from '../../departments/entities/department.entity';
+import { Note } from '../../notes/entities/note.entity';
 
 export enum UserRole {
   USER = 'user',
@@ -87,4 +88,8 @@ export class User {
     inverseJoinColumn: { name: 'department_id', referencedColumnName: 'id' },
   })
   departments: Department[];
+
+  // Notes created by this user
+  @OneToMany(() => Note, (note) => note.user)
+  notes: Note[];
 } 

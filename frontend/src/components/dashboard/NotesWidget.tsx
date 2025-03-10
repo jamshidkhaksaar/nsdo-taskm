@@ -9,7 +9,8 @@ import {
   Paper,
   Fade,
   Divider,
-  Collapse
+  Collapse,
+  CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -20,13 +21,7 @@ import StickyNote2Icon from '@mui/icons-material/StickyNote2';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { format } from 'date-fns';
-
-interface Note {
-  id: string;
-  content: string;
-  createdAt: string;
-  color: string;
-}
+import { NotesService, Note } from '../../services/notes';
 
 const COLORS = [
   '#3498db', // Blue
@@ -43,42 +38,54 @@ const NotesWidget: React.FC = () => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load notes from localStorage on component mount
+  // Load notes from API on component mount
   useEffect(() => {
-    const savedNotes = localStorage.getItem('quickNotes');
-    if (savedNotes) {
-      try {
-        setNotes(JSON.parse(savedNotes));
-      } catch (error) {
-        console.error('Error parsing saved notes:', error);
-        setNotes([]);
-      }
-    }
+    fetchNotes();
   }, []);
 
-  // Save notes to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('quickNotes', JSON.stringify(notes));
-  }, [notes]);
-
-  const handleAddNote = () => {
-    if (newNoteContent.trim()) {
-      const newNote: Note = {
-        id: Date.now().toString(),
-        content: newNoteContent.trim(),
-        createdAt: new Date().toISOString(),
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      };
-      
-      setNotes(prevNotes => [newNote, ...prevNotes]);
-      setNewNoteContent('');
-      setIsAddingNote(false);
+  const fetchNotes = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedNotes = await NotesService.getNotes();
+      setNotes(fetchedNotes);
+    } catch (error) {
+      console.error('Failed to fetch notes:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDeleteNote = (id: string) => {
-    setNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+  const handleAddNote = async () => {
+    if (newNoteContent.trim()) {
+      try {
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        const newNote = await NotesService.createNote({
+          content: newNoteContent.trim(),
+          color
+        });
+        
+        if (newNote) {
+          setNotes(prevNotes => [newNote, ...prevNotes]);
+          setNewNoteContent('');
+          setIsAddingNote(false);
+        }
+      } catch (error) {
+        console.error('Failed to create note:', error);
+      }
+    }
+  };
+
+  const handleDeleteNote = async (id: string) => {
+    try {
+      const success = await NotesService.deleteNote(id);
+      if (success) {
+        setNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+      }
+    } catch (error) {
+      console.error(`Failed to delete note ${id}:`, error);
+    }
   };
 
   const handleEditNote = (note: Note) => {
@@ -86,15 +93,23 @@ const NotesWidget: React.FC = () => {
     setEditingContent(note.content);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     if (editingContent.trim()) {
-      setNotes(prevNotes => 
-        prevNotes.map(note => 
-          note.id === id 
-            ? { ...note, content: editingContent.trim() } 
-            : note
-        )
-      );
+      try {
+        const updatedNote = await NotesService.updateNote(id, {
+          content: editingContent.trim()
+        });
+        
+        if (updatedNote) {
+          setNotes(prevNotes => 
+            prevNotes.map(note => 
+              note.id === id ? updatedNote : note
+            )
+          );
+        }
+      } catch (error) {
+        console.error(`Failed to update note ${id}:`, error);
+      }
     }
     setEditingNoteId(null);
     setEditingContent('');
@@ -103,10 +118,6 @@ const NotesWidget: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingNoteId(null);
     setEditingContent('');
-  };
-
-  const toggleMinimize = () => {
-    setIsMinimized(!isMinimized);
   };
 
   return (
@@ -151,7 +162,7 @@ const NotesWidget: React.FC = () => {
           )}
           <Tooltip title={isMinimized ? "Expand" : "Minimize"}>
             <IconButton
-              onClick={toggleMinimize}
+              onClick={() => setIsMinimized(!isMinimized)}
               sx={{ 
                 color: 'rgba(255, 255, 255, 0.7)',
                 '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
@@ -165,6 +176,13 @@ const NotesWidget: React.FC = () => {
       
       <Collapse in={!isMinimized} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Box sx={{ p: 2, flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Loading indicator */}
+          {isLoading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100px' }}>
+              <CircularProgress size={30} sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+            </Box>
+          )}
+
           {/* Add note form */}
           <Fade in={isAddingNote}>
             <Box 
