@@ -14,13 +14,17 @@ import {
   FormControlLabel,
   Checkbox,
   Link as MuiLink,
-  alpha,
   InputAdornment,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Paper,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { loginAsync, clearError } from '../store/slices/authSlice';
+import { useNavigate, Navigate, useLocation, Link } from 'react-router-dom';
+import { clearError, setCredentials } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
 import { loadFull } from "tsparticles";
@@ -28,15 +32,13 @@ import Particles from "react-tsparticles";
 import type { Container as ParticlesContainer, Engine } from "tsparticles-engine";
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
-import { Link } from 'react-router-dom';
-import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
-import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 import LoginFooter from '../components/LoginFooter';
-import axiosInstance from '../utils/axios';
 import axios from 'axios';
-import { setCredentials } from '../store/slices/authSlice';
-import Visibility from '@mui/icons-material/Visibility';
-import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import axiosInstance from '../utils/axios';
+import { AuthService } from '../services/AuthService';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
+import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
 
 interface LoginFormInputs {
   username: string;
@@ -44,11 +46,21 @@ interface LoginFormInputs {
   rememberMe: boolean;
 }
 
+interface TwoFactorFormInputs {
+  verificationCode: string;
+  rememberDevice: boolean;
+}
+
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   rememberMe: z.boolean().default(false)
 }) as z.ZodType<LoginFormInputs>;
+
+const twoFactorSchema = z.object({
+  verificationCode: z.string().min(6, 'Verification code must be at least 6 characters'),
+  rememberDevice: z.boolean().default(true)
+}) as z.ZodType<TwoFactorFormInputs>;
 
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -60,6 +72,10 @@ const Login: React.FC = () => {
   const glassStyles = getGlassmorphismStyles(theme);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [show2FADialog, setShow2FADialog] = useState(false);
+  const [twoFactorMethod] = useState<string>('app');
+  const [loginCredentials, setLoginCredentials] = useState<LoginFormInputs | null>(null);
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -82,7 +98,21 @@ const Login: React.FC = () => {
     }
   });
 
-  const { isAuthenticated, loading, error: reduxError } = useSelector((state: RootState) => state.auth);
+  const {
+    register: register2FA,
+    handleSubmit: formSubmit2FA,
+    formState: { errors: errors2FA }
+  } = useForm<TwoFactorFormInputs>({
+    resolver: zodResolver(twoFactorSchema),
+    defaultValues: {
+      verificationCode: '',
+      rememberDevice: true
+    }
+  });
+
+  const { loading } = useSelector(
+    (state: RootState) => state.auth
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -103,8 +133,8 @@ const Login: React.FC = () => {
     return <LoadingScreen />;
   }
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" />;
+  if (loading) {
+    return <LoadingScreen />;
   }
 
   const onSubmit = async (data: LoginFormInputs) => {
@@ -116,85 +146,265 @@ const Login: React.FC = () => {
         localStorage.removeItem('rememberedUsername');
       }
 
+      // Store login credentials for potential 2FA use
+      setLoginCredentials(data);
+
       console.log('Attempting login with:', { username: data.username, password: '***' });
       setIsLoading(true);
+      setError(''); // Clear any previous errors
       
+      // Create a simple login object
+      const loginPayload = {
+        username: data.username,
+        password: data.password
+      };
+      
+      // Try multiple login endpoints, starting with /login (which appears to be simpler)
       try {
-        // Use our configured axios instance instead of the default axios
-        const response = await axiosInstance.post('/api/auth/login', { 
-          username: data.username, 
-          password: data.password 
+        console.log('Trying /api/auth/login endpoint...');
+        
+        const response = await axios({
+          method: 'post',
+          url: 'http://localhost:3001/api/auth/login',
+          data: loginPayload,
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
         
-        console.log('Login response:', response.data);
+        console.log('Login response from /login:', response.data);
         
-        if (response.data) {
-          // Extract tokens and user data
-          const accessToken = response.data.access || response.data.accessToken || response.data.token;
-          const refreshToken = response.data.refresh || response.data.refreshToken || '';
-          const userData = response.data.user || {};
-          
-          if (!accessToken) {
-            throw new Error('No access token received from server');
-          }
-          
-          // Store tokens in localStorage
-          localStorage.setItem('access_token', accessToken);
-          if (refreshToken) {
-            localStorage.setItem('refresh_token', refreshToken);
-          }
-          
-          // Store user data
-          if (userData) {
-            localStorage.setItem('user', JSON.stringify(userData));
-          }
-          
-          // Set token in axios headers - use our configured instance
-          axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-          
-          // Dispatch login action to Redux
-          dispatch(setCredentials({
-            user: userData,
-            token: accessToken
-          }));
-          
-          // Redirect to dashboard
-          console.log('Login successful, navigating to:', from);
-          navigate(from, { replace: true });
-        } else {
-          throw new Error('Invalid response from server');
-        }
-      } catch (err: any) {
-        console.error('Login error:', err);
+        handleSuccessfulLogin(response.data);
+        return;
+      } catch (loginError) {
+        console.warn('Login via /api/auth/login failed, trying /api/auth/signin...', loginError);
         
-        // Handle different error types
-        if (axios.isAxiosError(err)) {
-          if (err.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
-            const errorMessage = err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
-            setError(errorMessage);
-            dispatch({ type: 'auth/loginAsync/rejected', payload: errorMessage });
-          } else if (err.request) {
-            // The request was made but no response was received
-            setError('No response from server. Please check your connection.');
-            dispatch({ type: 'auth/loginAsync/rejected', payload: 'No response from server. Please check your connection.' });
-          } else {
-            // Something happened in setting up the request that triggered an Error
-            setError(err.message || 'An error occurred during login');
-            dispatch({ type: 'auth/loginAsync/rejected', payload: err.message || 'An error occurred during login' });
-          }
-        } else {
-          setError(err.message || 'An unknown error occurred');
-          dispatch({ type: 'auth/loginAsync/rejected', payload: err.message || 'An unknown error occurred' });
+        // Try the signin endpoint as a backup
+        try {
+          const signinResponse = await axios({
+            method: 'post',
+            url: 'http://localhost:3001/api/auth/signin',
+            data: loginPayload,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Login response from /signin:', signinResponse.data);
+          
+          handleSuccessfulLogin(signinResponse.data);
+          return;
+        } catch (signinError) {
+          console.error('Both login attempts failed:', signinError);
+          handleLoginError(signinError);
         }
-      } finally {
-        setIsLoading(false);
       }
     } catch (error) {
       console.error('Unexpected error during login:', error);
+      setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
+  };
+  
+  // Function to handle successful login
+  const handleSuccessfulLogin = (responseData: any) => {
+    try {
+      console.log('Processing login response:', responseData);
+      
+      // Extract tokens and user data
+      const accessToken = responseData.access || responseData.token || responseData.accessToken;
+      const refreshToken = responseData.refresh || responseData.refreshToken;
+      const userData = responseData.user || {};
+      
+      if (!accessToken) {
+        setError('Invalid response from server: No access token provided');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('refresh_token', refreshToken);
+      }
+      
+      // Store user data
+      if (userData) {
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+      
+      // Set token in axios headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      
+      // Update Redux store
+      dispatch(setCredentials({
+        user: userData,
+        token: accessToken,
+        refreshToken: refreshToken
+      }));
+      
+      // Redirect to dashboard or previous page
+      console.log('Login successful, redirecting to:', from);
+      setIsLoading(false);
+      navigate(from);
+    } catch (error) {
+      console.error('Error processing login response:', error);
+      setError('An error occurred while processing the login response');
+      setIsLoading(false);
+    }
+  };
+  
+  // Function to handle login errors
+  const handleLoginError = (error: any) => {
+    console.error('Login error:', error);
+    
+    // Handle different error types
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        
+        // For 400 errors
+        if (error.response.status === 400) {
+          // Extract and display the detailed error message if available
+          const errorMessage = error.response.data?.message || 
+                               error.response.data?.error ||
+                               'Invalid username or password. Please try again.';
+          setError(`Login failed: ${errorMessage}`);
+        } else {
+          // Other status codes
+          const errorMessage = error.response.data?.message || 
+                               error.response.data?.error || 
+                               `Error ${error.response.status}: ${error.response.statusText}`;
+          setError(errorMessage);
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        setError('No response from server. Please check your connection.');
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError(error.message || 'An error occurred during login');
+      }
+    } else {
+      setError(error.message || 'An unknown error occurred');
+    }
+    
+    setIsLoading(false);
+  };
+
+  const onSubmit2FA = async (data: TwoFactorFormInputs) => {
+    if (!loginCredentials) {
+      setError('Login credentials lost. Please try again.');
+      setShow2FADialog(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Use AuthService to login with 2FA code
+      const response = await AuthService.login(
+        loginCredentials.username,
+        loginCredentials.password,
+        data.verificationCode,
+        data.rememberDevice
+      );
+
+      console.log('2FA login response:', response);
+
+      if (response) {
+        // Extract tokens and user data
+        const accessToken = response.access || response.token;
+        const userData = response.user;
+        
+        if (!accessToken) {
+          throw new Error('No access token received from server');
+        }
+        
+        // Store tokens in localStorage
+        localStorage.setItem('access_token', accessToken);
+        
+        // Store user data
+        if (userData) {
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
+        
+        // Set token in axios headers
+        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        
+        // Dispatch login action to Redux
+        dispatch(setCredentials({
+          user: userData,
+          token: accessToken
+        }));
+        
+        // Close 2FA dialog and redirect to dashboard
+        setShow2FADialog(false);
+        navigate(from, { replace: true });
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (err: any) {
+      console.error('2FA verification error:', err);
+      
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          const errorMessage = err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
+          setError(errorMessage);
+        } else if (err.request) {
+          setError('No response from server. Please check your connection.');
+        } else {
+          setError(err.message || 'An error occurred during 2FA verification');
+        }
+      } else {
+        setError(err.message || 'An unknown error occurred');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestEmailCode = async () => {
+    if (!loginCredentials) {
+      setError('Login credentials lost. Please try again.');
+      setShow2FADialog(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await AuthService.requestEmailCode(
+        loginCredentials.username,
+        loginCredentials.password
+      );
+
+      if (response.success) {
+        setEmailCodeSent(true);
+        setError('');
+      } else {
+        throw new Error(response.message || 'Failed to send email code');
+      }
+    } catch (err: any) {
+      console.error('Email code request error:', err);
+      
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          const errorMessage = err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
+          setError(errorMessage);
+        } else if (err.request) {
+          setError('No response from server. Please check your connection.');
+        } else {
+          setError(err.message || 'An error occurred requesting email code');
+        }
+      } else {
+        setError(err.message || 'An unknown error occurred');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   const fadeIn = keyframes`
@@ -218,11 +428,6 @@ const Login: React.FC = () => {
       transform: translateX(0);
     }
   `;
-
-  // Add a function to toggle password visibility
-  const handleTogglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
 
   return (
     <Box
@@ -509,6 +714,119 @@ const Login: React.FC = () => {
           </Typography>
         </Box>
       </Box>
+      
+      {/* 2FA Dialog */}
+      <Dialog 
+        open={show2FADialog} 
+        onClose={() => setShow2FADialog(false)}
+        PaperComponent={(props) => (
+          <Paper 
+            {...props} 
+            sx={{
+              ...glassStyles.card,
+              maxWidth: '400px',
+              width: '100%',
+            }}
+          />
+        )}
+      >
+        <DialogTitle sx={{ ...glassStyles.text.primary, textAlign: 'center' }}>
+          Two-Factor Authentication
+        </DialogTitle>
+        <DialogContent>
+          {error && (
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 2,
+                backgroundColor: 'rgba(211, 47, 47, 0.15)',
+                backdropFilter: 'blur(10px)',
+                color: '#fff',
+                border: '1px solid rgba(211, 47, 47, 0.3)',
+                '& .MuiAlert-icon': {
+                  color: '#fff'
+                }
+              }}
+            >
+              {error}
+            </Alert>
+          )}
+          
+          <Typography sx={{ ...glassStyles.text.secondary, mb: 2 }}>
+            {twoFactorMethod === 'app' 
+              ? 'Enter the verification code from your authenticator app.' 
+              : 'Enter the verification code sent to your email.'}
+          </Typography>
+          
+          {twoFactorMethod === 'email' && !emailCodeSent && (
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleRequestEmailCode}
+                disabled={isLoading}
+                fullWidth
+                sx={glassStyles.button}
+              >
+                {isLoading ? <CircularProgress size={24} /> : 'Send Verification Code'}
+              </Button>
+            </Box>
+          )}
+          
+          {(twoFactorMethod === 'app' || emailCodeSent) && (
+            <Box component="form" onSubmit={formSubmit2FA(onSubmit2FA)}>
+              <TextField
+                label="Verification Code"
+                fullWidth
+                {...register2FA('verificationCode')}
+                error={!!errors2FA.verificationCode}
+                helperText={errors2FA.verificationCode?.message}
+                variant="outlined"
+                margin="normal"
+                InputLabelProps={{
+                  style: glassStyles.inputLabel
+                }}
+                sx={{
+                  mb: 2,
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                }}
+              />
+              
+              <FormControlLabel
+                control={
+                  <Checkbox 
+                    {...register2FA('rememberDevice')} 
+                    defaultChecked
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&.Mui-checked': {
+                        color: 'rgba(255, 255, 255, 0.9)',
+                      },
+                    }}
+                  />
+                }
+                label={<Typography sx={glassStyles.text.secondary}>Remember this device for 90 days</Typography>}
+              />
+              
+              <DialogActions sx={{ mt: 2, px: 0 }}>
+                <Button 
+                  onClick={() => setShow2FADialog(false)} 
+                  sx={{ ...glassStyles.text.secondary, '&:hover': { color: 'white' } }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  variant="contained"
+                  disabled={isLoading}
+                  sx={glassStyles.button}
+                >
+                  {isLoading ? <CircularProgress size={24} /> : 'Verify'}
+                </Button>
+              </DialogActions>
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
       
       <LoginFooter />
     </Box>

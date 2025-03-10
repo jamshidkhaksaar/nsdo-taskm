@@ -11,6 +11,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { SettingsModule } from './settings/settings.module';
 import { BackupModule } from './backup/backup.module';
 import { ProfileModule } from './profile/profile.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ProfileModule } from './profile/profile.module';
     SettingsModule,
     BackupModule,
     ProfileModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

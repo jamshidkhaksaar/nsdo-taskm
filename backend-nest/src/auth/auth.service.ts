@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { LoginCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,23 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
   ) {}
+
+  async validateUser(username: string, password: string): Promise<User | null> {
+    try {
+      const user = await this.usersService.findOne(username);
+      
+      if (user && await bcrypt.compare(password, user.password)) {
+        this.logger.log(`User validation successful for: ${username}`);
+        return user;
+      }
+      
+      this.logger.warn(`User validation failed for: ${username}`);
+      return null;
+    } catch (error) {
+      this.logger.error(`User validation error for ${username}: ${error.message}`, error.stack);
+      return null;
+    }
+  }
 
   async signIn(loginCredentialsDto: LoginCredentialsDto): Promise<{ access: string, refresh: string, user: any }> {
     const { username, password } = loginCredentialsDto;

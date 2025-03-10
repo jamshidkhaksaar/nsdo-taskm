@@ -272,34 +272,107 @@ export const SettingsService = {
   },
 
   get2FAStatus: async () => {
-    const response = await axios.get('/api/settings/2fa-status/');
-    return response.data;
-  },
-
-  setup2FA: async (enabled: boolean) => {
     try {
-      const response = await axios.post('/api/settings/setup_2fa/', {
-        enabled,
-      });
+      const response = await axios.get('/api/settings/2fa-status/');
       return response.data;
     } catch (error: any) {
-      console.error('2FA setup error:', error);
+      console.error('2FA status fetch error:', error);
+      
+      // Use mock data in development if needed
+      if (USE_MOCK_DATA) {
+        console.log('[SettingsService] Using mock 2FA status as fallback');
+        return { enabled: false };
+      }
+      
       throw error;
     }
   },
 
-  verify2FA: async (verificationCode: string) => {
+  setup2FA: async (enabled: boolean, method: string = 'app') => {
+    try {
+      console.log(`Setting up 2FA with enabled=${enabled}, method=${method}`);
+      
+      // Ensure we're sending the exact structure expected by the DTO
+      const payload = { enabled: enabled, method: method };
+      console.log('2FA setup payload:', payload);
+      
+      const response = await axios.post('/api/settings/setup_2fa/', payload);
+      console.log('2FA setup response:', response.data);
+      
+      // Make sure we have a QR code if enabling with app method
+      if (enabled && method === 'app' && !response.data.qr_code) {
+        console.warn('2FA setup response missing QR code when enabling 2FA with app method');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('2FA setup error:', error);
+      
+      // Use mock data in development if needed
+      if (USE_MOCK_DATA) {
+        console.log('[SettingsService] Using mock 2FA setup as fallback');
+        if (method === 'app') {
+          return {
+            qr_code: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/TaskManager:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=TaskManager',
+            enabled: true,
+            method: 'app'
+          };
+        } else {
+          return {
+            enabled: true,
+            method: 'email',
+            message: 'Verification code sent to your email'
+          };
+        }
+      }
+      
+      throw error;
+    }
+  },
+
+  verify2FA: async (verificationCode: string, rememberBrowser: boolean = false) => {
     try {
       if (!verificationCode || verificationCode.trim() === '') {
         throw new Error('Verification code is required');
       }
       
+      console.log(`Verifying 2FA code: ${verificationCode.substring(0, 2)}***, rememberBrowser: ${rememberBrowser}`);
       const response = await axios.post('/api/settings/verify_2fa/', {
         verification_code: verificationCode.trim(),
+        remember_browser: rememberBrowser
       });
+      console.log('2FA verification response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('2FA verification error:', error);
+      
+      // Use mock data in development if needed
+      if (USE_MOCK_DATA) {
+        console.log('[SettingsService] Using mock 2FA verification as fallback');
+        return { success: true, message: '2FA verification successful (mock)' };
+      }
+      
+      throw error;
+    }
+  },
+
+  send2FACode: async (email: string) => {
+    try {
+      console.log(`Requesting 2FA code via email for: ${email}`);
+      const response = await axios.post('/api/settings/send_2fa_code/', {
+        email: email
+      });
+      console.log('Email 2FA code response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Email 2FA code request error:', error);
+      
+      // Use mock data in development if needed
+      if (USE_MOCK_DATA) {
+        console.log('[SettingsService] Using mock email 2FA code request as fallback');
+        return { success: true, message: 'Verification code sent to your email (mock)' };
+      }
+      
       throw error;
     }
   },

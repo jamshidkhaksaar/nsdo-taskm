@@ -28,7 +28,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { ProfileService } from '../services/profile';
 import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
@@ -91,9 +90,15 @@ const Profile: React.FC = () => {
       const data = await ProfileService.getProfile();
       setProfile(data);
       setError(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching profile:', err);
-      setError('Failed to load profile data');
+      
+      // Check if it's an authentication error
+      if (err.response && err.response.status === 401) {
+        setError('Authentication error. Please try refreshing the page or logging in again.');
+      } else {
+        setError('Failed to load profile data. Please try again later.');
+      }
     } finally {
       setLoading(false);
     }

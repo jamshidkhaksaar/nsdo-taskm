@@ -122,8 +122,11 @@ export const logout = () => {
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
-    console.log('No refresh token found, logging out');
-    logout();
+    console.log('No refresh token found, clearing auth state');
+    // Don't redirect, just clear state
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
     return null;
   }
 
@@ -135,49 +138,82 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     const apiUrl = CONFIG.API_URL || 'http://localhost:3001';
     
     // Use the correct API URL for the refresh endpoint
-    const response = await fetch(`${apiUrl}/api/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ refresh_token: refreshToken })
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
     
-    if (!response.ok) {
-      throw new Error(`Token refresh failed with status: ${response.status}`);
+    try {
+      const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Token refresh failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Token refresh response received');
+      
+      // Handle the response based on the backend's structure
+      let newToken = null;
+      let newRefreshToken = null;
+      
+      if (data.access) {
+        // If the backend returns access and refresh tokens
+        newToken = data.access;
+        newRefreshToken = data.refresh || refreshToken;
+      } else if (data.token) {
+        // If the backend returns a token property instead
+        newToken = data.token;
+        newRefreshToken = data.refresh || refreshToken;
+      } else if (data.accessToken) {
+        // Another possible format
+        newToken = data.accessToken;
+        newRefreshToken = data.refreshToken || refreshToken;
+      }
+      
+      if (newToken) {
+        console.log('New tokens received, storing them');
+        storeTokens(newToken, newRefreshToken || refreshToken);
+        
+        // Import store and update Redux state
+        try {
+          const { store } = require('../store');
+          const { updateToken } = require('../store/slices/authSlice');
+          store.dispatch(updateToken({ 
+            token: newToken, 
+            refreshToken: newRefreshToken || refreshToken 
+          }));
+        } catch (storeError) {
+          console.error('Error updating Redux store with new token:', storeError);
+        }
+        
+        return newToken;
+      }
+      
+      // If we couldn't get a new token
+      console.log('No valid token in response, clearing auth state');
+      // Don't redirect, just clear state
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      return null;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      throw fetchError;
     }
-    
-    const data = await response.json();
-    console.log('Token refresh response received');
-    
-    // Handle the response based on the backend's structure
-    if (data.access) {
-      // If the backend returns access and refresh tokens
-      const { access, refresh } = data;
-      console.log('New tokens received, storing them');
-      storeTokens(access, refresh || refreshToken);
-      return access;
-    } else if (data.token) {
-      // If the backend returns a token property instead
-      const { token, refresh } = data;
-      console.log('New token received, storing it');
-      storeTokens(token, refresh || refreshToken);
-      return token;
-    } else if (data.accessToken) {
-      // Another possible format
-      const { accessToken, refreshToken: newRefreshToken } = data;
-      console.log('New tokens received in different format, storing them');
-      storeTokens(accessToken, newRefreshToken || refreshToken);
-      return accessToken;
-    }
-    
-    // If we couldn't get a new token
-    console.log('No valid token in response, logging out');
-    logout();
-    return null;
   } catch (error) {
     console.error('Token refresh failed:', error);
-    logout();
+    // Don't redirect, just clear state
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
     return null;
   }
 };

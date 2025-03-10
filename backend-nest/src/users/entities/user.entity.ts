@@ -43,6 +43,12 @@ export class User {
   @Exclude({ toPlainOnly: true })
   twoFactorSecret: string;
 
+  @Column({ default: 'app' })
+  twoFactorMethod: string; // 'app' for authenticator app, 'email' for email-based 2FA
+
+  @Column({ type: 'json', nullable: true })
+  rememberedBrowsers: { fingerprint: string, expiresAt: Date }[];
+
   // Profile fields
   @Column({ nullable: true, type: 'text' })
   bio: string;

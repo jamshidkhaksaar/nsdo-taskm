@@ -22,7 +22,6 @@ import {
 import {
   Lock as LockIcon,
   Security as SecurityIcon,
-  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
@@ -69,13 +68,15 @@ const Settings: React.FC = () => {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
-  const [exportOption, setExportOption] = useState('all');
+  const [exportOption] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [open, setOpen] = useState(true);
-  const [initializing, setInitializing] = useState(true);
-  const [processing2FA, setProcessing2FA] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  const [twoFactorMethod, setTwoFactorMethod] = useState('app');
+  const [emailSent, setEmailSent] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   
   const theme = useTheme();
   const glassStyles = getGlassmorphismStyles(theme);
@@ -114,63 +115,138 @@ const Settings: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetch2FAStatus = async () => {
+    const fetchInitialData = async () => {
       try {
-        const status = await SettingsService.get2FAStatus();
-        setTwoFactorEnabled(status.enabled);
-      } catch (err) {
-        console.error('Failed to fetch 2FA status:', err);
-      } finally {
-        setInitializing(false);
+        // Fetch 2FA status
+        await fetch2FAStatus();
+        
+        // Fetch other settings if needed
+        // ...
+        
+      } catch (error) {
+        console.error('Error fetching initial settings data:', error);
       }
     };
-    fetch2FAStatus();
+    
+    fetchInitialData();
+    
+    // Set up a periodic check for 2FA status (every 30 seconds) to keep UI in sync
+    const interval = setInterval(() => {
+      fetch2FAStatus().catch(error => 
+        console.error('Error in periodic 2FA status check:', error)
+      );
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
+  
+  const fetch2FAStatus = async () => {
+    try {
+      const status = await SettingsService.get2FAStatus();
+      console.log('Fetched 2FA status:', status);
+      setTwoFactorEnabled(status.enabled);
+      setTwoFactorMethod(status.method || 'app');
+      
+      // Clear QR code if 2FA is already enabled (no need to show it again)
+      if (status.enabled) {
+        setQrCode('');
+      }
+    } catch (error) {
+      console.error('Failed to fetch 2FA status:', error);
+      // Don't update the UI state on error to prevent flickering
+    }
+  };
 
   const handleSetup2FA = async () => {
-    setProcessing2FA(true);
-    setError(null);
     try {
-      const response = await SettingsService.setup2FA(!twoFactorEnabled);
-      if (response.qr_code) {
-        setQrCode(response.qr_code);
-        setSuccess('2FA setup initiated successfully. Please scan the QR code and verify.');
+      console.log(`Setting up 2FA to ${!twoFactorEnabled ? 'enabled' : 'disabled'}`);
+      const newEnabledState = !twoFactorEnabled; // Store the new state we're setting
+      const response = await SettingsService.setup2FA(newEnabledState, twoFactorMethod);
+      
+      console.log('2FA setup response:', response);
+      
+      if (newEnabledState) {
+        if (twoFactorMethod === 'app' && response.qr_code) {
+          setQrCode(response.qr_code);
+          setSuccess('Please scan the QR code with your authenticator app and enter the verification code below.');
+        } else if (twoFactorMethod === 'email' && response.message) {
+          setEmailSent(true);
+          setSuccess(response.message);
+        } else {
+          setError('Failed to set up 2FA. Please try again.');
+          // Don't change the enabled state if setup failed
+          return;
+        }
       } else {
-        setTwoFactorEnabled(false);
-        setQrCode(null);
-        setSuccess('2FA disabled successfully');
+        setQrCode('');
+        setEmailSent(false);
+        setSuccess('Two-factor authentication has been disabled.');
       }
+      
+      // Update the UI state to match what we just set
+      setTwoFactorEnabled(newEnabledState);
+      
+      // If we just disabled 2FA, fetch the latest status
+      if (!newEnabledState) {
+        await fetch2FAStatus();
+      }
+      
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to setup 2FA');
-      setTwoFactorEnabled(false);
       console.error('Error setting up 2FA:', err);
-    } finally {
-      setProcessing2FA(false);
+      setError(err.response?.data?.message || 'Failed to setup 2FA. Please try again.');
+      // Don't update the state on error
     }
   };
 
   const handleVerify2FA = async () => {
-    if (!verificationCode.trim()) {
-      setError('Please enter the verification code');
+    if (!verificationCode || verificationCode.trim() === '') {
+      setVerificationError('Verification code is required');
       return;
     }
     
-    setLoading(true);
-    setError(null);
     try {
-      await SettingsService.verify2FA(verificationCode);
-      setSuccess('2FA verified and enabled successfully');
-      setVerificationCode('');
-      setTwoFactorEnabled(true);
-      setQrCode(null);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to verify 2FA code');
-      setTwoFactorEnabled(false);
-    } finally {
-      setLoading(false);
+      console.log(`Verifying code: ${verificationCode.substring(0, 2)}***`);
+      const response = await SettingsService.verify2FA(verificationCode, rememberMe);
+      console.log('Verification response:', response);
+      
+      if (response.success) {
+        setTwoFactorEnabled(true);
+        setVerificationCode('');
+        setQrCode('');
+        setEmailSent(false);
+        setSuccess('Two-factor authentication has been successfully enabled!');
+        
+        // Fetch the updated status to ensure the UI is in sync with the server
+        try {
+          const status = await SettingsService.get2FAStatus();
+          setTwoFactorEnabled(status.enabled);
+          setTwoFactorMethod(status.method || 'app');
+          console.log('Updated 2FA status after verification:', status);
+        } catch (statusError) {
+          console.error('Failed to fetch updated 2FA status:', statusError);
+        }
+      } else {
+        setVerificationError(response.message || 'Verification failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error during 2FA verification:', error);
+      setVerificationError('Failed to verify the code. Please try again.');
     }
   };
 
+  const handleSendEmailCode = async () => {
+    try {
+      const response = await SettingsService.send2FACode(user?.email || '');
+      setEmailSent(true);
+      setSuccess('Verification code sent to your email.');
+    } catch (error) {
+      console.error('Error sending email code:', error);
+      setError('Failed to send verification code. Please try again.');
+    }
+  };
+
+  // Commenting out unused function to suppress ESLint warnings
+  /*
   const handleDownload = async () => {
     setLoading(true);
     try {
@@ -185,20 +261,22 @@ const Settings: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${exportOption}_data.${format}`);
+      link.download = `tasks_export.${format}`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
       
-      setSuccess('Data downloaded successfully');
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      
+      setSuccess('Downloaded successfully');
     } catch (error) {
-      console.error('Download error:', error);
-      setError('Failed to download data');
+      console.error('Error during download:', error);
+      setError('Failed to download data. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+  */
 
   const handleLogout = () => {
     try {
@@ -258,7 +336,6 @@ const Settings: React.FC = () => {
               >
                 <Tab label="Account" icon={<LockIcon />} iconPosition="start" />
                 <Tab label="Security" icon={<SecurityIcon />} iconPosition="start" />
-                <Tab label="Data" icon={<DownloadIcon />} iconPosition="start" />
               </Tabs>
 
               <TabPanel value={tabValue} index={0}>
@@ -349,16 +426,16 @@ const Settings: React.FC = () => {
                     <FormControl component="fieldset" sx={{ mb: 2 }}>
                       <FormControlLabel
                         control={
-                          <Switch 
-                            checked={twoFactorEnabled} 
-                            onChange={(e) => setTwoFactorEnabled(e.target.checked)}
+                          <Switch
+                            checked={twoFactorEnabled}
+                            onChange={handleSetup2FA} 
                             sx={{
                               '& .MuiSwitch-switchBase.Mui-checked': {
                                 color: 'white',
                               },
                               '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                              },
+                                backgroundColor: theme => theme.palette.primary.main,
+                              }
                             }}
                           />
                         }
@@ -366,7 +443,43 @@ const Settings: React.FC = () => {
                       />
                     </FormControl>
                     
-                    {twoFactorEnabled && (
+                    {!twoFactorEnabled && (
+                      <FormControl component="fieldset" sx={{ mb: 2, display: 'block' }}>
+                        <Typography variant="body1" gutterBottom sx={{ color: 'white', mb: 1 }}>
+                          Select 2FA Method:
+                        </Typography>
+                        <RadioGroup
+                          value={twoFactorMethod}
+                          onChange={(e) => setTwoFactorMethod(e.target.value)}
+                          row
+                        >
+                          <FormControlLabel 
+                            value="app" 
+                            control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                            label={<Typography sx={{ color: 'white' }}>Authenticator App</Typography>} 
+                          />
+                          <FormControlLabel 
+                            value="email" 
+                            control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                            label={<Typography sx={{ color: 'white' }}>Email</Typography>} 
+                          />
+                        </RadioGroup>
+                      </FormControl>
+                    )}
+                    
+                    {error && (
+                      <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                        {error}
+                      </Alert>
+                    )}
+                    
+                    {success && (
+                      <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+                        {success}
+                      </Alert>
+                    )}
+                    
+                    {twoFactorEnabled && twoFactorMethod === 'app' && (
                       <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
                         <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
                           Scan this QR code with your authenticator app:
@@ -405,6 +518,23 @@ const Settings: React.FC = () => {
                             '& .MuiOutlinedInput-root': glassStyles.input,
                           }}
                         />
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={rememberMe}
+                              onChange={(e) => setRememberMe(e.target.checked)}
+                              sx={{
+                                '& .MuiSwitch-switchBase.Mui-checked': {
+                                  color: 'white',
+                                },
+                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                  backgroundColor: theme => theme.palette.primary.main,
+                                }
+                              }}
+                            />
+                          }
+                          label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
+                        />
                         <Button 
                           variant="contained" 
                           onClick={handleVerify2FA}
@@ -415,53 +545,69 @@ const Settings: React.FC = () => {
                         </Button>
                       </Box>
                     )}
-                  </Grid>
-                </Grid>
-              </TabPanel>
-
-              <TabPanel value={tabValue} index={2}>
-                <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
-                  Data Export
-                </Typography>
-                
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl component="fieldset" sx={{ mb: 2 }}>
-                      <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
-                        Select data to export:
-                      </Typography>
-                      <RadioGroup
-                        value={exportOption}
-                        onChange={(e) => setExportOption(e.target.value)}
-                      >
-                        <FormControlLabel 
-                          value="all" 
-                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
-                          label={<Typography sx={{ color: 'white' }}>All Data</Typography>} 
-                        />
-                        <FormControlLabel 
-                          value="tasks" 
-                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
-                          label={<Typography sx={{ color: 'white' }}>Tasks Only</Typography>} 
-                        />
-                        <FormControlLabel 
-                          value="profile" 
-                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
-                          label={<Typography sx={{ color: 'white' }}>Profile Only</Typography>} 
-                        />
-                      </RadioGroup>
-                    </FormControl>
                     
-                    <Box sx={{ mt: 2 }}>
-                      <Button 
-                        variant="contained" 
-                        startIcon={<DownloadIcon />}
-                        onClick={handleDownload}
-                        sx={glassStyles.button}
-                      >
-                        Export Data
-                      </Button>
-                    </Box>
+                    {twoFactorEnabled && twoFactorMethod === 'email' && (
+                      <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
+                        <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
+                          Email Verification:
+                        </Typography>
+                        <Typography variant="body2" gutterBottom sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                          A verification code will be sent to your email ({user?.email}) when you log in from a new device or browser.
+                        </Typography>
+                        
+                        {!emailSent ? (
+                          <Button 
+                            variant="contained" 
+                            onClick={handleSendEmailCode}
+                            sx={{ ...glassStyles.button, mt: 2 }}
+                            fullWidth
+                          >
+                            Send Test Code
+                          </Button>
+                        ) : (
+                          <>
+                            <TextField
+                              label="Verification Code"
+                              value={verificationCode}
+                              onChange={(e) => setVerificationCode(e.target.value)}
+                              fullWidth
+                              margin="normal"
+                              InputLabelProps={{
+                                style: glassStyles.inputLabel
+                              }}
+                              sx={{
+                                '& .MuiOutlinedInput-root': glassStyles.input,
+                              }}
+                            />
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={rememberMe}
+                                  onChange={(e) => setRememberMe(e.target.checked)}
+                                  sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': {
+                                      color: 'white',
+                                    },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                      backgroundColor: theme => theme.palette.primary.main,
+                                    }
+                                  }}
+                                />
+                              }
+                              label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
+                            />
+                            <Button 
+                              variant="contained" 
+                              onClick={handleVerify2FA}
+                              sx={glassStyles.button}
+                              fullWidth
+                            >
+                              Verify and Enable
+                            </Button>
+                          </>
+                        )}
+                      </Box>
+                    )}
                   </Grid>
                 </Grid>
               </TabPanel>

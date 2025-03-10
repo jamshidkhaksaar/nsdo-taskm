@@ -1,4 +1,5 @@
 import axios from '../utils/axios';
+import { refreshAccessToken } from '../utils/authUtils';
 
 interface ProfileData {
   avatar?: File;
@@ -47,6 +48,26 @@ export const ProfileService = {
       return response.data;
     } catch (error: any) {
       console.error('Error fetching profile:', error);
+      
+      // Check if it's an authentication error
+      if (error.response && error.response.status === 401) {
+        // Try to refresh the token
+        console.log('Attempting to refresh token before fetching profile again');
+        const newToken = await refreshAccessToken();
+        
+        // If token refresh successful, retry the request
+        if (newToken) {
+          try {
+            console.log('Token refreshed, retrying profile fetch');
+            const retryResponse = await axios.get('/api/profile/me/');
+            return retryResponse.data;
+          } catch (retryError: any) {
+            console.error('Error fetching profile after token refresh:', retryError);
+            throw retryError;
+          }
+        }
+      }
+      
       if (error.response) {
         console.error('Error response:', error.response.data);
       }
@@ -88,6 +109,46 @@ export const ProfileService = {
       });
       return response.data;
     } catch (error: any) {
+      // Check if it's an authentication error
+      if (error.response && error.response.status === 401) {
+        // Try to refresh the token
+        console.log('Attempting to refresh token before updating profile again');
+        const newToken = await refreshAccessToken();
+        
+        // If token refresh successful, retry the request
+        if (newToken) {
+          try {
+            // Remove avatar-related fields from the update
+            const { avatar, avatar_url, ...dataToUpdate } = profileData;
+            const cleanData = Object.fromEntries(
+              Object.entries(dataToUpdate).map(([key, value]: [string, any]) => {
+                if (['linkedin', 'github', 'twitter', 'website'].includes(key)) {
+                  return [key, value ? formatSocialMediaUrl(key, value) : null];
+                }
+                if (key === 'skills') {
+                  return [key, Array.isArray(value) ? value : []];
+                }
+                if (typeof value === 'string') {
+                  return [key, value.trim() === '' ? null : value.trim()];
+                }
+                return [key, value];
+              })
+            );
+            
+            console.log('Token refreshed, retrying profile update');
+            const retryResponse = await axios.put('/api/profile/me/', cleanData, {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            return retryResponse.data;
+          } catch (retryError: any) {
+            console.error('Error updating profile after token refresh:', retryError);
+            throw retryError;
+          }
+        }
+      }
+      
       console.error('Error updating profile:', error);
       if (error.response) {
         console.error('Error response:', error.response.data);
@@ -105,6 +166,29 @@ export const ProfileService = {
       });
       return response.data;
     } catch (error: any) {
+      // Check if it's an authentication error
+      if (error.response && error.response.status === 401) {
+        // Try to refresh the token
+        console.log('Attempting to refresh token before updating avatar again');
+        const newToken = await refreshAccessToken();
+        
+        // If token refresh successful, retry the request
+        if (newToken) {
+          try {
+            console.log('Token refreshed, retrying avatar update');
+            const retryResponse = await axios.patch('/api/profile/me/', formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data',
+              },
+            });
+            return retryResponse.data;
+          } catch (retryError: any) {
+            console.error('Error updating avatar after token refresh:', retryError);
+            throw retryError;
+          }
+        }
+      }
+      
       console.error('Error updating avatar:', error);
       if (error.response) {
         console.error('Error response:', error.response.data);

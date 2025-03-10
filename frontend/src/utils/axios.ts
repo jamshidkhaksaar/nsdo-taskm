@@ -1,6 +1,4 @@
 import axios from 'axios';
-import { store } from '../store';
-import { logout } from '../store/slices/authSlice';
 import { refreshAccessToken } from './authUtils';
 import { CONFIG } from './config';
 
@@ -44,6 +42,8 @@ export const ensureAuthToken = () => {
   
   if (token) {
     instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    // Also update the global axios instance
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     
     if (process.env.NODE_ENV !== 'production') {
       console.log('Auth token loaded from localStorage and set in axios instance');
@@ -60,70 +60,6 @@ ensureAuthToken();
 if (process.env.NODE_ENV !== 'production') {
   console.log('[REAL] Using real API requests to:', baseURL);
 }
-
-// Request interceptor
-instance.interceptors.request.use(
-  (config) => {
-    // For authenticated routes, ensure we have the latest token
-    const token = localStorage.getItem('access_token');
-    
-    // Log request in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Request] ${config.method?.toUpperCase()} ${config.url}`);
-    }
-    
-    // Set the Authorization header with the latest token
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-      
-      // Also update the default headers for future requests
-      instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
-      // Verify token format
-      try {
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-        const expirationTime = tokenPayload.exp * 1000; // Convert to milliseconds
-        
-        // If token is expired or about to expire (within 30 seconds), try to refresh
-        if (Date.now() >= expirationTime - 30000) {
-          console.log('[Token] Token expired or about to expire, triggering refresh');
-          // Don't await here, just trigger the refresh in the background
-          refreshAccessToken().catch(error => {
-            console.error('[Token] Failed to refresh token:', error);
-          });
-        }
-      } catch (error) {
-        console.error('[Token] Error parsing token:', error);
-      }
-    } else {
-      // Check if this is an authenticated route that should have a token
-      const isAuthenticatedRoute = config.url && 
-        !config.url.includes('/auth/login') && 
-        !config.url.includes('/auth/signin') && 
-        !config.url.includes('/auth/refresh') && 
-        !config.url.includes('/health');
-      
-      if (isAuthenticatedRoute) {
-        console.warn(`[Auth] No auth token available for authenticated route: ${config.url}`);
-        // Try to refresh the token if we have a refresh token
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          // Instead of returning a promise chain, just log the issue
-          console.log('[Auth] Attempting to refresh token before request');
-          refreshAccessToken().catch(error => {
-            console.error('[Auth] Token refresh failed:', error);
-          });
-        }
-      }
-    }
-    
-    return config;
-  },
-  (error) => {
-    console.error('[Request Error]:', error);
-    return Promise.reject(error);
-  }
-);
 
 // Global variables to handle token refresh
 let isRefreshing = false;
@@ -143,6 +79,92 @@ const processQueue = (error: Error | null, token: string | null) => {
   failedQueue.length = 0;
 };
 
+// Request interceptor
+instance.interceptors.request.use(
+  async (config) => {
+    // For authenticated routes, ensure we have the latest token
+    const token = localStorage.getItem('access_token');
+    
+    // Log request in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Request] ${config.method?.toUpperCase()} ${config.url}`);
+    }
+    
+    // Set the Authorization header with the latest token
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+      
+      // Also update the default headers for future requests
+      instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Verify token format - ONLY trigger token refresh for expired tokens
+      // and do it asynchronously without blocking the request
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const tokenPayload = JSON.parse(atob(tokenParts[1]));
+          const expirationTime = tokenPayload.exp * 1000; // Convert to milliseconds
+          
+          // If token is expired or about to expire (within 60 seconds), refresh it before proceeding
+          if (Date.now() >= expirationTime - 60000) {
+            console.log('[Token] Token expired or about to expire, refreshing before request');
+            try {
+              // Wait for token refresh to complete before proceeding with the request
+              const newToken = await refreshAccessToken();
+              if (newToken) {
+                // Update the request with the new token
+                config.headers['Authorization'] = `Bearer ${newToken}`;
+                console.log('[Token] Successfully refreshed token for request');
+              }
+            } catch (refreshError) {
+              console.error('[Token] Failed to refresh token before request:', refreshError);
+              // Continue with the request even if refresh fails
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Token] Error parsing token:', error);
+        // Continue with the request even if token parsing fails
+      }
+    } else {
+      // Check if this is an authenticated route that should have a token
+      const isAuthenticatedRoute = config.url && 
+        !config.url.includes('/auth/login') && 
+        !config.url.includes('/auth/signin') && 
+        !config.url.includes('/auth/refresh') && 
+        !config.url.includes('/health');
+      
+      if (isAuthenticatedRoute) {
+        console.warn(`[Auth] No auth token available for authenticated route: ${config.url}`);
+        // Try to refresh the token if we have a refresh token
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+          try {
+            console.log('[Auth] Attempting to refresh token before request');
+            // Wait for token refresh to complete
+            const newToken = await refreshAccessToken();
+            if (newToken) {
+              // Update the request with the new token
+              config.headers['Authorization'] = `Bearer ${newToken}`;
+              console.log('[Auth] Successfully refreshed token for request');
+            }
+          } catch (refreshError) {
+            console.error('[Auth] Token refresh failed:', refreshError);
+            // Continue with the request even if refresh fails
+          }
+        }
+      }
+    }
+    
+    return config;
+  },
+  (error) => {
+    console.error('[Request Error]:', error);
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor
 instance.interceptors.response.use(
   (response) => {
@@ -160,22 +182,36 @@ instance.interceptors.response.use(
       return Promise.reject(error);
     }
     
-    // Prevent infinite loops
-    if (originalRequest._retry) {
-      console.log('[Auth] Token refresh failed, logging out user');
-      // Clear auth state
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      
-      // Redirect to login only if not already on login page
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
+    // Don't retry if already a retry attempt or if it's a refresh token endpoint
+    if (originalRequest._retry || 
+        (originalRequest.url && originalRequest.url.includes('/auth/refresh'))) {
+      console.log('[Auth] Token refresh failed or already retried, not logging out immediately');
+      // Instead of logging out immediately, allow navigation to continue
+      // The router guards will handle redirection if needed
       return Promise.reject(error);
     }
     
+    // Only try refreshing token once
     originalRequest._retry = true;
+    
+    // If we are already refreshing, add this request to the queue
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then(token => {
+          if (token) {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            return instance(originalRequest);
+          }
+          return Promise.reject(error);
+        })
+        .catch(err => {
+          return Promise.reject(err);
+        });
+    }
+    
+    isRefreshing = true;
     
     try {
       console.log('[Auth] Attempting to refresh token after 401 error...');
@@ -186,35 +222,28 @@ instance.interceptors.response.use(
         // Update the Authorization header with the new token
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
         
-        // Also update the default headers for future requests
+        // Update all headers for future requests
         instance.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        
+        // Process any queued requests
+        processQueue(null, newToken);
         
         // Retry the original request with the new token
+        isRefreshing = false;
         return instance(originalRequest);
       } else {
-        console.log('[Auth] Token refresh failed, redirecting to login');
-        // Clear auth state
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        
-        // Redirect to login only if not already on login page
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
+        console.log('[Auth] Token refresh failed, but not redirecting immediately');
+        // Process queued requests with error
+        processQueue(new Error('Failed to refresh token'), null);
+        isRefreshing = false;
         return Promise.reject(error);
       }
     } catch (refreshError) {
       console.error('[Auth] Error during token refresh:', refreshError);
-      // Clear auth state
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      
-      // Redirect to login only if not already on login page
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
+      // Process queued requests with error
+      processQueue(refreshError as Error, null);
+      isRefreshing = false;
       return Promise.reject(refreshError);
     }
   }

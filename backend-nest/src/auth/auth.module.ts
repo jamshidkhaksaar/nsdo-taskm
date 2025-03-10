@@ -10,6 +10,7 @@ import { TwoFactorService } from './two-factor.service';
 import { TwoFactorController } from './two-factor.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { User } from '../users/entities/user.entity';
         },
       }),
     }),
+    MailModule,
   ],
   providers: [AuthService, JwtStrategy, TwoFactorService],
   controllers: [AuthController, TwoFactorController],

@@ -42,7 +42,7 @@ import {
   PieChart as PieChartIcon,
 } from '@mui/icons-material';
 import Sidebar from '../components/Sidebar';
-import { Task } from '../types/task';
+import { Task, DepartmentRef } from '../types/task';
 import { TaskService } from '../services/task';
 import { DepartmentService } from '../services/department';
 import { UserService } from '../services/user';
@@ -126,7 +126,7 @@ const TasksOverview: React.FC = () => {
       
       // Fetch all tasks, departments, and users data
       const [tasksResponse, departmentsResponse, usersResponse] = await Promise.all([
-        TaskService.getAllVisibleTasks(user?.role || ''),
+        TaskService.getVisibleTasks('all', { include_all: true }),
         DepartmentService.getDepartments(),
         UserService.getUsers(),
       ]);
@@ -135,16 +135,16 @@ const TasksOverview: React.FC = () => {
       
       // Process department data
       const departmentData = departmentsResponse.map((dept: any) => {
-        const deptTasks = tasksResponse.filter(task => {
+        const deptTasks = tasksResponse.filter((task: Task) => {
           if (typeof task.department === 'string') {
             return task.department === dept.id;
           } else if (task.department && typeof task.department === 'object') {
-            return task.department.id === dept.id;
+            return (task.department as DepartmentRef).id === dept.id;
           }
           return false;
         });
         
-        const completedTasks = deptTasks.filter(task => task.status === 'completed').length;
+        const completedTasks = deptTasks.filter((task: Task) => task.status === 'completed').length;
         
         return {
           id: dept.id,
@@ -159,18 +159,18 @@ const TasksOverview: React.FC = () => {
       
       // Process user data
       const userData = usersResponse.map((u: any) => {
-        const userTasks = tasksResponse.filter(task => 
-          (task.assigned_to && task.assigned_to.includes(u.id.toString())) || 
+        const userTasks = tasksResponse.filter((task: Task) =>
+          (task.assigned_to && task.assigned_to.includes(u.id.toString())) ||
           task.created_by === u.id.toString()
         );
         
-        const completedTasks = userTasks.filter(task => task.status === 'completed').length;
+        const completedTasks = userTasks.filter((task: Task) => task.status === 'completed').length;
         
         return {
           id: u.id,
-          name: `${u.first_name} ${u.last_name}`,
+          name: u.name,
           avatar: u.avatar,
-          role: u.role,
+          role: u.role || 'user',
           taskCount: userTasks.length,
           completedTasks,
           completionRate: userTasks.length > 0 ? (completedTasks / userTasks.length) * 100 : 0,
@@ -180,15 +180,15 @@ const TasksOverview: React.FC = () => {
       setUsers(userData);
       
       // Calculate task statistics
-      const pending = tasksResponse.filter(task => task.status === 'pending').length;
-      const inProgress = tasksResponse.filter(task => task.status === 'in_progress').length;
-      const completed = tasksResponse.filter(task => task.status === 'completed').length;
-      const cancelled = tasksResponse.filter(task => task.status === 'cancelled').length;
+      const pending = tasksResponse.filter((task: Task) => task.status === 'pending').length;
+      const inProgress = tasksResponse.filter((task: Task) => task.status === 'in_progress').length;
+      const completed = tasksResponse.filter((task: Task) => task.status === 'completed').length;
+      const cancelled = tasksResponse.filter((task: Task) => task.status === 'cancelled').length;
       
       // Calculate overdue tasks
       const now = new Date();
-      const overdue = tasksResponse.filter(task => 
-        (task.status === 'pending' || task.status === 'in_progress') && 
+      const overdue = tasksResponse.filter((task: Task) =>
+        (task.status === 'pending' || task.status === 'in_progress') &&
         new Date(task.due_date) < now
       ).length;
       

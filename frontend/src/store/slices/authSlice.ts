@@ -3,27 +3,11 @@ import axios from 'axios';
 import { login as loginService, logout as logoutService } from '../../services/auth';
 import { ensureAuthToken } from '../../utils/axios';
 import axiosInstance from '../../utils/axios';
-
-// Define types
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  role: string;
-  firstName?: string;
-  lastName?: string;
-}
-
-export interface AuthState {
-  isAuthenticated: boolean;
-  user: User | null;
-  token: string | null;
-  loading: boolean;
-  error: string | null;
-}
+import { AuthUser, AuthState } from '../../types/auth';
 
 // Initialize state from localStorage
 const token = localStorage.getItem('access_token');
+const refreshToken = localStorage.getItem('refresh_token');
 const userStr = localStorage.getItem('user');
 let user = null;
 
@@ -48,6 +32,7 @@ const initialState: AuthState = {
   isAuthenticated: !!token,
   user,
   token,
+  refreshToken,
   loading: false,
   error: null,
 };
@@ -85,15 +70,10 @@ export const logoutAsync = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await logoutService();
-      
-      if (!response.success) {
-        return rejectWithValue(response.message || 'Logout failed');
-      }
-      
+      await logoutService();
       return null;
     } catch (error) {
-      return rejectWithValue('Logout failed');
+      return rejectWithValue('Logout failed. Please try again.');
     }
   }
 );
@@ -103,15 +83,36 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setCredentials: (state, action: PayloadAction<{ user: User; token: string }>) => {
-      const { user, token } = action.payload;
+    setCredentials: (state, action: PayloadAction<{ user: AuthUser; token: string; refreshToken?: string }>) => {
+      const { user, token, refreshToken } = action.payload;
       state.user = user;
       state.token = token;
+      state.refreshToken = refreshToken || state.refreshToken;
       state.isAuthenticated = true;
       
       // Update localStorage
       localStorage.setItem('access_token', token);
+      if (refreshToken) {
+        localStorage.setItem('refresh_token', refreshToken);
+      }
       localStorage.setItem('user', JSON.stringify(user));
+      
+      // Update axios headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      if (axiosInstance && axiosInstance.defaults) {
+        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
+    },
+    updateToken: (state, action: PayloadAction<{ token: string; refreshToken?: string }>) => {
+      const { token, refreshToken } = action.payload;
+      state.token = token;
+      if (refreshToken) {
+        state.refreshToken = refreshToken;
+        localStorage.setItem('refresh_token', refreshToken);
+      }
+      
+      // Update localStorage
+      localStorage.setItem('access_token', token);
       
       // Update axios headers
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -123,6 +124,7 @@ const authSlice = createSlice({
       // Clear state
       state.user = null;
       state.token = null;
+      state.refreshToken = null;
       state.isAuthenticated = false;
       
       // Clear localStorage
@@ -150,7 +152,19 @@ const authSlice = createSlice({
       .addCase(loginAsync.fulfilled, (state, action) => {
         state.loading = false;
         state.isAuthenticated = true;
-        state.user = action.payload.user || null;
+        
+        // Convert user data to AuthUser type
+        const userData = action.payload.user || null;
+        let authUser = null;
+        
+        if (userData) {
+          authUser = {
+            ...userData,
+            role: userData.role || 'user'
+          } as AuthUser;
+        }
+        
+        state.user = authUser;
         state.token = action.payload.token || null;
       })
       .addCase(loginAsync.rejected, (state, action) => {
@@ -174,6 +188,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, logout, clearError } = authSlice.actions;
+export const { setCredentials, updateToken, logout, clearError } = authSlice.actions;
 
 export default authSlice.reducer; 

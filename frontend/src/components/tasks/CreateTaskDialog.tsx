@@ -10,9 +10,15 @@ import {
   Box,
   FormHelperText,
   Autocomplete,
-  Chip,
   MenuItem,
   useTheme,
+  FormControl,
+  InputLabel,
+  Select,
+  Grid,
+  IconButton,
+  CircularProgress,
+  Typography,
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -251,11 +257,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         // Create new task
         const createTaskData = {
           ...taskData,
-          priority: 'medium',
-          status: initialStatus || 'pending',
+          context: taskData.context || 'personal'
         };
         console.log('Creating task with data:', createTaskData);
-        await TaskService.createTask(createTaskData as CreateTask, taskData.context);
+        await TaskService.createTask(createTaskData as CreateTask);
       }
 
       if (onTaskCreated) {
