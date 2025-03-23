@@ -229,7 +229,7 @@ describe('TaskService', () => {
       mockedAxios.patch.mockResolvedValueOnce({ data: mockResponse });
 
       // Call the service
-      const result = await TaskService.changeTaskStatus('123', 'completed');
+      const result = await TaskService.changeTaskStatus('123', TaskStatus.COMPLETED);
 
       // Assertions
       expect(mockedAxios.patch).toHaveBeenCalledWith('/api/tasks/123/status', {

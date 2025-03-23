@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import TaskKanbanBoard from '../../../components/dashboard/TaskKanbanBoard';
-import { Task } from '../../../types/task';
+import { Task, TaskStatus } from '../../../types/task';
 
 // Mock the DragDropContext component
 jest.mock('@hello-pangea/dnd', () => ({
@@ -38,7 +38,7 @@ describe.skip('TaskKanbanBoard Component', () => {
       id: '1',
       title: 'Task 1',
       description: 'Description 1',
-      status: 'pending',
+      status: TaskStatus.PENDING,
       priority: 'high',
       due_date: '2023-12-01',
       created_at: '2023-11-01',
@@ -52,7 +52,7 @@ describe.skip('TaskKanbanBoard Component', () => {
       id: '2',
       title: 'Task 2',
       description: 'Description 2',
-      status: 'in_progress',
+      status: TaskStatus.IN_PROGRESS,
       priority: 'medium',
       due_date: '2023-12-02',
       created_at: '2023-11-02',
@@ -66,7 +66,7 @@ describe.skip('TaskKanbanBoard Component', () => {
       id: '3',
       title: 'Task 3',
       description: 'Description 3',
-      status: 'completed',
+      status: TaskStatus.COMPLETED,
       priority: 'low',
       due_date: '2023-12-03',
       created_at: '2023-11-03',

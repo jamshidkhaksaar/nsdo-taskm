@@ -43,6 +43,7 @@ import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
+import { TaskStatus } from '../types/task';
 
 const DRAWER_WIDTH = 240;
 
@@ -536,7 +537,7 @@ const Users: React.FC = () => {
             onClose={() => setCreateTaskDialogOpen(false)}
             onTaskCreated={handleTaskCreated}
             dialogType="assign"
-            initialStatus="pending"
+            initialStatus={TaskStatus.PENDING}
           />
         </>
       )}

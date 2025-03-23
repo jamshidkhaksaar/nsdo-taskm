@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import TaskSummary from '../../../components/dashboard/TaskSummary';
-import { Task } from '../../../types/task';
+import { Task, TaskStatus } from '../../../types/task';
 
 describe('TaskSummary Component', () => {
   const mockTasks: Task[] = [
@@ -9,7 +9,7 @@ describe('TaskSummary Component', () => {
       id: '1',
       title: 'Task 1',
       description: 'Description 1',
-      status: 'pending',
+      status: TaskStatus.PENDING,
       priority: 'high',
       due_date: '2023-12-01',
       created_at: '2023-11-01',
@@ -23,7 +23,7 @@ describe('TaskSummary Component', () => {
       id: '2',
       title: 'Task 2',
       description: 'Description 2',
-      status: 'pending',
+      status: TaskStatus.PENDING,
       priority: 'medium',
       due_date: '2023-12-02',
       created_at: '2023-11-02',
@@ -37,7 +37,7 @@ describe('TaskSummary Component', () => {
       id: '3',
       title: 'Task 3',
       description: 'Description 3',
-      status: 'in_progress',
+      status: TaskStatus.IN_PROGRESS,
       priority: 'low',
       due_date: '2023-12-03',
       created_at: '2023-11-03',
@@ -51,7 +51,7 @@ describe('TaskSummary Component', () => {
       id: '4',
       title: 'Task 4',
       description: 'Description 4',
-      status: 'completed',
+      status: TaskStatus.COMPLETED,
       priority: 'high',
       due_date: '2023-12-04',
       created_at: '2023-11-04',
@@ -65,7 +65,7 @@ describe('TaskSummary Component', () => {
       id: '5',
       title: 'Task 5',
       description: 'Description 5',
-      status: 'cancelled',
+      status: TaskStatus.CANCELLED,
       priority: 'medium',
       due_date: '2023-12-05',
       created_at: '2023-11-05',

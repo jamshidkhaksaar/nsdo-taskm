@@ -47,9 +47,9 @@ export class AdminService {
         this.tasksRepository.count(),
         this.usersRepository.count({ where: { isActive: true } }),
         this.usersRepository.count({ where: { isActive: false } }),
-        this.tasksRepository.count({ where: { status: TaskStatus.TODO } }),
+        this.tasksRepository.count({ where: { status: TaskStatus.PENDING } }),
         this.tasksRepository.count({ where: { status: TaskStatus.IN_PROGRESS } }),
-        this.tasksRepository.count({ where: { status: TaskStatus.DONE } })
+        this.tasksRepository.count({ where: { status: TaskStatus.COMPLETED } })
       ]);
 
       // Get tasks due soon (next 7 days)
@@ -60,7 +60,7 @@ export class AdminService {
       const upcomingTasksCount = await this.tasksRepository.count({
         where: {
           dueDate: Between(today, nextWeek),
-          status: TaskStatus.TODO
+          status: TaskStatus.PENDING
         }
       });
 
@@ -68,7 +68,7 @@ export class AdminService {
       const overdueTasksCount = await this.tasksRepository.count({
         where: {
           dueDate: Between(new Date(0), today),
-          status: TaskStatus.TODO
+          status: TaskStatus.PENDING
         }
       });
 
@@ -189,7 +189,7 @@ export class AdminService {
         
         const totalTasks = department.tasks ? department.tasks.length : 0;
         const completedTasks = department.tasks 
-          ? department.tasks.filter(task => task.status === TaskStatus.DONE).length 
+          ? department.tasks.filter(task => task.status === TaskStatus.COMPLETED).length 
           : 0;
         
         const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -231,7 +231,7 @@ export class AdminService {
         // Since we may not have createdAt/updatedAt fields, we'll use createDay counts and completion counts
         const tasksCreated = await this.tasksRepository.count();
         const tasksCompleted = await this.tasksRepository.count({
-          where: { status: TaskStatus.DONE }
+          where: { status: TaskStatus.COMPLETED }
         });
         
         // Add data point for this day
@@ -279,9 +279,9 @@ export class AdminService {
     try {
       // Since we may not have a priority field, we'll substitute with task status
       const result = {
-        high: await this.tasksRepository.count({ where: { status: TaskStatus.TODO } }),
+        high: await this.tasksRepository.count({ where: { status: TaskStatus.PENDING } }),
         medium: await this.tasksRepository.count({ where: { status: TaskStatus.IN_PROGRESS } }),
-        low: await this.tasksRepository.count({ where: { status: TaskStatus.DONE } }),
+        low: await this.tasksRepository.count({ where: { status: TaskStatus.COMPLETED } }),
       };
       
       return result;
@@ -719,9 +719,9 @@ export class AdminService {
         totalDepartments: await this.departmentsRepository.count(),
         totalTasks: await this.tasksRepository.count(),
         tasksByStatus: {
-          todo: await this.tasksRepository.count({ where: { status: TaskStatus.TODO } }),
+          pending: await this.tasksRepository.count({ where: { status: TaskStatus.PENDING } }),
           inProgress: await this.tasksRepository.count({ where: { status: TaskStatus.IN_PROGRESS } }),
-          done: await this.tasksRepository.count({ where: { status: TaskStatus.DONE } })
+          completed: await this.tasksRepository.count({ where: { status: TaskStatus.COMPLETED } })
         }
       };
       

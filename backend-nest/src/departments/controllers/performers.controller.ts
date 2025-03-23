@@ -2,6 +2,7 @@ import { Controller, Get, Param, Request, UseGuards, Inject, forwardRef } from '
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { DepartmentsService } from '../departments.service';
 import { ActivityLogService } from '../../admin/services/activity-log.service';
+import { TaskStatus } from '../../tasks/entities/task.entity';
 
 @Controller('departments')
 @UseGuards(JwtAuthGuard)
@@ -37,7 +38,7 @@ export class DepartmentPerformersController {
         try {
           // Get completed tasks count for this user in this department
           const completedTasksCount = department.tasks?.filter(task => 
-            task.status === 'DONE' && 
+            task.status === TaskStatus.COMPLETED && 
             (task.createdById === member.id || 
              (task.assignedTo && task.assignedTo.some(assignee => assignee.id === member.id)))
           ).length || 0;

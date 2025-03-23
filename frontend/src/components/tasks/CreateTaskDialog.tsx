@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import {
   Dialog,
@@ -19,6 +19,12 @@ import {
   IconButton,
   CircularProgress,
   Typography,
+  FormControlLabel,
+  Checkbox,
+  Alert,
+  Chip,
+  Divider,
+  InputAdornment,
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -29,6 +35,7 @@ import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
+import { isValidDueDate, parseDate, toISOString } from '../../utils/dateUtils';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -179,17 +186,15 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
   const validateDueDate = (date: Date | null): boolean => {
     if (!date) {
-      setDateError('Due date is required');
+      setError('Due date is required');
       return false;
     }
 
-    const now = new Date();
-    if (date <= now) {
-      setDateError('Due date must be in the future');
+    if (!isValidDueDate(date)) {
+      setError('Due date must be in the future');
       return false;
     }
 
-    setDateError(null);
     return true;
   };
 
@@ -229,8 +234,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       const taskData: any = {
         title,
         description: description || '',
-        due_date: dueDate.toISOString(),
+        due_date: toISOString(dueDate),
         is_private: isPrivate,
+        status: initialStatus || TaskStatus.PENDING,
         created_by: user?.id?.toString() || '',
       };
 
@@ -279,9 +285,28 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       onClose();
     } catch (err) {
       console.error('Error creating task:', err);
-      // Safely access potentially undefined properties
-      const errorResponse = (err as any)?.response;
-      const errorMessage = errorResponse?.data?.error || errorResponse?.data?.detail || 'Failed to create task. Please try again.';
+      // Enhanced error handling
+      const error = err as any;
+      let errorMessage = 'Failed to create task. Please try again.';
+      
+      // Extract specific error message from response
+      if (error?.response?.data) {
+        const responseData = error.response.data;
+        
+        // Handle array of validation messages
+        if (Array.isArray(responseData.message)) {
+          errorMessage = responseData.message.join(', ');
+        } 
+        // Handle individual message
+        else if (responseData.message) {
+          errorMessage = responseData.message;
+        }
+        // Handle other error formats
+        else if (responseData.error) {
+          errorMessage = `${responseData.error}: ${responseData.detail || 'Unknown error'}`;
+        }
+      }
+      
       setError(errorMessage);
     } finally {
       setLoading(false);

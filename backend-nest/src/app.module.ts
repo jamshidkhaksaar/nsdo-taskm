@@ -14,6 +14,18 @@ import { ProfileModule } from './profile/profile.module';
 import { MailModule } from './mail/mail.module';
 import { NotesModule } from './notes/notes.module';
 
+// Import all entity classes directly
+import { User } from './users/entities/user.entity';
+import { Department } from './departments/entities/department.entity';
+import { Task } from './tasks/entities/task.entity';
+import { Note } from './notes/entities/note.entity';
+import { ApiSettings } from './settings/entities/api-settings.entity';
+import { BackupSettings } from './settings/entities/backup-settings.entity';
+import { NotificationSettings } from './settings/entities/notification-settings.entity';
+import { SecuritySettings } from './settings/entities/security-settings.entity';
+import { ActivityLog } from './admin/entities/activity-log.entity';
+import { Backup } from './backup/entities/backup.entity';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -29,7 +41,18 @@ import { NotesModule } from './notes/notes.module';
         username: configService.get('DATABASE_USERNAME'),
         password: configService.get('DATABASE_PASSWORD'),
         database: configService.get('DATABASE_NAME'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        entities: [
+          User,
+          Department,
+          Task,
+          Note,
+          ApiSettings,
+          BackupSettings,
+          NotificationSettings,
+          SecuritySettings,
+          ActivityLog,
+          Backup
+        ],
         synchronize: configService.get('DATABASE_SYNC') === 'true',
       }),
     }),

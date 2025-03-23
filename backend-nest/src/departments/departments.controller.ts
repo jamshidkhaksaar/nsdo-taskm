@@ -10,6 +10,8 @@ import {
   Request,
   Inject,
   forwardRef,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
@@ -21,6 +23,7 @@ import { User, UserRole } from '../users/entities/user.entity';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ActivityLogService } from '../admin/services/activity-log.service';
+import { TaskStatus } from '../tasks/entities/task.entity';
 
 @Controller('departments')
 @UseGuards(JwtAuthGuard)
@@ -238,13 +241,13 @@ export class DepartmentsController {
     
     // Get tasks count for active projects (simplified)
     const active_projects = department.tasks ? 
-      department.tasks.filter(task => task.status !== 'DONE').length > 0 ? 1 : 0 : 
+      department.tasks.filter(task => task.status !== TaskStatus.COMPLETED).length > 0 ? 1 : 0 : 
       0;
     
     // Calculate completion rate
     const totalTasks = department.tasks ? department.tasks.length : 0;
     const completedTasks = department.tasks ? 
-      department.tasks.filter(task => task.status === 'DONE').length : 
+      department.tasks.filter(task => task.status === TaskStatus.COMPLETED).length : 
       0;
     const completion_rate = totalTasks > 0 ? 
       Math.round((completedTasks / totalTasks) * 100) : 

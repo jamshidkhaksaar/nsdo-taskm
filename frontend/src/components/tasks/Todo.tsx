@@ -21,15 +21,8 @@ import {
   CircularProgress
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, Add as AddIcon } from '@mui/icons-material';
-import { Task } from '../../types/task';
+import { Task, TaskStatus } from '../../types/task';
 import axios from '../../utils/axios';
-
-// Define TaskStatus enum to match the backend
-export enum TaskStatus {
-  TODO = 'TODO',
-  IN_PROGRESS = 'IN_PROGRESS',
-  DONE = 'DONE',
-}
 
 interface TodoProps {
   userId?: string;
@@ -43,14 +36,14 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
   // New task form state
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDescription, setNewTaskDescription] = useState('');
-  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(TaskStatus.TODO);
+  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(TaskStatus.PENDING);
   
   // Edit task dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [editStatus, setEditStatus] = useState<TaskStatus>(TaskStatus.TODO);
+  const [editStatus, setEditStatus] = useState<TaskStatus>(TaskStatus.PENDING);
 
   // Fetch tasks on component mount
   useEffect(() => {
@@ -84,7 +77,7 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
       setTasks([...tasks, response.data]);
       setNewTaskTitle('');
       setNewTaskDescription('');
-      setNewTaskStatus(TaskStatus.TODO);
+      setNewTaskStatus(TaskStatus.PENDING);
     } catch (err) {
       console.error('Error creating task:', err);
       setError('Failed to create task. Please try again.');
@@ -105,11 +98,12 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
     setCurrentTask(task);
     setEditTitle(task.title);
     setEditDescription(task.description || '');
-    // Convert the string status to our enum
-    const taskStatus = task.status as unknown as string;
-    setEditStatus(taskStatus === 'DONE' ? TaskStatus.DONE : 
-                 taskStatus === 'IN_PROGRESS' ? TaskStatus.IN_PROGRESS : 
-                 TaskStatus.TODO);
+    // Convert the string status to our enum if needed
+    const taskStatus = task.status;
+    setEditStatus(taskStatus === 'completed' ? TaskStatus.COMPLETED : 
+                 taskStatus === 'in_progress' ? TaskStatus.IN_PROGRESS : 
+                 taskStatus === 'cancelled' ? TaskStatus.CANCELLED :
+                 TaskStatus.PENDING);
     setEditDialogOpen(true);
   };
 
@@ -151,12 +145,14 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case TaskStatus.TODO:
+      case TaskStatus.PENDING:
         return 'info';
       case TaskStatus.IN_PROGRESS:
         return 'warning';
-      case TaskStatus.DONE:
+      case TaskStatus.COMPLETED:
         return 'success';
+      case TaskStatus.CANCELLED:
+        return 'error';
       default:
         return 'default';
     }
@@ -164,7 +160,7 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
 
   // Helper function to check if a task is done
   const isTaskDone = (task: Task): boolean => {
-    return (task.status as unknown as string) === TaskStatus.DONE;
+    return task.status === TaskStatus.COMPLETED;
   };
 
   if (loading) {
@@ -217,9 +213,10 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
                 label="Status"
                 onChange={(e) => setNewTaskStatus(e.target.value as TaskStatus)}
               >
-                <MenuItem value={TaskStatus.TODO}>To Do</MenuItem>
+                <MenuItem value={TaskStatus.PENDING}>To Do</MenuItem>
                 <MenuItem value={TaskStatus.IN_PROGRESS}>In Progress</MenuItem>
-                <MenuItem value={TaskStatus.DONE}>Done</MenuItem>
+                <MenuItem value={TaskStatus.COMPLETED}>Done</MenuItem>
+                <MenuItem value={TaskStatus.CANCELLED}>Cancelled</MenuItem>
               </Select>
             </FormControl>
             <Button
@@ -251,7 +248,7 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
                       onChange={() => 
                         handleStatusChange(
                           task, 
-                          isTaskDone(task) ? TaskStatus.TODO : TaskStatus.DONE
+                          isTaskDone(task) ? TaskStatus.PENDING : TaskStatus.COMPLETED
                         )
                       }
                     />
@@ -272,9 +269,9 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
                       )}
                       <Box sx={{ mt: 1 }}>
                         <Chip 
-                          label={(task.status as unknown as string).replace('_', ' ')} 
+                          label={task.status.replace('_', ' ')} 
                           size="small" 
-                          color={getStatusColor(task.status as unknown as string) as any}
+                          color={getStatusColor(task.status) as any}
                           sx={{ mr: 1 }}
                         />
                         {task.updated_at && (
@@ -336,9 +333,10 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
                 label="Status"
                 onChange={(e) => setEditStatus(e.target.value as TaskStatus)}
               >
-                <MenuItem value={TaskStatus.TODO}>To Do</MenuItem>
+                <MenuItem value={TaskStatus.PENDING}>To Do</MenuItem>
                 <MenuItem value={TaskStatus.IN_PROGRESS}>In Progress</MenuItem>
-                <MenuItem value={TaskStatus.DONE}>Done</MenuItem>
+                <MenuItem value={TaskStatus.COMPLETED}>Done</MenuItem>
+                <MenuItem value={TaskStatus.CANCELLED}>Cancelled</MenuItem>
               </Select>
             </FormControl>
           </Stack>

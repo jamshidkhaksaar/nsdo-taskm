@@ -1,0 +1,10 @@
+---
+description: Technical stack
+globs: 
+alwaysApply: false
+---
+- Nestjs for the backend
+- typscript & react for the frontend
+- SQL databases, never JSON file storage
+
+

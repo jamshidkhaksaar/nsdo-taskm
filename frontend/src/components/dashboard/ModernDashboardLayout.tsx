@@ -93,7 +93,10 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
             display: 'flex',
             flexGrow: 1,
             overflow: 'hidden',
-            height: 'calc(100vh - 64px - 40px)', // Subtract topBar and footer height
+            height: { 
+              xs: 'calc(100vh - 64px - 40px)', // Mobile/tablet view
+              md: 'calc(100vh - 64px - 40px)'  // Desktop view
+            },
           }}
         >
           {/* Main scrollable content */}
@@ -137,12 +140,13 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
           {!isTablet && rightPanel && (
             <Box
               sx={{
-                width: '300px',
+                width: { lg: '300px' },
+                flexBasis: { lg: '300px' },
+                flexShrink: 0,
                 height: '100%',
                 overflowY: 'auto',
                 display: { xs: 'none', lg: 'block' },
                 borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-                flexShrink: 0,
                 '&::-webkit-scrollbar': {
                   width: '6px',
                 },

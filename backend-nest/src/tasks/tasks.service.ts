@@ -43,16 +43,15 @@ export class TasksService {
       }
       
       if (createTaskDto.status) {
-        const statusValue = createTaskDto.status.toUpperCase();
-        if (Object.values(TaskStatus).includes(statusValue as TaskStatus)) {
-          task.status = statusValue as TaskStatus;
+        if (Object.values(TaskStatus).includes(createTaskDto.status as TaskStatus)) {
+          task.status = createTaskDto.status as TaskStatus;
         } else {
           console.log('Invalid status value:', createTaskDto.status);
-          // Default to OPEN if invalid
-          task.status = TaskStatus.OPEN;
+          // Default to PENDING if invalid
+          task.status = TaskStatus.PENDING;
         }
       } else {
-        task.status = TaskStatus.OPEN;
+        task.status = TaskStatus.PENDING;
       }
       
       console.log('Task status set to:', task.status);

@@ -3,10 +3,10 @@ import { User } from '../../users/entities/user.entity';
 import { Department } from '../../departments/entities/department.entity';
 
 export enum TaskStatus {
-  TODO = 'TODO',
-  OPEN = 'OPEN',
-  IN_PROGRESS = 'IN_PROGRESS',
-  DONE = 'DONE',
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
 }
 
 export enum TaskContext {
@@ -29,7 +29,7 @@ export class Task {
   @Column({
     type: 'enum',
     enum: TaskStatus,
-    default: TaskStatus.OPEN,
+    default: TaskStatus.PENDING,
   })
   status: TaskStatus;
 

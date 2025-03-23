@@ -1,7 +1,8 @@
-import { apiClient } from './api';
+import apiClient from '../utils/axios';
 import { AxiosResponse } from 'axios';
-import { Task, CreateTask, TaskStatus, TaskUpdate } from '../types/task';
+import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef } from '../types/task';
 import { User } from '../types/user';
+import { parseDate, toISOString } from '../utils/dateUtils';
 
 // Enhanced interface to support role-based task creation
 interface GetTasksParams {
@@ -12,20 +13,60 @@ interface GetTasksParams {
 }
 
 // Status mapping between frontend and backend
-const frontendToBackendStatus: Record<string, string> = {
-    'pending': 'TODO',
-    'in_progress': 'IN_PROGRESS',
-    'completed': 'DONE',
-    'cancelled': 'DONE', // Map cancelled to DONE for now
+// No longer needed as backend now uses same values as frontend
+const frontendToBackendStatus: Record<TaskStatus, string> = {
+    [TaskStatus.PENDING]: 'pending',
+    [TaskStatus.IN_PROGRESS]: 'in_progress',
+    [TaskStatus.COMPLETED]: 'completed',
+    [TaskStatus.CANCELLED]: 'cancelled',
 };
 
 const backendToFrontendStatus: Record<string, TaskStatus> = {
-    'TODO': 'pending',
-    'IN_PROGRESS': 'in_progress',
-    'DONE': 'completed',
+    'pending': TaskStatus.PENDING,
+    'in_progress': TaskStatus.IN_PROGRESS,
+    'completed': TaskStatus.COMPLETED,
+    'cancelled': TaskStatus.CANCELLED,
+};
+
+// Helper function to ensure IDs are strings
+const ensureStringId = (id: string | number): string => {
+    return typeof id === 'number' ? id.toString() : id;
+};
+
+// Helper function to standardize task objects from API responses
+const standardizeTask = (data: any): Task => {
+    // Handle date conversion safely
+    let dueDateStr = '';
+    if (data.due_date) {
+        dueDateStr = toISOString(data.due_date);
+    } else if (data.dueDate) {
+        dueDateStr = toISOString(data.dueDate);
+    }
+
+    return {
+        id: ensureStringId(data.id),
+        title: data.title || '',
+        description: data.description || '',
+        status: backendToFrontendStatus[data.status as string] || TaskStatus.PENDING,
+        due_date: dueDateStr,
+        priority: data.priority || 'medium',
+        is_private: typeof data.is_private !== 'undefined' ? data.is_private : 
+                    (typeof data.isPrivate !== 'undefined' ? data.isPrivate : false),
+        department: data.department || null,
+        assigned_to: Array.isArray(data.assigned_to) ? data.assigned_to.map(ensureStringId) : 
+                    (Array.isArray(data.assignedTo) ? data.assignedTo.map(ensureStringId) : []),
+        created_by: ensureStringId(data.created_by || data.createdBy),
+        created_at: data.created_at || data.createdAt || new Date().toISOString(),
+        updated_at: data.updated_at || data.updatedAt || new Date().toISOString(),
+        context: data.context || 'personal'
+    };
 };
 
 export const TaskService = {
+    // Add helper functions to the TaskService object for compatibility
+    standardizeTask,
+    ensureStringId,
+    
     // Get all tasks with enhanced filtering for different user roles
     getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
@@ -33,26 +74,8 @@ export const TaskService = {
             const response = await apiClient.get<any[]>('/api/tasks/', { params });
             console.log('Tasks fetched from API:', response);
             
-            // Map backend status to frontend status and ensure all required fields are present
-            const mappedTasks = response.map(task => {
-                // Convert numeric IDs to strings if needed
-                const taskId = task.id?.toString() || '';
-                
-                return {
-                    ...task,
-                    id: taskId,
-                    status: backendToFrontendStatus[task.status as any] || 'pending',
-                    title: task.title || '',
-                    description: task.description || '',
-                    // Ensure created_at exists
-                    created_at: task.created_at || new Date().toISOString(),
-                    // Ensure other required fields exist
-                    due_date: task.due_date || null,
-                    context: task.context || 'personal',
-                    // Set empty arrays for null values
-                    assigned_to: task.assigned_to || [],
-                };
-            });
+            // Map backend data to standardized frontend Task objects
+            const mappedTasks = response.data.map(standardizeTask);
             
             console.log('Mapped tasks in TaskService:', mappedTasks);
             return mappedTasks;
@@ -65,8 +88,10 @@ export const TaskService = {
     // Get tasks by department
     getTasksByDepartment: async (departmentId: string | number): Promise<Task[]> => {
         try {
-            const tasks = await apiClient.get<Task[]>(`/api/tasks/?department=${departmentId}`);
-            return tasks;
+            // Convert departmentId to string for consistent handling
+            const stringDepartmentId = ensureStringId(departmentId);
+            const response = await apiClient.get<Task[]>(`/api/tasks/?department=${stringDepartmentId}`);
+            return response.data.map(standardizeTask);
         } catch (error) {
             console.error('Error fetching tasks by department:', error);
             throw error;
@@ -80,21 +105,25 @@ export const TaskService = {
 
     // Get tasks assigned to user
     getAssignedTasks: async (userId: string) => {
-        const tasks = await apiClient.get<Task[]>(`/api/tasks/?assigned_to=${userId}`);
-        return tasks;
+        const stringUserId = ensureStringId(userId);
+        const response = await apiClient.get<Task[]>(`/api/tasks/?assigned_to=${stringUserId}`);
+        return response.data.map(standardizeTask);
     },
 
     // Get tasks created by user
     getCreatedTasks: async (userId: string) => {
-        const tasks = await apiClient.get<Task[]>(`/api/tasks/?created_by=${userId}`);
-        return tasks;
+        const stringUserId = ensureStringId(userId);
+        const response = await apiClient.get<Task[]>(`/api/tasks/?created_by=${stringUserId}`);
+        return response.data.map(standardizeTask);
     },
 
     // Create a new task
     createTask: async (taskData: CreateTask): Promise<Task> => {
         try {
             // Map frontend status to backend status
-            const status = frontendToBackendStatus[taskData.status || 'pending'] || 'TODO';
+            const status = frontendToBackendStatus[taskData.status || TaskStatus.PENDING] || 'pending';
+            
+            console.log('Creating task with status:', status);
             
             // Prepare the payload with only the fields the backend API expects
             const payload: any = {
@@ -102,49 +131,53 @@ export const TaskService = {
                 description: taskData.description || '',
                 status,
             };
+
+            // Ensure due_date is properly formatted as ISO string
+            if (taskData.due_date) {
+                // Convert to ISO string format that backend expects
+                payload.due_date = toISOString(taskData.due_date);
+            }
             
             // Only add fields that are explicitly provided and supported by the backend
-            // Add assigned_to if it exists
+            // Add assigned_to if it exists - ensure all IDs are strings
             if (taskData.assigned_to && taskData.assigned_to.length > 0) {
-                payload.assigned_to = taskData.assigned_to;
+                payload.assigned_to = taskData.assigned_to.map(ensureStringId);
             }
             
-            // Only add department if the context is department
+            // Only add department if the context is department - ensure ID is string
             if (taskData.context === 'department' && taskData.department) {
-                payload.department = taskData.department;
+                // If department is a string, use it directly; if it's an object with id, use that id as string
+                payload.department = typeof taskData.department === 'string' 
+                    ? taskData.department 
+                    : ensureStringId((taskData.department as DepartmentRef).id);
             }
             
-            // Only add due_date if it's provided
-            if (taskData.due_date) {
-                payload.due_date = taskData.due_date;
+            // Add priority if provided
+            if (taskData.priority) {
+                payload.priority = taskData.priority;
             }
             
-            console.log('Creating task with payload:', payload);
-
-            const response = await apiClient.post<any>('/api/tasks/', payload);
-            console.log('Created task response:', response);
+            // Add is_private if provided
+            if (typeof taskData.is_private !== 'undefined') {
+                payload.is_private = taskData.is_private;
+            }
             
-            // Map the response to the expected Task format
-            const createdTask: Task = {
-                id: response.id?.toString() || '',
-                title: response.title || '',
-                description: response.description || '',
-                status: backendToFrontendStatus[response.status as any] || 'pending',
-                due_date: response.due_date || '',
-                priority: response.priority || 'medium',
-                is_private: response.is_private || false,
-                department: response.department || null,
-                assigned_to: response.assigned_to || [],
-                created_by: response.created_by || null,
-                created_at: response.created_at || new Date().toISOString(),
-                updated_at: response.updated_at || new Date().toISOString(),
-                context: response.context || 'personal'
-            };
-
-            console.log('Mapped created task:', createdTask);
-            return createdTask;
+            console.log('Final payload for task creation:', payload);
+            
+            // Make sure we have the correct API endpoint
+            const response = await apiClient.post<{data: Task}>('/api/tasks/', payload);
+            
+            // Standardize the task object
+            return standardizeTask(response.data);
         } catch (error) {
-            console.error('Error creating task:', error);
+            console.error('Error in createTask:', error);
+            
+            // Provide more information about the error
+            const axiosError = error as any;
+            if (axiosError.response) {
+                console.error('Error response:', axiosError.response.data);
+            }
+            
             throw error;
         }
     },
@@ -152,6 +185,9 @@ export const TaskService = {
     // Update an existing task
     updateTask: async (taskId: string, taskData: Partial<TaskUpdate>): Promise<Task> => {
         try {
+            // Ensure taskId is a string
+            const stringTaskId = ensureStringId(taskId);
+            
             // Start with a clean payload
             const payload: any = {};
             
@@ -162,40 +198,26 @@ export const TaskService = {
             
             // Convert frontend status to backend status if provided
             if (taskData.status) {
-                payload.status = frontendToBackendStatus[taskData.status] || 'TODO';
+                payload.status = frontendToBackendStatus[taskData.status] || 'pending';
             }
             
-            // Include assigned_to only if it's explicitly provided
+            // Ensure due_date is properly formatted as ISO string
+            if (taskData.due_date) {
+                // Convert to ISO string format that backend expects
+                payload.due_date = toISOString(taskData.due_date);
+            }
+            
+            // Include assigned_to only if it's explicitly provided, and ensure IDs are strings
             if (taskData.assigned_to !== undefined) {
-                payload.assigned_to = taskData.assigned_to;
+                payload.assigned_to = taskData.assigned_to ? taskData.assigned_to.map(ensureStringId) : [];
             }
-            
-            // Never send these fields unless specifically implementing endpoints that support them
-            // Do not include context, due_date, or department in regular updates
             
             console.log('Sending update payload:', payload);
 
-            const response = await apiClient.patch<any>(`/api/tasks/${taskId}/`, payload);
-            console.log('Task update response:', response);
-
-            // Map the response to the expected Task format
-            const updatedTask: Task = {
-                id: response.id?.toString() || '',
-                title: response.title || '',
-                description: response.description || '',
-                status: backendToFrontendStatus[response.status as any] || 'pending',
-                due_date: response.due_date || '',
-                priority: response.priority || 'medium',
-                is_private: response.is_private || false,
-                department: response.department || null,
-                assigned_to: response.assigned_to || [],
-                created_by: response.created_by || null,
-                created_at: response.created_at || new Date().toISOString(),
-                updated_at: response.updated_at || new Date().toISOString(),
-                context: response.context || 'personal'
-            };
-
-            return updatedTask;
+            const response = await apiClient.patch<{data: Task}>(`/api/tasks/${stringTaskId}/`, payload);
+            
+            // Standardize the task object
+            return standardizeTask(response.data);
         } catch (error) {
             console.error('Error updating task:', error);
             throw error;
@@ -204,36 +226,24 @@ export const TaskService = {
 
     // Delete a task
     deleteTask: async (taskId: string) => {
-        await apiClient.delete(`/api/tasks/${taskId}/`);
+        const stringTaskId = ensureStringId(taskId);
+        await apiClient.delete(`/api/tasks/${stringTaskId}/`);
     },
 
     // Assign a task to a user
     assignTask: async (taskId: string, userId: string) => {
         try {
-            const response = await apiClient.post<any>(`/api/tasks/${taskId}/assign/`, {
-                user_id: userId
+            const stringTaskId = ensureStringId(taskId);
+            const stringUserId = ensureStringId(userId);
+            
+            const response = await apiClient.post<any>(`/api/tasks/${stringTaskId}/assign/`, {
+                user_id: stringUserId
             });
             
             console.log('Task assignment response:', response);
             
-            // Map the response to a Task object
-            const updatedTask: Task = {
-                id: response.id?.toString() || '',
-                title: response.title || '',
-                description: response.description || '',
-                status: backendToFrontendStatus[response.status as any] || 'pending',
-                due_date: response.due_date || '',
-                priority: response.priority || 'medium',
-                is_private: response.is_private || false,
-                department: response.department || null,
-                assigned_to: response.assigned_to || [],
-                created_by: response.created_by || null,
-                created_at: response.created_at || new Date().toISOString(),
-                updated_at: response.updated_at || new Date().toISOString(),
-                context: response.context || 'personal'
-            };
-            
-            return updatedTask;
+            // Standardize the task object
+            return standardizeTask(response);
         } catch (error) {
             console.error('Error assigning task:', error);
             throw error;
@@ -243,34 +253,18 @@ export const TaskService = {
     // Change task status
     changeTaskStatus: async (taskId: string, status: TaskStatus) => {
         try {
-            console.log(`Changing task ${taskId} status to ${status}`);
-            const backendStatus = frontendToBackendStatus[status] || 'TODO';
+            const stringTaskId = ensureStringId(taskId);
+            console.log(`Changing task ${stringTaskId} status to ${status}`);
             
             // Use the updateTask endpoint with only the status field
-            const response = await apiClient.patch<any>(`/api/tasks/${taskId}/`, {
-                status: backendStatus
+            const response = await apiClient.patch<any>(`/api/tasks/${stringTaskId}/`, {
+                status: status
             });
             
             console.log('Status change response:', response);
             
-            // Map the response to a Task object
-            const updatedTask: Task = {
-                id: response.id?.toString() || '',
-                title: response.title || '',
-                description: response.description || '',
-                status: backendToFrontendStatus[response.status as any] || 'pending',
-                due_date: response.due_date || '',
-                priority: response.priority || 'medium',
-                is_private: response.is_private || false,
-                department: response.department || null,
-                assigned_to: response.assigned_to || [],
-                created_by: response.created_by || null,
-                created_at: response.created_at || new Date().toISOString(),
-                updated_at: response.updated_at || new Date().toISOString(),
-                context: response.context || 'personal'
-            };
-            
-            return updatedTask;
+            // Standardize the task object
+            return standardizeTask(response);
         } catch (error) {
             console.error('Error changing task status:', error);
             throw error;
@@ -280,8 +274,8 @@ export const TaskService = {
     // Get users for task assignment
     getUsers: async (): Promise<User[]> => {
         try {
-            const users = await apiClient.get<User[]>('/api/users/');
-            return users;
+            const response = await apiClient.get<User[]>('/api/users/');
+            return response.data;
         } catch (error) {
             console.error('Error fetching users:', error);
             throw error;
@@ -291,13 +285,10 @@ export const TaskService = {
     // Get a single task
     getTask: async (taskId: string): Promise<Task> => {
         try {
-            const task = await apiClient.get<Task>(`/api/tasks/${taskId}/`);
+            const response = await apiClient.get<Task>(`/api/tasks/${taskId}/`);
             
             // Convert backend status to frontend status
-            return {
-                ...task,
-                status: backendToFrontendStatus[task.status as any] || 'pending'
-            };
+            return standardizeTask(response.data);
         } catch (error) {
             console.error(`Error fetching task ${taskId}:`, error);
             throw error;
@@ -315,13 +306,10 @@ export const TaskService = {
                 ...filters,
             };
             
-            const tasks = await apiClient.get<Task[]>('/api/tasks/', { params });
+            const response = await apiClient.get<Task[]>('/api/tasks/', { params });
             
             // Map backend status to frontend status
-            return tasks.map(task => ({
-                ...task,
-                status: backendToFrontendStatus[task.status as any] || 'pending'
-            }));
+            return response.data.map(standardizeTask);
         } catch (error) {
             console.error('Error fetching visible tasks:', error);
             throw error;

@@ -2,7 +2,12 @@
 import { User } from './user';
 
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export enum TaskStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}
 export type TaskContext = 'personal' | 'department' | 'user';
 
 export interface DepartmentRef {

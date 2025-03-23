@@ -26,7 +26,7 @@ import { useErrorHandler } from '../hooks/useErrorHandler';
 // Redux and Services
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
-import { Task, TaskStatus } from '../types/task';
+import { Task, TaskPriority, TaskStatus, TaskContext } from '../types/task';
 import axios from '../utils/axios';
 import { TaskService } from '../services/task';
 
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [initialTaskStatus, setInitialTaskStatus] = useState<TaskStatus>('pending');
+  const [initialTaskStatus, setInitialTaskStatus] = useState<TaskStatus>(TaskStatus.PENDING);
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -106,20 +106,8 @@ const Dashboard: React.FC = () => {
       if (Array.isArray(response.data)) {
         console.log(`Received ${response.data.length} tasks from API`);
         
-        // Map backend status to frontend status
-        const mappedTasks = response.data.map(task => ({
-          ...task,
-          status: task.status === 'TODO' ? 'pending' : 
-                  task.status === 'IN_PROGRESS' ? 'in_progress' : 
-                  task.status === 'DONE' ? 'completed' : 'pending',
-          // Ensure all required fields are present
-          id: task.id.toString(),
-          title: task.title || '',
-          description: task.description || '',
-          // If created_at is missing, set it to the current date
-          created_at: task.created_at || new Date().toISOString(),
-          context: task.context || 'personal',
-        }));
+        // Use the standardizeTask function from TaskService
+        const mappedTasks = response.data.map(task => TaskService.standardizeTask(task));
         
         console.log('Mapped tasks:', mappedTasks);
         setTasks(mappedTasks);
@@ -234,17 +222,24 @@ const Dashboard: React.FC = () => {
         height: '100%', 
         overflow: 'visible',
         px: { xs: 0.5, sm: 1 },
-        pb: 1
+        pb: 1,
+        display: 'flex',
+        flexDirection: 'column'
       }}
     >
-      <Grid container spacing={1}>
+      <Grid container spacing={1} sx={{ mb: 1 }}>
         {/* Top row with Weather Widget and Task Summary */}
         <Grid item xs={12}>
-          <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, mb: 1 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' }, 
+            gap: 1,
+          }}>
             {/* Weather Widget (conditionally shown) */}
             {showWeatherWidget && (
               <Box sx={{ 
-                flexBasis: '30%',
+                flexBasis: { xs: '100%', sm: '30%' },
+                minWidth: { xs: 'auto', sm: '250px' },
                 borderRadius: 2,
                 overflow: 'hidden',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
@@ -268,19 +263,23 @@ const Dashboard: React.FC = () => {
         </Grid>
         
         {/* Task Kanban Board - takes remaining space */}
-        <Grid item xs={12} sx={{ flexGrow: 1, height: 'calc(100vh - 180px)' }}>
+        <Grid item xs={12} sx={{ flexGrow: 1, display: 'flex' }}>
           <Box
             sx={{
-              height: '100%',
+              flexGrow: 1,
+              display: 'flex',
               p: { xs: 1, sm: 1.5 },
               borderRadius: 2,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               bgcolor: 'rgba(255, 255, 255, 0.02)',
+              minHeight: '300px', // Minimum height for smaller screens
+              height: { xs: 'auto', md: 'calc(100vh - 200px)' }, // Responsive height calculation
+              maxHeight: 'calc(100vh - 200px)', // Maximum height to avoid overflow
             }}
           >
             {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>
                 <CircularProgress />
               </Box>
             ) : error ? (
