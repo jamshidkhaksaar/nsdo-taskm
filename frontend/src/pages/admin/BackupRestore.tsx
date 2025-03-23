@@ -95,7 +95,7 @@ const BackupRestore: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState(3);
   const [backups, setBackups] = useState<Backup[]>([]);
   const [isBackupInProgress, setIsBackupInProgress] = useState(false);
@@ -841,4 +841,4 @@ const BackupRestore: React.FC = () => {
   );
 };
 
-export default BackupRestore; 
+export default BackupRestore;

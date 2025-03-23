@@ -188,19 +188,22 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
     <Box 
       sx={{ 
         width: '100%', 
-        mb: 1,
+        mb: { xs: 1.5, sm: 1 },
         backgroundColor: 'rgba(30, 41, 59, 0.8)',
         borderRadius: '8px',
         overflow: 'hidden',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        border: '1px solid rgba(255, 255, 255, 0.08)'
+        // Removed duplicate border
+        border: 'none'
       }}
     >
       <Box sx={{ 
-        p: 1.5,
+        p: { xs: 1, sm: 1.5 },
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: { xs: 1, sm: 0 }
       }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 500 }}>
@@ -263,4 +266,4 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
   );
 };
 
-export default WeatherWidget; 
+export default WeatherWidget;

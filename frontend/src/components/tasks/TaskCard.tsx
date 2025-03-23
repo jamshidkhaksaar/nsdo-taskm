@@ -69,6 +69,8 @@ interface TaskCardProps {
   onStatusChange?: (taskId: string, newStatus: string) => void;
   users?: User[];
   departments?: Department[];
+  currentUserId: number;
+  onClick?: () => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -78,6 +80,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onStatusChange,
   users = [],
   departments = [],
+  currentUserId,
+  onClick,
 }) => {
   const theme = useTheme();
   const permissions = useTaskPermissions(task);

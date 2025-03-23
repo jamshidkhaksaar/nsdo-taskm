@@ -34,13 +34,14 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
     <Box 
       sx={{ 
         width: '100%', 
-        mb: 1,
+        mb: { xs: 1.5, sm: 1 },
         backgroundColor: 'rgba(30, 41, 59, 0.8)',
         borderRadius: '8px',
         overflow: 'hidden',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        p: 1.5
+        // Removed duplicate border
+        border: 'none',
+        p: { xs: 1, sm: 1.5 }
       }}
     >
       <Stack 
@@ -118,4 +119,4 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
   );
 };
 
-export default TaskSummary; 
+export default TaskSummary;

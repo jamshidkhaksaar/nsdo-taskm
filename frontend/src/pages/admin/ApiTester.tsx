@@ -39,7 +39,7 @@ const ApiTesterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -405,4 +405,4 @@ const ApiTesterPage: React.FC = () => {
   );
 };
 
-export default ApiTesterPage; 
+export default ApiTesterPage;

@@ -130,36 +130,37 @@ export const TaskService = {
                 title: taskData.title,
                 description: taskData.description || '',
                 status,
+                context: taskData.context,
             };
 
-            // Ensure due_date is properly formatted as ISO string
+            // Map due_date to dueDate property that backend expects
             if (taskData.due_date) {
                 // Convert to ISO string format that backend expects
-                payload.due_date = toISOString(taskData.due_date);
+                payload.dueDate = toISOString(taskData.due_date);
             }
             
             // Only add fields that are explicitly provided and supported by the backend
             // Add assigned_to if it exists - ensure all IDs are strings
             if (taskData.assigned_to && taskData.assigned_to.length > 0) {
-                payload.assigned_to = taskData.assigned_to.map(ensureStringId);
+                payload.assignedTo = taskData.assigned_to.map(ensureStringId);
             }
             
             // Only add department if the context is department - ensure ID is string
             if (taskData.context === 'department' && taskData.department) {
                 // If department is a string, use it directly; if it's an object with id, use that id as string
-                payload.department = typeof taskData.department === 'string' 
+                payload.departmentId = typeof taskData.department === 'string' 
                     ? taskData.department 
                     : ensureStringId((taskData.department as DepartmentRef).id);
             }
             
-            // Add priority if provided
-            if (taskData.priority) {
-                payload.priority = taskData.priority;
-            }
-            
-            // Add is_private if provided
-            if (typeof taskData.is_private !== 'undefined') {
-                payload.is_private = taskData.is_private;
+            // priority is not supported by the backend, so we don't include it
+            if ('priority' in taskData) {
+                console.log('Priority value exists in taskData but will not be sent to backend:', taskData.priority);
+                // Explicitly check payload to ensure priority is not included
+                if ('priority' in payload) {
+                    console.error('ERROR: Priority is still in payload!', payload);
+                    delete payload.priority;
+                }
             }
             
             console.log('Final payload for task creation:', payload);
@@ -201,15 +202,20 @@ export const TaskService = {
                 payload.status = frontendToBackendStatus[taskData.status] || 'pending';
             }
             
-            // Ensure due_date is properly formatted as ISO string
+            // Map due_date to dueDate property that backend expects
             if (taskData.due_date) {
                 // Convert to ISO string format that backend expects
-                payload.due_date = toISOString(taskData.due_date);
+                payload.dueDate = toISOString(taskData.due_date);
             }
             
-            // Include assigned_to only if it's explicitly provided, and ensure IDs are strings
+            // Map assigned_to to assignedTo that the backend expects
             if (taskData.assigned_to !== undefined) {
-                payload.assigned_to = taskData.assigned_to ? taskData.assigned_to.map(ensureStringId) : [];
+                payload.assignedTo = taskData.assigned_to ? taskData.assigned_to.map(ensureStringId) : [];
+            }
+            
+            // Remove priority field if it exists - not supported by backend
+            if ('priority' in taskData) {
+                console.log('Priority exists in update data but not sending to backend:', taskData.priority);
             }
             
             console.log('Sending update payload:', payload);

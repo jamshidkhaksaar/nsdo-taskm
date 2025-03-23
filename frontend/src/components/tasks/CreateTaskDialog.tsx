@@ -30,7 +30,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { TaskService } from '../../services/task';
-import { CreateTask, Task, TaskStatus } from '../../types/task';
+import { CreateTask, Task, TaskStatus, TaskPriority } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
@@ -69,6 +69,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [collaborators, setCollaborators] = useState<User[]>([]);
   const [isPrivate] = useState(false);
+  const [priority, setPriority] = useState<TaskPriority>('medium');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -97,6 +98,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setSelectedUsers([]);
     setCollaborators([]);
     setDepartment('');
+    setPriority('medium');
   };
   
   // Split the effects to separate concerns
@@ -144,6 +146,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setTitle(task.title);
       setDescription(task.description || '');
       setDueDate(task.due_date ? new Date(task.due_date) : new Date());
+      // Ensure priority is set from the task, defaulting to medium if not present
+      setPriority(task.priority || 'medium');
       setDateError(null);
       
       // Handle department which can be string, DepartmentRef, or null
@@ -157,10 +161,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setDepartment('');
       }
     } else {
-      // Create mode - reset form
+      // Create mode - reset form (including setting priority to medium)
       resetForm();
     }
-  }, [open, task, preSelectedDepartment, preSelectedUsers, pageContext]); // Removed users dependency
+  }, [open, task, preSelectedDepartment, preSelectedUsers, pageContext]);
   
   // Third effect: Update user assignments after users are loaded
   useEffect(() => {
@@ -226,6 +230,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       return;
     }
 
+    // No validation for collaborators in dashboard/personal context as they are optional
+
     setLoading(true);
     setError(null);
 
@@ -235,9 +241,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         title,
         description: description || '',
         due_date: toISOString(dueDate),
-        is_private: isPrivate,
         status: initialStatus || TaskStatus.PENDING,
         created_by: user?.id?.toString() || '',
+        priority, // Include priority in the taskData (it will be removed before sending to backend)
       };
 
       // Add context-specific fields
@@ -267,13 +273,15 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         await TaskService.updateTask(task.id, taskData);
       } else {
         // Create new task
+        // Copy taskData but exclude priority which isn't supported by the backend
+        const { priority: _, ...restTaskData } = taskData;
         const createTaskData = {
-          ...taskData,
-          context: taskData.context || 'personal',
+          ...restTaskData,
+          context: restTaskData.context || 'personal',
           // Ensure assigned_to is always included
-          assigned_to: taskData.assigned_to || []
+          assigned_to: restTaskData.assigned_to || []
         };
-        console.log('Creating task with data:', createTaskData);
+        console.log('Creating task with data (excluding priority):', createTaskData);
         await TaskService.createTask(createTaskData as CreateTask);
       }
 
@@ -410,6 +418,25 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             </FormHelperText>
           )}
           
+          {/* Priority selector */}
+          <TextField
+            select
+            label="Priority"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as TaskPriority)}
+            fullWidth
+            InputLabelProps={{
+              style: glassStyles.inputLabel
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': glassStyles.input,
+            }}
+          >
+            <MenuItem value="low">Low</MenuItem>
+            <MenuItem value="medium">Medium</MenuItem>
+            <MenuItem value="high">High</MenuItem>
+          </TextField>
+          
           {/* Show department selector only when in department context */}
           {(pageContext === 'department') && (
             <TextField
@@ -481,7 +508,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Collaborators"
+                  label="Collaborators (Optional)"
                   placeholder="Add collaborators (optional)"
                   InputLabelProps={{
                     style: glassStyles.inputLabel

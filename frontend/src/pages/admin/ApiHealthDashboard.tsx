@@ -134,7 +134,7 @@ const ApiHealthDashboard: React.FC = () => {
   // Used for responsive design, will be used in future updates
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // User info is retrieved from Redux for authentication purposes
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useSelector((state: RootState) => state.auth);
@@ -786,4 +786,4 @@ const ApiHealthDashboard: React.FC = () => {
   );
 };
 
-export default ApiHealthDashboard; 
+export default ApiHealthDashboard;

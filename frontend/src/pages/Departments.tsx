@@ -54,7 +54,7 @@ const Departments: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);

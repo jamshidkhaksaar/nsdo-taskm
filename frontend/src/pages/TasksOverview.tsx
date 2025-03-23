@@ -87,7 +87,7 @@ const TasksOverview: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
@@ -823,4 +823,4 @@ const TasksOverview: React.FC = () => {
   );
 };
 
-export default TasksOverview; 
+export default TasksOverview;

@@ -37,12 +37,10 @@ export interface CreateTask {
   title: string;
   description: string;
   status: TaskStatus;
-  priority: TaskPriority;
   due_date: string;
-  created_by: string | null;
-  assigned_to: string[] | null;
-  department: string | DepartmentRef | null;
-  is_private: boolean;
+  created_by?: string | null;
+  assigned_to?: string[] | null;
+  department?: string | DepartmentRef | null;
   updated_at?: string;
   created_at?: string;
   context: TaskContext;

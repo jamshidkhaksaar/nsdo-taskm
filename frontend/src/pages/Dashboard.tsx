@@ -44,7 +44,7 @@ const Dashboard: React.FC = () => {
   const { isAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
   
   // Custom hooks
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showWeatherWidget, setShowWeatherWidget] = useState(true);
   const { error, handleError, clearError } = useErrorHandler();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -90,15 +90,22 @@ const Dashboard: React.FC = () => {
       // Log the API URL being used
       console.log('Using API URL:', axios.defaults.baseURL);
       
-      // Make the API request - use proper filters based on task type and createdById
+      // Determine if user is admin or general manager (who can see all tasks)
+      const isAdminOrManager = user?.role === 'admin' || user?.role === 'general_manager';
+      
+      // Make the API request with the appropriate parameters based on user role
       console.log('Making request to /api/tasks');
-      // We need to include all tasks, regardless of who created them or which department they belong to
-      const response = await axios.get('/api/tasks', {
-        params: {
-          // No filtering to get ALL tasks
-          include_all: true
-        }
-      });
+      let params: any = {};
+      
+      if (isAdminOrManager) {
+        // Admin/managers see all tasks
+        params.include_all = true;
+      } else {
+        // Normal users see tasks they created or are assigned to
+        // We don't filter here but rely on the backend permissions
+      }
+      
+      const response = await axios.get('/api/tasks', { params });
       console.log('API response for tasks:', response.data);
       console.log('Response status:', response.status);
       
@@ -132,7 +139,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [clearError, handleError, dispatch, navigate]);
+  }, [clearError, handleError, dispatch, navigate, user]);
   
   // Initial data fetch
   useEffect(() => {
@@ -241,9 +248,7 @@ const Dashboard: React.FC = () => {
                 flexBasis: { xs: '100%', sm: '30%' },
                 minWidth: { xs: 'auto', sm: '250px' },
                 borderRadius: 2,
-                overflow: 'hidden',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
+                overflow: 'hidden'
               }}>
                 <WeatherWidget compact={true} />
               </Box>
@@ -253,9 +258,7 @@ const Dashboard: React.FC = () => {
             <Box sx={{ 
               flexGrow: 1,
               borderRadius: 2,
-              overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
+              overflow: 'hidden'
             }}>
               <TaskSummary tasks={tasks} compact={true} />
             </Box>

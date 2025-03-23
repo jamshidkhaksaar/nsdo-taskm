@@ -136,8 +136,6 @@ describe('TaskService', () => {
         description: 'New Description',
         status: 'pending' as TaskStatus,
         due_date: '2023-12-31',
-        is_private: true,
-        priority: 'medium',
         created_by: 'user1',
         assigned_to: [],
         department: null,
@@ -149,6 +147,7 @@ describe('TaskService', () => {
         id: '123',
         ...newTask,
         status: 'TODO', // Backend status
+        is_private: false, // Can remain in response but not in the request
         created_at: '2023-01-01',
         updated_at: '2023-01-01',
       };

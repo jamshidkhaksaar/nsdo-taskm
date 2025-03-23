@@ -107,7 +107,7 @@ const DepartmentManagement: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<AdminDepartment | null>(null);
@@ -980,4 +980,4 @@ const DepartmentManagement: React.FC = () => {
   );
 };
 
-export default DepartmentManagement; 
+export default DepartmentManagement;
