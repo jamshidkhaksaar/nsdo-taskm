@@ -139,16 +139,22 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
   
   // Function to get appropriate weather icon based on condition code
   const getWeatherIcon = () => {
-    if (!weather) return <CloudIcon fontSize="large" sx={{ color: '#3498db' }} />;
+    if (!weather) return <CloudIcon sx={{ color: '#3498db', fontSize: { xs: 28, sm: 32 } }} />;
     
     // Check if icon is a URL (from the API's icon field)
     if (typeof weather.icon === 'string' && weather.icon.includes('//')) {
       return (
-        <Box sx={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ 
+          width: { xs: 28, sm: 32 }, 
+          height: { xs: 28, sm: 32 }, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center' 
+        }}>
           <img 
             src={`https:${weather.icon}`} 
             alt={weather.condition}
-            style={{ width: 24, height: 24 }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         </Box>
       );
@@ -161,19 +167,19 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
       
       // Sunny conditions (1000 = clear, 1003 = partly cloudy)
       if (conditionCode === 1000) {
-        return <WbSunnyIcon fontSize="large" sx={{ color: '#f39c12' }} />;
+        return <WbSunnyIcon sx={{ color: '#f39c12', fontSize: { xs: 28, sm: 32 } }} />;
       }
       // Snow conditions (1066, 1114, 1117, 1210 etc.)
       else if ([1066, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1255, 1258].includes(conditionCode)) {
-        return <AcUnitIcon fontSize="large" sx={{ color: '#ecf0f1' }} />;
+        return <AcUnitIcon sx={{ color: '#ecf0f1', fontSize: { xs: 28, sm: 32 } }} />;
       }
       // Rain conditions (1063, 1180, 1183 etc.)
       else if ([1063, 1150, 1153, 1180, 1183, 1186, 1189, 1192, 1195, 1240, 1243, 1246].includes(conditionCode)) {
-        return <BeachAccessIcon fontSize="large" sx={{ color: '#3498db' }} />;
+        return <BeachAccessIcon sx={{ color: '#3498db', fontSize: { xs: 28, sm: 32 } }} />;
       }
       // Storm conditions (1087, 1273, 1276 etc.)
       else if ([1087, 1273, 1276, 1279, 1282].includes(conditionCode)) {
-        return <ThunderstormIcon fontSize="large" sx={{ color: '#9b59b6' }} />;
+        return <ThunderstormIcon sx={{ color: '#9b59b6', fontSize: { xs: 28, sm: 32 } }} />;
       }
     } catch (e) {
       // If parsing as a number fails, just use default icon
@@ -181,7 +187,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
     }
     
     // Default to cloudy for all other conditions
-    return <CloudIcon fontSize="large" sx={{ color: '#bdc3c7' }} />;
+    return <CloudIcon sx={{ color: '#bdc3c7', fontSize: { xs: 28, sm: 32 } }} />;
   };
   
   return (
@@ -193,20 +199,68 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
         borderRadius: '8px',
         overflow: 'hidden',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        // Removed duplicate border
         border: 'none'
       }}
     >
+      {compact ? (
+        // Compact view for smaller spaces
+        <Box sx={{ 
+          p: { xs: 1.25, sm: 1.5 }, 
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Stack direction="row" spacing={1.25} alignItems="center">
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {getWeatherIcon()}
+            </Box>
+            <Typography 
+              variant="subtitle2" 
+              sx={{ 
+                fontWeight: 600, 
+                color: '#fff',
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                letterSpacing: '0.01em'
+              }}
+            >
+              {weather?.temperature}°C
+            </Typography>
+          </Stack>
+          
+          {weather && (
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.85)',
+                fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                letterSpacing: '0.01em',
+                ml: 1
+              }}
+            >
+              {weather.location.split(',')[0]}
+            </Typography>
+          )}
+        </Box>
+      ) : (
       <Box sx={{ 
-        p: { xs: 1, sm: 1.5 },
+        p: { xs: 1.5, sm: 2 },
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexDirection: { xs: 'column', sm: 'row' },
-        gap: { xs: 1, sm: 0 }
+        gap: { xs: 1.5, sm: 0 }
       }}>
         <Stack direction="row" spacing={1} alignItems="center">
-          <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 500 }}>
+          <Typography 
+            variant="subtitle1" 
+            sx={{ 
+              color: '#fff', 
+              fontWeight: 600,
+              letterSpacing: '0.01em',
+              fontSize: { xs: '0.9rem', sm: '1rem' }
+            }}
+          >
             Weather
           </Typography>
           <Button 
@@ -219,6 +273,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
               color: 'rgba(255, 255, 255, 0.7)',
               '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' }
             }}
+            aria-label="Refresh weather data"
           >
             <RefreshIcon fontSize="small" />
           </Button>
@@ -226,42 +281,96 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
           
         {loading ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CircularProgress size={16} sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-              Loading...
+            <CircularProgress size={16} sx={{ color: 'rgba(255, 255, 255, 0.8)' }} />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.8)', 
+                fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.8rem' }
+              }}
+            >
+              Retrieving weather data...
             </Typography>
           </Box>
         ) : error ? (
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              fontWeight: 500,
+              fontSize: { xs: '0.75rem', sm: '0.8rem' }
+            }}
+          >
             {error}
           </Typography>
         ) : weather ? (
-          <Stack direction="row" spacing={2} alignItems="center" divider={<Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />}>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <LocationOnIcon sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }} />
-              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          <Stack 
+            direction={{ xs: 'column', sm: 'row' }} 
+            spacing={{ xs: 1.5, sm: 2 }} 
+            alignItems="center" 
+            divider={<Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.15)', display: { xs: 'none', sm: 'block' } }} />}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <LocationOnIcon sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: { xs: 16, sm: 18 } }} />
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.9)', 
+                  fontWeight: 500,
+                  fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                  letterSpacing: '0.01em'
+                }}
+              >
                 {weather.location}
               </Typography>
             </Stack>
             
-            <Stack direction="row" spacing={1} alignItems="center">
-              {getWeatherIcon()}
-              <Stack direction="row" spacing={0.5} alignItems="baseline">
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#fff' }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ ml: { xs: 0, sm: 1 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {getWeatherIcon()}
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="baseline">
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600, 
+                    color: '#fff',
+                    fontSize: { xs: '1rem', sm: '1.1rem' },
+                    letterSpacing: '0.02em'
+                  }}
+                >
                   {weather.temperature}°C
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    fontWeight: 500,
+                    fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   {weather.condition}
                 </Typography>
               </Stack>
             </Stack>
           </Stack>
         ) : (
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-            Weather data unavailable
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              fontWeight: 500,
+              fontSize: { xs: '0.75rem', sm: '0.8rem' }
+            }}
+          >
+            Weather information unavailable
           </Typography>
         )}
       </Box>
+      )}    
     </Box>
   );
 };
