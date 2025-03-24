@@ -79,6 +79,51 @@ const getPriorityColor = (priority: string, theme: any): string => {
   }
 };
 
+// Get color for status
+const getStatusColor = (status: string, theme: any): string => {
+  switch (status.toLowerCase()) {
+    case 'pending':
+      return theme.palette.warning.main;
+    case 'in_progress':
+      return theme.palette.info.main;
+    case 'completed':
+      return theme.palette.success.main;
+    case 'cancelled':
+      return theme.palette.grey[500];
+    default:
+      return theme.palette.grey[500];
+  }
+};
+
+// Helper function to generate consistent avatar colors
+function stringToColor(string: string) {
+  let hash = 0;
+  let i;
+
+  for (i = 0; i < string.length; i += 1) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  let color = '#';
+
+  for (i = 0; i < 3; i += 1) {
+    const value = (hash >> (i * 8)) & 0xff;
+    color += `00${value.toString(16)}`.slice(-2);
+  }
+
+  return color;
+}
+
+const getUserDisplayName = async (userId: string): Promise<string> => {
+  try {
+    const user = await UserService.getUserById(userId);
+    return user?.name || user?.username || 'Unknown User';
+  } catch (error) {
+    console.error('Error getting user display name:', error);
+    return 'Unknown User';
+  }
+};
+
 // Task Column Component
 interface TaskColumnProps {
   title: string;
@@ -87,7 +132,7 @@ interface TaskColumnProps {
   onEditTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
   onChangeTaskStatus?: (taskId: string, newStatus: TaskStatus) => Promise<boolean> | void;
-  getUserName: (userId: string) => string;
+  getUserName: (userId: string) => Promise<string>;
   theme: any;
 }
 
@@ -101,52 +146,27 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
   getUserName,
   theme
 }) => {
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return theme.palette.warning.main;
-      case 'in_progress':
-        return theme.palette.info.main;
-      case 'completed':
-        return theme.palette.success.main;
-      default:
-        return theme.palette.grey[500];
-    }
-  };
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return formatDistanceToNow(date, { addSuffix: true });
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
-    }
-  };
-
   return (
     <Box
       sx={{
+        height: '100%',
+        bgcolor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 1.5,
+        p: 1.5,
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: 2,
-        p: 1,
-        height: '100%',
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="h6" sx={{ color: getStatusColor(status), fontWeight: 'bold', fontSize: '1rem' }}>
+        <Typography variant="h6" sx={{ color: getStatusColor(status, theme), fontWeight: 'bold', fontSize: '1rem' }}>
           {title}
         </Typography>
         <Chip 
           label={tasks.length} 
           size="small" 
           sx={{ 
-            bgcolor: alpha(getStatusColor(status), 0.2),
-            color: getStatusColor(status),
+            bgcolor: alpha(getStatusColor(status, theme), 0.2),
+            color: getStatusColor(status, theme),
             fontWeight: 'bold',
             height: '20px',
             '& .MuiChip-label': {
@@ -160,34 +180,30 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         flexGrow: 1, 
         overflowY: 'auto',
         minHeight: 0,
+        '&::-webkit-scrollbar': {
+          width: '6px'
+        },
+        '&::-webkit-scrollbar-track': {
+          background: 'rgba(0,0,0,0.1)'
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: 'rgba(255,255,255,0.1)',
+          borderRadius: '3px'
+        }
       }}>
-        {tasks.map((task, index) => (
-          <TaskCard 
+        {tasks.map(task => (
+          <TaskCard
             key={task.id}
             task={task}
-            statusColor={getStatusColor(status)}
+            statusColor={getStatusColor(status, theme)}
             onEdit={onEditTask}
             onDelete={onDeleteTask}
             onChangeStatus={onChangeTaskStatus}
             getUserName={getUserName}
-            formatDate={formatDate}
+            formatDate={formatCompactDate}
             theme={theme}
           />
         ))}
-        {tasks.length === 0 && (
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            height: '100px',
-            opacity: 0.6
-          }}>
-            <Typography variant="body2" sx={{ textAlign: 'center', color: 'text.secondary' }}>
-              No tasks
-            </Typography>
-          </Box>
-        )}
       </Box>
     </Box>
   );
@@ -200,9 +216,9 @@ interface TaskCardProps {
   onEdit?: (taskId: string) => void;
   onDelete?: (taskId: string) => void;
   onChangeStatus?: (taskId: string, newStatus: TaskStatus) => Promise<boolean> | void;
-  getUserName: (userId: string) => string;
-  formatDate: (dateString: string) => string;
-  theme: any;
+  getUserName: (userId: string) => Promise<string>;
+  formatDate?: (dateString: string) => string;
+  theme?: any;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -212,9 +228,25 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onDelete,
   onChangeStatus,
   getUserName,
-  formatDate,
+  formatDate = formatCompactDate,
   theme
 }) => {
+  const [assigneeNames, setAssigneeNames] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    const loadUserNames = async () => {
+      if (task.assigned_to) {
+        const names: { [key: string]: string } = {};
+        for (const userId of task.assigned_to) {
+          names[userId] = await getUserName(userId);
+        }
+        setAssigneeNames(names);
+      }
+    };
+
+    loadUserNames();
+  }, [task.assigned_to, getUserName]);
+
   // Function to safely render action buttons based on current status
   const renderActionButtons = () => {
     // Ensure task has a valid status
@@ -461,12 +493,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
               }}>
                 {task.assigned_to.map((userId) => (
                   userId && (
-                    <Tooltip key={userId} title={getUserName(userId)}>
+                    <Tooltip key={userId} title={assigneeNames[userId] || 'Loading...'}>
                       <Avatar 
-                        alt={getUserName(userId)} 
-                        sx={{ bgcolor: stringToColor(getUserName(userId)) }}
+                        alt={assigneeNames[userId] || 'Loading...'}
+                        sx={{ bgcolor: stringToColor(assigneeNames[userId] || 'Unknown') }}
                       >
-                        {getUserName(userId).charAt(0).toUpperCase()}
+                        {(assigneeNames[userId] || '?').charAt(0).toUpperCase()}
                       </Avatar>
                     </Tooltip>
                   )
@@ -512,25 +544,6 @@ const TaskCard: React.FC<TaskCardProps> = ({
   );
 };
 
-// Helper function to generate consistent avatar colors
-function stringToColor(string: string) {
-  let hash = 0;
-  let i;
-
-  for (i = 0; i < string.length; i += 1) {
-    hash = string.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  let color = '#';
-
-  for (i = 0; i < 3; i += 1) {
-    const value = (hash >> (i * 8)) & 0xff;
-    color += `00${value.toString(16)}`.slice(-2);
-  }
-
-  return color;
-}
-
 const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   tasks = [],
   loading = false,
@@ -543,33 +556,16 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   onError
 }) => {
   const theme = useTheme();
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [internalError, setInternalError] = useState<string | null>(null);
-  
-  // Validate tasks and filter out invalid ones
-  const validTasks = tasks.filter(task => {
-    // Check if task has the minimal required properties
-    if (!task || typeof task !== 'object') return false;
-    if (!task.id) return false;
-    
-    // Task must have a valid status
-    if (!task.status || !Object.values(TaskStatus).includes(task.status)) {
-      console.warn(`Task ${task.id} has invalid status: ${task.status}`);
-      // We'll include it but fix the status
-      task.status = TaskStatus.PENDING;
-    }
-    
-    return true;
-  });
-  
+
   // Group tasks by status with validation
   const groupedTasks = {
-    pending: validTasks.filter(task => task.status === TaskStatus.PENDING),
-    in_progress: validTasks.filter(task => task.status === TaskStatus.IN_PROGRESS),
-    completed: validTasks.filter(task => task.status === TaskStatus.COMPLETED),
-    cancelled: validTasks.filter(task => task.status === TaskStatus.CANCELLED)
+    pending: tasks.filter(task => task.status === TaskStatus.PENDING),
+    in_progress: tasks.filter(task => task.status === TaskStatus.IN_PROGRESS),
+    completed: tasks.filter(task => task.status === TaskStatus.COMPLETED),
+    cancelled: tasks.filter(task => task.status === TaskStatus.CANCELLED)
   };
-  
+
   // Map status to display names
   const statusMap: Record<string, string> = {
     pending: 'To Do',
@@ -577,113 +573,32 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     completed: 'Completed',
     cancelled: 'Cancelled'
   };
-  
-  // Fetch users with error handling
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setInternalError(null);
-        const response = await UserService.getUsers();
-        
-        if (!response || !Array.isArray(response)) {
-          throw new Error('Invalid response from UserService');
-        }
-        
-        // Fix the mapping to ensure we only keep valid user objects
-        const usersList = response
-          .map((user: any) => {
-            // Ensure user object has required properties
-            if (!user || !user.id) {
-              return null;
-            }
-            
-            return {
-              id: user.id.toString(),
-              name: user.first_name && user.last_name 
-                ? `${user.first_name} ${user.last_name}`
-                : user.username || user.name || 'Unknown User'
-            };
-          })
-          .filter((user): user is { id: string; name: string } => user !== null); // Type predicate to filter out nulls
-        
-        setUsers(usersList);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        setInternalError('Failed to load user information');
-        if (onError) onError(error);
-      }
-    };
-    
-    fetchUsers();
-  }, [onError]);
-  
-  // Handle task status change with improved error handling
-  const handleTaskStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    if (!taskId) {
-      console.error('Cannot change status: Invalid task ID');
-      setInternalError('Cannot update task: Missing task ID');
-      return false;
-    }
-    
-    if (!newStatus || !Object.values(TaskStatus).includes(newStatus)) {
-      console.error(`Cannot change to invalid status: ${newStatus}`);
-      setInternalError(`Invalid status: ${newStatus}`);
-      return false;
-    }
-    
-    try {
-      setInternalError(null);
-      
-      if (onChangeTaskStatus) {
-        const success = await onChangeTaskStatus(taskId, newStatus);
-        if (success && onTaskUpdate) {
-          onTaskUpdate(taskId, { status: newStatus });
-        }
-        return success;
-      }
-      
-      // Default implementation if no callback provided
-      const updatedTask = await TaskService.updateTask(taskId, { status: newStatus });
-      if (onTaskUpdate) {
-        onTaskUpdate(taskId, updatedTask);
-      }
-      return true;
-    } catch (error) {
-      console.error('Error changing task status:', error);
-      setInternalError(`Failed to update task status: ${(error as Error).message || 'Unknown error'}`);
-      if (onError) onError(error);
-      return false;
-    }
-  };
-  
-  // Get user name by ID with error handling
-  const getUserName = (userId: string) => {
-    if (!userId) return 'Unknown User';
-    
-    try {
-      const user = users.find(u => u.id === userId);
-      return user ? user.name : 'Unknown User';
-    } catch (error) {
-      console.error('Error getting user name:', error);
-      return 'Unknown User';
-    }
-  };
-  
-  // Handle new task creation
-  const handleCreateTask = (status: TaskStatus) => {
-    if (onCreateTask) {
-      onCreateTask(status);
-    }
-  };
-  
+
   return (
     <Box sx={{ 
       width: '100%', 
       height: '100%', 
       display: 'flex', 
-      flexDirection: 'column' 
+      flexDirection: 'column',
+      bgcolor: 'rgba(255, 255, 255, 0.03)',
+      borderRadius: '16px',
+      border: '1px solid',
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 0 1px rgba(255, 255, 255, 0.1)', // Adds subtle depth
+      p: 2,
+      position: 'relative',
+      '&::after': {  // This adds an additional border effect
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        pointerEvents: 'none'
+      }
     }}>
-      {/* Header with Add Task button */}
       <Box sx={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -691,7 +606,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
         mb: 2
       }}>
         <Typography variant="h6" sx={{ 
-          color: '#fff',  // Changed from 'text.primary' to '#fff'
+          color: '#fff',
           fontWeight: 500 
         }}>
           Task Board
@@ -714,15 +629,22 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
         )}
       </Box>
 
-      {/* Error alert */}
       {(error || internalError) && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error || internalError}
         </Alert>
       )}
-      
-      {/* Kanban board grid */}
-      <Grid container spacing={1} sx={{ flexGrow: 1, height: 'calc(100% - 40px)' }}>
+
+      <Grid 
+        container 
+        spacing={2}
+        sx={{ 
+          flexGrow: 1,
+          m: 0,
+          width: '100%',
+          height: 'calc(100% - 48px)',
+        }}
+      >
         {Object.entries(groupedTasks).map(([status, tasksInStatus]) => (
           <Grid 
             item 
@@ -730,17 +652,20 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
             sm={6} 
             md={status === 'cancelled' ? 6 : 4} 
             lg={3} 
-            key={status} 
-            sx={{ height: { xs: '400px', sm: '100%' } }}
+            key={status}
+            sx={{ 
+              height: '100%',
+              maxHeight: '100%',
+            }}
           >
             <TaskColumn
-              title={statusMap[status] || status}
+              title={statusMap[status]}
               tasks={tasksInStatus}
               status={status}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
-              onChangeTaskStatus={handleTaskStatusChange}
-              getUserName={getUserName}
+              onChangeTaskStatus={onChangeTaskStatus}
+              getUserName={getUserDisplayName}
               theme={theme}
             />
           </Grid>

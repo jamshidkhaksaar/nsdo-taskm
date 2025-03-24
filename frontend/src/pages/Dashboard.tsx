@@ -271,14 +271,27 @@ const Dashboard: React.FC = () => {
             sx={{
               flexGrow: 1,
               display: 'flex',
-              p: { xs: 1, sm: 1.5 },
-              borderRadius: 2,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              bgcolor: 'rgba(255, 255, 255, 0.02)',
-              minHeight: '300px', // Minimum height for smaller screens
-              height: { xs: 'auto', md: 'calc(100vh - 200px)' }, // Responsive height calculation
-              maxHeight: 'calc(100vh - 200px)', // Maximum height to avoid overflow
+              height: { xs: 'auto', md: 'calc(100vh - 200px)' },
+              maxHeight: 'calc(100vh - 200px)',
+              minHeight: '300px',
+              overflowY: 'auto', // Add scroll to the container
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'rgba(255, 255, 255, 0.05)',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'rgba(255, 255, 255, 0.2)',
+                borderRadius: '4px',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.3)',
+                },
+              },
+              // Add padding to prevent border clipping
+              p: 1,
+              // Ensure the scrollbar doesn't affect the layout
+              boxSizing: 'border-box',
             }}
           >
             {loading ? (
@@ -354,7 +367,7 @@ const Dashboard: React.FC = () => {
       display: 'flex', 
       flexDirection: 'column', 
       p: isTablet ? 1.5 : 2,
-      overflow: 'hidden'
+      // Remove any overflow properties here
     }}>
       <Box sx={{ 
         flexGrow: 1, 
@@ -362,18 +375,18 @@ const Dashboard: React.FC = () => {
         flexDirection: 'column', 
         gap: isTablet ? 1.5 : 2,
         height: '100%',
-        overflow: 'hidden'
+        // Remove any overflow properties here
       }}>
         <Box sx={{ 
           flexBasis: '45%', 
           flexGrow: 0, 
           minHeight: isTablet ? '200px' : '250px',
-          overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           borderRadius: 2,
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          // Remove any overflow properties here
         }}>
           <ActivityFeed />
         </Box>
@@ -381,12 +394,12 @@ const Dashboard: React.FC = () => {
           flexBasis: '55%', 
           flexGrow: 1, 
           minHeight: isTablet ? '180px' : '200px',
-          overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           borderRadius: 2,
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          // Remove any overflow properties here
         }}>
           <NotesWidget />
         </Box>
