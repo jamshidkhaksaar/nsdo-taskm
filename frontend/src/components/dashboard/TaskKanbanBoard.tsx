@@ -84,7 +84,6 @@ interface TaskColumnProps {
   title: string;
   tasks: Task[];
   status: string;
-  onAddTask?: (status: TaskStatus) => void;
   onEditTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
   onChangeTaskStatus?: (taskId: string, newStatus: TaskStatus) => Promise<boolean> | void;
@@ -96,7 +95,6 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
   title,
   tasks,
   status,
-  onAddTask,
   onEditTask,
   onDeleteTask,
   onChangeTaskStatus,
@@ -157,32 +155,12 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
           }} 
         />
       </Box>
-      
-      <Box
-        sx={{
-          flexGrow: 1,
-          overflow: 'auto',
-          '&::-webkit-scrollbar': {
-            width: status === 'pending' ? '4px' : 
-                  status === 'in_progress' ? '4px' : 
-                  status === 'completed' ? '4px' : '4px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'rgba(0,0,0,0.05)',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            background: status === 'pending' ? alpha(theme.palette.warning.main, 0.3) : 
-                      status === 'in_progress' ? alpha(theme.palette.info.main, 0.3) : 
-                      status === 'completed' ? alpha(theme.palette.success.main, 0.3) : 'rgba(255,255,255,0.1)',
-            borderRadius: '4px',
-            '&:hover': {
-              background: status === 'pending' ? alpha(theme.palette.warning.main, 0.5) : 
-                        status === 'in_progress' ? alpha(theme.palette.info.main, 0.5) : 
-                        status === 'completed' ? alpha(theme.palette.success.main, 0.5) : 'rgba(255,255,255,0.2)',
-            },
-          },
-        }}
-      >
+
+      <Box sx={{ 
+        flexGrow: 1, 
+        overflowY: 'auto',
+        minHeight: 0,
+      }}>
         {tasks.map((task, index) => (
           <TaskCard 
             key={task.id}
@@ -208,41 +186,9 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
             <Typography variant="body2" sx={{ textAlign: 'center', color: 'text.secondary' }}>
               No tasks
             </Typography>
-            {onAddTask && (
-              <Button 
-                startIcon={<AddIcon />}
-                onClick={() => onAddTask(status as TaskStatus)}
-                sx={{ mt: 1, fontSize: '0.75rem' }}
-                size="small"
-              >
-                Add task
-              </Button>
-            )}
           </Box>
         )}
       </Box>
-      
-      {tasks.length > 0 && onAddTask && (
-        <Button
-          startIcon={<AddIcon />}
-          onClick={() => onAddTask(status as TaskStatus)}
-          sx={{ 
-            mt: 1, 
-            alignSelf: 'flex-start',
-            fontSize: '0.75rem',
-            color: getStatusColor(status),
-            borderColor: alpha(getStatusColor(status), 0.5),
-            '&:hover': {
-              borderColor: getStatusColor(status),
-              backgroundColor: alpha(getStatusColor(status), 0.1),
-            }
-          }}
-          size="small"
-          variant="outlined"
-        >
-          Add task
-        </Button>
-      )}
     </Box>
   );
 };
@@ -737,6 +683,37 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
       display: 'flex', 
       flexDirection: 'column' 
     }}>
+      {/* Header with Add Task button */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        mb: 2
+      }}>
+        <Typography variant="h6" sx={{ 
+          color: '#fff',  // Changed from 'text.primary' to '#fff'
+          fontWeight: 500 
+        }}>
+          Task Board
+        </Typography>
+        {onCreateTask && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => onCreateTask(TaskStatus.PENDING)}
+            sx={{
+              bgcolor: 'primary.main',
+              '&:hover': {
+                bgcolor: 'primary.dark',
+              },
+            }}
+            size="small"
+          >
+            Add Task
+          </Button>
+        )}
+      </Box>
+
       {/* Error alert */}
       {(error || internalError) && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -760,7 +737,6 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
               title={statusMap[status] || status}
               tasks={tasksInStatus}
               status={status}
-              onAddTask={handleCreateTask}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
               onChangeTaskStatus={handleTaskStatusChange}

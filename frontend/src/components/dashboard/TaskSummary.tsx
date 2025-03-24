@@ -8,7 +8,7 @@ import { Task } from '../../types/task';
 
 interface TaskSummaryProps {
   tasks: Task[];
-  compact?: boolean;
+  compact?: boolean;  // Added compact prop
 }
 
 const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => {
@@ -38,49 +38,49 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
         backgroundColor: 'rgba(30, 41, 59, 0.8)',
         borderRadius: '8px',
         overflow: 'hidden',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        border: 'none',
         p: { xs: 1.25, sm: 1.5 },
-        height: { xs: 'auto', sm: '100%' },
-        minHeight: { xs: 'auto', sm: 'auto' },
+        height: compact ? 'auto' : '100%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'all 0.2s ease-in-out',
-        '&:hover': {
-          boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)',
-          transform: 'translateY(-2px)'
-        }
       }}
     >
       <Stack 
         direction={{ xs: 'column', sm: 'row' }} 
-        divider={<Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />}
-        spacing={2}
+        spacing={compact ? 1.5 : 2}
+        divider={<Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.15)' }} />}
         alignItems="center"
         justifyContent="space-between"
         flexWrap="wrap"
-        sx={{ width: '100%' }}
+        sx={{ 
+          width: '100%',
+          py: compact ? 0.5 : 1,
+        }}
       >
         <Box sx={{ 
           minWidth: 120, 
           width: { xs: '100%', sm: 'auto' }, 
           mb: { xs: 1, sm: 0 },
-          textAlign: { xs: 'center', sm: 'left' },
+          textAlign: 'center',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          alignItems: 'center'
         }}>
           <Typography 
             variant="subtitle1" 
             sx={{ 
               color: '#fff', 
-              fontWeight: 600, 
+              fontWeight: 600,
+              fontSize: { xs: '0.9rem', sm: '1rem' },
+              letterSpacing: '0.01em',
               mb: 0.5,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              letterSpacing: '0.015em'
+              textAlign: 'center'
             }}
           >
             Task Summary
@@ -95,7 +95,7 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               px: 1,
               py: 0.25,
               width: 'fit-content',
-              mx: { xs: 'auto', sm: 0 }
+              mx: 'auto'
             }}
           >
             <Typography 
@@ -103,6 +103,8 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               sx={{ 
                 color: 'rgba(255, 255, 255, 0.8)',
                 fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                letterSpacing: '0.01em',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
@@ -116,14 +118,16 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
         <Stack 
           direction="row" 
           spacing={{ xs: 2, sm: 3 }}
-          divider={<Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />} 
+          divider={<Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.15)' }} />} 
           flexWrap="wrap" 
           justifyContent="space-evenly"
           alignItems="center"
           sx={{ 
             overflow: 'visible',
             px: 2,
-            py: 0.75
+            py: 0.75,
+            height: '100%',
+            display: 'flex'
           }}
         >
           {/* Pending */}
@@ -135,8 +139,7 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               py: 0.75, 
               px: 1, 
               borderRadius: 1,
-              transition: 'all 0.2s',
-              '&:hover': { bgcolor: 'rgba(243, 156, 18, 0.08)' }
+              // Removed hover effect to match WeatherWidget
             }}
           >
             <Box 
@@ -153,19 +156,30 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               <PendingIcon sx={{ color: '#f39c12', fontSize: 16 }} />
             </Box>
             <Stack>
-              <Typography variant="body2" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  letterSpacing: '0.01em',
+                  lineHeight: 1.2 
+                }}
+              >
                 {pendingCount}
               </Typography>
               <Typography 
                 variant="caption" 
                 sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                  letterSpacing: '0.01em',
                   lineHeight: 1,
                   whiteSpace: 'nowrap',
                   overflow: 'visible',
                   textOverflow: 'clip',
                   minWidth: { xs: '70px', sm: '80px' },
-                  fontSize: '0.7rem',
                   textAlign: 'center'
                 }}
               >
@@ -183,8 +197,7 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               py: 0.75, 
               px: 1, 
               borderRadius: 1,
-              transition: 'all 0.2s',
-              '&:hover': { bgcolor: 'rgba(155, 89, 182, 0.08)' }
+              // Removed hover effect to match WeatherWidget
             }}
           >
             <Box 
@@ -201,19 +214,30 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               <AccessTimeIcon sx={{ color: '#9b59b6', fontSize: 16 }} />
             </Box>
             <Stack>
-              <Typography variant="body2" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  letterSpacing: '0.01em',
+                  lineHeight: 1.2 
+                }}
+              >
                 {inProgressCount}
               </Typography>
               <Typography 
                 variant="caption" 
                 sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                  letterSpacing: '0.01em',
                   lineHeight: 1,
                   whiteSpace: 'nowrap',
                   overflow: 'visible',
                   textOverflow: 'clip',
                   minWidth: { xs: '60px', sm: '70px' },
-                  fontSize: '0.7rem',
                   textAlign: 'center'
                 }}
               >
@@ -231,8 +255,7 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               py: 0.75, 
               px: 1, 
               borderRadius: 1,
-              transition: 'all 0.2s',
-              '&:hover': { bgcolor: 'rgba(46, 204, 113, 0.08)' }
+              // Removed hover effect to match WeatherWidget
             }}
           >
             <Box 
@@ -249,19 +272,30 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               <CheckCircleIcon sx={{ color: '#2ecc71', fontSize: 16 }} />
             </Box>
             <Stack>
-              <Typography variant="body2" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  letterSpacing: '0.01em',
+                  lineHeight: 1.2 
+                }}
+              >
                 {completedCount}
               </Typography>
               <Typography 
                 variant="caption" 
                 sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                  letterSpacing: '0.01em',
                   lineHeight: 1,
                   whiteSpace: 'nowrap',
                   overflow: 'visible',
                   textOverflow: 'clip',
                   minWidth: { xs: '60px', sm: '70px' },
-                  fontSize: '0.7rem',
                   textAlign: 'center'
                 }}
               >
@@ -279,8 +313,7 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               py: 0.75, 
               px: 1, 
               borderRadius: 1,
-              transition: 'all 0.2s',
-              '&:hover': { bgcolor: 'rgba(231, 76, 60, 0.08)' }
+              // Removed hover effect to match WeatherWidget
             }}
           >
             <Box 
@@ -297,19 +330,30 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
               <CancelIcon sx={{ color: '#e74c3c', fontSize: 16 }} />
             </Box>
             <Stack>
-              <Typography variant="body2" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  letterSpacing: '0.01em',
+                  lineHeight: 1.2 
+                }}
+              >
                 {cancelledCount}
               </Typography>
               <Typography 
                 variant="caption" 
                 sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                  letterSpacing: '0.01em',
                   lineHeight: 1,
                   whiteSpace: 'nowrap',
                   overflow: 'visible',
                   textOverflow: 'clip',
                   minWidth: { xs: '60px', sm: '70px' },
-                  fontSize: '0.7rem',
                   textAlign: 'center'
                 }}
               >
