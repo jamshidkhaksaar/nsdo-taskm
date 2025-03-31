@@ -6,7 +6,6 @@ import {
   Typography,
   TextField,
   InputAdornment,
-  Paper,
   CircularProgress,
   Alert,
   Box,
@@ -25,13 +24,10 @@ import {
   MenuItem,
   Container,
   useTheme,
-  useMediaQuery,
   Button,
   Tooltip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -68,7 +64,6 @@ interface ActivityLogResponse {
 
 const ActivityLogs: React.FC = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -86,12 +81,10 @@ const ActivityLogs: React.FC = () => {
   const [targetFilter, setTargetFilter] = useState<string>('all');
   const [totalRows, setTotalRows] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
-  const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
-  const [filterUserId, setFilterUserId] = useState<string>('');
 
   useEffect(() => {
     fetchLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, statusFilter, actionFilter, targetFilter]);
 
   const fetchLogs = async () => {

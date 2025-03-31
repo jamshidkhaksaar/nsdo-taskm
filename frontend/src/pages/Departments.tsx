@@ -5,13 +5,7 @@ import {
   Box,
   Container,
   Grid,
-  IconButton,
-  Badge,
   Avatar,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  CircularProgress,
   Typography,
   useTheme,
   useMediaQuery,
@@ -25,19 +19,13 @@ import {
   Divider,
   AvatarGroup,
 } from '@mui/material';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import WorkIcon from '@mui/icons-material/Work';
 import PeopleIcon from '@mui/icons-material/People';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import Sidebar from '../components/Sidebar';
 import DepartmentList from '../components/departments/DepartmentList';
-import DepartmentSummary from '../components/departments/DepartmentSummary';
 import TasksSection from '../components/departments/TasksSection';
-import Footer from '../components/Footer';
 import { Task } from '../types/task';
 import { DepartmentService } from '../services/department';
 import { TaskService } from '../services/task';
@@ -51,13 +39,11 @@ const DRAWER_WIDTH = 240;
 
 const Departments: React.FC = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   // State for data
   const [departments, setDepartments] = useState<any[]>([]);
@@ -72,6 +58,7 @@ const Departments: React.FC = () => {
   // Fetch departments and tasks
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDepartment]);
 
   const fetchData = async () => {
@@ -116,10 +103,6 @@ const Departments: React.FC = () => {
 
   const handleProfileClick = () => {
     navigate('/profile');
-  };
-
-  const handleProfileClose = () => {
-    setAnchorEl(null);
   };
 
   const handleSettingsClick = () => {

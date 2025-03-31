@@ -16,16 +16,9 @@ import {
   Divider,
   Avatar,
   Tooltip,
-  AvatarGroup,
   Fab,
   LinearProgress,
-  IconButton,
-  Badge,
-  CircularProgress,
 } from '@mui/material';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
 import EmailIcon from '@mui/icons-material/Email';
@@ -34,7 +27,6 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import Sidebar from '../components/Sidebar';
 import UserList from '../components/users/UserList';
-import UserSummary from '../components/users/UserSummary';
 import TasksSection from '../components/departments/TasksSection';
 import { Task } from '../types/task';
 import { UserService } from '../services/user';
@@ -49,7 +41,6 @@ const DRAWER_WIDTH = 240;
 
 const Users: React.FC = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -58,8 +49,6 @@ const Users: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const openMenu = Boolean(anchorEl);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -68,6 +57,7 @@ const Users: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {

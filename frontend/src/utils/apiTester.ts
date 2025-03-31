@@ -237,4 +237,6 @@ export class ApiTester {
   }
 }
 
-export default new ApiTester(); 
+// Create a named instance before exporting
+const apiTesterInstance = new ApiTester();
+export default apiTesterInstance; 

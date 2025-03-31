@@ -23,7 +23,6 @@ import BackupIcon from '@mui/icons-material/Backup';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import ChecklistIcon from '@mui/icons-material/Checklist';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';

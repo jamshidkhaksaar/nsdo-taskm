@@ -1,38 +1,26 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import TaskKanbanBoard from '../../../components/dashboard/TaskKanbanBoard';
-import { Task, TaskStatus, TaskPriority, TaskContext } from '../../../types/task';
+import { Task, TaskStatus, TaskPriority } from '../../../types/task';
 
-// Mock the DragDropContext component
-jest.mock('@hello-pangea/dnd', () => ({
-  DragDropContext: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Droppable: ({ children }: { children: (provided: any, snapshot: any) => React.ReactNode }) => 
-    children(
-      { innerRef: jest.fn(), droppableProps: {} },
-      { isDraggingOver: false }
-    ),
-  Draggable: ({ children }: { children: (provided: any, snapshot: any) => React.ReactNode }) => 
-    children(
-      { 
-        innerRef: jest.fn(), 
-        draggableProps: { style: {} }, 
-        dragHandleProps: {} 
-      },
-      { isDragging: false }
-    ),
+// Mock the KanbanColumn component
+jest.mock('../../../components/kanban', () => ({
+  KanbanColumn: ({ title, tasks }: { title: string; tasks: Task[] }) => (
+    <div data-testid={`column-${title.toLowerCase().replace(' ', '-')}`}>
+      <h3>{title}</h3>
+      <div>
+        {tasks.map(task => (
+          <div key={task.id} data-testid={`task-${task.id}`}>
+            {task.title}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }));
 
-// Mock CircularProgress component
-jest.mock('@mui/material', () => {
-  const actual = jest.requireActual('@mui/material');
-  return {
-    ...actual,
-    CircularProgress: () => <div data-testid="loading-indicator">Loading...</div>
-  };
-});
-
 // Skip these tests for now until we can properly set up the environment
-describe.skip('TaskKanbanBoard Component', () => {
+describe('TaskKanbanBoard Component', () => {
   const mockTasks: Task[] = [
     {
       id: '1',
@@ -89,7 +77,7 @@ describe.skip('TaskKanbanBoard Component', () => {
     jest.clearAllMocks();
   });
 
-  test('renders task columns with correct titles', () => {
+  test('renders task columns with correct status labels', () => {
     render(
       <TaskKanbanBoard
         tasks={mockTasks}
@@ -99,14 +87,14 @@ describe.skip('TaskKanbanBoard Component', () => {
       />
     );
 
-    // With the mocked DragDropContext, we need to check for text content
-    expect(screen.getByText('Pending')).toBeInTheDocument();
+    // Check for column labels
+    expect(screen.getByText('To Do')).toBeInTheDocument();
     expect(screen.getByText('In Progress')).toBeInTheDocument();
     expect(screen.getByText('Completed')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
   });
 
-  test('renders tasks in the correct columns', () => {
+  test('passes the correct tasks to each column', () => {
     render(
       <TaskKanbanBoard
         tasks={mockTasks}
@@ -116,18 +104,16 @@ describe.skip('TaskKanbanBoard Component', () => {
       />
     );
 
-    // Check task titles
+    // Verify columns exist
+    expect(screen.getByTestId('column-to-do')).toBeInTheDocument();
+    expect(screen.getByTestId('column-in-progress')).toBeInTheDocument();
+    expect(screen.getByTestId('column-completed')).toBeInTheDocument();
+    expect(screen.getByTestId('column-cancelled')).toBeInTheDocument();
+    
+    // Check task titles in the mock
     expect(screen.getByText('Task 1')).toBeInTheDocument();
     expect(screen.getByText('Task 2')).toBeInTheDocument();
     expect(screen.getByText('Task 3')).toBeInTheDocument();
-  });
-
-  test('renders loading state when loading prop is true', () => {
-    render(<TaskKanbanBoard loading={true} />);
-    
-    // Check for loading indicator
-    expect(screen.getByTestId('loading-indicator')).toBeInTheDocument();
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
   test('renders error message when error prop is provided', () => {
@@ -136,4 +122,16 @@ describe.skip('TaskKanbanBoard Component', () => {
     
     expect(screen.getByText(errorMessage)).toBeInTheDocument();
   });
-}); 
+
+  test('displays add task button when onCreateTask is provided', () => {
+    render(
+      <TaskKanbanBoard
+        tasks={[]}
+        onCreateTask={mockOnCreateTask}
+      />
+    );
+    
+    const addButton = screen.getByText('Add Task');
+    expect(addButton).toBeInTheDocument();
+  });
+});

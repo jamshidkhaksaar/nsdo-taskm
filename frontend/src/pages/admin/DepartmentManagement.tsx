@@ -3,7 +3,6 @@ import {
   Grid,
   Card,
   CardContent,
-  CardHeader,
   CardActions,
   Typography,
   Button,
@@ -34,22 +33,17 @@ import {
   useMediaQuery,
   Divider,
   Chip,
-  LinearProgress,
   Tabs,
   Tab,
-  Badge,
   Fade,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import GroupIcon from '@mui/icons-material/Group';
-import PeopleIcon from '@mui/icons-material/People';
 import AddIcon from '@mui/icons-material/Add';
 import BusinessIcon from '@mui/icons-material/Business';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import PersonIcon from '@mui/icons-material/Person';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
 import axios from '../../utils/axios';
@@ -104,7 +98,6 @@ const DRAWER_WIDTH = 240;
 
 const DepartmentManagement: React.FC = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -126,7 +119,6 @@ const DepartmentManagement: React.FC = () => {
     isEdit: false,
     departmentId: null
   });
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [tabValue, setTabValue] = useState(0);
   const glassStyles = getGlassmorphismStyles(theme);
   
@@ -230,6 +222,7 @@ const DepartmentManagement: React.FC = () => {
       
       refreshDepartmentData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openMembersDialog, selectedDepartment?.id]);
 
   const handleAddDepartment = async () => {

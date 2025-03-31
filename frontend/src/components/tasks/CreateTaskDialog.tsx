@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import {
   Dialog,
@@ -12,19 +12,9 @@ import {
   Autocomplete,
   MenuItem,
   useTheme,
-  FormControl,
-  InputLabel,
   Select,
-  Grid,
   IconButton,
-  CircularProgress,
-  Typography,
-  FormControlLabel,
-  Checkbox,
   Alert,
-  Chip,
-  Divider,
-  InputAdornment,
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -35,7 +25,7 @@ import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
-import { isValidDueDate, parseDate, toISOString } from '../../utils/dateUtils';
+import { isValidDueDate } from '../../utils/dateUtils';
 
 interface CreateTaskDialogProps {
   open: boolean;

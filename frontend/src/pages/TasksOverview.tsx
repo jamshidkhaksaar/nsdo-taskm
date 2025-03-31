@@ -9,7 +9,6 @@ import {
   Paper,
   Card,
   CardContent,
-  Divider,
   Button,
   Tooltip,
   Tabs,
@@ -21,10 +20,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Menu,
-  MenuItem,
   Fab,
-  AvatarGroup,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -32,14 +28,10 @@ import {
   Business as BusinessIcon,
   Assessment as AssessmentIcon,
   Add as AddIcon,
-  FilterList as FilterListIcon,
   MoreVert as MoreVertIcon,
   CheckCircle as CheckCircleIcon,
   DonutLarge as DonutLargeIcon,
   ErrorOutline as ErrorOutlineIcon,
-  ArrowUpward as ArrowUpwardIcon,
-  ArrowDownward as ArrowDownwardIcon,
-  PieChart as PieChartIcon,
 } from '@mui/icons-material';
 import Sidebar from '../components/Sidebar';
 import { Task, DepartmentRef } from '../types/task';
@@ -101,7 +93,6 @@ const TasksOverview: React.FC = () => {
   const [notifications, setNotifications] = useState(3);
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
-  const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
@@ -255,20 +246,12 @@ const TasksOverview: React.FC = () => {
     setTabValue(newValue);
   };
   
-  const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setFilterAnchorEl(event.currentTarget);
-  };
-  
-  const handleFilterClose = () => {
-    setFilterAnchorEl(null);
-  };
-  
   const handleDepartmentView = (deptId: string) => {
-    navigate(`/departments?id=${deptId}`);
+    navigate(`/departments`);
   };
   
   const handleUserView = (userId: string) => {
-    navigate(`/users?id=${userId}`);
+    navigate(`/users`);
   };
 
   // Create chart data for tasks by status
