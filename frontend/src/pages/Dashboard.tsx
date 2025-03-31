@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Button, Grid } from '@mui/material';
+import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Button, Grid, Typography } from '@mui/material';
 
 // Custom Components
 import Sidebar from '../components/Sidebar';
@@ -18,6 +18,11 @@ import TaskSummary from '../components/dashboard/TaskSummary';
 import TaskKanbanBoard from '../components/dashboard/TaskKanbanBoard';
 import NotesWidget from '../components/dashboard/NotesWidget';
 import ActivityFeed from '../components/dashboard/ActivityFeed';
+import CompletionRateChart from '../components/dashboard/CompletionRateChart';
+import ProductivityMetrics from '../components/dashboard/ProductivityMetrics';
+import TaskDistributionChart from '../components/dashboard/TaskDistributionChart';
+import TaskRecommendations from '../components/dashboard/TaskRecommendations';
+import CustomizableDashboard from '../components/dashboard/CustomizableDashboard';
 
 // Custom Hooks
 import { useTasks } from '../hooks/useTasks';
@@ -234,13 +239,13 @@ const Dashboard: React.FC = () => {
         flexDirection: 'column'
       }}
     >
-      <Grid container spacing={1} sx={{ mb: 1 }}>
+      <Grid container spacing={2}>
         {/* Top row with Weather Widget and Task Summary */}
         <Grid item xs={12}>
           <Box sx={{ 
             display: 'flex', 
             flexDirection: { xs: 'column', sm: 'row' }, 
-            gap: 1,
+            gap: 2,
           }}>
             {/* Weather Widget (conditionally shown) */}
             {showWeatherWidget && (
@@ -264,34 +269,44 @@ const Dashboard: React.FC = () => {
             </Box>
           </Box>
         </Grid>
+
+        {/* Analytics Section */}
+        <Grid item xs={12}>
+          <Typography variant="h5" sx={{ color: '#fff', mb: 2, fontWeight: 500 }}>
+            Productivity Analytics
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ height: '300px' }}>
+                <ProductivityMetrics period="weekly" />
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ height: '300px' }}>
+                <TaskDistributionChart />
+              </Box>
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Task Recommendations */}
+        <Grid item xs={12} md={5}>
+          <TaskRecommendations />
+        </Grid>
         
-        {/* Task Kanban Board - takes remaining space */}
-        <Grid item xs={12} sx={{ flexGrow: 1, display: 'flex' }}>
+        {/* Kanban Board */}
+        <Grid item xs={12} md={7} sx={{ flexGrow: 1, display: 'flex' }}>
           <Box
             sx={{
               flexGrow: 1,
               display: 'flex',
-              height: { xs: 'auto', md: 'calc(100vh - 200px)' },
-              maxHeight: 'calc(100vh - 200px)',
+              height: { xs: 'auto', md: '500px' },
+              maxHeight: '500px',
               minHeight: '300px',
-              overflowY: 'auto', // Add scroll to the container
-              '&::-webkit-scrollbar': {
-                width: '8px',
-              },
-              '&::-webkit-scrollbar-track': {
-                background: 'rgba(255, 255, 255, 0.05)',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '4px',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.3)',
-                },
-              },
-              // Add padding to prevent border clipping
-              p: 1,
-              // Ensure the scrollbar doesn't affect the layout
-              boxSizing: 'border-box',
+              overflow: 'hidden',
+              borderRadius: '16px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
             }}
           >
             {loading ? (
@@ -321,6 +336,18 @@ const Dashboard: React.FC = () => {
               />
             )}
           </Box>
+        </Grid>
+
+        {/* Customizable Dashboard Section - Hidden on mobile */}
+        <Grid item xs={12} sx={{ display: { xs: 'none', lg: 'block' }, mt: 3 }}>
+          <CustomizableDashboard>
+            {{
+              'completion-rate': <CompletionRateChart />,
+              'productivity-metrics': <ProductivityMetrics period="weekly" />,
+              'task-distribution': <TaskDistributionChart />,
+              'task-recommendations': <TaskRecommendations />
+            }}
+          </CustomizableDashboard>
         </Grid>
       </Grid>
       

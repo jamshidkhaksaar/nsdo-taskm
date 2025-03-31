@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -10,6 +10,9 @@ import {
   Button,
   IconButton,
   useTheme,
+  Menu,
+  MenuItem,
+  Tooltip,
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -17,9 +20,10 @@ import {
   Business as BusinessIcon,
   AccessTime as AccessTimeIcon,
   PriorityHigh as PriorityHighIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { Task, TaskPriority } from '../../types/task';
+import { Task, TaskPriority, TaskStatus } from '../../types/task';
 import { useTaskPermissions } from '../../hooks/useTaskPermissions';
 import { User } from '../../types/user';
 import { Department } from '../../services/department';
@@ -85,6 +89,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 }) => {
   const theme = useTheme();
   const permissions = useTaskPermissions(task);
+  const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
   
   // Format due date
   const formattedDueDate = task.due_date 
@@ -108,6 +113,25 @@ const TaskCard: React.FC<TaskCardProps> = ({
       case 'in_progress': return theme.palette.warning.main;
       case 'cancelled': return theme.palette.error.main;
       default: return theme.palette.info.main;
+    }
+  };
+
+  // Get status label
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'in_progress': return 'In Progress';
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      default: return status.charAt(0).toUpperCase() + status.slice(1);
+    }
+  };
+  
+  // Handle status change
+  const handleStatusChange = (newStatus: string) => {
+    setStatusAnchorEl(null);
+    if (onStatusChange) {
+      onStatusChange(task.id, newStatus);
     }
   };
   
@@ -163,13 +187,48 @@ const TaskCard: React.FC<TaskCardProps> = ({
         
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
           <Chip 
-            label={task.status.charAt(0).toUpperCase() + task.status.slice(1)} 
+            label={getStatusLabel(task.status)}
             size="small"
+            onClick={(e) => permissions.canManageStatus ? setStatusAnchorEl(e.currentTarget) : null}
             sx={{ 
               backgroundColor: getStatusColor(task.status),
-              color: '#fff'
+              color: '#fff',
+              cursor: permissions.canManageStatus ? 'pointer' : 'default',
+              '&:hover': permissions.canManageStatus ? {
+                opacity: 0.9
+              } : {}
             }} 
+            deleteIcon={permissions.canManageStatus ? <KeyboardArrowDownIcon /> : undefined}
+            onDelete={permissions.canManageStatus ? (e) => setStatusAnchorEl(e.currentTarget) : undefined}
           />
+          
+          <Menu
+            anchorEl={statusAnchorEl}
+            open={Boolean(statusAnchorEl)}
+            onClose={() => setStatusAnchorEl(null)}
+          >
+            {Object.values(TaskStatus).map((status) => (
+              <MenuItem
+                key={status}
+                onClick={() => handleStatusChange(status)}
+                sx={{
+                  minWidth: 120,
+                  backgroundColor: task.status === status ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
+                }}
+              >
+                <Box 
+                  sx={{ 
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    backgroundColor: getStatusColor(status),
+                    mr: 1
+                  }} 
+                />
+                {getStatusLabel(status)}
+              </MenuItem>
+            ))}
+          </Menu>
           
           <Chip 
             icon={<AccessTimeIcon />} 
@@ -255,30 +314,6 @@ const TaskCard: React.FC<TaskCardProps> = ({
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
-          )}
-          
-          {permissions.canManageStatus && onStatusChange && (
-            <>
-              {task.status !== 'completed' && (
-                <Button 
-                  size="small" 
-                  onClick={() => onStatusChange(task.id, 'completed')}
-                  sx={customStyles.button}
-                >
-                  Complete
-                </Button>
-              )}
-              
-              {task.status !== 'in_progress' && task.status !== 'completed' && (
-                <Button 
-                  size="small" 
-                  onClick={() => onStatusChange(task.id, 'in_progress')}
-                  sx={customStyles.button}
-                >
-                  Start
-                </Button>
-              )}
-            </>
           )}
         </CardActions>
       )}

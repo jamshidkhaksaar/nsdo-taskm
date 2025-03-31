@@ -57,8 +57,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   React.useEffect(() => {
     if (task) {
-      const newPriority = task.priority?.toLowerCase() as TaskPriority || 'medium';
-      const newStatus = task.status?.toLowerCase() as Task['status'] || 'todo';
+      const newPriority = task.priority || TaskPriority.MEDIUM;
+      const newStatus = task.status || TaskStatus.PENDING;
       
       // Only update if we're not in the middle of a priority change
       if (!currentTask.isUpdating) {
@@ -179,7 +179,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
-  const handleStatusChange = async (newStatus: Task['status']) => {
+  const handleStatusChange = async (newStatus: TaskStatus) => {
     try {
       console.log('Updating status to:', newStatus);
       setStatusAnchorEl(null);
@@ -243,6 +243,36 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  // Function to get a nicely formatted status label
+  const getStatusLabel = (status: TaskStatus): string => {
+    switch(status) {
+      case TaskStatus.PENDING:
+        return 'Pending';
+      case TaskStatus.IN_PROGRESS:
+        return 'In Progress';
+      case TaskStatus.COMPLETED:
+        return 'Completed';
+      case TaskStatus.CANCELLED:
+        return 'Cancelled';
+      default:
+        return 'Unknown Status';
+    }
+  };
+
+  // Function to get a nicely formatted priority label
+  const getPriorityLabel = (priority: TaskPriority): string => {
+    switch(priority) {
+      case TaskPriority.LOW:
+        return 'Low';
+      case TaskPriority.MEDIUM:
+        return 'Medium';
+      case TaskPriority.HIGH:
+        return 'High';
+      default:
+        return 'Unknown Priority';
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -300,45 +330,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
                 onClose={() => setAnchorEl(null)}
-                PaperProps={{
-                  sx: {
-                    background: 'rgba(30, 30, 30, 0.95)',
-                    backdropFilter: 'blur(8px)',
-                    border: '1px solid rgba(255, 255, 255, 0.18)',
-                    color: '#fff',
-                    '& .MuiMenuItem-root': {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      color: '#fff',
-                      padding: '8px 16px',
-                      '&:hover': {
-                        background: 'rgba(255, 255, 255, 0.1)',
-                      },
-                    },
-                  }
-                }}
               >
-                {['low', 'medium', 'high'].map((p) => (
+                {Object.values(TaskPriority).map((priority) => (
                   <MenuItem
-                    key={p}
-                    onClick={() => handlePriorityChange(p as TaskPriority)}
+                    key={priority}
+                    onClick={() => handlePriorityChange(priority)}
                     sx={{
                       minWidth: 120,
-                      borderRadius: '4px',
-                      margin: '2px 4px',
+                      backgroundColor: currentTask.priority === priority ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
                     }}
                   >
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        bgcolor: p === 'high' ? 'error.main' :
-                                p === 'medium' ? 'warning.main' : 'success.main',
-                      }}
-                    />
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
                   </MenuItem>
                 ))}
               </Menu>
@@ -368,33 +370,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 anchorEl={statusAnchorEl}
                 open={Boolean(statusAnchorEl)}
                 onClose={() => setStatusAnchorEl(null)}
-                PaperProps={{
-                  sx: {
-                    background: 'rgba(30, 30, 30, 0.95)',
-                    backdropFilter: 'blur(8px)',
-                    border: '1px solid rgba(255, 255, 255, 0.18)',
-                    color: '#fff',
-                    '& .MuiMenuItem-root': {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      color: '#fff',
-                      padding: '8px 16px',
-                      '&:hover': {
-                        background: 'rgba(255, 255, 255, 0.1)',
-                      },
-                    },
-                  }
-                }}
               >
-                {['pending', 'in_progress', 'completed', 'cancelled'].map((status) => (
+                {Object.values(TaskStatus).map((status) => (
                   <MenuItem
                     key={status}
-                    onClick={() => handleStatusChange(status as Task['status'])}
+                    onClick={() => handleStatusChange(status)}
                     sx={{
                       minWidth: 120,
                       borderRadius: '4px',
                       margin: '2px 4px',
+                      backgroundColor: currentTask.status === status ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
                     }}
                   >
                     <Box
@@ -403,12 +388,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         height: 8,
                         borderRadius: '50%',
                         bgcolor:
-                          status === 'completed' ? '#4caf50' :
-                          status === 'in_progress' ? 'warning.main' :
-                          status === 'cancelled' ? 'error.main' : 'info.main',
+                          status === TaskStatus.COMPLETED ? '#4caf50' :
+                          status === TaskStatus.IN_PROGRESS ? 'warning.main' :
+                          status === TaskStatus.CANCELLED ? 'error.main' : 'info.main',
+                        mr: 1
                       }}
                     />
-                    {status.replace('_', ' ').toUpperCase()}
+                    {getStatusLabel(status)}
                   </MenuItem>
                 ))}
               </Menu>

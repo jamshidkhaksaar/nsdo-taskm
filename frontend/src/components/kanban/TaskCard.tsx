@@ -8,11 +8,14 @@ import {
   alpha,
   Avatar,
   AvatarGroup,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { Task, TaskStatus } from '../../types/task';
 import TaskStatusBadge from './TaskStatusBadge';
@@ -29,6 +32,59 @@ interface TaskCardProps {
   theme: any;
 }
 
+// Function to get a nicely formatted status label
+const getStatusLabel = (status: string): string => {
+  switch(status) {
+    case TaskStatus.PENDING:
+      return 'Pending';
+    case TaskStatus.IN_PROGRESS:
+      return 'In Progress';
+    case TaskStatus.COMPLETED:
+      return 'Completed';
+    case TaskStatus.CANCELLED:
+      return 'Cancelled';
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+};
+
+// Function to get status color
+const getStatusColor = (status: string): string => {
+  switch(status) {
+    case TaskStatus.PENDING:
+      return '#3498db';
+    case TaskStatus.IN_PROGRESS:
+      return '#f39c12';
+    case TaskStatus.COMPLETED:
+      return '#2ecc71';
+    case TaskStatus.CANCELLED:
+      return '#e74c3c';
+    default:
+      return '#3498db';
+  }
+};
+
+// Function to generate consistent colors from strings (userId)
+function stringToColor(string: string) {
+  let hash = 0;
+  let i;
+
+  /* eslint-disable no-bitwise */
+  for (i = 0; i < string.length; i += 1) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  let color = '#';
+
+  for (i = 0; i < 3; i += 1) {
+    const value = (hash >> (i * 8)) & 0xff;
+    color += `00${value.toString(16)}`.slice(-2);
+  }
+  /* eslint-enable no-bitwise */
+
+  return color;
+}
+
 const TaskCard: React.FC<TaskCardProps> = ({
   task,
   statusColor,
@@ -41,6 +97,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 }) => {
   const [assigneeNames, setAssigneeNames] = useState<{ [key: string]: string }>({});
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     const loadUserNames = async () => {
@@ -67,9 +124,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
   // Generate a darker shade of the status color for card border
   const borderColor = alpha(statusColor, 0.8);
 
-  // Handle status change (move to previous or next status)
+  // Handle status change from dropdown
   const handleStatusChange = async (newStatus: TaskStatus) => {
     if (onChangeStatus && !isChangingStatus) {
+      setStatusAnchorEl(null);
       setIsChangingStatus(true);
       try {
         await onChangeStatus(task.id, newStatus);
@@ -171,7 +229,55 @@ const TaskCard: React.FC<TaskCardProps> = ({
         {/* Task metadata */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <TaskStatusBadge status={task.status as TaskStatus} />
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                cursor: 'pointer', 
+                bgcolor: getStatusColor(task.status),
+                color: '#fff',
+                px: 1,
+                py: 0.5,
+                borderRadius: 1,
+                fontSize: '0.75rem',
+                fontWeight: 'medium',
+                '&:hover': {
+                  opacity: 0.9
+                }
+              }}
+              onClick={(e) => setStatusAnchorEl(e.currentTarget)}
+            >
+              {getStatusLabel(task.status)}
+              <KeyboardArrowDownIcon fontSize="small" sx={{ ml: 0.5 }} />
+            </Box>
+            
+            <Menu
+              anchorEl={statusAnchorEl}
+              open={Boolean(statusAnchorEl)}
+              onClose={() => setStatusAnchorEl(null)}
+            >
+              {Object.values(TaskStatus).map((status) => (
+                <MenuItem
+                  key={status}
+                  onClick={() => handleStatusChange(status)}
+                  sx={{
+                    minWidth: 120,
+                    backgroundColor: task.status === status ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
+                  }}
+                >
+                  <Box 
+                    sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%', 
+                      backgroundColor: getStatusColor(status),
+                      mr: 1
+                    }} 
+                  />
+                  {getStatusLabel(status)}
+                </MenuItem>
+              ))}
+            </Menu>
             
             {/* Show overdue warning if applicable */}
             {isOverdue(task.due_date) && (
@@ -213,10 +319,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
               ))}
             </AvatarGroup>
 
-            {/* Status change buttons */}
+            {/* Status change buttons (optional, in addition to dropdown) */}
             <Box sx={{ display: 'flex', gap: 1 }}>
               {previousStatus && (
-                <Tooltip title={`Move to ${previousStatus}`}>
+                <Tooltip title={`Move to ${getStatusLabel(previousStatus)}`}>
                   <IconButton
                     size="small"
                     onClick={() => handleStatusChange(previousStatus)}
@@ -229,7 +335,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
               )}
               
               {nextStatus && (
-                <Tooltip title={`Move to ${nextStatus}`}>
+                <Tooltip title={`Move to ${getStatusLabel(nextStatus)}`}>
                   <IconButton
                     size="small"
                     onClick={() => handleStatusChange(nextStatus)}
@@ -247,24 +353,5 @@ const TaskCard: React.FC<TaskCardProps> = ({
     </Card>
   );
 };
-
-// Helper function to generate consistent avatar colors
-function stringToColor(string: string) {
-  let hash = 0;
-  let i;
-
-  for (i = 0; i < string.length; i += 1) {
-    hash = string.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  let color = '#';
-
-  for (i = 0; i < 3; i += 1) {
-    const value = (hash >> (i * 8)) & 0xff;
-    color += `00${value.toString(16)}`.slice(-2);
-  }
-
-  return color;
-}
 
 export default TaskCard; 

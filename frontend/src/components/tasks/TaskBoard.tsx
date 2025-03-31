@@ -11,7 +11,9 @@ import {
   useTheme,
   alpha,
   Avatar,
-  Button
+  Button,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EditIcon from '@mui/icons-material/Edit';
@@ -22,6 +24,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DoneIcon from '@mui/icons-material/Done';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { format } from 'date-fns';
 import { Task, TaskStatus } from '../../types/task';
 import { User } from '../../types/user';
@@ -37,6 +40,38 @@ interface TaskBoardProps {
   onTaskUpdated?: (task: Task) => void;
 }
 
+// Function to get a nicely formatted status label
+const getStatusLabel = (status: string): string => {
+  switch(status) {
+    case TaskStatus.PENDING:
+      return 'Pending';
+    case TaskStatus.IN_PROGRESS:
+      return 'In Progress';
+    case TaskStatus.COMPLETED:
+      return 'Completed';
+    case TaskStatus.CANCELLED:
+      return 'Cancelled';
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+};
+
+// Function to get status color
+const getStatusColor = (status: string): string => {
+  switch(status) {
+    case TaskStatus.PENDING:
+      return '#3498db';
+    case TaskStatus.IN_PROGRESS:
+      return '#f39c12';
+    case TaskStatus.COMPLETED:
+      return '#2ecc71';
+    case TaskStatus.CANCELLED:
+      return '#e74c3c';
+    default:
+      return '#3498db';
+  }
+};
+
 const TaskCard: React.FC<{
   task: Task;
   index: number;
@@ -46,6 +81,7 @@ const TaskCard: React.FC<{
 }> = ({ task, index, onEdit, onDelete, onChangeStatus }) => {
   const theme = useTheme();
   const [collaborators, setCollaborators] = useState<User[]>([]);
+  const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     const fetchCollaborators = async () => {
@@ -65,119 +101,11 @@ const TaskCard: React.FC<{
     fetchCollaborators();
   }, [task.assigned_to]);
 
-  // Function to render status change buttons based on current status
-  const renderStatusButtons = () => {
-    switch (task.status) {
-      case TaskStatus.PENDING:
-        return (
-          <Tooltip title="Move to In Progress">
-            <IconButton
-              size="small"
-              onClick={() => onChangeStatus && onChangeStatus(task.id, TaskStatus.IN_PROGRESS)}
-              sx={{
-                color: '#3498db',
-                padding: '4px',
-                '&:hover': {
-                  backgroundColor: 'rgba(52, 152, 219, 0.1)'
-                }
-              }}
-            >
-              <PlayArrowIcon sx={{ fontSize: '1rem' }} />
-            </IconButton>
-          </Tooltip>
-        );
-      case TaskStatus.IN_PROGRESS:
-        return (
-          <Box sx={{ display: 'flex' }}>
-            <Tooltip title="Move to Pending">
-              <IconButton
-                size="small"
-                onClick={() => onChangeStatus && onChangeStatus(task.id, TaskStatus.PENDING)}
-                sx={{
-                  color: '#f39c12',
-                  padding: '4px',
-                  marginRight: '4px',
-                  '&:hover': {
-                    backgroundColor: 'rgba(243, 156, 18, 0.1)'
-                  }
-                }}
-              >
-                <ArrowBackIcon sx={{ fontSize: '1rem' }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Complete Task">
-              <IconButton
-                size="small"
-                onClick={() => onChangeStatus && onChangeStatus(task.id, TaskStatus.COMPLETED)}
-                sx={{
-                  color: '#2ecc71',
-                  padding: '4px',
-                  '&:hover': {
-                    backgroundColor: 'rgba(46, 204, 113, 0.1)'
-                  }
-                }}
-              >
-                <DoneIcon sx={{ fontSize: '1rem' }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        );
-      case TaskStatus.COMPLETED:
-        return (
-          <Box sx={{ display: 'flex' }}>
-            <Tooltip title="Move to In Progress">
-              <IconButton
-                size="small"
-                onClick={() => onChangeStatus && onChangeStatus(task.id, TaskStatus.IN_PROGRESS)}
-                sx={{
-                  color: '#3498db',
-                  padding: '4px',
-                  marginRight: '4px',
-                  '&:hover': {
-                    backgroundColor: 'rgba(52, 152, 219, 0.1)'
-                  }
-                }}
-              >
-                <ArrowBackIcon sx={{ fontSize: '1rem' }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Cancel Task">
-              <IconButton
-                size="small"
-                onClick={() => onChangeStatus && onChangeStatus(task.id, TaskStatus.CANCELLED)}
-                sx={{
-                  color: '#e74c3c',
-                  padding: '4px',
-                  '&:hover': {
-                    backgroundColor: 'rgba(231, 76, 60, 0.1)'
-                  }
-                }}
-              >
-                <CancelIcon sx={{ fontSize: '1rem' }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        );
-      case TaskStatus.CANCELLED:
-        return (
-          <Tooltip title="Move to Pending">
-            <IconButton
-              size="small"
-              onClick={() => onChangeStatus && onChangeStatus(task.id, TaskStatus.PENDING)}
-              sx={{
-                color: '#f39c12',
-                padding: '4px',
-                '&:hover': {
-                  backgroundColor: 'rgba(243, 156, 18, 0.1)'
-                }
-              }}
-            >
-              <ArrowForwardIcon sx={{ fontSize: '1rem' }} />
-            </IconButton>
-          </Tooltip>
-        );
-      default:
-        return null;
+  // Handle status change from dropdown
+  const handleStatusChange = (newStatus: TaskStatus) => {
+    setStatusAnchorEl(null);
+    if (onChangeStatus) {
+      onChangeStatus(task.id, newStatus);
     }
   };
 
@@ -236,6 +164,53 @@ const TaskCard: React.FC<{
                 fontSize: '0.75rem'
               }}
             />
+            
+            <Chip 
+              label={getStatusLabel(task.status)}
+              size="small"
+              onClick={(e) => setStatusAnchorEl(e.currentTarget)}
+              deleteIcon={<KeyboardArrowDownIcon />}
+              onDelete={(e) => setStatusAnchorEl(e.currentTarget)}
+              sx={{
+                backgroundColor: getStatusColor(task.status),
+                color: '#fff',
+                height: '20px',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                '&:hover': {
+                  opacity: 0.9
+                }
+              }}
+            />
+            
+            <Menu
+              anchorEl={statusAnchorEl}
+              open={Boolean(statusAnchorEl)}
+              onClose={() => setStatusAnchorEl(null)}
+            >
+              {Object.values(TaskStatus).map((status) => (
+                <MenuItem
+                  key={status}
+                  onClick={() => handleStatusChange(status)}
+                  sx={{
+                    minWidth: 120,
+                    backgroundColor: task.status === status ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
+                  }}
+                >
+                  <Box 
+                    sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%', 
+                      backgroundColor: getStatusColor(status),
+                      mr: 1
+                    }} 
+                  />
+                  {getStatusLabel(status)}
+                </MenuItem>
+              ))}
+            </Menu>
+            
             <Box sx={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -250,7 +225,6 @@ const TaskCard: React.FC<{
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1 }}>
-          {renderStatusButtons()}
           {onEdit && (
             <IconButton
               size="small"

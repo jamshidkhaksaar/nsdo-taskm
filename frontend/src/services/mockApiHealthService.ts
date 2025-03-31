@@ -1,10 +1,12 @@
 // Mock API health service to provide fallback data when the API is unavailable
 
 // Define types for API health data
+export type StatusType = 'success' | 'error' | 'warning' | 'pending' | 'unknown';
+
 export interface EndpointStatus {
   name: string;
   endpoint: string;
-  status: 'success' | 'error' | 'warning' | 'pending' | 'unknown';
+  status: StatusType;
   statusCode?: number;
   responseTime: number;
   message: string;

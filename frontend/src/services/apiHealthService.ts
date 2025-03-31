@@ -4,7 +4,8 @@ import {
   EndpointStatus, 
   GroupStatus, 
   SystemHealth, 
-  MockApiHealthService 
+  MockApiHealthService,
+  StatusType
 } from './mockApiHealthService';
 import { refreshAccessToken, getAccessToken } from '../utils/authUtils';
 
@@ -22,7 +23,7 @@ export const ApiHealthService = {
       console.log(`[ApiHealthService] Checking endpoint: ${endpointInfo.name}`);
       
       const startTime = performance.now();
-      let status: 'success' | 'error' | 'warning' | 'pending' | 'unknown' = 'unknown';
+      let status: StatusType = 'unknown';
       let statusCode = 0;
       let message = '';
       let response: any = null;
@@ -177,7 +178,7 @@ export const ApiHealthService = {
       }
       
       const endTime = performance.now();
-      let status: 'success' | 'error' | 'warning' | 'pending' | 'unknown' = 'error';
+      let status: StatusType = 'error';
       let message = '';
       let statusCode = 0;
       
@@ -267,11 +268,11 @@ export const ApiHealthService = {
       Object.keys(API_ENDPOINTS).forEach(groupKey => {
         results[groupKey] = {
           name: `${groupKey.charAt(0).toUpperCase() + groupKey.slice(1)} Endpoints`,
-          status: 'pending',
+          status: 'pending' as StatusType,
           endpoints: API_ENDPOINTS[groupKey].map((endpoint: any, index: number) => ({
             name: endpoint.name,
             endpoint: endpoint.endpoint,
-            status: 'pending',
+            status: 'pending' as StatusType,
             responseTime: 0,
             message: 'Pending check',
             lastChecked: new Date()

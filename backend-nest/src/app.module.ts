@@ -25,6 +25,7 @@ import { NotificationSettings } from './settings/entities/notification-settings.
 import { SecuritySettings } from './settings/entities/security-settings.entity';
 import { ActivityLog } from './admin/entities/activity-log.entity';
 import { Backup } from './backup/entities/backup.entity';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { Backup } from './backup/entities/backup.entity';
     ProfileModule,
     MailModule,
     NotesModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

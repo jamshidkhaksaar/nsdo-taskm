@@ -1,23 +1,62 @@
-import React from 'react';
-import { Box, Paper, Typography, Grid } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Paper, Typography, Grid, Snackbar, Alert } from '@mui/material';
 import { Task, TaskStatus } from '../../types/task';
 import TaskCard from '../tasks/TaskCard';
+import { TaskService } from '../../services/task';
 
 interface DepartmentKanbanBoardProps {
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
   currentUserId: number;
+  onTasksUpdated?: () => void;
 }
 
 const DepartmentKanbanBoard: React.FC<DepartmentKanbanBoardProps> = ({
   tasks,
   onTaskClick,
-  currentUserId
+  currentUserId,
+  onTasksUpdated
 }) => {
+  const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success' | 'error'}>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+
   // Filter tasks by status
   const pendingTasks = tasks.filter(task => task.status === TaskStatus.PENDING);
   const inProgressTasks = tasks.filter(task => task.status === TaskStatus.IN_PROGRESS);
   const completedTasks = tasks.filter(task => task.status === TaskStatus.COMPLETED);
+
+  // Handle status change
+  const handleStatusChange = async (taskId: string, newStatus: string) => {
+    try {
+      // Call API to update task status
+      await TaskService.updateTask(taskId, {
+        status: newStatus as TaskStatus,
+        updated_at: new Date().toISOString()
+      });
+      
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: 'Task status updated successfully',
+        severity: 'success'
+      });
+      
+      // Trigger refresh if callback is provided
+      if (onTasksUpdated) {
+        onTasksUpdated();
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to update task status',
+        severity: 'error'
+      });
+    }
+  };
 
   const renderColumn = (title: string, columnTasks: Task[], color: string) => (
     <Grid item xs={12} md={4}>
@@ -45,6 +84,7 @@ const DepartmentKanbanBoard: React.FC<DepartmentKanbanBoardProps> = ({
                 task={task}
                 onClick={() => onTaskClick && onTaskClick(task)}
                 currentUserId={currentUserId}
+                onStatusChange={handleStatusChange}
               />
             ))
           ) : (
@@ -79,6 +119,20 @@ const DepartmentKanbanBoard: React.FC<DepartmentKanbanBoardProps> = ({
         {renderColumn('In Progress', inProgressTasks, '#ff9800')}
         {renderColumn('Completed', completedTasks, '#4caf50')}
       </Grid>
+      
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={4000} 
+        onClose={() => setSnackbar({...snackbar, open: false})}
+      >
+        <Alert 
+          severity={snackbar.severity} 
+          variant="filled"
+          onClose={() => setSnackbar({...snackbar, open: false})}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

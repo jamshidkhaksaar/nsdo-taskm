@@ -134,8 +134,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setTitle(task.title);
       setDescription(task.description || '');
       setDueDate(task.due_date ? new Date(task.due_date) : new Date());
-      // Ensure priority is set from the task, defaulting to medium if not present
-      setPriority(task.priority || 'medium');
+      // Ensure priority is set from the task, defaulting to MEDIUM if not present
+      setPriority(task.priority || TaskPriority.MEDIUM);
       setDateError(null);
       
       // Handle department which can be string, DepartmentRef, or null

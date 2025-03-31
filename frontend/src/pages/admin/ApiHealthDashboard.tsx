@@ -33,6 +33,7 @@ import HelpIcon from '@mui/icons-material/Help';
 import axios from '../../utils/axios';
 import { refreshAccessToken } from '../../utils/authUtils';
 import { ApiHealthService } from '../../services/apiHealthService';
+import { StatusType } from '../../services/mockApiHealthService';
 import Sidebar from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useSelector, useDispatch } from 'react-redux';
@@ -65,9 +66,6 @@ const API_ENDPOINTS = {
     { name: 'Database Connection', endpoint: '/api/health', method: 'GET', requiresAuth: false, checkDatabaseStatus: true }
   ]
 };
-
-// Status types
-type StatusType = 'success' | 'error' | 'warning' | 'pending' | 'unknown';
 
 // Result interface
 interface EndpointResult {
@@ -282,11 +280,11 @@ const ApiHealthDashboard: React.FC = () => {
     Object.keys(API_ENDPOINTS).forEach(groupKey => {
       initialResults[groupKey] = {
         name: groupKey.charAt(0).toUpperCase() + groupKey.slice(1),
-        status: 'pending',
+        status: 'pending' as StatusType,
         endpoints: API_ENDPOINTS[groupKey as keyof typeof API_ENDPOINTS].map(endpoint => ({
           name: endpoint.name,
           endpoint: endpoint.endpoint,
-          status: 'pending',
+          status: 'pending' as StatusType,
           responseTime: 0,
           message: 'Not checked yet',
           lastChecked: new Date()
