@@ -51,6 +51,8 @@ import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
 import { TaskStatus } from '../types/task';
+import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title, TooltipItem } from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 
 const DRAWER_WIDTH = 240;
 
@@ -82,6 +84,9 @@ interface UserData {
   role: string;
 }
 
+// Register ChartJS components
+ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
+
 const TasksOverview: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -89,7 +94,7 @@ const TasksOverview: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentData, setDepartmentData] = useState<Department[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +123,7 @@ const TasksOverview: React.FC = () => {
     }
     
     fetchData();
-  }, []);
+  }, [navigate, user?.role]);
 
   const fetchData = async () => {
     try {
@@ -156,7 +161,7 @@ const TasksOverview: React.FC = () => {
         };
       });
       
-      setDepartments(departmentData);
+      setDepartmentData(departmentData);
       
       // Process user data
       const userData = usersResponse.map((u: any) => {
@@ -207,7 +212,7 @@ const TasksOverview: React.FC = () => {
       console.error('Error fetching data:', err);
       setError('Failed to load data. Please try again later.');
       setTasks([]);
-      setDepartments([]);
+      setDepartmentData([]);
       setUsers([]);
     } finally {
       setLoading(false);
@@ -274,14 +279,22 @@ const TasksOverview: React.FC = () => {
     { name: 'Cancelled', value: taskStats.cancelled, color: COLORS.cancelled },
   ];
   
-  // Create chart data for tasks by department
-  const departmentChartData = departments
-    .filter(dept => dept.taskCount > 0)
-    .map((dept, index) => ({
-      name: dept.name,
-      value: dept.taskCount,
-      color: COLORS.departments[index % COLORS.departments.length],
-    }));
+  // Enhanced chart data for departments with proper Chart.js formatting
+  const getDepartmentChartData = () => {
+    if (departmentData.length === 0) return { labels: [], datasets: [] };
+    
+    return {
+      labels: departmentData.map(dept => dept.name),
+      datasets: [
+        {
+          data: departmentData.map(dept => dept.taskCount),
+          backgroundColor: COLORS.departments.slice(0, departmentData.length),
+          borderColor: departmentData.map(() => 'rgba(255, 255, 255, 0.1)'),
+          borderWidth: 1,
+        }
+      ]
+    };
+  };
   
   // Create chart data for top performers
   const topPerformers = [...users]
@@ -289,11 +302,23 @@ const TasksOverview: React.FC = () => {
     .sort((a, b) => b.completionRate - a.completionRate)
     .slice(0, 5);
   
-  const topPerformersChartData = topPerformers.map((user, index) => ({
-    name: user.name,
-    value: user.completionRate,
-    color: COLORS.users[index % COLORS.users.length],
-  }));
+  // Enhanced chart data for top performers with proper Chart.js formatting
+  const getTopPerformersChartData = () => {
+    if (topPerformers.length === 0) return { labels: [], datasets: [] };
+    
+    return {
+      labels: topPerformers.map(user => user.name),
+      datasets: [
+        {
+          label: 'Completion Rate (%)',
+          data: topPerformers.map(user => user.completionRate),
+          backgroundColor: COLORS.users.slice(0, topPerformers.length),
+          borderColor: topPerformers.map(() => 'rgba(255, 255, 255, 0.1)'),
+          borderWidth: 1,
+        }
+      ]
+    };
+  };
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -488,6 +513,130 @@ const TasksOverview: React.FC = () => {
             </Box>
           </Paper>
           
+          {/* Analytics Section */}
+          <Paper elevation={0} sx={{ 
+            p: 3, 
+            mb: 3, 
+            bgcolor: 'rgba(30, 41, 59, 0.8)', 
+            borderRadius: 2,
+            border: '1px solid rgba(255, 255, 255, 0.12)'
+          }}>
+            <Typography variant="h5" mb={3} color="#fff" fontWeight="bold">
+              Analytics
+            </Typography>
+            
+            <Grid container spacing={3}>
+              {/* Department Task Distribution Chart */}
+              <Grid item xs={12} md={6}>
+                <Box p={2} sx={{ 
+                  bgcolor: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: 2,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <Typography variant="h6" color="#fff" mb={2}>
+                    Department Task Distribution
+                  </Typography>
+                  <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {departmentData.length > 0 ? (
+                      <Pie 
+                        data={getDepartmentChartData()} 
+                        options={{
+                          responsive: true,
+                          plugins: {
+                            legend: {
+                              position: 'right',
+                              labels: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                boxWidth: 15,
+                                padding: 15
+                              }
+                            },
+                            tooltip: {
+                              callbacks: {
+                                label: (context: TooltipItem<'pie'>) => {
+                                  const label = context.label || '';
+                                  const value = context.parsed || 0;
+                                  const total = departmentData.reduce((sum, dept) => sum + dept.taskCount, 0);
+                                  const percentage = Math.round((Number(value) / total) * 100);
+                                  return `${label}: ${value} tasks (${percentage}%)`;
+                                }
+                              }
+                            }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Typography color="text.secondary">No department data available</Typography>
+                    )}
+                  </Box>
+                </Box>
+              </Grid>
+              
+              {/* Top Performers Chart */}
+              <Grid item xs={12} md={6}>
+                <Box p={2} sx={{ 
+                  bgcolor: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: 2, 
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <Typography variant="h6" color="#fff" mb={2}>
+                    Top Performers
+                  </Typography>
+                  <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {topPerformers.length > 0 ? (
+                      <Bar 
+                        data={getTopPerformersChartData()} 
+                        options={{
+                          indexAxis: 'y',
+                          responsive: true,
+                          scales: {
+                            x: {
+                              max: 100,
+                              grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                              },
+                              ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                              }
+                            },
+                            y: {
+                              grid: {
+                                display: false
+                              },
+                              ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                              }
+                            }
+                          },
+                          plugins: {
+                            legend: {
+                              display: false
+                            },
+                            tooltip: {
+                              callbacks: {
+                                label: (context: TooltipItem<'bar'>) => {
+                                  return `Completion rate: ${Number(context.parsed.x).toFixed(1)}%`;
+                                }
+                              }
+                            }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Typography color="text.secondary">No performance data available</Typography>
+                    )}
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+          
           {/* Tabs Section */}
           <Paper 
             elevation={0}
@@ -541,7 +690,7 @@ const TasksOverview: React.FC = () => {
               {/* Departments Tab */}
               {tabValue === 0 && (
                 <Grid container spacing={3}>
-                  {departments.map((dept, index) => (
+                  {departmentData.map((dept, index) => (
                     <Grid item xs={12} sm={6} md={4} key={dept.id}>
                       <Card 
                         sx={{ 

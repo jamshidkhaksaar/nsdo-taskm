@@ -1,2 +1,0 @@
-# Collaborator Display Instructions
-Follow these steps to display collaborators at the bottom of task cards

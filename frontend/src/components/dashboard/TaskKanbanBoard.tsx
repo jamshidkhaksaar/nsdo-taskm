@@ -25,7 +25,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import { Task, TaskStatus } from '../../types/task';
+import { Task, TaskStatus, TaskPriority, TaskUpdate } from '../../types/task';
 import { formatDistanceToNow, format, differenceInDays } from 'date-fns';
 import { UserService } from '../../services/user';
 import { TaskService } from '../../services/task';
@@ -219,6 +219,7 @@ interface TaskCardProps {
   getUserName: (userId: string) => Promise<string>;
   formatDate?: (dateString: string) => string;
   theme?: any;
+  onTaskUpdate?: (updatedTask: Task) => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -229,7 +230,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onChangeStatus,
   getUserName,
   formatDate = formatCompactDate,
-  theme
+  theme,
+  onTaskUpdate
 }) => {
   const [assigneeNames, setAssigneeNames] = useState<{ [key: string]: string }>({});
 
@@ -374,6 +376,21 @@ const TaskCard: React.FC<TaskCardProps> = ({
       </Card>
     );
   }
+
+  const handlePriorityClick = async (priority: TaskPriority) => {
+    try {
+      const result = await TaskService.updateTask(task.id, {
+        priority,
+        updated_at: new Date().toISOString()
+      });
+
+      if (onTaskUpdate) {
+        onTaskUpdate(result);
+      }
+    } catch (error) {
+      console.error('Error updating priority:', error);
+    }
+  };
 
   return (
     <Card
@@ -528,13 +545,22 @@ const TaskCard: React.FC<TaskCardProps> = ({
             <Chip
               label={task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
               size="small"
+              onClick={() => {
+                const nextPriority = {
+                  [TaskPriority.LOW]: TaskPriority.MEDIUM,
+                  [TaskPriority.MEDIUM]: TaskPriority.HIGH,
+                  [TaskPriority.HIGH]: TaskPriority.LOW
+                }[task.priority] || TaskPriority.MEDIUM;
+                handlePriorityClick(nextPriority);
+              }}
               sx={{
                 height: 16,
                 fontSize: '0.6rem',
                 p: 0,
                 bgcolor: getPriorityColor(task.priority, theme),
                 color: '#fff',
-                flexShrink: 0
+                flexShrink: 0,
+                cursor: 'pointer'
               }}
             />
           )}
@@ -572,6 +598,23 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     in_progress: 'In Progress',
     completed: 'Completed',
     cancelled: 'Cancelled'
+  };
+
+  const handleTaskUpdate = async (taskId: string, updatedTask: Task) => {
+    try {
+      // Update local state
+      const updatedTasks = tasks.map(t => 
+        t.id === taskId ? updatedTask : t
+      );
+      
+      // Notify parent component
+      if (onTaskUpdate) {
+        await onTaskUpdate(taskId, updatedTask);
+      }
+    } catch (error) {
+      console.error('Error in handleTaskUpdate:', error);
+      setInternalError('Failed to update task');
+    }
   };
 
   return (
@@ -645,7 +688,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
           height: 'calc(100% - 48px)',
         }}
       >
-        {Object.entries(groupedTasks).map(([status, tasksInStatus]) => (
+        {Object.entries(groupedTasks).map(([status, statusTasks]) => (
           <Grid 
             item 
             xs={12} 
@@ -660,7 +703,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
           >
             <TaskColumn
               title={statusMap[status]}
-              tasks={tasksInStatus}
+              tasks={statusTasks}
               status={status}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}

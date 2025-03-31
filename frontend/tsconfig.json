@@ -19,7 +19,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
+    "jsx": "react",
     "baseUrl": "src",
     "paths": {
       "@/*": ["*"]
@@ -34,7 +34,8 @@
     "src/**/*",
     "src/types/images.d.ts",
     "src/types/particles.js.d.ts",
-    "src/types/service-worker.d.ts"
+    "src/types/service-worker.d.ts",
+    "src/types/hello-pangea__dnd.d.ts"
   ],
   "exclude": [
     "node_modules",

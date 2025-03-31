@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Task } from '../../types/task';
+import { Task, TaskStatus, TaskPriority } from '../../types/task';
 import { User } from '../../types/user';
 import {
   Tabs,
@@ -17,7 +17,6 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { format } from 'date-fns';
 import { TaskService } from '../../services/task';
-import { TaskPriority } from '../../types/task';
 import { CollaboratorAvatars } from './CollaboratorAvatars';
 import { AxiosError } from 'axios';
 import CreateTaskDialog from './CreateTaskDialog';
@@ -36,6 +35,10 @@ interface TaskItemProps {
   onTaskUpdated?: (task: Task) => void;
 }
 
+interface ExtendedTask extends Task {
+  isUpdating?: boolean;
+}
+
 const TaskItem: React.FC<TaskItemProps> = ({ 
   task, 
   onEditTask, 
@@ -45,10 +48,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [assignedUsers, setAssignedUsers] = React.useState<User[]>([]);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [statusAnchorEl, setStatusAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [currentTask, setCurrentTask] = React.useState<Task>({
+  const [currentTask, setCurrentTask] = React.useState<ExtendedTask>({
     ...task,
-    priority: task.priority?.toLowerCase() as TaskPriority || 'medium',
-    status: task.status?.toLowerCase() as Task['status'] || 'todo',
+    priority: task.priority || TaskPriority.MEDIUM,
+    status: task.status || TaskStatus.PENDING,
     isUpdating: false
   });
 

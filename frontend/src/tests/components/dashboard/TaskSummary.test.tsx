@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import TaskSummary from '../../../components/dashboard/TaskSummary';
-import { Task, TaskStatus } from '../../../types/task';
+import { Task, TaskStatus, TaskPriority } from '../../../types/task';
 
 describe('TaskSummary Component', () => {
   const mockTasks: Task[] = [
@@ -10,9 +10,10 @@ describe('TaskSummary Component', () => {
       title: 'Task 1',
       description: 'Description 1',
       status: TaskStatus.PENDING,
-      priority: 'high',
+      priority: TaskPriority.HIGH,
       due_date: '2023-12-01',
       created_at: '2023-11-01',
+      updated_at: '2023-11-01',
       is_private: false,
       department: 'Engineering',
       assigned_to: ['user1'],
@@ -24,9 +25,10 @@ describe('TaskSummary Component', () => {
       title: 'Task 2',
       description: 'Description 2',
       status: TaskStatus.PENDING,
-      priority: 'medium',
+      priority: TaskPriority.MEDIUM,
       due_date: '2023-12-02',
       created_at: '2023-11-02',
+      updated_at: '2023-11-02',
       is_private: false,
       department: 'Marketing',
       assigned_to: ['user2'],
@@ -38,9 +40,10 @@ describe('TaskSummary Component', () => {
       title: 'Task 3',
       description: 'Description 3',
       status: TaskStatus.IN_PROGRESS,
-      priority: 'low',
+      priority: TaskPriority.LOW,
       due_date: '2023-12-03',
       created_at: '2023-11-03',
+      updated_at: '2023-11-03',
       is_private: true,
       department: 'Sales',
       assigned_to: ['user3'],
@@ -52,9 +55,10 @@ describe('TaskSummary Component', () => {
       title: 'Task 4',
       description: 'Description 4',
       status: TaskStatus.COMPLETED,
-      priority: 'high',
+      priority: TaskPriority.HIGH,
       due_date: '2023-12-04',
       created_at: '2023-11-04',
+      updated_at: '2023-11-04',
       is_private: false,
       department: 'HR',
       assigned_to: ['user4'],
@@ -66,9 +70,10 @@ describe('TaskSummary Component', () => {
       title: 'Task 5',
       description: 'Description 5',
       status: TaskStatus.CANCELLED,
-      priority: 'medium',
+      priority: TaskPriority.MEDIUM,
       due_date: '2023-12-05',
       created_at: '2023-11-05',
+      updated_at: '2023-11-05',
       is_private: true,
       department: 'Finance',
       assigned_to: ['user5'],

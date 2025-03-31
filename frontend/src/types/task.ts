@@ -1,13 +1,16 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { User } from './user';
-
-export type TaskPriority = 'low' | 'medium' | 'high';
 export enum TaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled'
 }
+
+export enum TaskPriority {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high'
+}
+
 export type TaskContext = 'personal' | 'department' | 'user';
 
 export interface DepartmentRef {
@@ -19,45 +22,41 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  due_date: string;
-  priority: TaskPriority;
   status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string;
+  created_at: string;
+  updated_at: string;
   is_private: boolean;
-  department: string | DepartmentRef | null;
-  assigned_to: string[] | null;
-  created_by: string | null;
-  updated_at?: string;
-  created_at?: string;
-  isUpdating?: boolean;
-  comments?: Comment[];
+  department: string | { id: string; name: string } | null;
+  assigned_to: string[];
+  created_by: string;
   context: TaskContext;
 }
 
 export interface CreateTask {
   title: string;
-  description: string;
-  status: TaskStatus;
-  due_date: string;
-  created_by?: string | null;
-  assigned_to?: string[] | null;
-  department?: string | DepartmentRef | null;
-  updated_at?: string;
-  created_at?: string;
-  context: TaskContext;
+  description?: string;
+  status?: TaskStatus;
+  due_date?: string;
+  created_by?: string;
+  priority?: TaskPriority;
+  context?: TaskContext;
+  assigned_to?: string[];
+  department?: string | { id: string; name: string } | null;
+  is_private?: boolean;
 }
 
-// Add a type for task updates
 export interface TaskUpdate {
   title?: string;
   description?: string;
-  due_date?: string;
-  priority?: TaskPriority;
   status?: TaskStatus;
-  is_private?: boolean;
-  department?: string | DepartmentRef | null;
-  assigned_to?: string[] | null;
+  priority?: TaskPriority;
+  due_date?: string;
   updated_at?: string;
-  context?: TaskContext;
+  assigned_to?: string[];
+  department?: string | { id: string; name: string } | null;
+  is_private?: boolean;
 }
 
 export interface Comment {

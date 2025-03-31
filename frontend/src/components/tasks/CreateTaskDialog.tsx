@@ -30,7 +30,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { TaskService } from '../../services/task';
-import { CreateTask, Task, TaskStatus, TaskPriority } from '../../types/task';
+import { CreateTask, Task, TaskStatus, TaskPriority, TaskUpdate } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { Department, DepartmentService } from '../../services/department';
@@ -41,6 +41,7 @@ interface CreateTaskDialogProps {
   open: boolean;
   onClose: () => void;
   onTaskCreated: () => void;
+  onTaskUpdated?: (task: Task) => void;
   task?: Task;
   dialogType: 'personal' | 'assign'; // 'personal' for My Tasks, 'assign' for Assigned by Me
   initialStatus?: TaskStatus; // Add initialStatus prop
@@ -53,6 +54,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   open,
   onClose,
   onTaskCreated,
+  onTaskUpdated,
   task,
   dialogType,
   initialStatus,
@@ -69,13 +71,14 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [collaborators, setCollaborators] = useState<User[]>([]);
   const [isPrivate] = useState(false);
-  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [department, setDepartment] = useState<string>('');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Store the current page context - this will be set based on props
   const [pageContext, setPageContext] = useState<'dashboard' | 'department' | 'user'>(
@@ -90,15 +93,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const resetForm = () => {
     setTitle('');
     setDescription('');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0); // Set to 9 AM tomorrow
-    setDueDate(tomorrow);
-    setDateError(null);
-    setSelectedUsers([]);
+    setDueDate(null);
     setCollaborators([]);
     setDepartment('');
-    setPriority('medium');
+    setPriority(TaskPriority.MEDIUM);
   };
   
   // Split the effects to separate concerns
@@ -219,103 +217,77 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       return;
     }
 
-    // Validate based on context
+    // Validate department if in department context
     if (pageContext === 'department' && !department) {
       setError('Please select a department');
       return;
     }
 
+    // Validate user assignments if in user context
     if (pageContext === 'user' && selectedUsers.length === 0) {
-      setError('Please select at least one user to assign the task to');
+      setError('Please select at least one user to assign');
       return;
     }
-
-    // No validation for collaborators in dashboard/personal context as they are optional
 
     setLoading(true);
     setError(null);
 
     try {
-      // Base task data
-      const taskData: any = {
-        title,
-        description: description || '',
-        due_date: toISOString(dueDate),
-        status: initialStatus || TaskStatus.PENDING,
-        created_by: user?.id?.toString() || '',
-        priority, // Include priority in the taskData (it will be removed before sending to backend)
-      };
-
-      // Add context-specific fields
-      if (pageContext === 'dashboard') {
-        // Personal task with optional collaborators
-        taskData.context = 'personal';
-        // Make sure collaborators is always an array of strings (user IDs)
-        taskData.assigned_to = collaborators.map(user => user.id.toString());
-      } else if (pageContext === 'department') {
-        // Department task
-        taskData.context = 'department';
-        taskData.department = department; // This will be mapped to departmentId in the service
-        // Add collaborators if any are selected
-        if (collaborators && collaborators.length > 0) {
-          taskData.assigned_to = collaborators.map(user => user.id.toString());
-        }
-      } else if (pageContext === 'user') {
-        // User assignment
-        taskData.context = 'user';
-        // Make sure selected users is always an array of strings (user IDs)
-        taskData.assigned_to = selectedUsers.map(user => user.id.toString());
-      }
-
       if (task) {
         // Update existing task
-        console.log('Updating task with data:', taskData);
-        await TaskService.updateTask(task.id, taskData);
+        const updateData: TaskUpdate = {
+          title,
+          description,
+          due_date: dueDate?.toISOString(),
+          priority,
+          department: pageContext === 'department' ? department : task.department,
+          assigned_to: pageContext === 'user' 
+            ? selectedUsers.map(u => u.id.toString())
+            : pageContext === 'dashboard' 
+              ? collaborators.map(c => c.id.toString()) 
+              : task.assigned_to
+        };
+
+        const updatedTask = await TaskService.updateTask(task.id, updateData);
+        
+        if (onTaskUpdated) {
+          onTaskUpdated(updatedTask);
+        }
       } else {
         // Create new task
-        // Copy taskData but exclude priority which isn't supported by the backend
-        const { priority: _, ...restTaskData } = taskData;
-        const createTaskData = {
-          ...restTaskData,
-          context: restTaskData.context || 'personal',
-          // Ensure assigned_to is always included
-          assigned_to: restTaskData.assigned_to || []
+        const newTask: CreateTask = {
+          title,
+          description,
+          due_date: dueDate?.toISOString() || new Date().toISOString(),
+          priority,
+          status: initialStatus || TaskStatus.PENDING,
+          context: pageContext === 'dashboard' 
+            ? 'personal'
+            : pageContext === 'department' 
+              ? 'department' 
+              : 'user',
         };
-        console.log('Creating task with data (excluding priority):', createTaskData);
-        await TaskService.createTask(createTaskData as CreateTask);
+
+        // Add department if in department context
+        if (pageContext === 'department') {
+          newTask.department = department;
+        }
+
+        // Add user assignments based on context
+        if (pageContext === 'user') {
+          newTask.assigned_to = selectedUsers.map(user => user.id.toString());
+        } else if (pageContext === 'dashboard' && collaborators.length > 0) {
+          newTask.assigned_to = collaborators.map(user => user.id.toString());
+        }
+
+        await TaskService.createTask(newTask);
+        onTaskCreated();
       }
 
-      if (onTaskCreated) {
-        await onTaskCreated();
-      }
-
-      resetForm();
       onClose();
-    } catch (err) {
-      console.error('Error creating task:', err);
-      // Enhanced error handling
-      const error = err as any;
-      let errorMessage = 'Failed to create task. Please try again.';
-      
-      // Extract specific error message from response
-      if (error?.response?.data) {
-        const responseData = error.response.data;
-        
-        // Handle array of validation messages
-        if (Array.isArray(responseData.message)) {
-          errorMessage = responseData.message.join(', ');
-        } 
-        // Handle individual message
-        else if (responseData.message) {
-          errorMessage = responseData.message;
-        }
-        // Handle other error formats
-        else if (responseData.error) {
-          errorMessage = `${responseData.error}: ${responseData.detail || 'Unknown error'}`;
-        }
-      }
-      
-      setError(errorMessage);
+    } catch (error) {
+      console.error('Error saving task:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save task. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -560,3 +532,12 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 };
 
 export default CreateTaskDialog;
+
+
+
+
+
+
+
+
+

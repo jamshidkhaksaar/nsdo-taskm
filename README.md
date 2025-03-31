@@ -1,121 +1,114 @@
-## 🔍 Project Overview
+# NSDO Task Management System
 
-This is a full-stack task management application with a modern architecture using React for the frontend and NestJS for the backend.
+A modern task management system built with NestJS backend and React frontend.
 
-## 🖥️ Frontend Technology Stack
+## Architecture
 
-### Core Framework
-- **React 18**: Modern UI library for building component-based interfaces
-- **TypeScript**: For type safety across the codebase
+- **Backend**: NestJS with TypeScript and SQL database
+- **Frontend**: React with TypeScript, Material-UI
 
-### State Management
-- **Redux Toolkit**: For global state management
-- **React Query**: For data fetching and server state management
+## Features
 
-### Routing and Navigation
-- **React Router 6**: For client-side routing
+- User authentication and authorization
+- Task creation, assignment, and tracking
+- Department management
+- User profile management
+- Weather widget integration
+- Modern UI with glassmorphism design
 
-### UI Framework
-- **Material UI (MUI v5)**: Component library for consistent UI design
-- **Emotion**: CSS-in-JS styling solution used with MUI
+## Prerequisites
 
-### Form Handling
-- **React Hook Form**: For form state management
-- **Zod**: For form validation schemas
+- Node.js (v16 or higher)
+- npm (v7 or higher)
+- SQL database (MySQL/PostgreSQL)
 
-### Data Visualization
-- **Chart.js/React-Chartjs-2**: For chart visualizations
-- **Recharts**: Alternative charting library
+## Setup Instructions
 
-### Drag and Drop
-- **@hello-pangea/dnd**: For drag-and-drop functionality (fork of react-beautiful-dnd)
+### Initial Setup
 
-### Other Frontend Tools
-- **Axios**: For HTTP requests
-- **date-fns**: For date manipulation
-- **tsparticles**: For particle animations/effects
-- **Fingerprintjs**: For browser fingerprinting (likely for security purposes)
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd nsdo-taskm
+   ```
 
-## 🔧 Backend Technology Stack
+2. Install all dependencies:
+   ```
+   npm run install:all
+   ```
 
-### Core Framework
-- **NestJS 11**: Modern, TypeScript-based Node.js framework
-- **TypeScript**: For type safety
+### Environment Configuration
 
-### Database
-- **MySQL**: Primary database (via mysql2 driver)
-- **TypeORM**: ORM for database interactions
-- **PostgreSQL**: Secondary database support (via pg driver)
+#### Backend (.env file in backend-nest directory)
 
-### Authentication & Security
-- **Passport.js**: Authentication middleware
-- **JWT**: For stateless authentication
-- **bcrypt**: For password hashing
-- **speakeasy & qrcode**: For two-factor authentication
+Create a `.env` file in the backend-nest directory with the following variables:
 
-### API Documentation
-- **Swagger**: Via @nestjs/swagger for API documentation
+```
+PORT=3001
+NODE_ENV=development
+DATABASE_URL=<your-database-url>
+JWT_SECRET=<your-jwt-secret>
+JWT_EXPIRATION=1d
+```
 
-### Email
-- Custom mail module (likely using a third-party email service)
+#### Frontend (.env file in frontend directory)
 
-### CLI Tools
-- **nest-commander**: For creating CLI commands (admin creation, etc.)
+Create a `.env` file in the frontend directory with:
 
-### Validation
-- **class-validator & class-transformer**: For DTO validation and transformation
+```
+REACT_APP_API_URL=http://localhost:3001
+```
 
-### Configuration
-- **dotenv & @nestjs/config**: For environment-based configuration
+## Running the Application
 
-### Testing
-- **Jest**: For unit and integration tests
-- **Supertest**: For HTTP testing
+### Development Mode
 
-## 🔄 DevOps & Infrastructure
+To run both frontend and backend simultaneously:
 
-### Build Tools
-- **React Scripts**: For frontend build process
-- **NestJS CLI**: For backend build process
-- **SWC**: For faster TypeScript compilation
+```
+npm start
+```
 
-### Linting & Formatting
-- **ESLint**: For code linting
-- **Prettier**: For code formatting
+To run them separately:
 
-### Environment Setup
-- Multiple environment configurations (.env, .env.production, .env.test)
-- PowerShell scripts for server management and testing
+```
+# Frontend only
+npm run start:frontend
 
-## 📈 Architecture Insights
+# Backend only
+npm run start:backend
+```
 
-1. **Modular Backend**: The NestJS backend follows a modular architecture with separate modules for:
-   - Authentication
-   - Users
-   - Tasks
-   - Departments
-   - Settings
-   - Admin
-   - Backup
-   - Profile
-   - Mail
-   - Notes
+### Production Build
 
-2. **Frontend Architecture**:
-   - Component-based architecture
-   - Separation of concerns with dedicated directories for components, pages, contexts, etc.
-   - Theme customization
-   - Service worker support for offline capabilities
+Build both applications:
 
-3. **Database**: Uses TypeORM with MySQL with entity-based data modeling
+```
+npm run build:frontend
+npm run build:backend
+```
 
-4. **API Security**:
-   - JWT-based authentication
-   - CORS configuration for security
-   - Validation pipes to prevent malicious input
+## Project Structure
 
-5. **Testing Strategy**:
-   - Comprehensive test setup for both frontend and backend
-   - End-to-end, unit, and integration tests
+```
+nsdo-taskm/
+├── backend-nest/         # NestJS backend
+│   ├── src/
+│   │   ├── auth/         # Authentication
+│   │   ├── tasks/        # Task management
+│   │   ├── users/        # User management
+│   │   └── ...
+├── frontend/             # React frontend
+│   ├── public/
+│   └── src/
+│       ├── components/   # Reusable components
+│       ├── pages/        # Page components
+│       ├── services/     # API services
+│       └── ...
+└── ...
+```
 
-This is a robust, modern full-stack application built with industry-standard technologies and best practices, focusing on type safety, scalability, and maintainability.
+## API Documentation
+
+After starting the backend, API documentation is available at:
+http://localhost:3001/api/docs

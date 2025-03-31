@@ -116,7 +116,7 @@ const Dashboard: React.FC = () => {
         // Use the standardizeTask function from TaskService
         const mappedTasks = response.data.map(task => TaskService.standardizeTask(task));
         
-        console.log('Mapped tasks:', mappedTasks);
+        console.log('Mapped tasks after fetch:', mappedTasks);
         setTasks(mappedTasks);
       } else {
         console.warn('Unexpected response format:', response.data);
@@ -304,6 +304,7 @@ const Dashboard: React.FC = () => {
               <TaskKanbanBoard
                 tasks={tasks}
                 onCreateTask={(status) => {
+                  console.log(`[Dashboard] onCreateTask called from Kanban board with status: ${status}`);
                   setInitialTaskStatus(status);
                   setCreateTaskDialogOpen(true);
                 }}
@@ -323,14 +324,20 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
       
+      {/* Log the tasks array right before passing it to TaskKanbanBoard */}
+      {(() => {
+          console.log('[Dashboard] Tasks being passed to TaskKanbanBoard:', tasks);
+          return null; // Render nothing
+      })()}
+
       {/* Task Dialogs */}
       <CreateTaskDialog
         open={createTaskDialogOpen}
         onClose={() => setCreateTaskDialogOpen(false)}
         onTaskCreated={async () => {
-          console.log('Task created, refreshing tasks...');
+          console.log('[Dashboard] CreateTaskDialog reported task created. Refreshing tasks...');
           await fetchTasks();
-          console.log('Tasks refreshed');
+          console.log('[Dashboard] Task list refresh potentially complete after creation.');
         }}
         dialogType="personal"
         initialStatus={initialTaskStatus}
@@ -339,9 +346,9 @@ const Dashboard: React.FC = () => {
         open={assignTaskDialogOpen}
         onClose={() => setAssignTaskDialogOpen(false)}
         onTaskCreated={async () => {
-          console.log('Task created, refreshing tasks...');
+          console.log('[Dashboard] AssignTaskDialog reported task created/updated. Refreshing tasks...');
           await fetchTasks();
-          console.log('Tasks refreshed');
+          console.log('[Dashboard] Task list refresh potentially complete after assignment.');
         }}
         dialogType="assign"
         task={selectedTask ? selectedTask : undefined}
@@ -350,13 +357,35 @@ const Dashboard: React.FC = () => {
         open={editTaskDialogOpen}
         onClose={() => setEditTaskDialogOpen(false)}
         onTaskCreated={async () => {
-          console.log('Task created, refreshing tasks...');
+          console.log('[Dashboard] EditTaskDialog reported task updated. Refreshing tasks...');
           await fetchTasks();
-          console.log('Tasks refreshed');
+          console.log('[Dashboard] Task list refresh potentially complete after edit.');
         }}
         dialogType="assign"
         task={selectedTask ? selectedTask : undefined}
       />
+      {/* Add the Delete Confirmation Dialog here */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            Are you sure you want to delete this task? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteTask} color="error" autoFocus>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 

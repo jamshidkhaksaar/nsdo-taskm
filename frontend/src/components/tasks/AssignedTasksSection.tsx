@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { format } from 'date-fns';
-import { Task, TaskPriority } from '../../types/task';
+import { Task, TaskPriority, TaskStatus } from '../../types/task';
 import { TaskService } from '../../services/task';
 
 interface AssignedTasksSectionProps {
@@ -43,7 +43,7 @@ const AssignedTasksSection: React.FC<AssignedTasksSectionProps> = ({
         const updatedTask = await TaskService.updateTask(selectedTask.id, {
           ...selectedTask,
           priority,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
         onTaskUpdated(updatedTask);
       } catch (error) {
@@ -53,13 +53,13 @@ const AssignedTasksSection: React.FC<AssignedTasksSectionProps> = ({
     setAnchorEl(null);
   };
 
-  const handleStatusChange = async (status: Task['status']) => {
+  const handleStatusChange = async (status: TaskStatus) => {
     if (selectedTask) {
       try {
         const updatedTask = await TaskService.updateTask(selectedTask.id, {
           ...selectedTask,
           status,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
         onTaskUpdated(updatedTask);
       } catch (error) {
@@ -246,3 +246,4 @@ const AssignedTasksSection: React.FC<AssignedTasksSectionProps> = ({
 };
 
 export default AssignedTasksSection; 
+

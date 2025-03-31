@@ -335,27 +335,17 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   // Use this function to update task status instead of drag and drop
   const handleChangeTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
     try {
-      // Find the task
-      const task = localTasks.find(t => t.id === taskId);
-      if (!task) return;
-
-      // Update task status in the backend
       const updatedTask = await TaskService.updateTask(taskId, {
         status: newStatus,
         updated_at: new Date().toISOString()
       });
 
-      // Update local state
       setLocalTasks(prevTasks =>
-        prevTasks.map(t =>
-          t.id === taskId
-            ? { ...t, status: newStatus }
-            : t
-        )
+        prevTasks.map(t => t.id === taskId ? updatedTask : t)
       );
 
       if (onTaskUpdated) {
-        onTaskUpdated({ ...task, status: newStatus });
+        onTaskUpdated(updatedTask);
       }
     } catch (error) {
       console.error('Error updating task status:', error);
@@ -554,3 +544,5 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
 };
 
 export default TaskBoard; 
+
+

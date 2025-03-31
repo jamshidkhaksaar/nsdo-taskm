@@ -1,5 +1,2 @@
-$sql = Get-Content -Path "src/migrations/UpdateTaskStatusEnum.sql" -Raw
-$password = "root"
-
-# Execute the SQL
-mysql --user=root --password=$password --host=localhost --database=taskmanagement --execute="$sql" 
+$sql = Get-Content -Path "src/migrations/UpdateTaskColumns.sql" -Raw
+mysql --user=root --password=root --host=localhost --database=taskmanagement --execute="$sql"

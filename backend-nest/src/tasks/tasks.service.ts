@@ -199,6 +199,8 @@ export class TasksService {
     if (updateTaskDto.status) task.status = updateTaskDto.status;
     if (updateTaskDto.departmentId) task.departmentId = updateTaskDto.departmentId;
     if (updateTaskDto.dueDate) task.dueDate = new Date(updateTaskDto.dueDate);
+    // Add priority update
+    if (updateTaskDto.priority) task.priority = updateTaskDto.priority;
     
     return this.tasksRepository.save(task);
   }

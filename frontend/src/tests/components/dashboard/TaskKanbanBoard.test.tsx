@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import TaskKanbanBoard from '../../../components/dashboard/TaskKanbanBoard';
-import { Task, TaskStatus } from '../../../types/task';
+import { Task, TaskStatus, TaskPriority, TaskContext } from '../../../types/task';
 
 // Mock the DragDropContext component
 jest.mock('@hello-pangea/dnd', () => ({
@@ -39,23 +39,25 @@ describe.skip('TaskKanbanBoard Component', () => {
       title: 'Task 1',
       description: 'Description 1',
       status: TaskStatus.PENDING,
-      priority: 'high',
+      priority: TaskPriority.HIGH,
       due_date: '2023-12-01',
       created_at: '2023-11-01',
+      updated_at: '2023-11-01',
       is_private: false,
       department: 'Engineering',
-      assigned_to: ['user1'],
-      created_by: 'admin',
-      context: 'personal'
+      assigned_to: [],
+      created_by: 'user1',
+      context: 'personal' as const
     },
     {
       id: '2',
       title: 'Task 2',
       description: 'Description 2',
       status: TaskStatus.IN_PROGRESS,
-      priority: 'medium',
+      priority: TaskPriority.MEDIUM,
       due_date: '2023-12-02',
       created_at: '2023-11-02',
+      updated_at: '2023-11-02',
       is_private: false,
       department: 'Engineering',
       assigned_to: ['user2'],
@@ -67,9 +69,10 @@ describe.skip('TaskKanbanBoard Component', () => {
       title: 'Task 3',
       description: 'Description 3',
       status: TaskStatus.COMPLETED,
-      priority: 'low',
+      priority: TaskPriority.LOW,
       due_date: '2023-12-03',
       created_at: '2023-11-03',
+      updated_at: '2023-11-03',
       is_private: true,
       department: 'Marketing',
       assigned_to: ['user3'],

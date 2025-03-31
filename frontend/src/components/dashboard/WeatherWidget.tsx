@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, CircularProgress, Button, Stack, Divider } from '@mui/material';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import CloudIcon from '@mui/icons-material/Cloud';
@@ -7,7 +7,6 @@ import ThunderstormIcon from '@mui/icons-material/Thunderstorm';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-import axios from 'axios';
 import { SettingsService } from '../../services/settings';
 
 interface WeatherWidgetProps {
@@ -29,7 +28,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchWeatherData = async () => {
+  const fetchWeatherData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -90,7 +89,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
       setError('Unable to fetch weather data. Please try again later.');
       setLoading(false);
     }
-  };
+  }, []);
   
   // Fallback method using IP for location
   const fetchWeatherWithIP = async (apiKey: string) => {
@@ -135,7 +134,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ compact = false }) => {
     // Periodically update weather data every 15 minutes
     const interval = setInterval(fetchWeatherData, 15 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchWeatherData]);
   
   // Function to get appropriate weather icon based on condition code
   const getWeatherIcon = () => {

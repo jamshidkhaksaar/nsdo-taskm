@@ -1,6 +1,6 @@
 import apiClient from '../utils/axios';
 import { AxiosResponse } from 'axios';
-import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef } from '../types/task';
+import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef, TaskPriority } from '../types/task';
 import { User } from '../types/user';
 import { parseDate, toISOString } from '../utils/dateUtils';
 
@@ -120,12 +120,12 @@ export const TaskService = {
     // Create a new task
     createTask: async (taskData: CreateTask): Promise<Task> => {
         try {
-            // Map frontend status to backend status
             const status = frontendToBackendStatus[taskData.status || TaskStatus.PENDING] || 'pending';
             
-            console.log('Creating task with status:', status);
+            console.log('Creating task with data:', taskData);
             
-            // Prepare the payload with only the fields the backend API expects
+            const taskPriorities = JSON.parse(localStorage.getItem('taskPriorities') || '{}');
+            
             const payload: any = {
                 title: taskData.title,
                 description: taskData.description || '',
@@ -133,99 +133,42 @@ export const TaskService = {
                 context: taskData.context,
             };
 
-            // Map due_date to dueDate property that backend expects
             if (taskData.due_date) {
-                // Convert to ISO string format that backend expects
                 payload.dueDate = toISOString(taskData.due_date);
             }
-            
-            // Only add fields that are explicitly provided and supported by the backend
-            // Add assigned_to if it exists - ensure all IDs are strings
-            if (taskData.assigned_to && taskData.assigned_to.length > 0) {
-                payload.assignedTo = taskData.assigned_to.map(ensureStringId);
-            }
-            
-            // Only add department if the context is department - ensure ID is string
-            if (taskData.context === 'department' && taskData.department) {
-                // If department is a string, use it directly; if it's an object with id, use that id as string
-                payload.departmentId = typeof taskData.department === 'string' 
-                    ? taskData.department 
-                    : ensureStringId((taskData.department as DepartmentRef).id);
-            }
-            
-            // priority is not supported by the backend, so we don't include it
-            if ('priority' in taskData) {
-                console.log('Priority value exists in taskData but will not be sent to backend:', taskData.priority);
-                // Explicitly check payload to ensure priority is not included
-                if ('priority' in payload) {
-                    console.error('ERROR: Priority is still in payload!', payload);
-                    delete payload.priority;
-                }
-            }
-            
-            console.log('Final payload for task creation:', payload);
-            
-            // Make sure we have the correct API endpoint
-            const response = await apiClient.post<{data: Task}>('/api/tasks/', payload);
-            
-            // Standardize the task object
-            return standardizeTask(response.data);
+
+            const response = await apiClient.post('/api/tasks/', payload);
+            const createdTask = response.data;
+
+            // Store the priority if provided
+            const taskPriority = taskData.priority || 'medium';
+            taskPriorities[createdTask.id] = taskPriority;
+            localStorage.setItem('taskPriorities', JSON.stringify(taskPriorities));
+
+            return {
+                ...standardizeTask(createdTask),
+                priority: taskPriority as TaskPriority
+            };
         } catch (error) {
-            console.error('Error in createTask:', error);
-            
-            // Provide more information about the error
-            const axiosError = error as any;
-            if (axiosError.response) {
-                console.error('Error response:', axiosError.response.data);
-            }
-            
+            console.error('Error creating task:', error);
             throw error;
         }
     },
 
     // Update an existing task
-    updateTask: async (taskId: string, taskData: Partial<TaskUpdate>): Promise<Task> => {
+    updateTask: async (taskId: string, updates: TaskUpdate): Promise<Task> => {
         try {
-            // Ensure taskId is a string
-            const stringTaskId = ensureStringId(taskId);
-            
-            // Start with a clean payload
-            const payload: any = {};
-            
-            // Only add fields explicitly mentioned in taskData to avoid sending unnecessary fields
-            // This is crucial because the backend rejects fields it doesn't expect
-            if (taskData.title !== undefined) payload.title = taskData.title;
-            if (taskData.description !== undefined) payload.description = taskData.description;
-            
-            // Convert frontend status to backend status if provided
-            if (taskData.status) {
-                payload.status = frontendToBackendStatus[taskData.status] || 'pending';
-            }
-            
-            // Map due_date to dueDate property that backend expects
-            if (taskData.due_date) {
-                // Convert to ISO string format that backend expects
-                payload.dueDate = toISOString(taskData.due_date);
-            }
-            
-            // Map assigned_to to assignedTo that the backend expects
-            if (taskData.assigned_to !== undefined) {
-                payload.assignedTo = taskData.assigned_to ? taskData.assigned_to.map(ensureStringId) : [];
-            }
-            
-            // Remove priority field if it exists - not supported by backend
-            if ('priority' in taskData) {
-                console.log('Priority exists in update data but not sending to backend:', taskData.priority);
-            }
-            
-            console.log('Sending update payload:', payload);
+            const apiUpdates = {
+                ...updates,
+                ...(updates.priority && {
+                    priority: updates.priority
+                })
+            };
 
-            const response = await apiClient.patch<{data: Task}>(`/api/tasks/${stringTaskId}/`, payload);
-            
-            // Standardize the task object
+            const response = await apiClient.patch(`/api/tasks/${taskId}/`, apiUpdates);
             return standardizeTask(response.data);
         } catch (error) {
-            console.error('Error updating task:', error);
+            console.error('Error in updateTask:', error);
             throw error;
         }
     },
