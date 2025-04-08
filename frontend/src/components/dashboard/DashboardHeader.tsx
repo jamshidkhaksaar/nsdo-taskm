@@ -143,27 +143,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         </MenuItem>
       </Menu>
 
-      <Button
-        onClick={onToggleWidget}
-        startIcon={showWidget ? <ExpandLessIcon /> : <ExpandLessIcon />}
-        sx={{
-          color: '#fff',
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          borderRadius: '20px',
-          padding: { xs: '4px 8px', sm: '4px 12px' },
-          minWidth: 'auto',
-          fontSize: { xs: '0.75rem', sm: '0.875rem' },
-          '&:hover': {
-            background: 'rgba(255, 255, 255, 0.2)',
-            transform: 'scale(1.05)',
-          },
-          transition: 'all 0.2s ease-in-out',
-        }}
-      >
-        {showWidget ? 'Hide' : 'Show'}
-      </Button>
     </Box>
   );
 };

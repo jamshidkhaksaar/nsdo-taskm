@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Grid,
   Card,
@@ -81,6 +81,8 @@ const ActivityLogs: React.FC = () => {
   const [targetFilter, setTargetFilter] = useState<string>('all');
   const [totalRows, setTotalRows] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
     fetchLogs();
@@ -133,7 +135,11 @@ const ActivityLogs: React.FC = () => {
   };
 
   const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleToggleTopWidgets = () => {
+    setTopWidgetsVisible(prev => !prev);
   };
 
   const handleLogout = () => {
@@ -477,26 +483,28 @@ const ActivityLogs: React.FC = () => {
     <ModernDashboardLayout
       sidebar={
         <Sidebar
-          open={sidebarOpen}
+          open={isSidebarOpen}
           onToggleDrawer={handleToggleSidebar}
           onLogout={handleLogout}
           drawerWidth={DRAWER_WIDTH}
         />
       }
       topBar={
-        <DashboardTopBar 
+        <DashboardTopBar
           username={user?.username || 'Admin'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={handleNotificationClick}
+          onNotificationClick={() => console.log('Notification clicked')}
           onLogout={handleLogout}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          onHelpClick={handleHelpClick}
+          onProfileClick={() => navigate('/profile')}
+          onSettingsClick={() => navigate('/admin/settings')}
+          onHelpClick={() => console.log('Help clicked')}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
         />
       }
       mainContent={mainContent}
-      sidebarOpen={sidebarOpen}
+      sidebarOpen={isSidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />
   );

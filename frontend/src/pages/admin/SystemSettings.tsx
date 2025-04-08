@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Typography,
   Box,
@@ -265,6 +265,8 @@ const SystemSettings: React.FC = () => {
   const [generatingApiKey, setGeneratingApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
     // Function to fetch settings
@@ -660,9 +662,13 @@ const SystemSettings: React.FC = () => {
     }
   };
 
-  const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -902,14 +908,14 @@ const SystemSettings: React.FC = () => {
     <ModernDashboardLayout
       sidebar={
         <Sidebar
-          open={sidebarOpen}
+          open={isSidebarOpen}
           onToggleDrawer={handleToggleSidebar}
           onLogout={handleLogout}
           drawerWidth={DRAWER_WIDTH}
         />
       }
       topBar={
-        <DashboardTopBar 
+        <DashboardTopBar
           username={user?.username || 'Admin'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
@@ -918,10 +924,12 @@ const SystemSettings: React.FC = () => {
           onProfileClick={handleProfileClick}
           onSettingsClick={handleSettingsClick}
           onHelpClick={handleHelpClick}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
         />
       }
       mainContent={mainContent}
-      sidebarOpen={sidebarOpen}
+      sidebarOpen={isSidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />
   );

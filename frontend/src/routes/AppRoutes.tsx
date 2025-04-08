@@ -11,10 +11,13 @@ import {
 } from '../pages';
 import AdminRoutes from './AdminRoutes';
 
+import ForgotPassword from '../pages/ForgotPassword';
+
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route
         path="/dashboard"
         element={

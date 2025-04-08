@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -120,6 +120,8 @@ const BackupRestore: React.FC = () => {
   });
   // Add OS detection
   const [os, setOs] = useState<'windows' | 'unix'>('windows');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
     fetchBackups();
@@ -289,9 +291,13 @@ const BackupRestore: React.FC = () => {
     }
   };
 
-  const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -823,15 +829,17 @@ const BackupRestore: React.FC = () => {
         />
       }
       topBar={
-        <DashboardTopBar 
+        <DashboardTopBar
           username={user?.username || 'Admin'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={handleNotificationClick}
+          onNotificationClick={() => console.log('Notification clicked')}
           onLogout={handleLogout}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          onHelpClick={handleHelpClick}
+          onProfileClick={() => navigate('/profile')}
+          onSettingsClick={() => navigate('/admin/settings')}
+          onHelpClick={() => console.log('Help clicked')}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
         />
       }
       mainContent={mainContent}

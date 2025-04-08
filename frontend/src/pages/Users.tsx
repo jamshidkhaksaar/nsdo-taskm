@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
@@ -54,6 +54,8 @@ const Users: React.FC = () => {
   
   // State for task dialog
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -112,9 +114,13 @@ const Users: React.FC = () => {
     navigate('/login');
   };
 
-  const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
 
   const handleNotificationClick = () => {
     setNotifications(0);
@@ -559,26 +565,28 @@ const Users: React.FC = () => {
     <ModernDashboardLayout
       sidebar={
         <Sidebar
-          open={sidebarOpen}
+          open={isSidebarOpen}
           onToggleDrawer={handleToggleSidebar}
           onLogout={handleLogout}
           drawerWidth={DRAWER_WIDTH}
         />
       }
       topBar={
-        <DashboardTopBar 
+        <DashboardTopBar
           username={user?.username || 'User'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={handleNotificationClick}
+          onNotificationClick={() => console.log('Notification clicked')}
           onLogout={handleLogout}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          onHelpClick={handleHelpClick}
+          onProfileClick={() => navigate('/profile')}
+          onSettingsClick={() => navigate('/settings')}
+          onHelpClick={() => console.log('Help clicked')}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
         />
       }
       mainContent={mainContent}
-      sidebarOpen={sidebarOpen}
+      sidebarOpen={isSidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />
   );

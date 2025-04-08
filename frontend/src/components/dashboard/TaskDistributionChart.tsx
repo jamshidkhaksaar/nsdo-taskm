@@ -7,18 +7,41 @@ import {
   Typography, 
   Box, 
   Grid,
-  Paper
+  Paper,
+  Skeleton,
+  Alert,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import axios from 'axios';
 import { API_BASE_URL, CHART_COLORS } from '../../constants';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import HeatMap from 'react-heatmap-grid';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend, Title);
 
 interface TaskDistributionChartProps {}
+
+// Skeleton for loading state
+const LoadingSkeleton = () => (
+  <Box sx={{ height: '100%', p: 2 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+       <Skeleton variant="rounded" width={200} height={30} />
+    </Box>
+    <Grid container spacing={2}>
+      <Grid item xs={12} md={7}>
+        <Skeleton variant="circular" width={200} height={200} sx={{ margin: 'auto' }}/>
+      </Grid>
+      <Grid item xs={12} md={5}>
+        <Skeleton variant="rectangular" height={150} />
+        <Skeleton variant="rectangular" height={50} sx={{ mt: 2 }} />
+      </Grid>
+    </Grid>
+  </Box>
+);
 
 const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
   const [distribution, setDistribution] = useState<any>(null);
@@ -36,7 +59,7 @@ const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
         setDistribution(data);
       } catch (err) {
         console.error('Error fetching task distribution:', err);
-        setError('Failed to load task distribution data');
+        setError('Failed to load task distribution data. Please try again later.');
       } finally {
         setIsLoading(false);
       }
@@ -128,12 +151,21 @@ const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
     cutout: '60%',
   };
 
+  const handleViewChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newView: 'departments' | 'heatmap' | null,
+  ) => {
+    if (newView !== null) {
+      setActiveView(newView);
+    }
+  };
+
   const renderTasksByDepartment = () => {
     const chartData = prepareDepartmentChartData();
     
     if (!chartData) {
       return (
-        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1, textAlign: 'center' }}>
           No department distribution data available
         </Typography>
       );
@@ -151,7 +183,7 @@ const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
     
     if (!heatmapData) {
       return (
-        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1, textAlign: 'center' }}>
           No activity heatmap data available
         </Typography>
       );
@@ -160,7 +192,7 @@ const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
     return (
       <Box sx={{ height: 240, position: 'relative', overflow: 'auto' }}>
         <Typography variant="subtitle2" align="center" gutterBottom>
-          Activity Heatmap
+          Activity Heatmap (Tasks Completed)
         </Typography>
         <HeatMap 
           xLabels={heatmapData.xLabels}
@@ -171,7 +203,7 @@ const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
             fontSize: '11px',
             color: value > (max - min) / 1.5 ? '#fff' : '#000'
           })}
-          cellRender={(value: number) => value && <div>{value}</div>}
+          cellRender={(value: number) => value > 0 && <div>{value}</div>}
         />
       </Box>
     );
@@ -217,43 +249,51 @@ const TaskDistributionChart: React.FC<TaskDistributionChartProps> = () => {
   };
 
   return (
-    <Card sx={{ height: '100%', boxShadow: 3 }}>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 3 }}>
       <CardHeader 
         title="Task Distribution" 
         titleTypographyProps={{ variant: 'h6' }}
+        action={
+          <ToggleButtonGroup
+            value={activeView}
+            exclusive
+            onChange={handleViewChange}
+            aria-label="Distribution view"
+            size="small"
+            sx={{ mr: 1 }}
+          >
+            <ToggleButton value="departments" aria-label="Departments">
+              Depts
+            </ToggleButton>
+            <ToggleButton value="heatmap" aria-label="Heatmap">
+              Heatmap
+            </ToggleButton>
+          </ToggleButtonGroup>
+        }
         sx={{ 
           backgroundColor: 'primary.light', 
           color: 'primary.contrastText',
           pb: 1 
         }}
       />
-      <CardContent sx={{ height: 300, position: 'relative' }}>
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         {isLoading ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            height: '100%'
-          }}>
-            <CircularProgress />
-          </Box>
+          <LoadingSkeleton />
         ) : error ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            height: '100%',
-            flexDirection: 'column'
-          }}>
-            <Typography color="error" variant="body1">
+           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <ErrorOutlineIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography color="error" variant="body1" align="center">
               {error}
             </Typography>
           </Box>
-        ) : (
-          <Box sx={{ height: '100%' }}>
-            {activeView === 'departments' ? renderTasksByDepartment() : renderHeatmap()}
-            {renderSummary()}
+        ) : distribution ? (
+          <Box sx={{ flexGrow: 1 }}>
+            {activeView === 'departments' && renderTasksByDepartment()}
+            {activeView === 'heatmap' && renderHeatmap()}
+            {renderSummary()} 
           </Box>
+        ) : (
+          <Typography color="text.secondary" align="center">No data available.</Typography>
         )}
       </CardContent>
     </Card>

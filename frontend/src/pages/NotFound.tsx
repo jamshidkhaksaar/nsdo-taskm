@@ -1,35 +1,63 @@
-import React from 'react';
-import { Box, Typography, Button, Container } from '@mui/material';
+import React, { useState, useCallback } from 'react';
+import { Box, Typography, Button, Container, useTheme, useMediaQuery } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../store';
+import { logout } from '../store/slices/authSlice';
+import Sidebar from '../components/Sidebar';
+import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
+import DashboardTopBar from '../components/dashboard/DashboardTopBar';
+
+const DRAWER_WIDTH = 240;
 
 const NotFound: React.FC = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [notifications, setNotifications] = useState(3);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
-  return (
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate('/login');
+  };
+
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
+
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
+  };
+
+  const mainContent = (
     <Box
       sx={{
-        height: '100vh',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)',
-        backgroundAttachment: 'fixed',
-        backgroundSize: 'cover',
         position: 'relative',
-        '&::before': {
-          content: '""',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.1)'/%3E%3Cpath d='M0 20h40M20 0v40' stroke='rgba(255,255,255,0.05)' stroke-width='0.5'/%3E%3C/svg%3E")`,
-          backgroundSize: '40px 40px',
-          opacity: 0.3,
-          pointerEvents: 'none',
-          zIndex: 0,
-        },
       }}
     >
       <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
@@ -110,6 +138,36 @@ const NotFound: React.FC = () => {
         </Box>
       </Container>
     </Box>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={isSidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar
+          username={user?.username || 'User'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
+        />
+      }
+      mainContent={mainContent}
+      sidebarOpen={isSidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

@@ -78,7 +78,7 @@ const AdminDashboard: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [notifications, setNotifications] = useState(3);
   
   const [loading, setLoading] = useState(true);
@@ -96,6 +96,7 @@ const AdminDashboard: React.FC = () => {
   });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [departmentStats, setDepartmentStats] = useState<DepartmentStat[]>([]);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
@@ -174,7 +175,11 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleToggleTopWidgets = () => {
+    setTopWidgetsVisible(prev => !prev);
   };
 
   const handleLogout = () => {
@@ -487,26 +492,28 @@ const AdminDashboard: React.FC = () => {
     <ModernDashboardLayout
       sidebar={
         <Sidebar
-          open={sidebarOpen}
+          open={isSidebarOpen}
           onToggleDrawer={handleToggleSidebar}
           onLogout={handleLogout}
           drawerWidth={DRAWER_WIDTH}
         />
       }
       topBar={
-        <DashboardTopBar 
+        <DashboardTopBar
           username={user?.username || 'Admin'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={handleNotificationClick}
+          onNotificationClick={() => console.log('Notification clicked')}
           onLogout={handleLogout}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          onHelpClick={handleHelpClick}
+          onProfileClick={() => navigate('/profile')}
+          onSettingsClick={() => navigate('/admin/settings')}
+          onHelpClick={() => console.log('Help clicked')}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
         />
       }
       mainContent={mainContent}
-      sidebarOpen={sidebarOpen}
+      sidebarOpen={isSidebarOpen}
       drawerWidth={DRAWER_WIDTH}
     />
   );

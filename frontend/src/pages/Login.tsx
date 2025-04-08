@@ -694,24 +694,6 @@ const Login: React.FC = () => {
             textAlign: 'center',
           }}
         >
-          <Typography variant="body2" sx={glassStyles.text.muted}>
-            Don't have an account?{' '}
-            <MuiLink
-              component={Link}
-              to="/register"
-              sx={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                textDecoration: 'none',
-                fontWeight: 600,
-                '&:hover': {
-                  textDecoration: 'underline',
-                  color: 'white',
-                },
-              }}
-            >
-              Sign up
-            </MuiLink>
-          </Typography>
         </Box>
       </Box>
       

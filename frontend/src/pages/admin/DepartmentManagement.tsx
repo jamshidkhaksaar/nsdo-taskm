@@ -125,6 +125,8 @@ const DepartmentManagement: React.FC = () => {
   // State for managing adding members
   const [openAddMemberDialog, setOpenAddMemberDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   // Define dialogPaperProps with glassmorphism styles
   const dialogPaperProps = {
@@ -303,9 +305,13 @@ const DepartmentManagement: React.FC = () => {
     });
   };
 
-  const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -955,15 +961,17 @@ const DepartmentManagement: React.FC = () => {
         />
       }
       topBar={
-        <DashboardTopBar 
+        <DashboardTopBar
           username={user?.username || 'Admin'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={handleNotificationClick}
+          onNotificationClick={() => console.log('Notification clicked')}
           onLogout={handleLogout}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          onHelpClick={handleHelpClick}
+          onProfileClick={() => navigate('/profile')}
+          onSettingsClick={() => navigate('/admin/settings')}
+          onHelpClick={() => console.log('Help clicked')}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
         />
       }
       mainContent={mainContent}

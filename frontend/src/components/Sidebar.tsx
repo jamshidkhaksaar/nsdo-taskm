@@ -144,28 +144,28 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
       open={open}
       sx={{
         width: open ? drawerWidth : 65,
-        transition: 'width 0.3s ease',
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        zIndex: 1200,
+        flexShrink: 0,
+        transition: (theme) => theme.transitions.create('width', {
+          easing: theme.transitions.easing.sharp,
+          duration: open ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
+        }),
+        zIndex: (theme) => theme.zIndex.drawer,
         '& .MuiDrawer-paper': {
           width: open ? drawerWidth : 65,
-          transition: 'width 0.3s ease',
+          transition: (theme) => theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: open ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
+          }),
           background: 'rgba(31, 41, 55, 0.8)',
           backdropFilter: 'blur(12px)',
           border: 'none',
-          overflow: 'hidden',
+          overflowX: 'hidden',
+          overflowY: 'hidden',
           boxShadow: '4px 0 15px rgba(0, 0, 0, 0.1)',
-          '&:hover': {
-            boxShadow: '4px 0 20px rgba(0, 0, 0, 0.15)',
-          },
           height: '100vh',
           display: 'flex',
           flexDirection: 'column',
-          position: 'fixed',
-          left: 0,
-          top: 0,
+          boxSizing: 'border-box',
         },
       }}
     >

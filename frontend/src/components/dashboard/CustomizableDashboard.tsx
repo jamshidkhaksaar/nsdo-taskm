@@ -7,9 +7,9 @@ import {
   Button, 
   ToggleButtonGroup, 
   ToggleButton,
-  Divider,
   Tooltip,
-  IconButton
+  IconButton,
+  useTheme
 } from '@mui/material';
 import Responsive, { WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -58,11 +58,19 @@ interface CustomizableDashboardProps {
 }
 
 const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({ children }) => {
+  const theme = useTheme();
   // Set up state for layout management
   const [layouts, setLayouts] = useState(() => {
-    // Try to load from localStorage
-    const savedLayouts = localStorage.getItem('dashboardLayouts');
-    return savedLayouts ? JSON.parse(savedLayouts) : defaultLayouts;
+    try {
+      const savedLayouts = localStorage.getItem('dashboardLayouts');
+      if (savedLayouts && savedLayouts !== 'undefined') {
+        return JSON.parse(savedLayouts);
+      }
+    } catch (error) {
+      console.error('Failed to parse layouts from localStorage:', error);
+    }
+    // Return default layouts if loading fails or item doesn't exist
+    return defaultLayouts;
   });
   
   // Period selection for data filtering
@@ -116,30 +124,40 @@ const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({ children 
   // Map children to grid items
   const renderWidgets = () => {
     return Object.keys(children).map((key) => (
-      <Box key={key} className={`widget ${isLocked ? 'locked' : ''}`}>
+      <Box 
+        key={key} 
+        className={`widget ${isLocked ? 'locked' : ''}`}
+        sx={{ 
+          width: '100%', 
+          height: '100%', 
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
         {children[key]}
       </Box>
     ));
   };
 
   return (
-    <Box sx={{ mt: 2 }}>
-      <Paper elevation={0} sx={{ p: 2, mb: 2 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={4}>
+    <Box sx={{ mt: theme.spacing(2) }}>
+      <Paper elevation={0} sx={{ p: theme.spacing(2), mb: theme.spacing(2) }}>
+        <Grid container spacing={2} alignItems="center" justifyContent="space-between">
+          <Grid item xs={12} sm={'auto'}>
             <Typography variant="h5" component="h1" gutterBottom={false}>
               Dashboard
             </Typography>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm>
             <ToggleButtonGroup
               value={period}
               exclusive
               onChange={handlePeriodChange}
               aria-label="dashboard period"
               size="small"
-              fullWidth
+              sx={{ width: '100%', justifyContent: 'center' }}
             >
               <ToggleButton value="daily" aria-label="daily">
                 Daily
@@ -153,9 +171,9 @@ const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({ children 
             </ToggleButtonGroup>
           </Grid>
           
-          <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Grid item xs={12} sm={'auto'} sx={{ display: 'flex', justifyContent: { xs: 'center', sm: 'flex-end' }, gap: theme.spacing(1) }}>
             <Tooltip title="Refresh Data">
-              <IconButton size="small" sx={{ mr: 1 }}>
+              <IconButton size="small">
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
@@ -165,7 +183,6 @@ const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({ children 
                 size="small" 
                 onClick={handleLockToggle}
                 color={isLocked ? "default" : "primary"}
-                sx={{ mr: 1 }}
               >
                 {isLocked ? <LockIcon /> : <LockOpenIcon />}
               </IconButton>
@@ -185,7 +202,7 @@ const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({ children 
         </Grid>
       </Paper>
       
-      <Box sx={{ mt: 2 }}>
+      <Box sx={{ mt: theme.spacing(2) }}>
         <ResponsiveGridLayout
           className="layout"
           layouts={layouts}
@@ -196,7 +213,7 @@ const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({ children 
           isResizable={!isLocked}
           onLayoutChange={handleLayoutChange}
           compactType="vertical"
-          margin={[16, 16]}
+          margin={[theme.spacing(2), theme.spacing(2)]}
         >
           {renderWidgets()}
         </ResponsiveGridLayout>

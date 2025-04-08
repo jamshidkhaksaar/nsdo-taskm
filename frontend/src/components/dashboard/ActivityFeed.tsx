@@ -7,6 +7,7 @@ import {
   Skeleton,
   IconButton,
   Tooltip,
+  Collapse
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -14,6 +15,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditIcon from '@mui/icons-material/Edit';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { format, formatDistanceToNow } from 'date-fns';
 
 interface ActivityItem {
@@ -31,6 +34,7 @@ const ActivityFeed: React.FC = () => {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const fetchActivities = async () => {
     try {
@@ -169,145 +173,127 @@ const ActivityFeed: React.FC = () => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
+        minHeight: isCollapsed ? 'auto' : '250px'
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600 }}>
           Recent Activity
         </Typography>
-        <Tooltip title="Refresh activity">
-          <span>
-            <IconButton 
-              size="small" 
-              onClick={fetchActivities}
-              disabled={isLoading}
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
-              }}
-            >
-              <RefreshIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
+        <Box>
+          <Tooltip title="Refresh activity">
+            <span>
+              <IconButton 
+                size="small" 
+                onClick={fetchActivities}
+                disabled={isLoading}
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  mr: 0.5,
+                  '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
+                }}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={isCollapsed ? "Expand" : "Collapse"}>
+             <IconButton
+                size="small"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
+                }}
+              >
+                {isCollapsed ? <ExpandMore /> : <ExpandLess />}
+              </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
       
-      <Box 
-        sx={{ 
-          flexGrow: 1, 
-          overflowY: 'auto',
-          p: 2,
-          '&::-webkit-scrollbar': {
-            width: '4px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'rgba(0,0,0,0.05)',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: '4px',
-          },
-        }}
-      >
-        {isLoading ? (
-          // Loading skeletons
-          Array.from(new Array(3)).map((_, index) => (
-            <Box key={index} sx={{ display: 'flex', mb: 2 }}>
-              <Skeleton variant="circular" width={32} height={32} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)', mr: 1.5 }} />
-              <Box sx={{ width: '100%' }}>
-                <Skeleton variant="text" width="60%" height={20} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} />
-                <Skeleton variant="text" width="40%" height={16} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} />
-              </Box>
-            </Box>
-          ))
-        ) : error ? (
-          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 2 }}>
-            {error}
-          </Typography>
-        ) : activities.length === 0 ? (
-          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 2 }}>
-            No recent activity
-          </Typography>
-        ) : (
-          activities.map((activity, index) => (
-            <React.Fragment key={activity.id}>
-              <Box sx={{ display: 'flex', mb: 1.5 }}>
-                <Avatar 
-                  sx={{ 
-                    bgcolor: `${getActivityColor(activity.type)}20`,
-                    color: getActivityColor(activity.type),
-                    mr: 1.5,
-                    width: 32,
-                    height: 32,
-                  }}
-                >
-                  {getActivityIcon(activity.type)}
-                </Avatar>
-                
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
-                    <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
-                      {activity.username}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      {getActivityDescription(activity)}
-                    </Typography>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        color: '#fff',
-                        fontWeight: 500,
-                        maxWidth: '120px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {activity.taskTitle}
-                    </Typography>
-                  </Box>
-                  
-                  {activity.details && (
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        color: 'rgba(255, 255, 255, 0.6)',
-                        display: 'block',
-                        mt: 0.25,
-                      }}
-                    >
-                      {activity.details}
-                    </Typography>
-                  )}
-                  
-                  <Tooltip title={format(new Date(activity.timestamp), 'PPpp')}>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        display: 'block',
-                        mt: 0.25,
-                        fontSize: '0.7rem',
-                      }}
-                    >
-                      {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
-                    </Typography>
-                  </Tooltip>
+      <Collapse in={!isCollapsed} timeout="auto" sx={{ flexGrow: 1, minHeight: 0 }}>
+        <Box 
+          sx={{ 
+            flexGrow: 1, 
+            overflowY: 'auto',
+            p: 2,
+            '&::-webkit-scrollbar': {
+              width: '4px',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: 'rgba(0,0,0,0.05)',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '4px',
+            },
+          }}
+        >
+          {isLoading ? (
+            // Loading skeletons
+            Array.from(new Array(3)).map((_, index) => (
+              <Box key={index} sx={{ display: 'flex', mb: 2 }}>
+                <Skeleton variant="circular" width={32} height={32} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)', mr: 1.5 }} />
+                <Box sx={{ width: '100%' }}>
+                  <Skeleton variant="text" width="60%" height={20} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} />
+                  <Skeleton variant="text" width="40%" height={16} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} />
                 </Box>
               </Box>
-              
-              {index < activities.length - 1 && (
-                <Divider 
-                  sx={{ 
-                    borderColor: 'rgba(255, 255, 255, 0.1)', 
-                    my: 1.5 
-                  }} 
-                />
-              )}
-            </React.Fragment>
-          ))
-        )}
-      </Box>
+            ))
+          ) : error ? (
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 2 }}>
+              {error}
+            </Typography>
+          ) : activities.length === 0 ? (
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 2 }}>
+              No recent activity
+            </Typography>
+          ) : (
+            activities.map((activity, index) => (
+              <React.Fragment key={activity.id}>
+                <Box sx={{ display: 'flex', mb: 1.5 }}>
+                  <Avatar 
+                    sx={{ 
+                      bgcolor: `${getActivityColor(activity.type)}20`,
+                      color: getActivityColor(activity.type),
+                      mr: 1.5,
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    {getActivityIcon(activity.type)}
+                  </Avatar>
+                  
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
+                        {activity.username}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                        {getActivityDescription(activity)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
+                        {activity.taskTitle}
+                      </Typography>
+                    </Box>
+                    
+                    {activity.details && (
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block' }}>
+                        {activity.details}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                      {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                    </Typography>
+                  </Box>
+                </Box>
+                {index < activities.length - 1 && <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)', my: 1 }} />}
+              </React.Fragment>
+            ))
+          )}
+        </Box>
+      </Collapse>
     </Box>
   );
 };

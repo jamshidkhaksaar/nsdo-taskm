@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -18,6 +18,7 @@ import {
   Radio,
   CircularProgress,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Lock as LockIcon,
@@ -31,6 +32,8 @@ import { logout } from '../store/slices/authSlice';
 import { SettingsService } from '../services/settings';
 import { standardBackgroundStyle } from '../utils/backgroundStyles';
 import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
+import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
+import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -77,8 +80,12 @@ const Settings: React.FC = () => {
   const [twoFactorMethod, setTwoFactorMethod] = useState('app');
   const [emailSent, setEmailSent] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [notifications, setNotifications] = useState(3);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const glassStyles = getGlassmorphismStyles(theme);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -279,156 +286,272 @@ const Settings: React.FC = () => {
   */
 
   const handleLogout = () => {
-    try {
-      dispatch(logout());
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    dispatch(logout());
+    navigate('/login');
+  };
+
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
+
+  const handleNotificationClick = () => {
+    setNotifications(0);
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  const handleHelpClick = () => {
+    console.log('Help clicked');
   };
 
   const toggleDrawer = () => {
     setOpen(!open);
   };
 
-  return (
-    <Box sx={{ 
-      display: 'flex', 
-      minHeight: '100vh',
-      ...standardBackgroundStyle
-    }}>
-      <Sidebar
-        open={open}
-        onToggleDrawer={toggleDrawer}
-        onLogout={handleLogout}
-        drawerWidth={DRAWER_WIDTH}
-      />
-      
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { sm: `${DRAWER_WIDTH}px` },
-        }}
-      >
-        <Container maxWidth="lg" sx={{ mt: 4 }}>
-          <Typography variant="h4" gutterBottom sx={{ color: 'white', mb: 3 }}>
-            Settings
-          </Typography>
-          
-          <Card sx={{ ...glassStyles.card, mb: 4 }}>
-            <CardContent>
-              <Tabs
-                value={tabValue}
-                onChange={handleTabChange}
-                aria-label="settings tabs"
-                sx={{
-                  mb: 3,
-                  '& .MuiTab-root': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    '&.Mui-selected': {
-                      color: 'white',
-                    },
+  const mainContent = (
+    <Box sx={{ py: 3 }}>
+      <Container maxWidth="lg">
+        <Card sx={{
+          borderRadius: 2,
+          overflow: 'hidden',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          mb: 4,
+        }}>
+          <CardContent>
+            <Typography variant="h4" component="h1" gutterBottom sx={{ color: 'white' }}>
+              Account Settings
+            </Typography>
+            
+            {error && (
+              <Alert severity="error" sx={{ mb: 2, backgroundColor: 'rgba(211, 47, 47, 0.1)', color: '#ff5252' }} onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert severity="success" sx={{ mb: 2, backgroundColor: 'rgba(46, 125, 50, 0.1)', color: '#69f0ae' }} onClose={() => setSuccess(null)}>
+                {success}
+              </Alert>
+            )}
+            
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange}
+              aria-label="settings tabs"
+              sx={{
+                '& .MuiTab-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-selected': {
+                    color: 'white',
                   },
-                }}
-              >
-                <Tab label="Account" icon={<LockIcon />} iconPosition="start" />
-                <Tab label="Security" icon={<SecurityIcon />} iconPosition="start" />
-              </Tabs>
+                },
+                '& .MuiTabs-indicator': {
+                  backgroundColor: '#2196f3',
+                },
+                borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+                mb: 2,
+              }}
+            >
+              <Tab 
+                icon={<LockIcon />} 
+                label="Password" 
+                id="settings-tab-0"
+                aria-controls="settings-tabpanel-0"
+              />
+              <Tab 
+                icon={<SecurityIcon />} 
+                label="Security" 
+                id="settings-tab-1"
+                aria-controls="settings-tabpanel-1"
+              />
+            </Tabs>
 
-              <TabPanel value={tabValue} index={0}>
-                <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
-                  Change Password
-                </Typography>
-                
-                {error && (
-                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                    {error}
-                  </Alert>
-                )}
-                
-                {success && (
-                  <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-                    {success}
-                  </Alert>
-                )}
-                
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      label="Current Password"
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      fullWidth
-                      margin="normal"
-                      required
-                      InputLabelProps={{
-                        style: glassStyles.inputLabel
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': glassStyles.input,
-                      }}
-                    />
-                    <TextField
-                      label="New Password"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      fullWidth
-                      margin="normal"
-                      required
-                      InputLabelProps={{
-                        style: glassStyles.inputLabel
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': glassStyles.input,
-                      }}
-                    />
-                    <TextField
-                      label="Confirm New Password"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      fullWidth
-                      margin="normal"
-                      required
-                      InputLabelProps={{
-                        style: glassStyles.inputLabel
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': glassStyles.input,
-                      }}
-                    />
-                    <Box sx={{ mt: 2 }}>
-                      <Button 
-                        variant="contained" 
-                        onClick={handleChangePassword}
-                        disabled={loading}
-                        sx={glassStyles.button}
-                      >
-                        {loading ? <CircularProgress size={24} /> : 'Change Password'}
-                      </Button>
-                    </Box>
-                  </Grid>
+            <TabPanel value={tabValue} index={0}>
+              <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+                Change Password
+              </Typography>
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Current Password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    fullWidth
+                    margin="normal"
+                    required
+                    InputLabelProps={{
+                      style: glassStyles.inputLabel
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': glassStyles.input,
+                    }}
+                  />
+                  <TextField
+                    label="New Password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    fullWidth
+                    margin="normal"
+                    required
+                    InputLabelProps={{
+                      style: glassStyles.inputLabel
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': glassStyles.input,
+                    }}
+                  />
+                  <TextField
+                    label="Confirm New Password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    fullWidth
+                    margin="normal"
+                    required
+                    InputLabelProps={{
+                      style: glassStyles.inputLabel
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': glassStyles.input,
+                    }}
+                  />
+                  <Box sx={{ mt: 2 }}>
+                    <Button 
+                      variant="contained" 
+                      onClick={handleChangePassword}
+                      disabled={loading}
+                      sx={glassStyles.button}
+                    >
+                      {loading ? <CircularProgress size={24} /> : 'Change Password'}
+                    </Button>
+                  </Box>
                 </Grid>
-              </TabPanel>
+              </Grid>
+            </TabPanel>
 
-              <TabPanel value={tabValue} index={1}>
-                <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
-                  Two-Factor Authentication
-                </Typography>
-                
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <TabPanel value={tabValue} index={1}>
+              <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+                Two-Factor Authentication
+              </Typography>
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <FormControl component="fieldset" sx={{ mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={twoFactorEnabled}
+                          onChange={handleSetup2FA} 
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: 'white',
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: theme => theme.palette.primary.main,
+                            }
+                          }}
+                        />
+                      }
+                      label={<Typography sx={{ color: 'white' }}>Enable Two-Factor Authentication</Typography>}
+                    />
+                  </FormControl>
+                  
+                  {!twoFactorEnabled && (
+                    <FormControl component="fieldset" sx={{ mb: 2, display: 'block' }}>
+                      <Typography variant="body1" gutterBottom sx={{ color: 'white', mb: 1 }}>
+                        Select 2FA Method:
+                      </Typography>
+                      <RadioGroup
+                        value={twoFactorMethod}
+                        onChange={(e) => setTwoFactorMethod(e.target.value)}
+                        row
+                      >
+                        <FormControlLabel 
+                          value="app" 
+                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                          label={<Typography sx={{ color: 'white' }}>Authenticator App</Typography>} 
+                        />
+                        <FormControlLabel 
+                          value="email" 
+                          control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
+                          label={<Typography sx={{ color: 'white' }}>Email</Typography>} 
+                        />
+                      </RadioGroup>
+                    </FormControl>
+                  )}
+                  
+                  {error && (
+                    <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                      {error}
+                    </Alert>
+                  )}
+                  
+                  {success && (
+                    <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+                      {success}
+                    </Alert>
+                  )}
+                  
+                  {twoFactorEnabled && twoFactorMethod === 'app' && (
+                    <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
+                      <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
+                        Scan this QR code with your authenticator app:
+                      </Typography>
+                      <Box sx={{ textAlign: 'center', my: 2 }}>
+                        {qrCode ? (
+                          <img src={qrCode} alt="2FA QR Code" style={{ width: '200px', height: '200px' }} />
+                        ) : (
+                          <Box 
+                            sx={{ 
+                              width: 200, 
+                              height: 200, 
+                              bgcolor: 'rgba(255, 255, 255, 0.1)', 
+                              mx: 'auto',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'rgba(255, 255, 255, 0.7)',
+                              borderRadius: 1
+                            }}
+                          >
+                            QR Code will appear here
+                          </Box>
+                        )}
+                      </Box>
+                      <TextField
+                        label="Verification Code"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        InputLabelProps={{
+                          style: glassStyles.inputLabel
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': glassStyles.input,
+                        }}
+                      />
                       <FormControlLabel
                         control={
                           <Switch
-                            checked={twoFactorEnabled}
-                            onChange={handleSetup2FA} 
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
                             sx={{
                               '& .MuiSwitch-switchBase.Mui-checked': {
                                 color: 'white',
@@ -439,183 +562,118 @@ const Settings: React.FC = () => {
                             }}
                           />
                         }
-                        label={<Typography sx={{ color: 'white' }}>Enable Two-Factor Authentication</Typography>}
+                        label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
                       />
-                    </FormControl>
-                    
-                    {!twoFactorEnabled && (
-                      <FormControl component="fieldset" sx={{ mb: 2, display: 'block' }}>
-                        <Typography variant="body1" gutterBottom sx={{ color: 'white', mb: 1 }}>
-                          Select 2FA Method:
-                        </Typography>
-                        <RadioGroup
-                          value={twoFactorMethod}
-                          onChange={(e) => setTwoFactorMethod(e.target.value)}
-                          row
-                        >
-                          <FormControlLabel 
-                            value="app" 
-                            control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
-                            label={<Typography sx={{ color: 'white' }}>Authenticator App</Typography>} 
-                          />
-                          <FormControlLabel 
-                            value="email" 
-                            control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: 'white' } }} />} 
-                            label={<Typography sx={{ color: 'white' }}>Email</Typography>} 
-                          />
-                        </RadioGroup>
-                      </FormControl>
-                    )}
-                    
-                    {error && (
-                      <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                        {error}
-                      </Alert>
-                    )}
-                    
-                    {success && (
-                      <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-                        {success}
-                      </Alert>
-                    )}
-                    
-                    {twoFactorEnabled && twoFactorMethod === 'app' && (
-                      <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
-                        <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
-                          Scan this QR code with your authenticator app:
-                        </Typography>
-                        <Box sx={{ textAlign: 'center', my: 2 }}>
-                          {qrCode ? (
-                            <img src={qrCode} alt="2FA QR Code" style={{ width: '200px', height: '200px' }} />
-                          ) : (
-                            <Box 
-                              sx={{ 
-                                width: 200, 
-                                height: 200, 
-                                bgcolor: 'rgba(255, 255, 255, 0.1)', 
-                                mx: 'auto',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                borderRadius: 1
-                              }}
-                            >
-                              QR Code will appear here
-                            </Box>
-                          )}
-                        </Box>
-                        <TextField
-                          label="Verification Code"
-                          value={verificationCode}
-                          onChange={(e) => setVerificationCode(e.target.value)}
-                          fullWidth
-                          margin="normal"
-                          InputLabelProps={{
-                            style: glassStyles.inputLabel
-                          }}
-                          sx={{
-                            '& .MuiOutlinedInput-root': glassStyles.input,
-                          }}
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={rememberMe}
-                              onChange={(e) => setRememberMe(e.target.checked)}
-                              sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                  color: 'white',
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                  backgroundColor: theme => theme.palette.primary.main,
-                                }
-                              }}
-                            />
-                          }
-                          label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
-                        />
+                      <Button 
+                        variant="contained" 
+                        onClick={handleVerify2FA}
+                        sx={glassStyles.button}
+                        fullWidth
+                      >
+                        Verify and Enable
+                      </Button>
+                    </Box>
+                  )}
+                  
+                  {twoFactorEnabled && twoFactorMethod === 'email' && (
+                    <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
+                      <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
+                        Email Verification:
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                        A verification code will be sent to your email ({user?.email}) when you log in from a new device or browser.
+                      </Typography>
+                      
+                      {!emailSent ? (
                         <Button 
                           variant="contained" 
-                          onClick={handleVerify2FA}
-                          sx={glassStyles.button}
+                          onClick={handleSendEmailCode}
+                          sx={{ ...glassStyles.button, mt: 2 }}
                           fullWidth
                         >
-                          Verify and Enable
+                          Send Test Code
                         </Button>
-                      </Box>
-                    )}
-                    
-                    {twoFactorEnabled && twoFactorMethod === 'email' && (
-                      <Box sx={{ mt: 2, p: 2, ...glassStyles.card }}>
-                        <Typography variant="body1" gutterBottom sx={{ color: 'white' }}>
-                          Email Verification:
-                        </Typography>
-                        <Typography variant="body2" gutterBottom sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                          A verification code will be sent to your email ({user?.email}) when you log in from a new device or browser.
-                        </Typography>
-                        
-                        {!emailSent ? (
+                      ) : (
+                        <>
+                          <TextField
+                            label="Verification Code"
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            InputLabelProps={{
+                              style: glassStyles.inputLabel
+                            }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': glassStyles.input,
+                            }}
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                sx={{
+                                  '& .MuiSwitch-switchBase.Mui-checked': {
+                                    color: 'white',
+                                  },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                    backgroundColor: theme => theme.palette.primary.main,
+                                  }
+                                }}
+                              />
+                            }
+                            label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
+                          />
                           <Button 
                             variant="contained" 
-                            onClick={handleSendEmailCode}
-                            sx={{ ...glassStyles.button, mt: 2 }}
+                            onClick={handleVerify2FA}
+                            sx={glassStyles.button}
                             fullWidth
                           >
-                            Send Test Code
+                            Verify and Enable
                           </Button>
-                        ) : (
-                          <>
-                            <TextField
-                              label="Verification Code"
-                              value={verificationCode}
-                              onChange={(e) => setVerificationCode(e.target.value)}
-                              fullWidth
-                              margin="normal"
-                              InputLabelProps={{
-                                style: glassStyles.inputLabel
-                              }}
-                              sx={{
-                                '& .MuiOutlinedInput-root': glassStyles.input,
-                              }}
-                            />
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  checked={rememberMe}
-                                  onChange={(e) => setRememberMe(e.target.checked)}
-                                  sx={{
-                                    '& .MuiSwitch-switchBase.Mui-checked': {
-                                      color: 'white',
-                                    },
-                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                      backgroundColor: theme => theme.palette.primary.main,
-                                    }
-                                  }}
-                                />
-                              }
-                              label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
-                            />
-                            <Button 
-                              variant="contained" 
-                              onClick={handleVerify2FA}
-                              sx={glassStyles.button}
-                              fullWidth
-                            >
-                              Verify and Enable
-                            </Button>
-                          </>
-                        )}
-                      </Box>
-                    )}
-                  </Grid>
+                        </>
+                      )}
+                    </Box>
+                  )}
                 </Grid>
-              </TabPanel>
-            </CardContent>
-          </Card>
-        </Container>
-      </Box>
+              </Grid>
+            </TabPanel>
+          </CardContent>
+        </Card>
+      </Container>
     </Box>
+  );
+
+  return (
+    <ModernDashboardLayout
+      sidebar={
+        <Sidebar
+          open={isSidebarOpen}
+          onToggleDrawer={handleToggleSidebar}
+          onLogout={handleLogout}
+          drawerWidth={DRAWER_WIDTH}
+        />
+      }
+      topBar={
+        <DashboardTopBar
+          username={user?.username || 'User'}
+          notificationCount={notifications}
+          onToggleSidebar={handleToggleSidebar}
+          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          onHelpClick={handleHelpClick}
+          onToggleTopWidgets={handleToggleTopWidgets}
+          topWidgetsVisible={topWidgetsVisible}
+        />
+      }
+      mainContent={mainContent}
+      sidebarOpen={isSidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+    />
   );
 };
 

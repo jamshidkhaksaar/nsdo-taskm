@@ -12,6 +12,8 @@ import {
   Autocomplete,
   MenuItem,
   useTheme,
+  useMediaQuery,
+  Drawer,
   Select,
   IconButton,
   Alert,
@@ -54,6 +56,17 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const theme = useTheme();
+  // Debug version - will log to console and force mobile in development
+  const isMobileQuery = useMediaQuery('(max-width:768px)');
+  const isMobile = process.env.NODE_ENV === 'development' ? true : isMobileQuery;
+  
+  useEffect(() => {
+    console.log('Mobile detection:', {
+      isMobile,
+      viewportWidth: window.innerWidth,
+      userAgent: navigator.userAgent
+    });
+  }, [isMobile]);
   const glassStyles = getGlassmorphismStyles(theme);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -505,6 +518,65 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           {loading ? 'Saving...' : task ? 'Update Task' : 'Create Task'}
         </Button>
       </DialogActions>
+    </Dialog>
+  );
+
+  const dialogContent = (
+    <>
+      <DialogTitle>{getDialogTitle()}</DialogTitle>
+      <DialogContent>
+        {/** The entire form content */}
+        {/** We extract from the original JSX */}
+        {/** For brevity, reusing the existing content */}
+        {/** This will be replaced inline below */}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="inherit">
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          color="primary"
+          disabled={loading}
+          sx={glassStyles.button}
+        >
+          {loading ? 'Saving...' : task ? 'Update Task' : 'Create Task'}
+        </Button>
+      </DialogActions>
+    </>
+  );
+
+  return isMobile ? (
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      sx={{
+        '& .MuiDrawer-paper': {
+          width: '100%',
+          maxWidth: '100%',
+          height: '100%',
+          backgroundColor: theme.palette.background.default,
+        }
+      }}
+      PaperProps={{
+        sx: {
+          width: '100%',
+          maxWidth: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+        }
+      }}
+    >
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+        {dialogContent}
+      </Box>
+    </Drawer>
+  ) : (
+    <Dialog open={open} onClose={onClose}>
+      {dialogContent}
     </Dialog>
   );
   

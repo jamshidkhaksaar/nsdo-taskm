@@ -100,7 +100,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   return (
     <Box sx={{ 
       width: '100%', 
-      height: '100%', 
+      flexGrow: 1,
       display: 'flex', 
       flexDirection: 'column',
       bgcolor: 'rgba(255, 255, 255, 0.03)',
@@ -126,7 +126,8 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        mb: 2
+        mb: 2,
+        flexShrink: 0
       }}>
         <Typography variant="h6" sx={{ 
           color: '#fff',
@@ -165,20 +166,25 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
           flexGrow: 1,
           m: 0,
           width: '100%',
-          height: 'calc(100% - 48px)',
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
+          overflowY: 'hidden'
         }}
       >
         {Object.entries(groupedTasks).map(([status, statusTasks]) => (
           <Grid 
             item 
-            xs={12} 
+            xs={12} // Let the KanbanColumn control its own min/max width ideally
             sm={6} 
-            md={status === 'cancelled' ? 6 : 4} 
+            md={3} // Aim for 4 columns on medium screens
             lg={3} 
             key={status}
             sx={{ 
-              height: '100%',
-              maxHeight: '100%',
+              height: '100%', // Column wrapper takes full height of the container
+              // overflowY: 'auto' // Let KanbanColumn handle its internal scroll
+              display: 'flex', // Ensure it uses flex for the child
+              flexDirection: 'column',
+              minWidth: '280px' // Ensure columns have a minimum width
             }}
           >
             <KanbanColumn

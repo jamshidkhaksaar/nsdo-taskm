@@ -14,6 +14,7 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
+  Button
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import SearchIcon from '@mui/icons-material/Search';
@@ -22,6 +23,10 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
+import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
 import { alpha } from '@mui/material/styles';
 
 interface DashboardTopBarProps {
@@ -33,6 +38,12 @@ interface DashboardTopBarProps {
   onProfileClick: () => void;
   onSettingsClick: () => void;
   onHelpClick: () => void;
+  onToggleTopWidgets: () => void;
+  topWidgetsVisible: boolean;
+  rightSidebarVisible?: boolean;
+  onToggleRightSidebar?: () => void;
+  onToggleQuickNotes?: () => void;
+  showQuickNotes?: boolean;
 }
 
 const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
@@ -40,44 +51,18 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
   notificationCount,
   onToggleSidebar,
   onNotificationClick,
+  onToggleQuickNotes,
+  showQuickNotes,
   onLogout,
   onProfileClick,
   onSettingsClick,
   onHelpClick,
+  onToggleTopWidgets,
+  rightSidebarVisible,
+  onToggleRightSidebar,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleProfileMenuClick = () => {
-    handleMenuClose();
-    onProfileClick();
-  };
-
-  const handleSettingsMenuClick = () => {
-    handleMenuClose();
-    onSettingsClick();
-  };
-
-  const handleLogoutMenuClick = () => {
-    handleMenuClose();
-    onLogout();
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Searching for:', searchQuery);
-    // Implement search functionality
-  };
 
   return (
     <AppBar
@@ -91,14 +76,14 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
     >
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         {/* Left section */}
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, mr: { xs: 1, sm: 2 } }}>
+          {/* Sidebar Toggle */}
           <IconButton
             edge="start"
             color="inherit"
             aria-label="toggle sidebar"
             onClick={onToggleSidebar}
-            sx={{ 
-              mr: 2, 
+            sx={{
               color: 'white',
               background: 'rgba(255, 255, 255, 0.1)',
               backdropFilter: 'blur(8px)',
@@ -108,212 +93,55 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
                 background: 'rgba(255, 255, 255, 0.2)',
                 transform: 'scale(1.05)',
               },
+              mr: 1,
             }}
           >
             <MenuIcon />
           </IconButton>
-          {!isMobile && (
-            <Typography
-              variant="h6"
-              noWrap
-              component="div"
-              sx={{ display: { xs: 'none', sm: 'block' }, color: 'white', fontWeight: 600 }}
-            >
-              Task Manager
-            </Typography>
-          )}
-        </Box>
-
-        {/* Search bar */}
-        <Box
-          component="form"
-          onSubmit={handleSearch}
-          sx={{
-            position: 'relative',
-            borderRadius: theme.shape.borderRadius,
-            backgroundColor: alpha('#fff', 0.1),
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            '&:hover': {
-              backgroundColor: alpha('#fff', 0.15),
-            },
-            marginRight: theme.spacing(2),
-            marginLeft: 0,
-            width: '100%',
-            maxWidth: '400px',
-            [theme.breakpoints.down('sm')]: {
-              display: 'none',
-            },
-          }}
-        >
-          <Box sx={{ padding: theme.spacing(0, 2), height: '100%', position: 'absolute', display: 'flex', alignItems: 'center' }}>
-            <SearchIcon sx={{ color: 'white' }} />
-          </Box>
-          <InputBase
-            placeholder="Search tasks, projects..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+          {/* App Title */}
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
             sx={{
+              display: { xs: 'none', sm: 'block' },
               color: 'white',
-              padding: theme.spacing(1, 1, 1, 0),
-              paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-              transition: theme.transitions.create('width'),
-              width: '100%',
-              '&::placeholder': {
-                color: 'rgba(255, 255, 255, 0.7)',
-                opacity: 1,
-              },
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
             }}
-          />
+          >
+            Task Manager
+          </Typography>
         </Box>
 
         {/* Right section */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Help button */}
-          <Tooltip title="Help & Resources">
-            <IconButton
-              color="inherit"
-              onClick={onHelpClick}
-              sx={{
-                color: 'white',
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  transform: 'scale(1.05)',
-                },
-              }}
-            >
-              <HelpOutlineIcon />
-            </IconButton>
-          </Tooltip>
-
-          {/* Notifications */}
-          <Tooltip title="Notifications">
-            <IconButton
-              color="inherit"
-              onClick={onNotificationClick}
-              sx={{
-                color: 'white',
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  transform: 'scale(1.05)',
-                },
-              }}
-            >
-              <Badge 
-                badgeContent={notificationCount} 
-                color="error"
-                sx={{
-                  '& .MuiBadge-badge': {
-                    background: '#ff3c7d',
-                    color: '#fff',
-                  }
-                }}
-              >
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-
-          {/* User profile */}
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {!isMobile && (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'white',
-                  mr: 1,
-                  display: { xs: 'none', md: 'block' },
-                }}
-              >
-                {username}
-              </Typography>
-            )}
-            <Tooltip title="Account settings">
-              <IconButton
-                edge="end"
-                onClick={handleProfileMenuOpen}
-                sx={{
-                  color: 'white',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
-                  transition: 'all 0.2s ease-in-out',
-                  '&:hover': {
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'scale(1.05)',
-                  },
-                }}
-              >
-                <Avatar
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    bgcolor: 'transparent',
-                    border: '2px solid rgba(255, 255, 255, 0.5)',
-                  }}
-                >
-                  <AccountCircleIcon />
-                </Avatar>
-              </IconButton>
-            </Tooltip>
-          </Box>
-
-          {/* User menu */}
-          <Menu
-            anchorEl={anchorEl}
-            id="account-menu"
-            open={Boolean(anchorEl)}
-            onClose={handleMenuClose}
-            PaperProps={{
-              sx: {
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
-                color: 'white',
-                minWidth: '200px',
-                '& .MuiMenuItem-root': {
-                  padding: '10px 16px',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                },
+          <Button
+            onClick={onToggleQuickNotes ? onToggleQuickNotes : () => {}}
+            variant="outlined"
+            size="small"
+            sx={{
+              color: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.5)',
+              '&:hover': {
+                borderColor: 'white',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
               },
             }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            <MenuItem onClick={handleProfileMenuClick}>
-              <ListItemIcon>
-                <AccountCircleIcon sx={{ color: 'white' }} />
-              </ListItemIcon>
-              Profile
-            </MenuItem>
-            <MenuItem onClick={handleSettingsMenuClick}>
-              <ListItemIcon>
-                <SettingsIcon sx={{ color: 'white' }} />
-              </ListItemIcon>
-              Settings
-            </MenuItem>
-            <MenuItem onClick={handleLogoutMenuClick}>
-              <ListItemIcon>
-                <LogoutIcon sx={{ color: 'white' }} />
-              </ListItemIcon>
-              Logout
-            </MenuItem>
-          </Menu>
+            {showQuickNotes ? 'Hide Quick Notes' : 'Show Quick Notes'}
+          </Button>
+
+          <IconButton color="inherit" onClick={onProfileClick}>
+            <AccountCircleIcon />
+          </IconButton>
+          <IconButton color="inherit" onClick={onSettingsClick}>
+            <SettingsIcon />
+          </IconButton>
         </Box>
       </Toolbar>
     </AppBar>
   );
 };
 
-export default DashboardTopBar; 
+export default DashboardTopBar;

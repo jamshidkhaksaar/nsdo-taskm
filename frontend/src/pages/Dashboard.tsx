@@ -1,28 +1,23 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { Container, Box, useMediaQuery, useTheme, CircularProgress, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Button, Grid, Typography } from '@mui/material';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { Box, useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 
 // Custom Components
-import Sidebar from '../components/Sidebar';
 import ErrorDisplay from '../components/common/ErrorDisplay';
 import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
+import TaskViewDialog from '../components/tasks/TaskViewDialog';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 // New Dashboard Components
-import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
-import DashboardTopBar from '../components/dashboard/DashboardTopBar';
-import WeatherWidget from '../components/dashboard/WeatherWidget';
-import TaskSummary from '../components/dashboard/TaskSummary';
-import TaskKanbanBoard from '../components/dashboard/TaskKanbanBoard';
 import NotesWidget from '../components/dashboard/NotesWidget';
-import ActivityFeed from '../components/dashboard/ActivityFeed';
-import CompletionRateChart from '../components/dashboard/CompletionRateChart';
-import ProductivityMetrics from '../components/dashboard/ProductivityMetrics';
-import TaskDistributionChart from '../components/dashboard/TaskDistributionChart';
-import TaskRecommendations from '../components/dashboard/TaskRecommendations';
-import CustomizableDashboard from '../components/dashboard/CustomizableDashboard';
+import TaskKanbanBoard from '../components/dashboard/TaskKanbanBoard';
+
+// Layout Components
+import Sidebar from '../components/Sidebar';
+import DashboardTopBar from '../components/dashboard/DashboardTopBar';
+import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 
 // Custom Hooks
 import { useTasks } from '../hooks/useTasks';
@@ -34,8 +29,46 @@ import { logout } from '../store/slices/authSlice';
 import { Task, TaskPriority, TaskStatus, TaskContext } from '../types/task';
 import axios from '../utils/axios';
 import { TaskService } from '../services/task';
+import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
 
+// Interface for TabPanel props
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`dashboard-tabpanel-${index}`}
+      aria-labelledby={`dashboard-tab-${index}`}
+      style={{ height: '100%' }}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}> 
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
+
+function a11yProps(index: number) {
+  return {
+    id: `dashboard-tab-${index}`,
+    'aria-controls': `dashboard-tabpanel-${index}`,
+  };
+}
+
+// Constants
 const DRAWER_WIDTH = 240;
+const RIGHT_SIDEBAR_WIDTH = 300;
 
 const Dashboard: React.FC = () => {
   const theme = useTheme();
@@ -48,16 +81,16 @@ const Dashboard: React.FC = () => {
   // Authentication state from Redux
   const { isAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
   
-  // Custom hooks
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showWeatherWidget, setShowWeatherWidget] = useState(true);
+  // Other state declarations...
+  const [showWeatherWidget, setShowWeatherWidget] = useState(true); 
   const { error, handleError, clearError } = useErrorHandler();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Local state
   const [notifications, setNotifications] = useState(3);
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
+  const [viewTaskDialogOpen, setViewTaskDialogOpen] = useState(false);
+  const [showQuickNotes, setShowQuickNotes] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState(0);
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -65,13 +98,11 @@ const Dashboard: React.FC = () => {
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated || !token) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, token, navigate]);
+  const [currentTab, setCurrentTab] = useState(0); 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const handleToggleQuickNotes = () => setShowQuickNotes(prev => !prev);
+  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(!isTablet);
   
   // Fetch tasks from API
   const fetchTasks = useCallback(async () => {
@@ -81,16 +112,14 @@ const Dashboard: React.FC = () => {
       console.log('Fetching tasks from API...');
       
       // Get the current token
-      const token = localStorage.getItem('access_token');
-      if (!token) {
+      const currentToken = localStorage.getItem('access_token');
+      if (!currentToken) {
         console.warn('No access token found, redirecting to login');
-        dispatch(logout());
-        navigate('/login');
         return;
       }
       
       // Ensure the token is set in axios headers
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${currentToken}`;
       
       // Log the API URL being used
       console.log('Using API URL:', axios.defaults.baseURL);
@@ -134,17 +163,13 @@ const Dashboard: React.FC = () => {
       if (err.response && err.response.status === 401) {
         console.log('Authentication error (401) when fetching tasks');
         handleError('Your session has expired. Please log in again.');
-        setTimeout(() => {
-          dispatch(logout());
-          navigate('/login');
-        }, 2000);
       } else {
         handleError(`Failed to load tasks: ${err.message || 'Unknown error'}`);
       }
     } finally {
       setLoading(false);
     }
-  }, [clearError, handleError, dispatch, navigate, user]);
+  }, [clearError, handleError, user]);
   
   // Initial data fetch
   useEffect(() => {
@@ -157,14 +182,26 @@ const Dashboard: React.FC = () => {
     navigate('/login');
   };
   
-  const handleToggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-  
-  const handleNotificationClick = () => {
-    setNotifications(0);
-  };
-  
+  // --- Sidebar and Widget Toggle Handlers ---
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
+
+  const handleToggleRightSidebar = useCallback(() => {
+    setRightSidebarVisible(prev => !prev);
+  }, []);
+
+  // Placeholder for notification click
+  const handleNotificationClick = useCallback(() => {
+    console.log("Notification icon clicked");
+    // TODO: Implement notification panel logic
+  }, []);
+  // --- End Sidebar and Widget Toggle Handlers ---
+
   const handleEditTask = (taskId: string) => {
     const taskToEdit = tasks.find(t => t.id === taskId) || null;
     setSelectedTask(taskToEdit);
@@ -176,41 +213,25 @@ const Dashboard: React.FC = () => {
     try {
       console.log('Deleting task with ID:', taskId);
       await axios.delete(`/api/tasks/${taskId}`);
-      await fetchTasks(); // Refresh tasks after deletion
-      return true;
+      fetchTasks(); // Refresh tasks after deletion
+      setDeleteDialogOpen(false);
     } catch (err) {
       console.error('Error deleting task:', err);
       handleError('Failed to delete task. Please try again later.');
-      return false;
     }
   };
   
-  const handleDeleteTask = async () => {
-    if (selectedTaskId) {
-      try {
-        const success = await deleteTask(selectedTaskId);
-        if (success) {
-          setDeleteDialogOpen(false);
-        }
-      } catch (err) {
-        console.error('Error deleting task:', err);
-        handleError('Failed to delete task. Please try again later.');
-      }
-    }
-  };
-  
-  // Change task status handler
-  const changeTaskStatus = async (taskId: string, status: TaskStatus) => {
+  // Change task status handler - Modified to return Promise<boolean>
+  const changeTaskStatus = async (taskId: string, status: TaskStatus): Promise<boolean> => {
     try {
       console.log(`Dashboard: Changing task ${taskId} status to ${status}`);
-      // Use the TaskService instead of direct axios call
       await TaskService.changeTaskStatus(taskId, status);
       await fetchTasks(); // Refresh tasks after status change
-      return true;
+      return true; // Indicate success
     } catch (err) {
       console.error('Error changing task status in Dashboard:', err);
       handleError('Failed to update task status. Please try again later.');
-      return false;
+      return false; // Indicate failure
     }
   };
   
@@ -223,279 +244,316 @@ const Dashboard: React.FC = () => {
   };
 
   const handleHelpClick = () => {
-    // Open help documentation or modal
+    // Implement help action (e.g., open documentation, chat)
     console.log('Help clicked');
   };
   
-  // Main content for the dashboard
-  const mainContent = (
-    <Box 
-      sx={{ 
-        height: '100%', 
-        overflow: 'visible',
-        px: { xs: 0.5, sm: 1 },
-        pb: 1,
-        display: 'flex',
-        flexDirection: 'column'
-      }}
-    >
-      <Grid container spacing={2}>
-        {/* Top row with Weather Widget and Task Summary */}
-        <Grid item xs={12}>
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' }, 
-            gap: 2,
-          }}>
-            {/* Weather Widget (conditionally shown) */}
-            {showWeatherWidget && (
-              <Box sx={{ 
-                flexBasis: { xs: '100%', sm: '30%' },
-                minWidth: { xs: 'auto', sm: '250px' },
-                borderRadius: 2,
-                overflow: 'hidden'
-              }}>
-                <WeatherWidget compact={true} />
-              </Box>
-            )}
-            
-            {/* Task Summary - always in compact mode */}
-            <Box sx={{ 
-              flexGrow: 1,
-              borderRadius: 2,
-              overflow: 'hidden'
-            }}>
-              <TaskSummary tasks={tasks} compact={true} />
-            </Box>
-          </Box>
-        </Grid>
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setCurrentTab(newValue);
+  };
 
-        {/* Analytics Section */}
-        <Grid item xs={12}>
-          <Typography variant="h5" sx={{ color: '#fff', mb: 2, fontWeight: 500 }}>
-            Productivity Analytics
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <Box sx={{ height: '300px' }}>
-                <ProductivityMetrics period="weekly" />
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Box sx={{ height: '300px' }}>
-                <TaskDistributionChart />
-              </Box>
-            </Grid>
-          </Grid>
-        </Grid>
+  const handleTaskDrop = async (taskId: string, newStatus: TaskStatus, newContext?: TaskContext) => {
+    console.log(`Task ${taskId} dropped onto ${newStatus} in context ${newContext}`);
+    const taskToUpdate = tasks.find(t => t.id === taskId);
+    if (taskToUpdate) {
+      const updatedTask: Task = {
+        ...taskToUpdate,
+        status: newStatus,
+        ...(newContext && { context: newContext }), // Add context if provided
+      };
+      try {
+        await axios.put(`/api/tasks/${taskId}`, updatedTask);
+        fetchTasks(); // Refetch for consistency
+      } catch (error) {
+        console.error('Failed to update task status on drop:', error);
+        handleError('Failed to update task status.');
+      }
+    }
+  };
 
-        {/* Task Recommendations */}
-        <Grid item xs={12} md={5}>
-          <TaskRecommendations />
-        </Grid>
-        
-        {/* Kanban Board */}
-        <Grid item xs={12} md={7} sx={{ flexGrow: 1, display: 'flex' }}>
-          <Box
-            sx={{
-              flexGrow: 1,
-              display: 'flex',
-              height: { xs: 'auto', md: '500px' },
-              maxHeight: '500px',
-              minHeight: '300px',
-              overflow: 'hidden',
-              borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-            }}
-          >
-            {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>
-                <CircularProgress />
-              </Box>
-            ) : error ? (
-              <Alert severity="error">{error}</Alert>
-            ) : (
-              <TaskKanbanBoard
-                tasks={tasks}
-                onCreateTask={(status) => {
-                  console.log(`[Dashboard] onCreateTask called from Kanban board with status: ${status}`);
-                  setInitialTaskStatus(status);
-                  setCreateTaskDialogOpen(true);
-                }}
-                onEditTask={(taskId) => {
-                  const taskToEdit = tasks.find(t => t.id === taskId) || null;
-                  setSelectedTask(taskToEdit);
-                  setEditTaskDialogOpen(true);
-                }}
-                onDeleteTask={(taskId) => {
-                  setSelectedTaskId(taskId);
-                  setDeleteDialogOpen(true);
-                }}
-                onChangeTaskStatus={changeTaskStatus}
-              />
-            )}
-          </Box>
-        </Grid>
+  // --- Dialog Close Handlers ---
+  const handleCloseCreateTaskDialog = () => setCreateTaskDialogOpen(false);
+  const handleCloseEditTaskDialog = () => setEditTaskDialogOpen(false);
+  const handleCloseDeleteDialog = () => setDeleteDialogOpen(false);
+  // --- End Dialog Close Handlers ---
 
-        {/* Customizable Dashboard Section - Hidden on mobile */}
-        <Grid item xs={12} sx={{ display: { xs: 'none', lg: 'block' }, mt: 3 }}>
-          <CustomizableDashboard>
-            {{
-              'completion-rate': <CompletionRateChart />,
-              'productivity-metrics': <ProductivityMetrics period="weekly" />,
-              'task-distribution': <TaskDistributionChart />,
-              'task-recommendations': <TaskRecommendations />
-            }}
-          </CustomizableDashboard>
-        </Grid>
-      </Grid>
-      
-      {/* Log the tasks array right before passing it to TaskKanbanBoard */}
-      {(() => {
-          console.log('[Dashboard] Tasks being passed to TaskKanbanBoard:', tasks);
-          return null; // Render nothing
-      })()}
+  // --- Dialog Open Handlers ---
+  const handleViewTask = (task: Task) => {
+    setSelectedTask(task);
+    setViewTaskDialogOpen(true);
+    setEditTaskDialogOpen(false); // Ensure edit dialog is closed
+  };
 
-      {/* Task Dialogs */}
-      <CreateTaskDialog
-        open={createTaskDialogOpen}
-        onClose={() => setCreateTaskDialogOpen(false)}
-        onTaskCreated={async () => {
-          console.log('[Dashboard] CreateTaskDialog reported task created. Refreshing tasks...');
-          await fetchTasks();
-          console.log('[Dashboard] Task list refresh potentially complete after creation.');
-        }}
-        dialogType="personal"
-        initialStatus={initialTaskStatus}
-      />
-      <CreateTaskDialog
-        open={assignTaskDialogOpen}
-        onClose={() => setAssignTaskDialogOpen(false)}
-        onTaskCreated={async () => {
-          console.log('[Dashboard] AssignTaskDialog reported task created/updated. Refreshing tasks...');
-          await fetchTasks();
-          console.log('[Dashboard] Task list refresh potentially complete after assignment.');
-        }}
-        dialogType="assign"
-        task={selectedTask ? selectedTask : undefined}
-      />
-      <CreateTaskDialog
-        open={editTaskDialogOpen}
-        onClose={() => setEditTaskDialogOpen(false)}
-        onTaskCreated={async () => {
-          console.log('[Dashboard] EditTaskDialog reported task updated. Refreshing tasks...');
-          await fetchTasks();
-          console.log('[Dashboard] Task list refresh potentially complete after edit.');
-        }}
-        dialogType="assign"
-        task={selectedTask ? selectedTask : undefined}
-      />
-      {/* Add the Delete Confirmation Dialog here */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="alert-dialog-description">
-            Are you sure you want to delete this task? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
-            Cancel
-          </Button>
-          <Button onClick={handleDeleteTask} color="error" autoFocus>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
+  const handleOpenCreateTaskDialog = (status?: TaskStatus) => {
+    setInitialTaskStatus(status || TaskStatus.PENDING);
+    setCreateTaskDialogOpen(true);
+  };
 
-  // Right panel content (only shown on larger screens)
-  const rightPanelContent = (
-    <Box sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      p: isTablet ? 1.5 : 2,
-      // Remove any overflow properties here
-    }}>
-      <Box sx={{ 
-        flexGrow: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: isTablet ? 1.5 : 2,
-        height: '100%',
-        // Remove any overflow properties here
-      }}>
-        <Box sx={{ 
-          flexBasis: '45%', 
-          flexGrow: 0, 
-          minHeight: isTablet ? '200px' : '250px',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 2,
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          // Remove any overflow properties here
-        }}>
-          <ActivityFeed />
-        </Box>
-        <Box sx={{ 
-          flexBasis: '55%', 
-          flexGrow: 1, 
-          minHeight: isTablet ? '180px' : '200px',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 2,
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          // Remove any overflow properties here
-        }}>
-          <NotesWidget />
-        </Box>
+  const handleOpenDeleteDialog = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setDeleteDialogOpen(true);
+  };
+  // --- End Dialog Open Handlers ---
+
+  // --- Task Created/Updated Callbacks ---
+  const handleTaskCreated = () => {
+    fetchTasks(); // Refetch tasks when a new one is created
+  };
+
+  const handleTaskUpdated = () => { // Added missing handler
+    fetchTasks(); // Refetch tasks when one is updated
+  };
+  // --- End Task Created/Updated Callbacks ---
+
+  // --- Render Logic ---
+  if (loading && tasks.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
       </Box>
-    </Box>
+    );
+  }
+
+  // --- Define Layout Elements ---
+  const sidebarElement = (
+    <Sidebar
+      open={sidebarOpen}
+      onToggleDrawer={handleToggleSidebar}
+      drawerWidth={DRAWER_WIDTH}
+      onLogout={handleLogout}
+    />
   );
 
-  return (
+  const topBarElement = (
+    <DashboardTopBar
+      username={user?.username || 'User'}
+      notificationCount={notifications}
+      onToggleSidebar={handleToggleSidebar} // For hamburger menu
+      onNotificationClick={handleNotificationClick}
+      onLogout={handleLogout}
+      onProfileClick={handleProfileClick}
+      onSettingsClick={handleSettingsClick}
+      onHelpClick={handleHelpClick}
+      onToggleTopWidgets={handleToggleTopWidgets}
+      topWidgetsVisible={topWidgetsVisible}
+      rightSidebarVisible={rightSidebarVisible}
+      onToggleRightSidebar={handleToggleRightSidebar}
+      onToggleQuickNotes={handleToggleQuickNotes}
+      showQuickNotes={showQuickNotes}
+    />
+  );
+
+  const mainContentElement = (
     <>
-      {/* Error Display */}
-      <ErrorDisplay error={error} onClear={clearError} />
-      
-      <ModernDashboardLayout
-        disableMainContentScroll={true}
-        sidebar={
-          <Sidebar
-            open={sidebarOpen}
-            onToggleDrawer={handleToggleSidebar}
-            onLogout={handleLogout}
-            drawerWidth={DRAWER_WIDTH}
+      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+
+        <Tabs
+          value={activeSubTab}
+          onChange={(_, newValue) => setActiveSubTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          aria-label="Task Views"
+          sx={{
+            bgcolor: 'rgba(255, 255, 255, 0.03)',
+            color: '#fff',
+            '& .Mui-selected': {
+              color: '#fff',
+            },
+          }}
+        >
+          <Tab label="Task List" {...a11yProps(0)} sx={{ color: '#fff' }} />
+          <Tab label="Board View" {...a11yProps(1)} sx={{ color: '#fff' }} />
+        </Tabs>
+
+        <TabPanel value={activeSubTab} index={0}>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Task List</Typography>
+            {tasks.length === 0 ? (
+              <Typography>No tasks found.</Typography>
+            ) : (
+              <Box sx={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>TITLE</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>STATUS</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>ASSIGNED TO</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>DEPARTMENT</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>PROVINCE</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>DUE DATE</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>CREATED BY</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasks.map((task) => {
+                      const createdByStr = String(
+                        task.created_by === null
+                          ? '-'
+                          : typeof task.created_by === 'object'
+                            ? (task.created_by as any).name ?? JSON.stringify(task.created_by)
+                            : typeof task.created_by === 'string'
+                              ? task.created_by
+                              : '-'
+                      );
+                      const assignedToStr = String(
+                        Array.isArray(task.assigned_to)
+                          ? task.assigned_to.join(', ')
+                          : typeof task.assigned_to === 'object' && task.assigned_to !== null
+                            ? (task.assigned_to as any).name ?? JSON.stringify(task.assigned_to)
+                            : typeof task.assigned_to === 'string'
+                              ? task.assigned_to
+                              : '-'
+                      );
+                      return (
+                        <tr key={task.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                          <td style={{ padding: '8px', color: '#fff' }}>
+                            <strong>{task.title}</strong>
+                          </td>
+                          <td style={{ padding: '8px', color: '#fff' }}>
+                            <span style={{
+                              backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                              color: '#ffc107',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.8rem'
+                            }}>
+                              {task.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px', color: '#fff' }}>{assignedToStr}</td>
+                          <td style={{ padding: '8px', color: '#fff' }}>
+                            {typeof task.department === 'string'
+                              ? task.department
+                              : task.department?.name || '-'}
+                          </td>
+                          <td style={{ padding: '8px', color: '#fff' }}>-</td>
+                          <td style={{ padding: '8px', color: '#fff' }}>
+                            {task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}
+                          </td>
+                          <td style={{ padding: '8px', color: '#fff' }}>{createdByStr}</td>
+                          <td style={{ padding: '8px' }}>
+                            <span
+                              style={{ color: 'blue', cursor: 'pointer', marginRight: '8px' }}
+                              onClick={() => handleViewTask(task)}
+                            >
+                              View
+                            </span>
+                            <span style={{ color: 'green', cursor: 'pointer', marginRight: '8px' }} onClick={() => handleEditTask(task.id)}>Edit</span>
+                            <span style={{ color: 'red', cursor: 'pointer' }} onClick={() => handleOpenDeleteDialog(task.id)}>Delete</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </Box>
+            )}
+          </Box>
+        </TabPanel>
+
+        <TabPanel value={activeSubTab} index={1}>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Board View</Typography>
+            <TaskKanbanBoard
+              tasks={tasks}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleOpenDeleteDialog}
+              onChangeTaskStatus={changeTaskStatus}
+              onCreateTask={handleOpenCreateTaskDialog}
+            />
+          </Box>
+        </TabPanel>
+      </Box>
+
+      <ErrorBoundary>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 0 }}> {/* Ensure column flex and height */}
+          {/* Top Tabs */}
+    
+          {/* Tab Panels - Ensure they take remaining space */}
+          <Box sx={{ flexGrow: 1, overflow: 'auto', height: 'calc(100% - 49px)' }}> {/* Adjusted height calculation */}
+            {/* Overview Tab */}
+    
+            {/* Kanban Board Tab */}
+    
+            {/* Analytics Tab */}
+          </Box>
+    
+          {/* Dialogs */}
+          <CreateTaskDialog
+            open={createTaskDialogOpen}
+            onClose={handleCloseCreateTaskDialog}
+            onTaskCreated={handleTaskCreated}
+            initialStatus={initialTaskStatus}
+            dialogType="personal"
           />
-        }
-        topBar={
-          <DashboardTopBar 
-            username={user?.username || 'User'}
-            notificationCount={notifications}
-            onToggleSidebar={handleToggleSidebar}
-            onNotificationClick={handleNotificationClick}
-            onLogout={handleLogout}
-            onProfileClick={handleProfileClick}
-            onSettingsClick={handleSettingsClick}
-            onHelpClick={handleHelpClick}
+    
+          {/* Edit Task Dialog - Corrected */}
+          {selectedTask && editTaskDialogOpen && (
+            <CreateTaskDialog
+              open={editTaskDialogOpen}
+              onClose={handleCloseEditTaskDialog}
+              task={selectedTask}
+              onTaskCreated={handleTaskCreated}
+              onTaskUpdated={handleTaskUpdated}
+              initialStatus={selectedTask.status}
+              dialogType="personal"
+            />
+          )}
+    
+          <TaskViewDialog
+            open={viewTaskDialogOpen}
+            onClose={() => setViewTaskDialogOpen(false)}
+            task={selectedTask!}
           />
-        }
-        mainContent={mainContent}
-        rightPanel={!isMobile && rightPanelContent}
-        sidebarOpen={sidebarOpen}
-        drawerWidth={DRAWER_WIDTH}
-      />
+
+          <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                Are you sure you want to delete this task? This action cannot be undone.
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseDeleteDialog}>Cancel</Button>
+              <Button onClick={() => {
+                if (selectedTaskId) {
+                  deleteTask(selectedTaskId);
+                } else {
+                  console.error("No task selected for deletion");
+                  handleError("Could not delete task: No task selected.");
+                  handleCloseDeleteDialog();
+                }
+              }} color="error" autoFocus>
+                Delete
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      </ErrorBoundary>
     </>
+  );
+
+  const rightPanelElement = (
+    showQuickNotes && <NotesWidget />
+  );
+
+  // Check if authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />; 
+  }
+
+  // If authenticated, render the main layout
+  return (
+    <ModernDashboardLayout
+      sidebar={sidebarElement}
+      topBar={topBarElement}
+      mainContent={mainContentElement}
+      rightPanel={rightSidebarVisible ? rightPanelElement : undefined}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={DRAWER_WIDTH}
+      disableMainContentScroll={currentTab === 1}
+    />
   );
 };
 

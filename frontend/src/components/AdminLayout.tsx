@@ -7,7 +7,7 @@ import Footer from './Footer';
 const DRAWER_WIDTH = 240;
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const theme = useTheme();
 
   const toggleDrawer = () => {

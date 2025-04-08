@@ -13,15 +13,31 @@ import {
   Chip,
   Divider,
   Button,
-  Tooltip
+  Tooltip,
+  Skeleton
 } from '@mui/material';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import WarningIcon from '@mui/icons-material/Warning';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { format } from 'date-fns';
 
+// Skeleton for loading state
+const LoadingSkeleton = () => (
+  <Box sx={{ p: 2 }}>
+    {[1, 2, 3].map((_, index) => (
+      <Box key={index} sx={{ mb: 2 }}>
+        <Skeleton variant="text" width="60%" height={20} sx={{ mb: 1 }}/>
+        <Skeleton variant="rectangular" width="100%" height={40} />
+        {index < 2 && <Divider sx={{ my: 1.5 }} />}
+      </Box>
+    ))}
+  </Box>
+);
+
+// Define props interface (kept empty as before)
 interface TaskRecommendationsProps {}
 
 const TaskRecommendations: React.FC<TaskRecommendationsProps> = () => {
@@ -39,7 +55,7 @@ const TaskRecommendations: React.FC<TaskRecommendationsProps> = () => {
         setRecommendations(data);
       } catch (err) {
         console.error('Error fetching task recommendations:', err);
-        setError('Failed to load task recommendations');
+        setError('Failed to load task recommendations. Please try again later.');
       } finally {
         setIsLoading(false);
       }
@@ -171,7 +187,7 @@ const TaskRecommendations: React.FC<TaskRecommendationsProps> = () => {
   };
 
   return (
-    <Card sx={{ height: '100%', boxShadow: 3 }}>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 3 }}>
       <CardHeader 
         title="Smart Recommendations" 
         titleTypographyProps={{ variant: 'h6' }}
@@ -181,30 +197,22 @@ const TaskRecommendations: React.FC<TaskRecommendationsProps> = () => {
           pb: 1 
         }}
       />
-      <CardContent sx={{ height: 300, position: 'relative', overflow: 'auto' }}>
+      <CardContent sx={{ flexGrow: 1, overflow: 'auto', 
+        '&::-webkit-scrollbar': { width: '6px' },
+        '&::-webkit-scrollbar-track': { background: 'rgba(0,0,0,0.05)' },
+        '&::-webkit-scrollbar-thumb': { background: 'rgba(0,0,0,0.1)', borderRadius: '3px' }
+       }}>
         {isLoading ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            height: '100%'
-          }}>
-            <CircularProgress />
-          </Box>
+          <LoadingSkeleton />
         ) : error ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            height: '100%',
-            flexDirection: 'column'
-          }}>
-            <Typography color="error" variant="body1">
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', p: 2 }}>
+            <ErrorOutlineIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography color="error" variant="body1" align="center">
               {error}
             </Typography>
           </Box>
-        ) : (
-          <Box sx={{ height: '100%' }}>
+        ) : recommendations ? (
+          <Box>
             <Typography variant="subtitle2" color="primary" fontWeight="medium">
               High Priority Tasks
             </Typography>
@@ -223,10 +231,12 @@ const TaskRecommendations: React.FC<TaskRecommendationsProps> = () => {
               Recommended to Start Now
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Based on your average completion time of {recommendations?.averageCompletionDays || '0'} days
+              Based on your average completion time of {recommendations?.averageCompletionDays || '-'} days
             </Typography>
             {renderTasksToStart()}
           </Box>
+        ) : (
+          <Typography color="text.secondary" align="center">No recommendations available.</Typography>
         )}
       </CardContent>
     </Card>

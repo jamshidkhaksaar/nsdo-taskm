@@ -8,7 +8,9 @@ import {
   Typography, 
   Box, 
   Chip,
-  Divider
+  Divider,
+  Alert,
+  Skeleton
 } from '@mui/material';
 import axios from 'axios';
 import { API_BASE_URL, CHART_COLORS } from '../../constants';
@@ -22,6 +24,7 @@ import {
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import PendingIcon from '@mui/icons-material/Pending';
 import TimerIcon from '@mui/icons-material/Timer';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -29,6 +32,31 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 interface ProductivityMetricsProps {
   period?: 'daily' | 'weekly' | 'monthly';
 }
+
+// Skeleton component for loading state
+const LoadingSkeleton = () => (
+  <Grid container spacing={2} height="100%">
+    <Grid item xs={12} md={6}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', p: 1 }}>
+        <Skeleton variant="circular" width={80} height={80} sx={{ mb: 1 }} />
+        <Skeleton variant="text" width="80%" sx={{ mb: 2 }} />
+        <Divider flexItem sx={{ my: 2 }} />
+        <Skeleton variant="rectangular" width="90%" height={40} sx={{ mb: 2 }} />
+        <Divider flexItem sx={{ my: 2 }} />
+        <Box display="flex" justifyContent="space-around" width="100%">
+          <Skeleton variant="rounded" width="40%" height={40} />
+          <Skeleton variant="rounded" width="40%" height={40} />
+        </Box>
+      </Box>
+    </Grid>
+    <Grid item xs={12} md={6}>
+      <Box sx={{ height: 260, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Skeleton variant="text" width="60%" sx={{ mb: 1 }}/>
+        <Skeleton variant="circular" width={180} height={180} />
+      </Box>
+    </Grid>
+  </Grid>
+);
 
 const ProductivityMetrics: React.FC<ProductivityMetricsProps> = ({ period = 'weekly' }) => {
   const [metrics, setMetrics] = useState<any>(null);
@@ -45,7 +73,7 @@ const ProductivityMetrics: React.FC<ProductivityMetricsProps> = ({ period = 'wee
         setMetrics(data);
       } catch (err) {
         console.error('Error fetching productivity metrics:', err);
-        setError('Failed to load productivity metrics');
+        setError('Failed to load productivity metrics. Please try again later.');
       } finally {
         setIsLoading(false);
       }
@@ -176,7 +204,7 @@ const ProductivityMetrics: React.FC<ProductivityMetricsProps> = ({ period = 'wee
   };
 
   return (
-    <Card sx={{ height: '100%', boxShadow: 3 }}>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 3 }}>
       <CardHeader 
         title="Productivity Metrics" 
         titleTypographyProps={{ variant: 'h6' }}
@@ -186,29 +214,17 @@ const ProductivityMetrics: React.FC<ProductivityMetricsProps> = ({ period = 'wee
           pb: 1 
         }}
       />
-      <CardContent sx={{ height: 300, position: 'relative' }}>
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         {isLoading ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            height: '100%'
-          }}>
-            <CircularProgress />
-          </Box>
+          <LoadingSkeleton />
         ) : error ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            height: '100%',
-            flexDirection: 'column'
-          }}>
-            <Typography color="error" variant="body1">
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <ErrorOutlineIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography color="error" variant="body1" align="center">
               {error}
             </Typography>
           </Box>
-        ) : (
+        ) : metrics ? (
           <Grid container spacing={2} height="100%">
             <Grid item xs={12} md={6}>
               <Box sx={{ 
@@ -232,18 +248,26 @@ const ProductivityMetrics: React.FC<ProductivityMetricsProps> = ({ period = 'wee
             </Grid>
             
             <Grid item xs={12} md={6}>
-              <Box sx={{ height: 260 }}>
-                {preparePriorityChartData() && (
+              <Box sx={{ height: 260, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {preparePriorityChartData() ? (
                   <>
-                    <Typography variant="subtitle2" align="center" gutterBottom>
+                    <Typography variant="subtitle2" align="center" gutterBottom sx={{ mt: 1 }}>
                       Tasks by Priority
                     </Typography>
-                    <Pie data={preparePriorityChartData()!} options={chartOptions} />
+                    <Box sx={{ flexGrow: 1, width: '100%', maxWidth: 250 }}>
+                      <Pie data={preparePriorityChartData()!} options={chartOptions} />
+                    </Box>
                   </>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 4 }}>
+                    No priority data
+                  </Typography>
                 )}
               </Box>
             </Grid>
           </Grid>
+        ) : (
+           <Typography color="text.secondary" align="center">No data available.</Typography>
         )}
       </CardContent>
     </Card>

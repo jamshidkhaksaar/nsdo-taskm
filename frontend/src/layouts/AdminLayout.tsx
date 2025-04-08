@@ -43,7 +43,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       ...standardBackgroundStyle
     }}>
       <Sidebar
-        open={true}
+        open={false}
         onToggleDrawer={toggleDrawer}
         onLogout={handleLogout}
       />
