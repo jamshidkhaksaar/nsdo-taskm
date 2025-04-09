@@ -1,4 +1,13 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { HealthController } from './health/health.controller';
+import { CacheModule } from '@nestjs/cache-manager';
+import { TerminusModule } from '@nestjs/terminus';
+import { BullModule } from '@nestjs/bull';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { IpWhitelistMiddleware } from './ip-whitelist.middleware';
+import { DefaultQueueProcessor } from './queue/queue.processor';
+import { GlobalThrottlerGuard } from './throttler.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -52,12 +61,22 @@ import { AnalyticsModule } from './analytics/analytics.module';
           NotificationSettings,
           SecuritySettings,
           ActivityLog,
-          Backup
+          Backup,
         ],
         synchronize: configService.get('DATABASE_SYNC') === 'true',
       }),
     }),
+    CacheModule.registerAsync({
+      useFactory: () => ({
+        store: require('cache-manager-redis-store').redisStore,
+        host: 'localhost',
+        port: 6379,
+        ttl: 60, // seconds
+      }),
+      isGlobal: true,
+    }),
     AuthModule,
+    ThrottlerModule.forRoot(),
     UsersModule,
     DepartmentsModule,
     AdminModule,
@@ -68,8 +87,31 @@ import { AnalyticsModule } from './analytics/analytics.module';
     MailModule,
     NotesModule,
     AnalyticsModule,
+    BullModule.forRoot({
+      redis: {
+        host: 'localhost',
+        port: 6379,
+      },
+    }),
+    BullModule.registerQueue({
+      name: 'default',
+    }),
+    TerminusModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, HealthController],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: GlobalThrottlerGuard,
+    },
+    DefaultQueueProcessor,
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(IpWhitelistMiddleware)
+      .forRoutes('admin');
+  }
+}

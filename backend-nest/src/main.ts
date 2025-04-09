@@ -1,6 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import * as csurf from 'csurf';
+import helmet from 'helmet';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { AllExceptionsFilter } from './all-exceptions.filter';
 import { ConfigService } from '@nestjs/config';
 import { SettingsService } from './settings/settings.service';
 
@@ -8,6 +12,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'], // Enable all log levels
   });
+  // Register global exception filter
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+ // Enable security headers with Helmet
+ app.use(helmet());
   const configService = app.get(ConfigService);
   
   // Initialize settings on app startup
@@ -31,7 +40,7 @@ async function bootstrap() {
   });
   
   // Set global prefix for API routes
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api/v1');
   
   // Enable validation pipes
   app.useGlobalPipes(new ValidationPipe({
@@ -39,6 +48,23 @@ async function bootstrap() {
     transform: true,
     forbidNonWhitelisted: true,
   }));
+
+  // Enable CSRF protection with cookies
+  app.use(
+    csurf({
+      cookie: true,
+    }),
+  );
+  // Setup Swagger API documentation
+  if (configService.get('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('NSDO Task Management API')
+      .setDescription('API documentation for NSDO Task Management backend')
+      .setVersion('1.0')
+      .build();
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api-docs', app, swaggerDocument);
+  }
   
   // Use port from config
   const port = configService.get('PORT') || 3001;

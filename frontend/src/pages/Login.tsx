@@ -165,7 +165,7 @@ const Login: React.FC = () => {
         
         const response = await axios({
           method: 'post',
-          url: 'http://localhost:3001/api/auth/login',
+          url: 'http://localhost:3001/api/v1/auth/login',
           data: loginPayload,
           headers: {
             'Content-Type': 'application/json'
@@ -183,7 +183,7 @@ const Login: React.FC = () => {
         try {
           const signinResponse = await axios({
             method: 'post',
-            url: 'http://localhost:3001/api/auth/signin',
+            url: 'http://localhost:3001/api/v1/auth/signin',
             data: loginPayload,
             headers: {
               'Content-Type': 'application/json'

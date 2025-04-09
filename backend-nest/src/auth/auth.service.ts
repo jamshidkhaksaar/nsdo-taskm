@@ -39,6 +39,10 @@ export class AuthService {
     
     try {
       const user = await this.usersService.findOne(username);
+      if (!user) {
+        this.logger.warn(`User not found: ${username}`);
+        throw new UnauthorizedException('Please check your login credentials');
+      }
       this.logger.log(`User found: ${user.username}, ID: ${user.id}`);
       
       if (user && await bcrypt.compare(password, user.password)) {

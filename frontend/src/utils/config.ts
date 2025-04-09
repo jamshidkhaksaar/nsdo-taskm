@@ -23,7 +23,7 @@ const getBaseUrl = (): string => {
       return 'http://localhost:3001';
     }
     
-    return apiUrl;
+    return apiUrl.endsWith('/api/v1') ? apiUrl : `${apiUrl}/api/v1`;
   }
 };
 

@@ -80,10 +80,25 @@ export class AuthController {
   }
 
   @Post('/login')
-  login(
+  async login(
     @Body() loginCredentialsDto: LoginCredentialsDto,
   ): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
-    return this.authService.signIn(loginCredentialsDto);
+    try {
+      this.logger.log(
+        `Login attempt for user: ${loginCredentialsDto.username}`
+      );
+      const result = await this.authService.signIn(loginCredentialsDto);
+      this.logger.log(
+        `Login successful for user: ${loginCredentialsDto.username}`
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Login error for user ${loginCredentialsDto.username}: ${error.message}`,
+        error.stack
+      );
+      throw error;
+    }
   }
 
   @Post('/refresh')
