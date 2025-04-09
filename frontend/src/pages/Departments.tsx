@@ -243,23 +243,6 @@ const Departments: React.FC = () => {
                             {departments.find(d => d.id === selectedDepartment)?.description || 'No description available'}
                           </Typography>
                         </Box>
-                        <Button
-                          variant="contained"
-                          startIcon={<AddIcon />}
-                          onClick={handleCreateTask}
-                          sx={{
-                            backgroundColor: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.dark',
-                            },
-                            textTransform: 'none',
-                            borderRadius: 8,
-                            px: 3,
-                            py: 1,
-                          }}
-                        >
-                          Assign Task
-                        </Button>
                       </Box>
                       
                       <Grid container spacing={2} mt={1}>

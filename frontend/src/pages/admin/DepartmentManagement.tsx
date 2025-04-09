@@ -30,9 +30,7 @@ import {
   ListItemAvatar,
   Container,
   useTheme,
-  useMediaQuery,
   Divider,
-  Chip,
   Tabs,
   Tab,
   Fade,
@@ -87,12 +85,6 @@ interface EditMode {
   departmentId: string | null;
 }
 
-interface UserResponse {
-  id: string;
-  first_name: string;
-  last_name: string;
-  username: string;
-}
 
 const DRAWER_WIDTH = 240;
 
@@ -101,7 +93,7 @@ const DepartmentManagement: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<AdminDepartment | null>(null);
   const [departments, setDepartments] = useState<AdminDepartment[]>([]);
@@ -317,21 +309,7 @@ const DepartmentManagement: React.FC = () => {
     navigate('/login');
   };
 
-  const handleNotificationClick = () => {
-    setNotifications(0);
-  };
 
-  const handleProfileClick = () => {
-    navigate('/profile');
-  };
-
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleHelpClick = () => {
-    console.log('Help clicked');
-  };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);

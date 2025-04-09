@@ -367,6 +367,20 @@ const Dashboard: React.FC = () => {
 
         <TabPanel value={activeSubTab} index={0}>
           <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => handleOpenCreateTaskDialog()}
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 2,
+                  fontWeight: 'bold',
+                }}
+              >
+                Create Task
+              </Button>
+            </Box>
             <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Task List</Typography>
             {loading ? (
               <Box>
@@ -397,6 +411,7 @@ const Dashboard: React.FC = () => {
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
                       <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>TITLE</th>
                       <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>STATUS</th>
+                      <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>PRIORITY</th>
                       <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>ASSIGNED TO</th>
                       <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>DEPARTMENT</th>
                       <th style={{ padding: '8px', textAlign: 'left', color: '#fff' }}>PROVINCE</th>
@@ -439,6 +454,26 @@ const Dashboard: React.FC = () => {
                               fontSize: '0.8rem'
                             }}>
                               {task.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.8rem',
+                              backgroundColor:
+                                task.priority === TaskPriority.HIGH ? 'rgba(244, 67, 54, 0.2)' :
+                                task.priority === TaskPriority.MEDIUM ? 'rgba(255, 152, 0, 0.2)' :
+                                task.priority === TaskPriority.LOW ? 'rgba(76, 175, 80, 0.2)' :
+                                'rgba(255, 255, 255, 0.1)',
+                              color:
+                                task.priority === TaskPriority.HIGH ? '#f44336' :
+                                task.priority === TaskPriority.MEDIUM ? '#ff9800' :
+                                task.priority === TaskPriority.LOW ? '#4caf50' :
+                                '#fff',
+                            }}>
+                              {task.priority || '-'}
                             </span>
                           </td>
                           <td style={{ padding: '8px', color: '#fff' }}>{assignedToStr}</td>

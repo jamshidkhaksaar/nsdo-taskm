@@ -137,12 +137,36 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
               {showQuickNotes ? 'Hide Quick Notes' : 'Show Quick Notes'}
             </Button>
 
-          <IconButton color="inherit" onClick={onProfileClick}>
-            <AccountCircleIcon />
-          </IconButton>
-          <IconButton color="inherit" onClick={onSettingsClick}>
-            <SettingsIcon />
-          </IconButton>
+          <Tooltip title="Profile">
+            <IconButton
+              color="inherit"
+              onClick={onProfileClick}
+              sx={{
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  transform: 'scale(1.1)',
+                },
+              }}
+            >
+              <AccountCircleIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Settings">
+            <IconButton
+              color="inherit"
+              onClick={onSettingsClick}
+              sx={{
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  transform: 'scale(1.1)',
+                },
+              }}
+            >
+              <SettingsIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Toolbar>
     </AppBar>

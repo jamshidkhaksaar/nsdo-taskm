@@ -792,21 +792,6 @@ const TasksOverview: React.FC = () => {
           />
           
           {/* Floating Action Button */}
-          <Tooltip title="Create New Task" placement="left">
-            <Fab 
-              color="primary" 
-              aria-label="add"
-              onClick={handleCreateTask}
-              sx={{
-                position: 'fixed',
-                bottom: 24,
-                right: 24,
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
-              }}
-            >
-              <AddIcon />
-            </Fab>
-          </Tooltip>
         </>
       )}
     </Container>

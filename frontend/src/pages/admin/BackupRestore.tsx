@@ -25,8 +25,6 @@ import {
   Switch,
   TextField,
   Container,
-  useTheme,
-  useMediaQuery,
 } from '@mui/material';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -91,12 +89,10 @@ async function showDirectoryPicker(): Promise<string | null> {
 }
 
 const BackupRestore: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications] = useState(3);
   const [backups, setBackups] = useState<Backup[]>([]);
   const [isBackupInProgress, setIsBackupInProgress] = useState(false);
   const [backupProgress, setBackupProgress] = useState(0);
@@ -303,21 +299,6 @@ const BackupRestore: React.FC = () => {
     navigate('/login');
   };
 
-  const handleNotificationClick = () => {
-    setNotifications(0);
-  };
-
-  const handleProfileClick = () => {
-    navigate('/profile');
-  };
-
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleHelpClick = () => {
-    console.log('Help clicked');
-  };
 
   // Add function to test the API
   const handleTestApi = async () => {
