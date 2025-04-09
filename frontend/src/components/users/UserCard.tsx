@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, CardContent, Typography, Box, Avatar, Chip } from '@mui/material';
 import { User } from '../../types/user';
 import PersonIcon from '@mui/icons-material/Person';

@@ -1,7 +1,8 @@
 // Import polyfill for drag-and-drop
 import './polyfills/dragDropPolyfill';
+import { StrictMode } from 'react';
+ 
 
-import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { store } from './store';
@@ -16,11 +17,11 @@ const root = ReactDOM.createRoot(
 );
 
 root.render(
-  <React.StrictMode>
+  <StrictMode>
     <ErrorBoundary>
       <Provider store={store}>
         <App />
       </Provider>
     </ErrorBoundary>
-  </React.StrictMode>
+  </StrictMode>
 );

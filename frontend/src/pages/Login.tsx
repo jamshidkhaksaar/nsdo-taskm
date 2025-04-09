@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, Suspense, lazy } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -28,7 +28,7 @@ import { clearError, setCredentials } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
 import { loadFull } from "tsparticles";
-import Particles from "react-tsparticles";
+const Particles = lazy(() => import('react-tsparticles'));
 import type { Container as ParticlesContainer, Engine } from "tsparticles-engine";
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';

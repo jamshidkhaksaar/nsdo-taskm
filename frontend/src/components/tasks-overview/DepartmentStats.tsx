@@ -1,4 +1,3 @@
-import React from 'react';
 import { Grid, Card, CardContent, Typography, Box, LinearProgress } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 

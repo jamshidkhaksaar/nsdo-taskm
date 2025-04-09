@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Avatar, Typography, List, ListItem } from '@mui/material';
 import { Comment } from '../../types/task';
 import { format } from 'date-fns';

@@ -64,3 +64,5 @@ next-env.d.ts
 # Bundle analyzer
 stats.html
 bundle-stats.json
+
+*storybook.log

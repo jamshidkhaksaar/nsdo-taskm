@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useSelector } from 'react-redux';
 import {
   Dialog,
@@ -18,9 +18,9 @@ import {
   IconButton,
   Alert,
 } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+const LocalizationProvider = lazy(() => import('@mui/x-date-pickers/LocalizationProvider').then(m => ({ default: m.LocalizationProvider })));
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+const DateTimePicker = lazy(() => import('@mui/x-date-pickers/DateTimePicker').then(m => ({ default: m.DateTimePicker })));
 import { TaskService } from '../../services/task';
 import { CreateTask, Task, TaskStatus, TaskPriority, TaskUpdate } from '../../types/task';
 import { User } from '../../types/user';

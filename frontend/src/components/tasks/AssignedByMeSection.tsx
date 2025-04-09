@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Box,
   Typography,
@@ -13,6 +12,8 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { format } from 'date-fns';
 import { Task, TaskPriority, TaskStatus } from '../../types/task';
 import { TaskService } from '../../services/task';
+import { useState, MouseEvent } from 'react';
+ 
 
 interface AssignedByMeSectionProps {
   tasks: Task[];
@@ -23,16 +24,16 @@ const AssignedByMeSection: React.FC<AssignedByMeSectionProps> = ({
   tasks,
   onTaskUpdated,
 }) => {
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [selectedTask, setSelectedTask] = React.useState<Task | null>(null);
-  const [statusAnchorEl, setStatusAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
 
-  const handlePriorityClick = (event: React.MouseEvent<HTMLDivElement>, task: Task) => {
+  const handlePriorityClick = (event: MouseEvent<HTMLDivElement>, task: Task) => {
     setAnchorEl(event.currentTarget);
     setSelectedTask(task);
   };
 
-  const handleStatusClick = (event: React.MouseEvent<HTMLDivElement>, task: Task) => {
+  const handleStatusClick = (event: MouseEvent<HTMLDivElement>, task: Task) => {
     setStatusAnchorEl(event.currentTarget);
     setSelectedTask(task);
   };

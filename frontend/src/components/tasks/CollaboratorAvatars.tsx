@@ -1,4 +1,3 @@
-import React from 'react';
 import { Avatar, AvatarGroup, Tooltip } from '@mui/material';
 import { User } from '../../types/user';
 

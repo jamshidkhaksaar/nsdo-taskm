@@ -1,4 +1,9 @@
 import axios from './axios';
+import { CONFIG } from './config';
+import { store } from '../store';
+import { updateToken } from '../store/slices/authSlice';
+ 
+
 
 // Store tokens in localStorage
 export const storeTokens = (access: string, refresh: string) => {
@@ -16,8 +21,7 @@ export const storeTokens = (access: string, refresh: string) => {
   
   // Set the token in axios headers - both in the instance and global axios
   try {
-    // Import here to avoid circular dependency
-    const axiosInstance = require('./axios').default;
+    const axiosInstance = axios;
     
     // Set token in the axios instance
     if (axiosInstance && axiosInstance.defaults) {
@@ -35,13 +39,13 @@ export const storeTokens = (access: string, refresh: string) => {
       const instanceHeader = axiosInstance?.defaults?.headers?.common?.['Authorization'];
       const globalHeader = axios.defaults.headers.common['Authorization'];
       
-      if (instanceHeader) {
+      if (typeof instanceHeader === 'string') {
         console.log('Instance Authorization header set:', instanceHeader.substring(0, 15) + '...');
       } else {
         console.warn('Failed to set instance Authorization header');
       }
       
-      if (globalHeader) {
+      if (typeof globalHeader === 'string') {
         console.log('Global Authorization header set:', globalHeader.substring(0, 15) + '...');
       } else {
         console.warn('Failed to set global Authorization header');
@@ -134,7 +138,6 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     console.log('Attempting to refresh token...');
     
     // Import the CONFIG to get the correct API URL
-    const { CONFIG } = require('./config');
     const apiUrl = CONFIG.API_URL || 'http://localhost:3001';
     
     // Use the correct API URL for the refresh endpoint
@@ -184,8 +187,6 @@ export const refreshAccessToken = async (): Promise<string | null> => {
         
         // Import store and update Redux state
         try {
-          const { store } = require('../store');
-          const { updateToken } = require('../store/slices/authSlice');
           store.dispatch(updateToken({ 
             token: newToken, 
             refreshToken: newRefreshToken || refreshToken 
