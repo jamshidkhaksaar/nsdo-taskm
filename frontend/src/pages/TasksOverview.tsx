@@ -18,6 +18,7 @@ import {
   CircularProgress,
   LinearProgress,
   IconButton,
+  Skeleton,
   useTheme,
   useMediaQuery,
   Fab,
@@ -37,6 +38,7 @@ import Sidebar from '../components/Sidebar';
 import { Task, DepartmentRef } from '../types/task';
 import { TaskService } from '../services/task';
 import { DepartmentService } from '../services/department';
+import DepartmentStats from '../components/tasks-overview/DepartmentStats';
 import { UserService } from '../services/user';
 import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
@@ -95,7 +97,6 @@ const TasksOverview: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   // Task statistics
@@ -217,7 +218,7 @@ const TasksOverview: React.FC = () => {
   };
 
   const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
+    setSidebarOpen(prev => !prev);
   }, []);
 
   const handleToggleTopWidgets = useCallback(() => {
@@ -312,8 +313,30 @@ const TasksOverview: React.FC = () => {
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <CircularProgress sx={{ color: '#2196f3' }} />
+        <Box sx={{ p: 3 }}>
+          <Box mb={3}>
+            <Skeleton
+              variant="text"
+              width={200}
+              height={40}
+              animation="wave"
+              sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+            />
+            <Skeleton
+              variant="text"
+              width={250}
+              height={20}
+              animation="wave"
+              sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+            />
+          </Box>
+          <Skeleton
+            variant="rectangular"
+            width="100%"
+            height={200}
+            animation="wave"
+            sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+          />
         </Box>
       ) : error ? (
         <Typography sx={{ color: '#f44336', textAlign: 'center', mt: 4 }}>{error}</Typography>
@@ -503,128 +526,6 @@ const TasksOverview: React.FC = () => {
           </Paper>
           
           {/* Analytics Section */}
-          <Paper elevation={0} sx={{ 
-            p: 3, 
-            mb: 3, 
-            bgcolor: 'rgba(30, 41, 59, 0.8)', 
-            borderRadius: 2,
-            border: '1px solid rgba(255, 255, 255, 0.12)'
-          }}>
-            <Typography variant="h5" mb={3} color="#fff" fontWeight="bold">
-              Analytics
-            </Typography>
-            
-            <Grid container spacing={3}>
-              {/* Department Task Distribution Chart */}
-              <Grid item xs={12} md={6}>
-                <Box p={2} sx={{ 
-                  bgcolor: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: 2,
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <Typography variant="h6" color="#fff" mb={2}>
-                    Department Task Distribution
-                  </Typography>
-                  <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {departmentData.length > 0 ? (
-                      <Pie 
-                        data={getDepartmentChartData()} 
-                        options={{
-                          responsive: true,
-                          plugins: {
-                            legend: {
-                              position: 'right',
-                              labels: {
-                                color: 'rgba(255, 255, 255, 0.8)',
-                                boxWidth: 15,
-                                padding: 15
-                              }
-                            },
-                            tooltip: {
-                              callbacks: {
-                                label: (context: TooltipItem<'pie'>) => {
-                                  const label = context.label || '';
-                                  const value = context.parsed || 0;
-                                  const total = departmentData.reduce((sum, dept) => sum + dept.taskCount, 0);
-                                  const percentage = Math.round((Number(value) / total) * 100);
-                                  return `${label}: ${value} tasks (${percentage}%)`;
-                                }
-                              }
-                            }
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Typography color="text.secondary">No department data available</Typography>
-                    )}
-                  </Box>
-                </Box>
-              </Grid>
-              
-              {/* Top Performers Chart */}
-              <Grid item xs={12} md={6}>
-                <Box p={2} sx={{ 
-                  bgcolor: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: 2, 
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <Typography variant="h6" color="#fff" mb={2}>
-                    Top Performers
-                  </Typography>
-                  <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {topPerformers.length > 0 ? (
-                      <Bar 
-                        data={getTopPerformersChartData()} 
-                        options={{
-                          indexAxis: 'y',
-                          responsive: true,
-                          scales: {
-                            x: {
-                              max: 100,
-                              grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                              },
-                              ticks: {
-                                color: 'rgba(255, 255, 255, 0.7)'
-                              }
-                            },
-                            y: {
-                              grid: {
-                                display: false
-                              },
-                              ticks: {
-                                color: 'rgba(255, 255, 255, 0.7)'
-                              }
-                            }
-                          },
-                          plugins: {
-                            legend: {
-                              display: false
-                            },
-                            tooltip: {
-                              callbacks: {
-                                label: (context: TooltipItem<'bar'>) => {
-                                  return `Completion rate: ${Number(context.parsed.x).toFixed(1)}%`;
-                                }
-                              }
-                            }
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Typography color="text.secondary">No performance data available</Typography>
-                    )}
-                  </Box>
-                </Box>
-              </Grid>
-            </Grid>
-          </Paper>
           
           {/* Tabs Section */}
           <Paper 

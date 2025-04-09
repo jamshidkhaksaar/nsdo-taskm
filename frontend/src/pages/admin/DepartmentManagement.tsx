@@ -125,7 +125,6 @@ const DepartmentManagement: React.FC = () => {
   // State for managing adding members
   const [openAddMemberDialog, setOpenAddMemberDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   // Define dialogPaperProps with glassmorphism styles
@@ -306,7 +305,7 @@ const DepartmentManagement: React.FC = () => {
   };
 
   const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
+    setSidebarOpen(prev => !prev);
   }, []);
 
   const handleToggleTopWidgets = useCallback(() => {

@@ -56,7 +56,19 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
       }}
     >
       {/* Sidebar - fixed position */}
-      {sidebar}
+      <Box
+        sx={{
+          width: sidebarWidth,
+          transition: theme.transitions.create(['width'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}
+      >
+        {sidebar}
+      </Box>
 
       {/* Main content area */}
       <Box
@@ -64,10 +76,10 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
           display: 'flex',
           flexDirection: 'column',
           flexGrow: 1,
-          width: '100%',
+          width: `calc(100% - ${sidebarWidth}px)`,
           transition: theme.transitions.create(['width'], {
-            easing: theme.transitions.easing.easeOut,
-            duration: theme.transitions.duration.enteringScreen,
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
           }),
           height: '100vh',
           overflow: 'hidden',

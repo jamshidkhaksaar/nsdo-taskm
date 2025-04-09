@@ -18,6 +18,7 @@ import {
   Chip,
   Divider,
   AvatarGroup,
+  Skeleton,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import WorkIcon from '@mui/icons-material/Work';
@@ -35,6 +36,7 @@ import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
 import { TaskStatus } from '../types/task';
 
+
 const DRAWER_WIDTH = 240;
 
 const Departments: React.FC = () => {
@@ -44,7 +46,7 @@ const Departments: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   // State for data
@@ -52,6 +54,7 @@ const Departments: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [topPerformers, setTopPerformers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // State for task dialog
@@ -65,11 +68,17 @@ const Departments: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      if (initialLoad) {
+        setLoading(true);
+      }
       
       // Fetch departments
       const departmentsResponse = await DepartmentService.getDepartments();
-      setDepartments(departmentsResponse);
+      const departmentsWithCount = departmentsResponse.map((dept: any) => ({
+        ...dept,
+        tasksCount: dept.tasksCount !== undefined ? dept.tasksCount : 0,
+      }));
+      setDepartments(departmentsWithCount);
 
       // If a department is selected, fetch its tasks
       if (selectedDepartment) {
@@ -86,7 +95,10 @@ const Departments: React.FC = () => {
       console.error('Error fetching data:', err);
       setError('Failed to load data. Please try again later.');
     } finally {
-      setLoading(false);
+      if (initialLoad) {
+        setLoading(false);
+        setInitialLoad(false);
+      }
     }
   };
 
@@ -148,11 +160,7 @@ const Departments: React.FC = () => {
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <img src="/loading-animation.gif" alt="Loading..." style={{ width: '50px', height: '50px' }} />
-        </Box>
-      ) : error ? (
+      {error ? (
         <Typography sx={{ color: '#f44336', textAlign: 'center', mt: 4 }}>{error}</Typography>
       ) : (
         <>
@@ -165,62 +173,64 @@ const Departments: React.FC = () => {
               Manage departments and assign tasks to specific teams
             </Typography>
           </Box>
+           
           
           {/* Content Section */}
         <Grid container spacing={3}>
             {/* Left Column - Departments */}
             <Grid item xs={12} md={4} lg={3}>
-              <Paper 
-                elevation={0}
-              sx={{
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                height: '100%',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
-                }}
-              >
-                <Box p={2} pb={1.5} display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="h6" fontWeight="bold" color="#fff">
-                    Departments
-                  </Typography>
-                  <Chip 
-                    label={departments.length}
-                    sx={{ 
-                      background: 'rgba(255, 255, 255, 0.12)',
-                      color: '#fff',
-                      fontWeight: 'bold',
-                    }} 
-                  />
-                </Box>
-                <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                <Box>
               <DepartmentList
                 departments={departments}
                 selectedDepartment={selectedDepartment}
                 onSelectDepartment={setSelectedDepartment}
               />
-            </Box>
-              </Paper>
-          </Grid>
+            </Grid>
             
             {/* Right Column - Department Details */}
             <Grid item xs={12} md={8} lg={9}>
-              {selectedDepartment && departments.length > 0 ? (
+              {loading ? (
+                <Box>
+                  <Paper elevation={0} sx={{ borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)', mb: 3 }}>
+                    <Box p={3}>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                        <Box>
+                          <Skeleton
+                            variant="text"
+                            width={200}
+                            height={40}
+                            animation="wave"
+                            sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+                          />
+                          <Skeleton
+                            variant="text"
+                            width={250}
+                            height={20}
+                            animation="wave"
+                            sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+                          />
+                        </Box>
+                        <Skeleton
+                          variant="rectangular"
+                          width={120}
+                          height={36}
+                          animation="wave"
+                          sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+                        />
+                      </Box>
+                    </Box>
+                  </Paper>
+                </Box>
+              ) : selectedDepartment && departments.length > 0 ? (
                 <>
                   {/* Department Overview Card */}
-                  <Paper 
+                  <Paper
                     elevation={0}
                     sx={{
                       borderRadius: 2,
                       overflow: 'hidden',
                       background: 'rgba(255, 255, 255, 0.08)',
                       backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      mb: 3,
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+                      mb: 3
                     }}
                   >
                     <Box p={3}>
@@ -372,12 +382,12 @@ const Departments: React.FC = () => {
                     elevation={0}
               sx={{
                       borderRadius: 2,
-                      overflow: 'hidden',
+                      overflow: 'auto',
                       background: 'rgba(255, 255, 255, 0.08)',
                       backdropFilter: 'blur(10px)',
                       border: '1px solid rgba(255, 255, 255, 0.12)',
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                      height: '100%',
+                      maxHeight: '400px',
                     }}
                   >
                     <Box p={3}>
@@ -438,21 +448,6 @@ const Departments: React.FC = () => {
           </Grid>
           
           {/* Add Task Floating Action Button */}
-          <Tooltip title="Create New Task" placement="left">
-            <Fab 
-              color="primary" 
-              aria-label="add"
-              onClick={handleCreateTask}
-              sx={{
-                position: 'fixed',
-                bottom: 24,
-                right: 24,
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
-              }}
-            >
-              <AddIcon />
-            </Fab>
-          </Tooltip>
           
           {/* Create Task Dialog */}
           <CreateTaskDialog

@@ -81,7 +81,7 @@ const ActivityLogs: React.FC = () => {
   const [targetFilter, setTargetFilter] = useState<string>('all');
   const [totalRows, setTotalRows] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {

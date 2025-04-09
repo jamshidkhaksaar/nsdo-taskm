@@ -80,18 +80,6 @@ const adminMenuItems = [
     icon: <BackupIcon />,
     description: 'Manage system backups and restoration'
   },
-  { 
-    title: 'API Health', 
-    path: '/admin/api-health', 
-    icon: <HealthAndSafetyIcon />,
-    description: 'Monitor API connections and system health'
-  },
-  { 
-    title: 'API Tester', 
-    path: '/admin/api-tester', 
-    icon: <AssignmentIcon />,
-    description: 'Test API endpoints and functionality'
-  },
 ];
 
 interface SidebarProps {
@@ -149,7 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
           easing: theme.transitions.easing.sharp,
           duration: open ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
         }),
-        zIndex: (theme) => theme.zIndex.drawer,
+        zIndex: (theme) => theme.zIndex.appBar - 1,
         '& .MuiDrawer-paper': {
           width: open ? drawerWidth : 65,
           transition: (theme) => theme.transitions.create('width', {

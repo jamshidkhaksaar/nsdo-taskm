@@ -27,6 +27,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import { SxProps, Theme } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
 
 interface DashboardTopBarProps {
@@ -44,6 +45,8 @@ interface DashboardTopBarProps {
   onToggleRightSidebar?: () => void;
   onToggleQuickNotes?: () => void;
   showQuickNotes?: boolean;
+  showQuickNotesButton?: boolean;
+  sx?: SxProps<Theme>;
 }
 
 const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
@@ -60,6 +63,7 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
   onToggleTopWidgets,
   rightSidebarVisible,
   onToggleRightSidebar,
+  sx,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -72,6 +76,7 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
         background: 'rgba(255, 255, 255, 0.05)',
         backdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        ...sx,
       }}
     >
       <Toolbar sx={{ justifyContent: 'space-between' }}>
@@ -116,21 +121,21 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
 
         {/* Right section */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Button
-            onClick={onToggleQuickNotes ? onToggleQuickNotes : () => {}}
-            variant="outlined"
-            size="small"
-            sx={{
-              color: 'white',
-              borderColor: 'rgba(255, 255, 255, 0.5)',
-              '&:hover': {
-                borderColor: 'white',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              },
-            }}
-          >
-            {showQuickNotes ? 'Hide Quick Notes' : 'Show Quick Notes'}
-          </Button>
+            <Button
+              onClick={onToggleQuickNotes ? onToggleQuickNotes : () => {}}
+              variant="outlined"
+              size="small"
+              sx={{
+                color: 'white',
+                borderColor: 'rgba(255, 255, 255, 0.5)',
+                '&:hover': {
+                  borderColor: 'white',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                },
+              }}
+            >
+              {showQuickNotes ? 'Hide Quick Notes' : 'Show Quick Notes'}
+            </Button>
 
           <IconButton color="inherit" onClick={onProfileClick}>
             <AccountCircleIcon />

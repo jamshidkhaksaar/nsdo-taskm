@@ -133,7 +133,6 @@ const UserManagement: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState<EditMode>({ isEdit: false, userId: null });
   const glassStyles = getGlassmorphismStyles(theme);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   const handleUserSelect = (userId: string) => {
@@ -235,6 +234,10 @@ const UserManagement: React.FC = () => {
 
   const handleAddUser = async () => {
     try {
+      if (!formData.username.trim() || !formData.email.trim() || !formData.role.trim()) {
+        setError('Username, email, and role are required.');
+        return;
+      }
       if (editMode.isEdit && editMode.userId) {
         // Update existing user
         const userData: Partial<ServiceUser> = {
@@ -302,6 +305,7 @@ const UserManagement: React.FC = () => {
       
       // Use AdminService instead of direct axios call
       const userData = await AdminService.getUsers(searchQuery);
+      console.log('[UserManagement] Raw user data from backend:', userData);
       
       // Format the users to match the interface
       const formattedUsers = userData.map((user: any) => ({
@@ -312,7 +316,7 @@ const UserManagement: React.FC = () => {
         last_name: user.last_name,
         role: user.role,
         department: user.department?.id || '',
-        department_name: user.department?.name || 'None',
+        department_name: user.department?.name ?? (user.department ? 'Assigned' : 'None'),
         status: user.status,
         last_login: user.last_login,
         position: user.position
@@ -365,7 +369,7 @@ const UserManagement: React.FC = () => {
   };
 
   const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
+    setSidebarOpen(prev => !prev);
   }, []);
 
   const handleToggleTopWidgets = useCallback(() => {

@@ -20,7 +20,7 @@ export class UsersService {
     try {
       this.logger.log(`Looking for user with username: ${username}`);
       
-      const user = await this.usersRepository.findOne({ where: { username } });
+      const user = await this.usersRepository.findOne({ where: { username }, relations: ['departments'] });
       
       if (!user) {
         this.logger.warn(`User with username ${username} not found`);
@@ -39,7 +39,7 @@ export class UsersService {
     try {
       this.logger.log(`Looking for user with ID: ${id}`);
       
-      const user = await this.usersRepository.findOne({ where: { id } });
+      const user = await this.usersRepository.findOne({ where: { id }, relations: ['departments'] });
       
       if (!user) {
         this.logger.warn(`User with ID ${id} not found`);
@@ -75,7 +75,7 @@ export class UsersService {
   async findAll(): Promise<User[]> {
     try {
       this.logger.log('Finding all users');
-      const users = await this.usersRepository.find();
+      const users = await this.usersRepository.find({ relations: ['departments'] });
       this.logger.log(`Found ${users.length} users`);
       return users;
     } catch (error) {

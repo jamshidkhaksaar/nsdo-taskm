@@ -120,7 +120,6 @@ const BackupRestore: React.FC = () => {
   });
   // Add OS detection
   const [os, setOs] = useState<'windows' | 'unix'>('windows');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
@@ -292,7 +291,7 @@ const BackupRestore: React.FC = () => {
   };
 
   const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
+    setSidebarOpen(prev => !prev);
   }, []);
 
   const handleToggleTopWidgets = useCallback(() => {

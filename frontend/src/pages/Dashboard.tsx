@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Box, useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
+import { Box, useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton } from '@mui/material';
 
 // Custom Components
 import ErrorDisplay from '../components/common/ErrorDisplay';
@@ -368,7 +368,27 @@ const Dashboard: React.FC = () => {
         <TabPanel value={activeSubTab} index={0}>
           <Box sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Task List</Typography>
-            {tasks.length === 0 ? (
+            {loading ? (
+              <Box>
+                <Skeleton
+                  variant="text"
+                  width={200}
+                  height={40}
+                  animation="wave"
+                  sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+                />
+                {[...Array(3)].map((_, idx) => (
+                  <Skeleton
+                    key={idx}
+                    variant="rectangular"
+                    width="100%"
+                    height={40}
+                    animation="wave"
+                    sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' }, my: 1 }}
+                  />
+                ))}
+              </Box>
+            ) : tasks.length === 0 ? (
               <Typography>No tasks found.</Typography>
             ) : (
               <Box sx={{ overflowX: 'auto' }}>

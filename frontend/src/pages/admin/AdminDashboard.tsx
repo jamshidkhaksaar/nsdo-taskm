@@ -356,56 +356,6 @@ const AdminDashboard: React.FC = () => {
             </Grid>
 
             {/* Recent Activities */}
-            <Grid item xs={12}>
-              <Card sx={cardStyle}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ color: '#fff', mb: 2 }}>
-                    Recent Activities
-                  </Typography>
-                  {activities.length > 0 ? (
-                    activities.map((activity) => (
-                      <Box
-                        key={activity.id}
-                        sx={{
-                          p: 2,
-                          mb: 2,
-                          borderRadius: '8px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                          <Typography sx={{ color: '#fff', fontWeight: 500 }}>
-                            {activity.user}
-                          </Typography>
-                          <Typography
-                            sx={{
-                              color: getStatusColor(activity.status),
-                              fontSize: '0.875rem',
-                            }}
-                          >
-                            {activity.status}
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
-                          {activity.action} {activity.target}: {activity.details}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
-                        >
-                          {formatDate(activity.timestamp)}
-                        </Typography>
-                      </Box>
-                    ))
-                  ) : (
-                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.5)', textAlign: 'center', py: 4 }}>
-                      No recent activities to display
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
 
             {/* Department Stats */}
             <Grid item xs={12}>

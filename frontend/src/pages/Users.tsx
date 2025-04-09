@@ -18,6 +18,7 @@ import {
   Tooltip,
   Fab,
   LinearProgress,
+  Skeleton,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
@@ -37,6 +38,7 @@ import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
 import { TaskStatus } from '../types/task';
 
+
 const DRAWER_WIDTH = 240;
 
 const Users: React.FC = () => {
@@ -54,7 +56,7 @@ const Users: React.FC = () => {
   
   // State for task dialog
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
@@ -192,8 +194,30 @@ const Users: React.FC = () => {
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <img src="/loading-animation.gif" alt="Loading..." style={{ width: '50px', height: '50px' }} />
+        <Box sx={{ p: 3 }}>
+          <Box mb={3}>
+            <Skeleton
+              variant="text"
+              width={200}
+              height={40}
+              animation="wave"
+              sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+            />
+            <Skeleton
+              variant="text"
+              width={250}
+              height={20}
+              animation="wave"
+              sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+            />
+          </Box>
+          <Skeleton
+            variant="rectangular"
+            width="100%"
+            height={200}
+            animation="wave"
+            sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
+          />
         </Box>
       ) : error ? (
         <Typography sx={{ color: '#f44336', textAlign: 'center', mt: 4 }}>{error}</Typography>
@@ -207,6 +231,7 @@ const Users: React.FC = () => {
             <Typography variant="body1" color="rgba(255, 255, 255, 0.7)">
               Manage users and assign tasks to specific team members
             </Typography>
+           
           </Box>
           
           <Grid container spacing={3}>
@@ -511,21 +536,6 @@ const Users: React.FC = () => {
           </Grid>
           
           {/* Floating Action Button */}
-          <Tooltip title="Assign New Task" placement="left">
-            <Fab 
-              color="primary" 
-              aria-label="add"
-              onClick={handleCreateTask}
-              sx={{
-                position: 'fixed',
-                bottom: 24,
-                right: 24,
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
-              }}
-            >
-              <AddIcon />
-            </Fab>
-          </Tooltip>
           
           {/* Create Task Dialog */}
           <CreateTaskDialog
