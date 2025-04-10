@@ -12,7 +12,7 @@ export const AdminService = {
   getDashboardStats: async () => {
     try {
       console.log('[AdminService] Fetching dashboard stats');
-      const response = await axios.get('/api/admin/dashboard');
+      const response = await axios.get('/admin/dashboard');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching dashboard stats:', error);
@@ -31,7 +31,7 @@ export const AdminService = {
   getUsers: async (search = '') => {
     try {
       console.log('[AdminService] Fetching users with search:', search);
-      const response = await axios.get('/api/admin/users', {
+      const response = await axios.get('/admin/users', {
         params: { search }
       });
       return response.data;
@@ -52,7 +52,7 @@ export const AdminService = {
   getDepartments: async () => {
     try {
       console.log('[AdminService] Fetching departments');
-      const response = await axios.get('/api/admin/departments');
+      const response = await axios.get('/admin/departments');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching departments:', error);
@@ -71,7 +71,7 @@ export const AdminService = {
   getTasks: async () => {
     try {
       console.log('[AdminService] Fetching tasks');
-      const response = await axios.get('/api/admin/tasks');
+      const response = await axios.get('/admin/tasks');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching tasks:', error);
@@ -90,7 +90,7 @@ export const AdminService = {
   getLogs: async () => {
     try {
       console.log('[AdminService] Fetching logs');
-      const response = await axios.get('/api/admin/logs');
+      const response = await axios.get('/admin/logs');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching logs:', error);
@@ -109,7 +109,7 @@ export const AdminService = {
   clearLogs: async () => {
     try {
       console.log('[AdminService] Clearing logs');
-      const response = await axios.delete('/api/admin/logs');
+      const response = await axios.delete('/admin/logs');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error clearing logs:', error);
@@ -128,7 +128,7 @@ export const AdminService = {
   getSettings: async () => {
     try {
       console.log('[AdminService] Fetching settings');
-      const response = await axios.get('/api/admin/settings');
+      const response = await axios.get('/admin/settings');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching settings:', error);
@@ -159,7 +159,7 @@ export const AdminService = {
   updateSettings: async (settings: any) => {
     try {
       console.log('[AdminService] Updating settings');
-      const response = await axios.patch('/api/admin/settings', settings);
+      const response = await axios.patch('/admin/settings', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error updating settings:', error);
@@ -181,7 +181,7 @@ export const AdminService = {
   createBackup: async () => {
     try {
       console.log('[AdminService] Creating backup');
-      const response = await axios.post('/api/admin/backup');
+      const response = await axios.post('/admin/backup');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error creating backup:', error);
@@ -200,7 +200,7 @@ export const AdminService = {
   getBackups: async () => {
     try {
       console.log('[AdminService] Fetching backups');
-      const response = await axios.get('/api/admin/backups');
+      const response = await axios.get('/admin/backups');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching backups:', error);
@@ -219,7 +219,7 @@ export const AdminService = {
   deleteBackup: async (backupId: string) => {
     try {
       console.log(`[AdminService] Deleting backup ${backupId}`);
-      const response = await axios.delete(`/api/admin/backups/${backupId}`);
+      const response = await axios.delete(`/admin/backups/${backupId}`);
       return response.data;
     } catch (error: unknown) {
       console.error(`[AdminService] Error deleting backup ${backupId}:`, error);
@@ -238,7 +238,7 @@ export const AdminService = {
   restoreBackup: async (backupId: string) => {
     try {
       console.log(`[AdminService] Restoring backup ${backupId}`);
-      const response = await axios.post(`/api/admin/restore/${backupId}`);
+      const response = await axios.post(`/admin/restore/${backupId}`);
       return response.data;
     } catch (error: unknown) {
       console.error(`[AdminService] Error restoring backup ${backupId}:`, error);
@@ -257,7 +257,7 @@ export const AdminService = {
   getHealth: async () => {
     try {
       console.log('[AdminService] Checking system health');
-      const response = await axios.get('/api/admin/health');
+      const response = await axios.get('/admin/health');
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error checking system health:', error);

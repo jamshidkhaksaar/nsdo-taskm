@@ -145,7 +145,11 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
     
     try {
-      const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+      // Remove extra /api if apiUrl already ends with /api/v1
+      const refreshUrl = apiUrl.endsWith('/api/v1')
+        ? `${apiUrl}/auth/refresh`
+        : `${apiUrl}/api/auth/refresh`;
+      const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

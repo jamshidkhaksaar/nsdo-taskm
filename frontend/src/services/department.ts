@@ -31,7 +31,7 @@ export const DepartmentService = {
     // Get all departments
     getDepartments: async () => {
         try {
-            const response = await axios.get('/api/departments/');
+            const response = await axios.get('/departments/');
             return response.data;
         } catch (error) {
             console.error('Error fetching departments:', error);
@@ -42,7 +42,7 @@ export const DepartmentService = {
     // Get a single department
     getDepartment: async (id: string) => {
         try {
-            const response = await axios.get(`/api/departments/${id}/`);
+            const response = await axios.get(`/departments/${id}/`);
             if (!response.data) {
                 throw new Error(`Department with ID ${id} not found`);
             }
@@ -56,7 +56,7 @@ export const DepartmentService = {
     // Get department members
     getDepartmentMembers: async (id: string) => {
         try {
-            const response = await axios.get(`/api/departments/${id}/members/`);
+            const response = await axios.get(`/departments/${id}/members/`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching members for department ${id}:`, error);
@@ -67,7 +67,7 @@ export const DepartmentService = {
     // Create a department
     createDepartment: async (department: Omit<Department, 'id' | 'created_at' | 'updated_at'>) => {
         try {
-            const response = await axios.post('/api/departments/', department);
+            const response = await axios.post('/departments/', department);
             return response.data;
         } catch (error) {
             console.error('Error creating department:', error);
@@ -78,7 +78,7 @@ export const DepartmentService = {
     // Update a department
     updateDepartment: async (id: string, department: Partial<Department>) => {
         try {
-            const response = await axios.put(`/api/departments/${id}/`, department);
+            const response = await axios.put(`/departments/${id}/`, department);
             return response.data;
         } catch (error) {
             console.error(`Error updating department ${id}:`, error);
@@ -89,7 +89,7 @@ export const DepartmentService = {
     // Delete a department
     deleteDepartment: async (id: string) => {
         try {
-            await axios.delete(`/api/departments/${id}/`);
+            await axios.delete(`/departments/${id}/`);
         } catch (error) {
             console.error(`Error deleting department ${id}:`, error);
             throw error;
@@ -99,7 +99,7 @@ export const DepartmentService = {
     // Get department statistics
     getDepartmentStats: async () => {
         try {
-            const response = await axios.get('/api/department-stats/');
+            const response = await axios.get('/department-stats/');
             return response.data;
         } catch (error) {
             console.error('Error fetching department statistics:', error);
@@ -110,7 +110,7 @@ export const DepartmentService = {
     // Get department tasks
     getDepartmentTasks: async (id: string) => {
         try {
-            const response = await axios.get(`/api/departments/${id}/tasks/`);
+            const response = await axios.get(`/departments/${id}/tasks/`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching tasks for department ${id}:`, error);
@@ -121,7 +121,7 @@ export const DepartmentService = {
     // Get top performers in a department
     getDepartmentPerformers: async (id: string) => {
         try {
-            const response = await axios.get(`/api/departments/${id}/performers/`);
+            const response = await axios.get(`/departments/${id}/performers/`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching performers for department ${id}:`, error);

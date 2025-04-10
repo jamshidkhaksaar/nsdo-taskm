@@ -15,12 +15,16 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private twoFactorService: TwoFactorService
-  ) {}
+  ) {
+    this.logger.log('[DEBUG] AuthController instantiated');
+  }
 
   @Post('/signin')
   async signIn(
     @Body() loginCredentialsDto: LoginCredentialsDto,
   ): Promise<{ access: string | null, refresh: string | null, user: any | null, need_2fa?: boolean, method?: string }> {
+    this.logger.log(`[DEBUG] >>> signIn controller method entered`);
+    this.logger.log(`[DEBUG] Entered signIn with: ${JSON.stringify(loginCredentialsDto)}`);
     try {
       // Check if the user has 2FA enabled and if the browser is remembered
       const user = await this.authService.validateUser(
@@ -83,6 +87,7 @@ export class AuthController {
   async login(
     @Body() loginCredentialsDto: LoginCredentialsDto,
   ): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
+    this.logger.log(`[DEBUG] Entered login with: ${JSON.stringify(loginCredentialsDto)}`);
     try {
       this.logger.log(
         `Login attempt for user: ${loginCredentialsDto.username}`

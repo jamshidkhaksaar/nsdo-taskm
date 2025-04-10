@@ -21,7 +21,7 @@ export class UsersService {
       this.logger.log(`Looking for user with username: ${username}`);
       
       const user = await this.usersRepository.findOne({ where: { username }, relations: ['departments'] });
-      
+      this.logger.log(`[DEBUG] findOne result for username=${username}: ${user ? 'found' : 'not found'}`);
       if (!user) {
         this.logger.warn(`User with username ${username} not found`);
         throw new NotFoundException(`User with username ${username} not found`);

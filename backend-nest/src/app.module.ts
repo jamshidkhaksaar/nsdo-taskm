@@ -66,17 +66,12 @@ import { AnalyticsModule } from './analytics/analytics.module';
         synchronize: configService.get('DATABASE_SYNC') === 'true',
       }),
     }),
-    CacheModule.registerAsync({
-      useFactory: () => ({
-        store: require('cache-manager-redis-store').redisStore,
-        host: 'localhost',
-        port: 6379,
-        ttl: 60, // seconds
-      }),
+    CacheModule.register({
+      ttl: 60, // seconds
       isGlobal: true,
     }),
     AuthModule,
-    ThrottlerModule.forRoot(),
+    // ThrottlerModule.forRoot(),
     UsersModule,
     DepartmentsModule,
     AdminModule,
@@ -87,24 +82,24 @@ import { AnalyticsModule } from './analytics/analytics.module';
     MailModule,
     NotesModule,
     AnalyticsModule,
-    BullModule.forRoot({
-      redis: {
-        host: 'localhost',
-        port: 6379,
-      },
-    }),
-    BullModule.registerQueue({
-      name: 'default',
-    }),
+    // BullModule.forRoot({
+    //   redis: {
+    //     host: 'localhost',
+    //     port: 6379,
+    //   },
+    // }),
+    // BullModule.registerQueue({
+    //   name: 'default',
+    // }),
     TerminusModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: GlobalThrottlerGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: GlobalThrottlerGuard,
+    // },
     DefaultQueueProcessor,
   ],
 })

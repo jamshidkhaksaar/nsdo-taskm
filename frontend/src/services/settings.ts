@@ -18,7 +18,7 @@ export const SettingsService = {
   getSecuritySettings: async () => {
     try {
       console.log('[SettingsService] Fetching security settings');
-      const response = await axios.get('/api/settings/security-settings/1/');
+      const response = await axios.get('/settings/security-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching security settings:', error);
@@ -48,7 +48,7 @@ export const SettingsService = {
   updateSecuritySettings: async (settings: Partial<SecuritySettings>) => {
     try {
       console.log('[SettingsService] Updating security settings');
-      const response = await axios.patch('/api/settings/security-settings/1/', settings);
+      const response = await axios.patch('/settings/security-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating security settings:', error);
@@ -67,7 +67,7 @@ export const SettingsService = {
   getBackupSettings: async () => {
     try {
       console.log('[SettingsService] Fetching backup settings');
-      const response = await axios.get('/api/settings/backup-settings/1/');
+      const response = await axios.get('/settings/backup-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching backup settings:', error);
@@ -97,7 +97,7 @@ export const SettingsService = {
   updateBackupSettings: async (settings: Partial<BackupSettings>) => {
     try {
       console.log('[SettingsService] Updating backup settings');
-      const response = await axios.patch('/api/settings/backup-settings/1/', settings);
+      const response = await axios.patch('/settings/backup-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating backup settings:', error);
@@ -116,7 +116,7 @@ export const SettingsService = {
   getNotificationSettings: async () => {
     try {
       console.log('[SettingsService] Fetching notification settings');
-      const response = await axios.get('/api/settings/notification-settings/1/');
+      const response = await axios.get('/settings/notification-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching notification settings:', error);
@@ -146,7 +146,7 @@ export const SettingsService = {
   updateNotificationSettings: async (settings: Partial<NotificationSettings>) => {
     try {
       console.log('[SettingsService] Updating notification settings');
-      const response = await axios.patch('/api/settings/notification-settings/1/', settings);
+      const response = await axios.patch('/settings/notification-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating notification settings:', error);
@@ -165,7 +165,7 @@ export const SettingsService = {
   getApiSettings: async () => {
     try {
       console.log('[SettingsService] Fetching API settings');
-      const response = await axios.get('/api/settings/api-settings/1/');
+      const response = await axios.get('/settings/api-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching API settings:', error);
@@ -195,7 +195,7 @@ export const SettingsService = {
   updateApiSettings: async (settings: Partial<ApiSettings>) => {
     try {
       console.log('[SettingsService] Updating API settings');
-      const response = await axios.patch('/api/settings/api-settings/1/', settings);
+      const response = await axios.patch('/settings/api-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating API settings:', error);
@@ -214,7 +214,7 @@ export const SettingsService = {
   testEmailSettings: async (settings: Partial<NotificationSettings>) => {
     try {
       console.log('[SettingsService] Testing email settings');
-      const response = await axios.post('/api/settings/notification-settings/test-email/', settings);
+      const response = await axios.post('/settings/notification-settings/test-email/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error testing email settings:', error);
@@ -233,7 +233,7 @@ export const SettingsService = {
   generateApiKey: async () => {
     try {
       console.log('[SettingsService] Generating new API key');
-      const response = await axios.post('/api/settings/api-settings/generate-key/');
+      const response = await axios.post('/settings/api-settings/generate-key/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error generating API key:', error);
@@ -250,7 +250,7 @@ export const SettingsService = {
 
   updatePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
     try {
-      const response = await axios.patch('/api/profile/me/password', {
+      const response = await axios.patch('/profile/me/password', {
         currentPassword,
         newPassword,
         confirmPassword
@@ -273,7 +273,7 @@ export const SettingsService = {
 
   get2FAStatus: async () => {
     try {
-      const response = await axios.get('/api/settings/2fa-status/');
+      const response = await axios.get('/settings/2fa-status/');
       return response.data;
     } catch (error: any) {
       console.error('2FA status fetch error:', error);
@@ -296,7 +296,7 @@ export const SettingsService = {
       const payload = { enabled: enabled, method: method };
       console.log('2FA setup payload:', payload);
       
-      const response = await axios.post('/api/settings/setup_2fa/', payload);
+      const response = await axios.post('/settings/setup_2fa/', payload);
       console.log('2FA setup response:', response.data);
       
       // Make sure we have a QR code if enabling with app method
@@ -337,7 +337,7 @@ export const SettingsService = {
       }
       
       console.log(`Verifying 2FA code: ${verificationCode.substring(0, 2)}***, rememberBrowser: ${rememberBrowser}`);
-      const response = await axios.post('/api/settings/verify_2fa/', {
+      const response = await axios.post('/settings/verify_2fa/', {
         verification_code: verificationCode.trim(),
         remember_browser: rememberBrowser
       });
@@ -359,7 +359,7 @@ export const SettingsService = {
   send2FACode: async (email: string) => {
     try {
       console.log(`Requesting 2FA code via email for: ${email}`);
-      const response = await axios.post('/api/settings/send_2fa_code/', {
+      const response = await axios.post('/settings/send_2fa_code/', {
         email: email
       });
       console.log('Email 2FA code response:', response.data);
@@ -379,7 +379,7 @@ export const SettingsService = {
 
   downloadTasks: async (format: 'csv' | 'pdf') => {
     try {
-      const response = await axios.get('/api/settings/download-tasks/', {
+      const response = await axios.get('/settings/download-tasks/', {
         params: { format },
         responseType: 'blob',
         headers: {

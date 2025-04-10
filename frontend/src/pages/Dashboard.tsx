@@ -128,7 +128,7 @@ const Dashboard: React.FC = () => {
       const isAdminOrManager = user?.role === 'admin' || user?.role === 'general_manager';
       
       // Make the API request with the appropriate parameters based on user role
-      console.log('Making request to /api/tasks');
+      console.log('Making request to /tasks');
       let params: any = {};
       
       if (isAdminOrManager) {
@@ -139,7 +139,7 @@ const Dashboard: React.FC = () => {
         // We don't filter here but rely on the backend permissions
       }
       
-      const response = await axios.get('/api/tasks', { params });
+      const response = await axios.get('/tasks', { params });
       console.log('API response for tasks:', response.data);
       console.log('Response status:', response.status);
       
@@ -212,7 +212,7 @@ const Dashboard: React.FC = () => {
   const deleteTask = async (taskId: string) => {
     try {
       console.log('Deleting task with ID:', taskId);
-      await axios.delete(`/api/tasks/${taskId}`);
+      await axios.delete(`/tasks/${taskId}`);
       fetchTasks(); // Refresh tasks after deletion
       setDeleteDialogOpen(false);
     } catch (err) {
@@ -262,7 +262,7 @@ const Dashboard: React.FC = () => {
         ...(newContext && { context: newContext }), // Add context if provided
       };
       try {
-        await axios.put(`/api/tasks/${taskId}`, updatedTask);
+        await axios.put(`/tasks/${taskId}`, updatedTask);
         fetchTasks(); // Refetch for consistency
       } catch (error) {
         console.error('Failed to update task status on drop:', error);

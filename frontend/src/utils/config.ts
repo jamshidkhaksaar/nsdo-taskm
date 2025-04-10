@@ -8,8 +8,11 @@ const getBaseUrl = (): string => {
     return ''; // Use relative URLs in production
   } else {
     // Always use port 3001 for the backend in development
-    const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001';
-    
+    // Support both VITE_ and REACT_ env vars for compatibility
+    const apiUrl =
+      import.meta.env.VITE_REACT_APP_API_URL ||
+      import.meta.env.REACT_APP_API_URL ||
+      'http://localhost:3001';
     // Ensure we're using port 3001
     if (apiUrl.includes('localhost:') && !apiUrl.includes('localhost:3001')) {
       const correctedUrl = apiUrl.replace(/localhost:\d+/, 'localhost:3001');

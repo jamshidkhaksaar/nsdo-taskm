@@ -71,7 +71,7 @@ export const TaskService = {
     getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
             // Add support for role-based filtering
-            const response = await apiClient.get<any[]>('/api/tasks/', { params });
+            const response = await apiClient.get<any[]>('/tasks/', { params });
             console.log('Tasks fetched from API:', response);
             
             // Map backend data to standardized frontend Task objects
@@ -90,7 +90,7 @@ export const TaskService = {
         try {
             // Convert departmentId to string for consistent handling
             const stringDepartmentId = ensureStringId(departmentId);
-            const response = await apiClient.get<Task[]>(`/api/tasks/?department=${stringDepartmentId}`);
+            const response = await apiClient.get<Task[]>(`/tasks/?department=${stringDepartmentId}`);
             return response.data.map(standardizeTask);
         } catch (error) {
             console.error('Error fetching tasks by department:', error);
@@ -106,14 +106,14 @@ export const TaskService = {
     // Get tasks assigned to user
     getAssignedTasks: async (userId: string) => {
         const stringUserId = ensureStringId(userId);
-        const response = await apiClient.get<Task[]>(`/api/tasks/?assigned_to=${stringUserId}`);
+        const response = await apiClient.get<Task[]>(`/tasks/?assigned_to=${stringUserId}`);
         return response.data.map(standardizeTask);
     },
 
     // Get tasks created by user
     getCreatedTasks: async (userId: string) => {
         const stringUserId = ensureStringId(userId);
-        const response = await apiClient.get<Task[]>(`/api/tasks/?created_by=${stringUserId}`);
+        const response = await apiClient.get<Task[]>(`/tasks/?created_by=${stringUserId}`);
         return response.data.map(standardizeTask);
     },
 
@@ -137,7 +137,7 @@ export const TaskService = {
                 payload.dueDate = toISOString(taskData.due_date);
             }
 
-            const response = await apiClient.post('/api/tasks/', payload);
+            const response = await apiClient.post('/tasks/', payload);
             const createdTask = response.data;
 
             // Store the priority if provided
@@ -165,7 +165,7 @@ export const TaskService = {
                 })
             };
 
-            const response = await apiClient.patch(`/api/tasks/${taskId}/`, apiUpdates);
+            const response = await apiClient.patch(`/tasks/${taskId}/`, apiUpdates);
             return standardizeTask(response.data);
         } catch (error) {
             console.error('Error in updateTask:', error);
@@ -176,7 +176,7 @@ export const TaskService = {
     // Delete a task
     deleteTask: async (taskId: string) => {
         const stringTaskId = ensureStringId(taskId);
-        await apiClient.delete(`/api/tasks/${stringTaskId}/`);
+        await apiClient.delete(`/tasks/${stringTaskId}/`);
     },
 
     // Assign a task to a user
@@ -185,7 +185,7 @@ export const TaskService = {
             const stringTaskId = ensureStringId(taskId);
             const stringUserId = ensureStringId(userId);
             
-            const response = await apiClient.post<any>(`/api/tasks/${stringTaskId}/assign/`, {
+            const response = await apiClient.post<any>(`/tasks/${stringTaskId}/assign/`, {
                 user_id: stringUserId
             });
             
@@ -206,7 +206,7 @@ export const TaskService = {
             console.log(`Changing task ${stringTaskId} status to ${status}`);
             
             // Use the updateTask endpoint with only the status field
-            const response = await apiClient.patch<any>(`/api/tasks/${stringTaskId}/`, {
+            const response = await apiClient.patch<any>(`/tasks/${stringTaskId}/`, {
                 status: status
             });
             
@@ -223,7 +223,7 @@ export const TaskService = {
     // Get users for task assignment
     getUsers: async (): Promise<User[]> => {
         try {
-            const response = await apiClient.get<User[]>('/api/users/');
+            const response = await apiClient.get<User[]>('/users/');
             return response.data;
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -234,7 +234,7 @@ export const TaskService = {
     // Get a single task
     getTask: async (taskId: string): Promise<Task> => {
         try {
-            const response = await apiClient.get<Task>(`/api/tasks/${taskId}/`);
+            const response = await apiClient.get<Task>(`/tasks/${taskId}/`);
             
             // Convert backend status to frontend status
             return standardizeTask(response.data);
@@ -255,7 +255,7 @@ export const TaskService = {
                 ...filters,
             };
             
-            const response = await apiClient.get<Task[]>('/api/tasks/', { params });
+            const response = await apiClient.get<Task[]>('/tasks/', { params });
             
             // Map backend status to frontend status
             return response.data.map(standardizeTask);
@@ -276,7 +276,7 @@ export const TaskService = {
     async fetchTasks(): Promise<Task[]> {
         try {
             console.log('Fetching tasks from API...');
-            const response: AxiosResponse<any[]> = await apiClient.get('/api/tasks');
+            const response: AxiosResponse<any[]> = await apiClient.get('/tasks');
             console.log('API response for tasks:', response.data);
             console.log('Response status:', response.status);
             

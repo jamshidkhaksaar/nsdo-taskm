@@ -141,7 +141,7 @@ const DepartmentManagement: React.FC = () => {
   const fetchDepartments = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/departments');
+      const response = await axios.get('/departments');
       const departments: AdminDepartment[] = response.data;
       console.log('Received departments:', departments);
       
@@ -169,7 +169,7 @@ const DepartmentManagement: React.FC = () => {
 
   const fetchAvailableUsers = async () => {
     try {
-      const response = await axios.get('/api/users');
+      const response = await axios.get('/users');
       const users = response.data;
       
       // Map the user data to the format expected by the dropdown
@@ -205,7 +205,7 @@ const DepartmentManagement: React.FC = () => {
       // Refresh the selected department data to get latest members
       const refreshDepartmentData = async () => {
         try {
-          const response = await axios.get(`/api/departments/${selectedDepartment.id}`);
+          const response = await axios.get(`/departments/${selectedDepartment.id}`);
           console.log('Refreshed department data for members dialog:', response.data);
           setSelectedDepartment(response.data);
         } catch (error) {
@@ -228,11 +228,11 @@ const DepartmentManagement: React.FC = () => {
           head: formData.head // Using just the user ID string
         };
         
-        await axios.put(`/api/departments/${editMode.departmentId}/`, departmentData);
+        await axios.put(`/departments/${editMode.departmentId}/`, departmentData);
         alert('Department updated successfully!');
       } else {
         // Create new department
-        await axios.post('/api/departments/', formData);
+        await axios.post('/departments/', formData);
         alert('Department created successfully!');
       }
       
@@ -260,7 +260,7 @@ const DepartmentManagement: React.FC = () => {
   const handleDeleteDepartment = async (deptId: string) => {
     if (window.confirm('Are you sure you want to delete this department?')) {
       try {
-        await axios.delete(`/api/departments/${deptId}/`);
+        await axios.delete(`/departments/${deptId}/`);
         alert('Department deleted successfully!');
         await fetchDepartments();
       } catch (error) {
@@ -273,7 +273,7 @@ const DepartmentManagement: React.FC = () => {
   const handleViewMembers = async (deptId: string) => {
     try {
       // Get the latest department data with members
-      const response = await axios.get(`/api/departments/${deptId}`);
+      const response = await axios.get(`/departments/${deptId}`);
       const department = response.data;
       
       setSelectedDepartment(department);
@@ -342,7 +342,7 @@ const DepartmentManagement: React.FC = () => {
     try {
       console.log(`Adding user ${selectedMember} to department ${selectedDepartment.id}`);
       setLoading(true);
-      await axios.post(`/api/departments/${selectedDepartment.id}/members/${selectedMember}/`);
+      await axios.post(`/departments/${selectedDepartment.id}/members/${selectedMember}/`);
       
       // Close the dialog
       setOpenAddMemberDialog(false);
@@ -358,7 +358,7 @@ const DepartmentManagement: React.FC = () => {
       // Refresh the selected department to see the new member
       if (selectedDepartment && selectedDepartment.id) {
         try {
-          const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
+          const updatedDept = await axios.get(`/departments/${selectedDepartment.id}/`);
           console.log('Updated department after adding member:', updatedDept.data);
           setSelectedDepartment(updatedDept.data);
           
@@ -389,14 +389,14 @@ const DepartmentManagement: React.FC = () => {
     }
     
     try {
-      await axios.delete(`/api/departments/${selectedDepartment.id}/members/${userId}/`);
+      await axios.delete(`/departments/${selectedDepartment.id}/members/${userId}/`);
       alert('Member removed successfully!');
       
       // Refresh department data
       await fetchDepartments();
       
       // Refresh the selected department
-      const updatedDept = await axios.get(`/api/departments/${selectedDepartment.id}/`);
+      const updatedDept = await axios.get(`/departments/${selectedDepartment.id}/`);
       setSelectedDepartment(updatedDept.data);
     } catch (error) {
       console.error('Error removing member:', error);

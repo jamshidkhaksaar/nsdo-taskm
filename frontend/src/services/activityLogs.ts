@@ -19,7 +19,7 @@ export const ActivityLogsService = {
   }) => {
     try {
       console.log('[ActivityLogsService] Fetching activity logs with params:', params);
-      const response = await axios.get('/api/activity-logs/', { params });
+      const response = await axios.get('/activity-logs/', { params });
       return response.data;
     } catch (error: unknown) {
       console.error('[ActivityLogsService] Error fetching activity logs:', error);
@@ -52,7 +52,7 @@ export const ActivityLogsService = {
   clearLogs: async () => {
     try {
       console.log('[ActivityLogsService] Clearing activity logs');
-      const response = await axios.delete('/api/activity-logs/');
+      const response = await axios.delete('/activity-logs/');
       return response.data;
     } catch (error: unknown) {
       console.error('[ActivityLogsService] Error clearing activity logs:', error);
@@ -71,7 +71,7 @@ export const ActivityLogsService = {
   exportLogs: async (format: 'csv' | 'json') => {
     try {
       console.log(`[ActivityLogsService] Exporting activity logs as ${format}`);
-      const response = await axios.get(`/api/activity-logs/export?format=${format}`);
+      const response = await axios.get(`/activity-logs/export?format=${format}`);
       return response.data;
     } catch (error: unknown) {
       console.error(`[ActivityLogsService] Error exporting activity logs as ${format}:`, error);

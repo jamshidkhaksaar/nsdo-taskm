@@ -34,6 +34,7 @@ export class AuthService {
   }
 
   async signIn(loginCredentialsDto: LoginCredentialsDto): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
+    this.logger.log(`[DEBUG] Entered signIn with: ${JSON.stringify(loginCredentialsDto)}`);
     const { username, password } = loginCredentialsDto;
     this.logger.log(`Login attempt for user: ${username}`);
     
@@ -45,8 +46,12 @@ export class AuthService {
       }
       this.logger.log(`User found: ${user.username}, ID: ${user.id}`);
       
-      if (user && await bcrypt.compare(password, user.password)) {
-        this.logger.log(`Password validation successful for user: ${username}`);
+      if (user) {
+        this.logger.log(`[DEBUG] About to compare password for user: ${username}`);
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        this.logger.log(`[DEBUG] bcrypt.compare result for user: ${username}: ${passwordMatch}`);
+        if (passwordMatch) {
+          this.logger.log(`Password validation successful for user: ${username}`);
         
         const payload: JwtPayload = { username: user.username, sub: user.id };
         
@@ -77,13 +82,22 @@ export class AuthService {
         this.logger.warn(`Password validation failed for user: ${username}`);
         throw new UnauthorizedException('Please check your login credentials');
       }
+    }
     } catch (error) {
-      this.logger.error(`Login error for user ${username}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Login error for user ${username}: ${error.message} (type: ${error?.constructor?.name})`,
+        error.stack
+      );
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new UnauthorizedException('Please check your login credentials');
+      // For debugging: include error message and type in response
+      throw new UnauthorizedException(
+        `Login failed: ${error?.message || error} (type: ${error?.constructor?.name})`
+      );
     }
+    // Fallback return to satisfy TypeScript (should never be reached)
+    return { access: null, refresh: null, user: null };
   }
   
   async refreshToken(refreshToken: string): Promise<{ access: string, refresh: string }> {
