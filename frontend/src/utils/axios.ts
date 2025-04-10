@@ -34,6 +34,7 @@ const instance = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 15000, // 15 seconds timeout
+  withCredentials: true, // Enable sending cookies (for CSRF protection)
 });
 
 // Function to ensure the auth token is properly set in the axios instance

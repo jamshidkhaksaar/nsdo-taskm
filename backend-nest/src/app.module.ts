@@ -71,7 +71,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
       isGlobal: true,
     }),
     AuthModule,
-    // ThrottlerModule.forRoot(),
+    ThrottlerModule.forRoot(),
     UsersModule,
     DepartmentsModule,
     AdminModule,
@@ -96,10 +96,10 @@ import { AnalyticsModule } from './analytics/analytics.module';
   controllers: [AppController, HealthController],
   providers: [
     AppService,
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: GlobalThrottlerGuard,
-    // },
+    {
+      provide: APP_GUARD,
+      useClass: GlobalThrottlerGuard,
+    },
     DefaultQueueProcessor,
   ],
 })

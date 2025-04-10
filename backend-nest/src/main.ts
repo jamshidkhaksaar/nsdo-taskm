@@ -50,11 +50,11 @@ async function bootstrap() {
   }));
 
   // Enable CSRF protection with cookies
-  // app.use(
-  //   csurf({
-  //     cookie: true,
-  //   }),
-  // );
+   app.use(
+     csurf({
+       cookie: true,
+     }),
+   );
   // Setup Swagger API documentation
   if (configService.get('NODE_ENV') !== 'production') {
     const swaggerConfig = new DocumentBuilder()
