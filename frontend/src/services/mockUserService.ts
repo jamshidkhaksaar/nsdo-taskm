@@ -1,4 +1,4 @@
-import { User } from './user';
+import { User } from '../../types/user'; // Use the shared User type
 
 // Mock user data for development and testing
 const mockUsers: User[] = [
@@ -16,7 +16,9 @@ const mockUsers: User[] = [
     position: 'System Administrator',
     status: 'active',
     date_joined: '2023-01-01T00:00:00Z',
-    last_login: '2023-06-15T10:30:00Z'
+    last_login: '2023-06-15T10:30:00Z',
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-06-15T10:30:00Z',
   },
   {
     id: '2',
@@ -32,7 +34,9 @@ const mockUsers: User[] = [
     position: 'Senior Developer',
     status: 'active',
     date_joined: '2023-02-15T00:00:00Z',
-    last_login: '2023-06-14T16:45:00Z'
+    last_login: '2023-06-14T16:45:00Z',
+    created_at: '2023-02-15T00:00:00Z',
+    updated_at: '2023-06-14T16:45:00Z',
   },
   {
     id: '3',
@@ -48,7 +52,9 @@ const mockUsers: User[] = [
     position: 'Marketing Specialist',
     status: 'active',
     date_joined: '2023-03-10T00:00:00Z',
-    last_login: '2023-06-15T09:15:00Z'
+    last_login: '2023-06-15T09:15:00Z',
+    created_at: '2023-03-10T00:00:00Z',
+    updated_at: '2023-06-15T09:15:00Z',
   },
   {
     id: '4',
@@ -64,7 +70,9 @@ const mockUsers: User[] = [
     position: 'Junior Developer',
     status: 'active',
     date_joined: '2023-04-05T00:00:00Z',
-    last_login: '2023-06-14T14:20:00Z'
+    last_login: '2023-06-14T14:20:00Z',
+    created_at: '2023-04-05T00:00:00Z',
+    updated_at: '2023-06-14T14:20:00Z',
   },
   {
     id: '5',
@@ -80,7 +88,9 @@ const mockUsers: User[] = [
     position: 'HR Manager',
     status: 'inactive',
     date_joined: '2023-01-20T00:00:00Z',
-    last_login: '2023-05-30T11:10:00Z'
+    last_login: '2023-05-30T11:10:00Z',
+    created_at: '2023-01-20T00:00:00Z',
+    updated_at: '2023-05-30T11:10:00Z',
   }
 ];
 

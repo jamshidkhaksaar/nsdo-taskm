@@ -26,7 +26,11 @@ import { useErrorHandler } from '../hooks/useErrorHandler';
 // Redux and Services
 import { AppDispatch, RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
-import { Task, TaskPriority, TaskStatus, TaskContext } from '../types/task';
+import { fetchUsers } from '../store/slices/userSlice';
+import { fetchDepartments } from '../store/slices/departmentSlice';
+import { Task, TaskPriority, TaskStatus, TaskContext, TaskType } from '../types/task';
+import { User } from '../types/user';
+import { Department } from '../types/department';
 import axios from '../utils/axios';
 import { TaskService } from '../services/task';
 import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
@@ -80,6 +84,8 @@ const Dashboard: React.FC = () => {
 
   // Authentication state from Redux
   const { isAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
+  const allUsers = useSelector((state: RootState) => state.users.users);
+  const allDepartments = useSelector((state: RootState) => state.departments.departments);
   
   // Other state declarations...
   const [showWeatherWidget, setShowWeatherWidget] = useState(true); 
@@ -103,6 +109,37 @@ const Dashboard: React.FC = () => {
   const handleToggleQuickNotes = () => setShowQuickNotes(prev => !prev);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   const [rightSidebarVisible, setRightSidebarVisible] = useState(!isTablet);
+  
+  // Helper functions for name lookups
+  const getUserNameById = useCallback((userId: string | null | undefined): string => {
+    if (!userId) return '-';
+    // Ensure comparison is string-to-string if IDs can be numbers
+    const foundUser = allUsers.find(u => String(u.id) === String(userId));
+    // Use first/last name if available, otherwise fall back to name or generic placeholder
+    return foundUser ? `${foundUser.first_name || ''} ${foundUser.last_name || ''}`.trim() || foundUser.name || 'Unknown User' : `ID: ${userId}`;
+  }, [allUsers]);
+
+  const getDepartmentNameById = useCallback((departmentId: string | null | undefined): string => {
+    console.log("[Dashboard] Looking up department ID:", departmentId); // Debug log
+    console.log("[Dashboard] Available departments:", allDepartments); // Debug log
+    if (!departmentId) return '-';
+    const foundDept = allDepartments.find(d => String(d.id) === String(departmentId));
+    if (foundDept) {
+      return foundDept.name || 'Unknown Department';
+    } else {
+      console.warn(`[Dashboard] Department NOT found for ID: ${departmentId}`); // Debug log
+      return `ID: ${departmentId}`; // Shows ID if not found
+    }
+  }, [allDepartments]);
+
+  // Placeholder for province name lookup
+  const getProvinceNameById = useCallback((provinceId: string | null | undefined): string => {
+    if (!provinceId) return '-';
+    // TODO: Implement actual lookup when province data and store slice are available
+    // const foundProvince = allProvinces.find(p => String(p.id) === String(provinceId));
+    // return foundProvince ? foundProvince.name : `ID: ${provinceId}`;
+    return `Province ID: ${provinceId}`; // Current placeholder
+  }, []); // Add allProvinces dependency when implemented
   
   // Fetch tasks from API
   const fetchTasks = useCallback(async () => {
@@ -173,8 +210,13 @@ const Dashboard: React.FC = () => {
   
   // Initial data fetch
   useEffect(() => {
+    console.log("[Dashboard] useEffect: Fetching initial data...");
+    // Dispatch actions to fetch necessary lookup data
+    dispatch(fetchUsers());
+    dispatch(fetchDepartments());
+    // Then fetch tasks
     fetchTasks();
-  }, [fetchTasks]);
+  }, [dispatch, fetchTasks]);
   
   // Event handlers
   const handleLogout = () => {
@@ -422,24 +464,53 @@ const Dashboard: React.FC = () => {
                   </thead>
                   <tbody>
                     {tasks.map((task) => {
-                      const createdByStr = String(
-                        task.created_by === null
-                          ? '-'
-                          : typeof task.created_by === 'object'
-                            ? (task.created_by as any).name ?? JSON.stringify(task.created_by)
-                            : typeof task.created_by === 'string'
-                              ? task.created_by
-                              : '-'
-                      );
-                      const assignedToStr = String(
-                        Array.isArray(task.assigned_to)
-                          ? task.assigned_to.join(', ')
-                          : typeof task.assigned_to === 'object' && task.assigned_to !== null
-                            ? (task.assigned_to as any).name ?? JSON.stringify(task.assigned_to)
-                            : typeof task.assigned_to === 'string'
-                              ? task.assigned_to
-                              : '-'
-                      );
+                      // --- Determine Created By ---
+                      const createdByStr = getUserNameById(task.createdById);
+
+                      // --- Determine Assigned To ---
+                      let assignedToStr = '-';
+                      if (task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0) {
+                         // If assigned to departments, show department name(s) in Department column
+                         // Keep Assigned To column potentially simpler or show 'Department Task'
+                         assignedToStr = 'Department Task';
+                      } else if (task.assignedToProvinceId) {
+                         // If assigned to a province, show province name in Province column
+                         assignedToStr = 'Province Task';
+                      } else if (task.assignedToUsers && task.assignedToUsers.length > 0) {
+                          // Assigned to specific users
+                          const assignedNames = task.assignedToUsers
+                              .map(u => getUserNameById(u?.id)) // Assuming assignedToUsers has User objects or just IDs
+                              .filter(name => name !== '-')
+                              .join(', ');
+                          
+                          if (task.assignedToUsers.some(u => String(u?.id) === String(user?.id)) && String(task.createdById) !== String(user?.id)) {
+                              assignedToStr = `Assigned by ${getUserNameById(task.createdById)}`;
+                          } else if (task.assignedToUsers.some(u => String(u?.id) === String(user?.id)) && String(task.createdById) === String(user?.id)) {
+                             assignedToStr = 'My Task (Self-Assigned)';
+                          } else {
+                             assignedToStr = assignedNames || '-';
+                          }
+                      } else if (String(task.createdById) === String(user?.id)) {
+                          // Created by current user but not explicitly assigned to them (implies self-task)
+                          assignedToStr = 'My Task';
+                      }
+
+
+                      // --- Determine Department Name ---
+                      let departmentDisplay = '-';
+                      if (task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0) {
+                        departmentDisplay = task.assignedToDepartmentIds.map(id => getDepartmentNameById(id)).join(', ');
+                      } else if (task.departmentId) { // Fallback for single departmentId field if used
+                        departmentDisplay = getDepartmentNameById(task.departmentId);
+                      } else if (typeof task.department === 'object' && task.department !== null) { // Fallback for object
+                        departmentDisplay = task.department.name || '-';
+                      }
+
+
+                      // --- Determine Province Name ---
+                      const provinceDisplay = getProvinceNameById(task.assignedToProvinceId);
+
+
                       return (
                         <tr key={task.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                           <td style={{ padding: '8px', color: '#fff' }}>
@@ -477,14 +548,10 @@ const Dashboard: React.FC = () => {
                             </span>
                           </td>
                           <td style={{ padding: '8px', color: '#fff' }}>{assignedToStr}</td>
+                          <td style={{ padding: '8px', color: '#fff' }}>{departmentDisplay}</td>
+                          <td style={{ padding: '8px', color: '#fff' }}>{provinceDisplay}</td>
                           <td style={{ padding: '8px', color: '#fff' }}>
-                            {typeof task.department === 'string'
-                              ? task.department
-                              : task.department?.name || '-'}
-                          </td>
-                          <td style={{ padding: '8px', color: '#fff' }}>-</td>
-                          <td style={{ padding: '8px', color: '#fff' }}>
-                            {task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}
+                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}
                           </td>
                           <td style={{ padding: '8px', color: '#fff' }}>{createdByStr}</td>
                           <td style={{ padding: '8px' }}>
@@ -494,8 +561,8 @@ const Dashboard: React.FC = () => {
                             >
                               View
                             </span>
-                            <span style={{ color: 'green', cursor: 'pointer', marginRight: '8px' }} onClick={() => handleEditTask(task.id)}>Edit</span>
-                            <span style={{ color: 'red', cursor: 'pointer' }} onClick={() => handleOpenDeleteDialog(task.id)}>Delete</span>
+                            <span style={{ color: 'green', cursor: 'pointer', marginRight: '8px' }} onClick={() => handleEditTask(String(task.id))}>Edit</span>
+                            <span style={{ color: 'red', cursor: 'pointer' }} onClick={() => handleOpenDeleteDialog(String(task.id))}>Delete</span>
                           </td>
                         </tr>
                       );

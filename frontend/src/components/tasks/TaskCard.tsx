@@ -13,6 +13,10 @@ import {
   Menu,
   MenuItem,
   Tooltip,
+  AvatarGroup,
+  Select,
+  MenuItem as MuiMenuItem,
+  Divider,
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -27,6 +31,9 @@ import { Task, TaskPriority, TaskStatus } from '../../types/task';
 import { useTaskPermissions } from '../../hooks/useTaskPermissions';
 import { User } from '../../types/user';
 import { Department } from '../../services/department';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import { SelectChangeEvent } from '@mui/material/Select';
 
 // Custom styles for the components
 const customStyles = {
@@ -70,11 +77,8 @@ interface TaskCardProps {
   task: Task;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
-  onStatusChange?: (taskId: string, newStatus: string) => void;
-  users?: User[];
-  departments?: Department[];
-  currentUserId: number;
-  onClick?: () => void;
+  onStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
+  onClick?: (task: Task) => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -82,82 +86,79 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onEdit,
   onDelete,
   onStatusChange,
-  users = [],
-  departments = [],
-  currentUserId,
   onClick,
 }) => {
   const theme = useTheme();
+  const [statusAnchorEl, setStatusAnchorEl] = React.useState<null | HTMLElement>(null);
   const permissions = useTaskPermissions(task);
-  const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
-  
+  const { users: reduxUsers } = useSelector((state: RootState) => state.users);
+  const { departments: reduxDepartments } = useSelector((state: RootState) => state.departments);
+
+  // Find creator and assignee details
+  const creator = reduxUsers.find(u => u.id.toString() === task.createdById?.toString());
+  const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : 'Unknown';
+  const assignedUsers = reduxUsers.filter(user => task.assigned_to?.map(id => id.toString()).includes(user.id.toString()));
+
+  // Find department name if applicable
+  const department = reduxDepartments.find(dept => dept.id.toString() === task.departmentId?.toString());
+  const departmentName = department?.name || (task.departmentId ? 'Loading...' : 'None');
+
   // Format due date
-  const formattedDueDate = task.due_date 
-    ? format(new Date(task.due_date), 'MMM d, yyyy h:mm a')
+  const formattedDueDate = task.dueDate
+    ? format(new Date(task.dueDate), 'MMM d, yyyy h:mm a')
     : 'No due date';
-  
-  // Get priority color
-  const getPriorityColor = (priority: TaskPriority): string => {
-    switch (priority) {
-      case 'high': return theme.palette.error.main;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.success.main;
-      default: return theme.palette.info.main;
-    }
-  };
-  
-  // Get status color
-  const getStatusColor = (status: string): string => {
+
+  const getStatusLabel = (status: TaskStatus): string => {
     switch (status) {
-      case 'completed': return theme.palette.success.main;
-      case 'in_progress': return theme.palette.warning.main;
-      case 'cancelled': return theme.palette.error.main;
-      default: return theme.palette.info.main;
+      case TaskStatus.PENDING: return 'Pending';
+      case TaskStatus.IN_PROGRESS: return 'In Progress';
+      case TaskStatus.COMPLETED: return 'Completed';
+      case TaskStatus.CANCELLED: return 'Cancelled';
+      default: return 'Unknown';
     }
   };
 
-  // Get status label
-  const getStatusLabel = (status: string): string => {
+  const getStatusColor = (status: TaskStatus): string => {
     switch (status) {
-      case 'pending': return 'Pending';
-      case 'in_progress': return 'In Progress';
-      case 'completed': return 'Completed';
-      case 'cancelled': return 'Cancelled';
-      default: return status.charAt(0).toUpperCase() + status.slice(1);
+      case TaskStatus.PENDING: return theme.palette.warning.main;
+      case TaskStatus.IN_PROGRESS: return theme.palette.info.main;
+      case TaskStatus.COMPLETED: return theme.palette.success.main;
+      case TaskStatus.CANCELLED: return theme.palette.grey[500];
+      default: return theme.palette.grey[500];
     }
   };
-  
+
   // Handle status change
-  const handleStatusChange = (newStatus: string) => {
-    setStatusAnchorEl(null);
-    if (onStatusChange) {
-      onStatusChange(task.id, newStatus);
+  const handleStatusChange = (event: SelectChangeEvent<TaskStatus>) => {
+    if (onStatusChange && permissions.canManageStatus) {
+      onStatusChange(task.id.toString(), event.target.value as TaskStatus);
+    }
+  };
+
+  // Get priority color
+  const getPriorityColor = (priority: TaskPriority): string => {
+    switch (priority) {
+      case TaskPriority.HIGH: return theme.palette.error.main;
+      case TaskPriority.MEDIUM: return theme.palette.warning.main;
+      case TaskPriority.LOW: return theme.palette.success.main;
+      default: return theme.palette.info.main;
     }
   };
   
-  // Find creator name
-  const creator = users.find(user => user.id.toString() === task.created_by);
-  const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : 'Unknown';
-  
-  // Find department name if applicable
-  const departmentId = typeof task.department === 'string' 
-    ? task.department 
-    : task.department?.id;
-  const department = departments.find(dept => dept.id === departmentId);
-  const departmentName = department?.name || 'None';
-  
-  // Find assignees or collaborators
-  const assignedUsers = users.filter(user => 
-    task.assigned_to?.includes(user.id.toString())
-  );
+  // Determine due date status
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== TaskStatus.COMPLETED;
+  const dueDateText = task.dueDate ? `Due: ${format(new Date(task.dueDate), 'PPp')}` : 'No due date';
+
+  // Find assigned users' full names
+  const assignedUserNames = assignedUsers
+    .map(user => `${user.first_name} ${user.last_name}`)
+    .join(', ') || 'Unassigned';
   
   return (
-    <Card sx={{ 
-      ...customStyles.card,
-      mb: 2,
-      position: 'relative',
-      overflow: 'visible'
-    }}>
+    <Card
+      sx={{ mb: 2, position: 'relative', overflow: 'visible', cursor: onClick ? 'pointer' : 'default' }}
+      onClick={() => onClick && onClick(task)}
+    >
       {/* Priority indicator */}
       <Box 
         sx={{ 
@@ -176,156 +177,87 @@ const TaskCard: React.FC<TaskCardProps> = ({
         <PriorityHighIcon sx={{ fontSize: '16px', color: '#fff' }} />
       </Box>
       
-      <CardContent>
-        <Typography variant="h6" sx={{ mb: 1, ...customStyles.text.primary }}>
-        {/* Context label for assignment/delegation */}
-        {(() => {
-          // "Myself" for personal tasks
-          if (task.type === 'user' && task.created_by?.toString() === currentUserId.toString()) {
-            return <Chip label="Myself" size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
-          }
-          // "Assigned by [username]" for tasks assigned to user
-          if (task.type === 'user' && task.created_by?.toString() !== currentUserId.toString()) {
-            return <Chip label={`Assigned by ${creatorName}`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
-          }
-          // "Assigned to [department] by myself" for department tasks
-          if (task.type === 'department' && task.created_by?.toString() === currentUserId.toString()) {
-            return <Chip label={`Assigned to ${departmentName} by myself`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
-          }
-          // "Assigned to [province], [departments] by myself" for province tasks
-          if (task.type === 'province' && task.created_by?.toString() === currentUserId.toString()) {
-            return <Chip label={`Assigned to province by myself`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
-          }
-          // "Delegated to [user]" for delegated tasks
-          if (task.delegatedByUserId) {
-            const delegatedUser = users.find(u => u.id.toString() === task.delegatedByUserId?.toString());
-            return <Chip label={`Delegated to ${delegatedUser ? delegatedUser.first_name + ' ' + delegatedUser.last_name : 'user'}`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
-          }
-          return null;
-        })()}
+      <CardContent sx={{ pt: 3 }}>
+        <Typography variant="subtitle1" fontWeight="bold" color="#fff" gutterBottom>
           {task.title}
         </Typography>
-        
-        <Typography variant="body2" sx={{ mb: 2, ...customStyles.text.secondary }}>
-          {task.description}
+        <Typography variant="body2" color="rgba(255, 255, 255, 0.7)" sx={{ mb: 1 }}>
+          {departmentName !== 'None' ? `Dept: ${departmentName}` : 'Personal'}
         </Typography>
-        
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-          <Chip 
-            label={getStatusLabel(task.status)}
+        <Tooltip title={dueDateText}>
+          <Chip
+            icon={<AccessTimeIcon fontSize="small" />}
+            label={task.dueDate ? format(new Date(task.dueDate), 'MMM d') : 'No due date'}
             size="small"
-            onClick={(e) => permissions.canManageStatus ? setStatusAnchorEl(e.currentTarget) : null}
             sx={{ 
-              backgroundColor: getStatusColor(task.status),
-              color: '#fff',
-              cursor: permissions.canManageStatus ? 'pointer' : 'default',
-              '&:hover': permissions.canManageStatus ? {
-                opacity: 0.9
-              } : {}
-            }} 
-            deleteIcon={permissions.canManageStatus ? <KeyboardArrowDownIcon /> : undefined}
-            onDelete={permissions.canManageStatus ? (e) => setStatusAnchorEl(e.currentTarget) : undefined}
+              color: isOverdue ? theme.palette.error.light : 'rgba(255, 255, 255, 0.7)',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              mr: 1,
+              mb: 1
+            }}
           />
-          
-          <Menu
-            anchorEl={statusAnchorEl}
-            open={Boolean(statusAnchorEl)}
-            onClose={() => setStatusAnchorEl(null)}
-          >
-            {Object.values(TaskStatus).map((status) => (
-              <MenuItem
-                key={status}
-                onClick={() => handleStatusChange(status)}
-                sx={{
-                  minWidth: 120,
-                  backgroundColor: task.status === status ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
-                }}
-              >
-                <Box 
-                  sx={{ 
-                    width: 8, 
-                    height: 8, 
-                    borderRadius: '50%', 
-                    backgroundColor: getStatusColor(status),
-                    mr: 1
-                  }} 
-                />
-                {getStatusLabel(status)}
-              </MenuItem>
-            ))}
-          </Menu>
-          
-          <Chip 
-            icon={<AccessTimeIcon />} 
-            label={formattedDueDate} 
+        </Tooltip>
+        <Tooltip title={`Priority: ${task.priority}`}>
+          <Chip
+            icon={<PriorityHighIcon fontSize="small" />}
+            label={task.priority}
             size="small"
-            sx={customStyles.chip} 
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.7)',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              mb: 1
+            }}
           />
-        </Box>
+        </Tooltip>
         
-        {/* Creator and Assignment Info - Context Specific Display */}
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" sx={{ display: 'block', mb: 0.5, ...customStyles.text.secondary }}>
-            Created by: {creatorName}
-          </Typography>
+        <Divider sx={{ my: 1.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Tooltip title={`Assigned to: ${assignedUserNames}`}>
+            <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: '0.7rem' } }}>
+              {assignedUsers.map(user => (
+                <Avatar key={user.id} alt={`${user.first_name} ${user.last_name}`} src={user.avatar}>
+                  {user.first_name?.charAt(0)}
+                </Avatar>
+              ))}
+            </AvatarGroup>
+          </Tooltip>
           
-          {task.context === 'department' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <BusinessIcon sx={{ fontSize: '18px', mr: 0.5, ...customStyles.text.secondary }} />
-              <Typography variant="caption" sx={{ ...customStyles.text.secondary }}>
-                Assigned to department: {departmentName}
-              </Typography>
-            </Box>
-          )}
-          
-          {task.context === 'user' && assignedUsers.length > 0 && (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="caption" sx={{ display: 'block', mb: 0.5, ...customStyles.text.secondary }}>
-                Assigned to:
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {assignedUsers.map(user => (
-                  <Chip
-                    key={user.id}
-                    avatar={<Avatar>{user.first_name.charAt(0)}</Avatar>}
-                    label={`${user.first_name} ${user.last_name}`}
-                    size="small"
-                    sx={customStyles.chip}
-                  />
-                ))}
-              </Box>
-            </Box>
-          )}
-          
-          {task.context === 'personal' && assignedUsers.length > 0 && (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="caption" sx={{ display: 'block', mb: 0.5, ...customStyles.text.secondary }}>
-                Collaborators:
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {assignedUsers.map(user => (
-                  <Chip
-                    key={user.id}
-                    avatar={<Avatar>{user.first_name.charAt(0)}</Avatar>}
-                    label={`${user.first_name} ${user.last_name}`}
-                    size="small"
-                    sx={customStyles.chip}
-                  />
-                ))}
-              </Box>
-            </Box>
+          {/* Status Select Dropdown */}
+          {permissions.canManageStatus && onStatusChange ? (
+            <Select
+              value={task.status}
+              onChange={handleStatusChange}
+              size="small"
+              variant="outlined"
+              onClick={(e) => e.stopPropagation()}
+              sx={{ 
+                fontSize: '0.8rem', 
+                color: 'rgba(255, 255, 255, 0.8)',
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.2)' },
+                '& .MuiSvgIcon-root': { color: 'rgba(255, 255, 255, 0.5)' },
+                backgroundColor: 'rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <MuiMenuItem value={TaskStatus.PENDING}>Pending</MuiMenuItem>
+              <MuiMenuItem value={TaskStatus.IN_PROGRESS}>In Progress</MuiMenuItem>
+              <MuiMenuItem value={TaskStatus.COMPLETED}>Completed</MuiMenuItem>
+              <MuiMenuItem value={TaskStatus.CANCELLED}>Cancelled</MuiMenuItem>
+            </Select>
+          ) : (
+             <Chip label={task.status} size="small" sx={{ backgroundColor: getStatusColor(task.status), color: '#fff' }} />
           )}
         </Box>
       </CardContent>
       
       {/* Actions */}
-      {(permissions.canEdit || permissions.canDelete || permissions.canManageStatus) && (
+      {(permissions.canEdit || permissions.canDelete) && (
         <CardActions sx={{ justifyContent: 'flex-end', borderTop: '1px solid rgba(255, 255, 255, 0.1)', pt: 1 }}>
           {permissions.canEdit && onEdit && (
             <IconButton 
               size="small" 
-              onClick={() => onEdit(task)}
-              sx={customStyles.iconButton}
+              onClick={(e) => { e.stopPropagation(); onEdit(task); }}
+              sx={{ color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}
             >
               <EditIcon fontSize="small" />
             </IconButton>
@@ -334,8 +266,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {permissions.canDelete && onDelete && (
             <IconButton 
               size="small" 
-              onClick={() => onDelete(task.id)}
-              sx={customStyles.iconButton}
+              onClick={(e) => { e.stopPropagation(); onDelete(task.id.toString()); }}
+              sx={{ color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}
             >
               <DeleteIcon fontSize="small" />
             </IconButton>

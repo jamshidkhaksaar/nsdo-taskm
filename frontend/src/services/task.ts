@@ -33,33 +33,59 @@ const ensureStringId = (id: string | number): string => {
     return typeof id === 'number' ? id.toString() : id;
 };
 
-// Helper function to standardize task objects from API responses
+// Standardize task data received from API
 const standardizeTask = (data: any): Task => {
-    // Handle date conversion safely
-    let dueDateStr = '';
-    if (data.due_date) {
-        dueDateStr = toISOString(data.due_date);
-    } else if (data.dueDate) {
-        dueDateStr = toISOString(data.dueDate);
+    // Ensure data exists
+    if (!data) {
+        console.error("standardizeTask received null or undefined data");
+        // Return a default/empty task structure or throw an error
+        // depending on how you want to handle invalid data
+        return { 
+            id: 'invalid-' + Date.now(), 
+            title: 'Invalid Task Data', 
+            description: '',
+            status: TaskStatus.PENDING,
+            priority: TaskPriority.MEDIUM,
+            dueDate: null,
+            departmentId: null
+            // Add other required fields with default values
+         } as Task; 
     }
 
-    return {
-        id: ensureStringId(data.id),
-        title: data.title || '',
+    const task: Task = {
+        // Ensure ID is always treated as string early on
+        id: ensureStringId(data.id), 
+        title: data.title || 'Untitled Task', // Provide default title
         description: data.description || '',
-        status: backendToFrontendStatus[data.status as string] || TaskStatus.PENDING,
-        due_date: dueDateStr,
-        priority: data.priority || 'medium',
-        is_private: typeof data.is_private !== 'undefined' ? data.is_private : 
-                    (typeof data.isPrivate !== 'undefined' ? data.isPrivate : false),
-        department: data.department || null,
-        assigned_to: Array.isArray(data.assigned_to) ? data.assigned_to.map(ensureStringId) : 
-                    (Array.isArray(data.assignedTo) ? data.assignedTo.map(ensureStringId) : []),
-        created_by: ensureStringId(data.created_by || data.createdBy),
-        created_at: data.created_at || data.createdAt || new Date().toISOString(),
-        updated_at: data.updated_at || data.updatedAt || new Date().toISOString(),
-        context: data.context || 'personal'
+        status: data.status || TaskStatus.PENDING,
+        priority: data.priority || TaskPriority.MEDIUM,
+        // Use dueDate and departmentId directly from API response if available
+        dueDate: data.dueDate || data.due_date || null,
+        departmentId: data.departmentId || null,
+        // Keep optional fields
+        department: data.department, // Optional DepartmentRef or string
+        createdAt: data.createdAt || data.created_at, // Map both possibilities
+        updatedAt: data.updatedAt || data.updated_at, // Map both possibilities
+        createdById: data.createdById ? ensureStringId(data.createdById) : null,
+        assigned_to: Array.isArray(data.assigned_to) 
+                        ? data.assigned_to.map(ensureStringId) 
+                        : (data.assigned_to ? [ensureStringId(data.assigned_to)] : []),
+        // Add other fields from Task interface if they exist in 'data'
+        type: data.type,
+        is_private: data.is_private,
+        delegatedByUserId: data.delegatedByUserId ? ensureStringId(data.delegatedByUserId) : null,
+        assignedToDepartmentIds: data.assignedToDepartmentIds,
+        assignedToProvinceId: data.assignedToProvinceId,
+        context: data.context,
+        // Map created_by for backward compatibility if needed
+        created_by: data.created_by ? ensureStringId(data.created_by) : undefined, 
     };
+
+    // Clean up potential undefined values that shouldn't be null
+    if (task.assigned_to === undefined) task.assigned_to = [];
+    // Add other cleanups as needed
+
+    return task;
 };
 
 export const TaskService = {
@@ -130,12 +156,20 @@ export const TaskService = {
                 title: taskData.title,
                 description: taskData.description || '',
                 status,
-                context: taskData.context,
+                departmentId: taskData.departmentId,
+                assigned_to: taskData.assigned_to,
+                priority: taskData.priority,
             };
 
             if (taskData.due_date) {
                 payload.dueDate = toISOString(taskData.due_date);
+            } else {
+                delete payload.dueDate;
             }
+
+            Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+
+            console.log('Sending payload to API:', payload);
 
             const response = await apiClient.post('/tasks/', payload);
             const createdTask = response.data;
@@ -255,9 +289,9 @@ export const TaskService = {
                 ...filters,
             };
             
-            const response = await apiClient.get<Task[]>('/tasks/', { params });
+            const response = await apiClient.get<any[]>('/tasks/', { params }); // Expect any[] from API
             
-            // Map backend status to frontend status
+            // Map using standardizeTask
             return response.data.map(standardizeTask);
         } catch (error) {
             console.error('Error fetching visible tasks:', error);
@@ -273,6 +307,7 @@ export const TaskService = {
         return TaskService.getVisibleTasks(type, filters);
     },
 
+    // Example: Ensure fetchTasks uses it
     async fetchTasks(): Promise<Task[]> {
         try {
             console.log('Fetching tasks from API...');
@@ -283,26 +318,9 @@ export const TaskService = {
             if (response.status === 200) {
                 const tasks = response.data;
                 console.log(`Received ${tasks.length} tasks from API`);
-                
-                // Map the backend tasks to our frontend Task model
-                const mappedTasks = tasks.map((task: any) => ({
-                    id: task.id,
-                    title: task.title,
-                    description: task.description,
-                    status: task.status,
-                    priority: task.priority || 'medium',
-                    due_date: task.due_date || '',
-                    created_at: task.created_at || new Date().toISOString(),
-                    updated_at: task.updated_at || new Date().toISOString(),
-                    context: task.context || 'personal',
-                    department: task.department || null,
-                    is_private: task.is_private || false,
-                    created_by: task.created_by || null,
-                    assigned_to: Array.isArray(task.assigned_to) ? task.assigned_to : (task.assigned_to ? [task.assigned_to] : []),
-                }));
-                
+                const mappedTasks = tasks.map(standardizeTask);
                 console.log('Mapped tasks:', mappedTasks);
-                return mappedTasks;
+                return mappedTasks; 
             }
             return [];
         } catch (error) {

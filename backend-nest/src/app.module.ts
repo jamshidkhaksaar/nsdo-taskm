@@ -68,6 +68,7 @@ import { ProvinceModule } from './provinces/province.module';
           Province,
         ],
         synchronize: configService.get('DATABASE_SYNC') === 'true',
+        logging: true,
       }),
     }),
     CacheModule.register({

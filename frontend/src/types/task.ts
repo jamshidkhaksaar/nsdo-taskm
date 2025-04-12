@@ -1,3 +1,6 @@
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { User } from './user';
+
 export enum TaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
@@ -21,25 +24,28 @@ export interface DepartmentRef {
 export type TaskType = 'user' | 'department' | 'user_to_user' | 'province';
 
 export interface Task {
-  id: string;
+  id: string | number;
   title: string;
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
-  due_date: string;
-  created_at: string;
-  updated_at: string;
-  is_private: boolean;
-  department: string | { id: string; name: string } | null;
-  assigned_to: string[];
-  created_by: string;
-  context: TaskContext;
-  // --- Enhanced fields for assignment system ---
+  dueDate: string | null;
+  departmentId: string | null;
+  department?: string | DepartmentRef | null;
+  created_at?: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  is_private?: boolean;
+  assigned_to?: string[];
+  created_by?: string;
+  createdById?: string | null;
+  context?: TaskContext;
   type?: TaskType;
   delegatedByUserId?: string | null;
-  assignedToUserIds?: string[];
-  assignedToDepartmentIds?: string[];
-  assignedToProvinceId?: string;
+  assignedToUsers?: User[];
+  assignedToDepartmentIds?: string[] | null;
+  assignedToProvinceId?: string | null;
 }
 
 export interface CreateTask {
@@ -47,11 +53,10 @@ export interface CreateTask {
   description?: string;
   status?: TaskStatus;
   due_date?: string;
-  created_by?: string;
+  dueDate?: string;
   priority?: TaskPriority;
-  context?: TaskContext;
+  departmentId?: string;
   assigned_to?: string[];
-  department?: string | { id: string; name: string } | null;
   is_private?: boolean;
 }
 
@@ -60,10 +65,9 @@ export interface TaskUpdate {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  due_date?: string;
-  updated_at?: string;
+  dueDate?: string;
+  departmentId?: string;
   assigned_to?: string[];
-  department?: string | { id: string; name: string } | null;
   is_private?: boolean;
 }
 

@@ -27,14 +27,13 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import Sidebar from '../components/Sidebar';
 import DepartmentList from '../components/departments/DepartmentList';
 import TasksSection from '../components/departments/TasksSection';
-import { Task } from '../types/task';
+import { Task, TaskStatus } from '../types/task';
 import { DepartmentService } from '../services/department';
 import { TaskService } from '../services/task';
 import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
-import { TaskStatus } from '../types/task';
 
 
 const DRAWER_WIDTH = 240;
@@ -54,53 +53,81 @@ const Departments: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [topPerformers, setTopPerformers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // State for task dialog
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
 
-  // Fetch departments and tasks
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDepartment]);
-
-  const fetchData = async () => {
+  // Fetch departments and ALL tasks initially and when selectedDepartment changes (for performers)
+  const fetchData = useCallback(async () => {
+    // console.log(`Fetching data. Selected Department: ${selectedDepartment}`); // Debug log
+    setLoading(true); // Indicate loading starts
     try {
-      if (initialLoad) {
-        setLoading(true);
-      }
-      
-      // Fetch departments
-      const departmentsResponse = await DepartmentService.getDepartments();
-      const departmentsWithCount = departmentsResponse.map((dept: any) => ({
-        ...dept,
-        tasksCount: dept.tasksCount !== undefined ? dept.tasksCount : 0,
-      }));
-      setDepartments(departmentsWithCount);
+      // Fetch departments and all visible tasks concurrently
+      const [departmentsResponse, tasksResponse] = await Promise.all([
+        DepartmentService.getDepartments(),
+        TaskService.getVisibleTasks('all', { include_all: true }) // Fetch all visible tasks
+      ]);
 
-      // If a department is selected, fetch its tasks
+      // Set tasks state with all fetched tasks
+      setTasks(tasksResponse || []);
+
+      // Process departments (task count will be updated in useEffect below)
+      const processedDepartments = departmentsResponse.map((dept: any) => ({
+        ...dept,
+        tasksCount: 0, // Initialize count, will be calculated later
+      }));
+      setDepartments(processedDepartments);
+
+      // If a department is selected, fetch its top performers
       if (selectedDepartment) {
-        const tasksResponse = await TaskService.getDepartmentTasks(selectedDepartment);
-        setTasks(tasksResponse);
-        
-        // Fetch top performers for the selected department
+        // console.log(`Fetching performers for ${selectedDepartment}`); // Debug log
         const performersResponse = await DepartmentService.getDepartmentPerformers(selectedDepartment);
-        setTopPerformers(performersResponse);
+        setTopPerformers(performersResponse || []);
+      } else {
+        setTopPerformers([]); // Clear performers if no department selected
       }
-      
-      setError(null);
+
+      setError(null); // Clear any previous error
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load data. Please try again later.');
+      setTasks([]); // Clear data on error
+      setDepartments([]);
+      setTopPerformers([]);
     } finally {
-      if (initialLoad) {
-        setLoading(false);
-        setInitialLoad(false);
+      setLoading(false); // Indicate loading finished
+      // console.log("Fetching data finished."); // Debug log
+    }
+  }, [selectedDepartment]); // Dependency on selectedDepartment for fetching performers
+
+  // Initial data fetch on component mount
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]); // Use fetchData in dependency array
+
+  // Recalculate department task counts whenever tasks or initial departments list changes
+  useEffect(() => {
+    if (tasks.length > 0 && departments.length > 0) {
+      // console.log("Recalculating department task counts..."); // Debug log
+      const departmentsWithCount = departments.map(dept => {
+        const count = tasks.filter(task => {
+          if (!task.department) return false;
+          const deptId = typeof task.department === 'object' && task.department !== null ? task.department.id : task.department;
+          return deptId === dept.id;
+        }).length;
+        // console.log(`Department ${dept.name} (${dept.id}) count: ${count}`); // Debug log
+        return { ...dept, tasksCount: count };
+      });
+
+      // Only update state if counts actually changed to prevent infinite loops
+      if (JSON.stringify(departments.map(d => d.tasksCount)) !== JSON.stringify(departmentsWithCount.map(d => d.tasksCount))) {
+        // console.log("Updating department counts state."); // Debug log
+        setDepartments(departmentsWithCount);
       }
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]); // Rerun when tasks list updates, ignore departments in deps to avoid loop based on its own update
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -135,23 +162,30 @@ const Departments: React.FC = () => {
     setCreateTaskDialogOpen(true);
   };
   
-  const handleTaskCreated = async () => {
-    await fetchData();
+  const handleTaskCreated = () => {
+    // console.log("Task created, refetching data..."); // Debug log
+    fetchData(); // Refetch all data
   };
 
-  // Filter tasks based on selected department
+  // Filter tasks based on selected department (CLIENT-SIDE FILTERING)
   const departmentTasks = tasks.filter(task => {
-    if (!selectedDepartment) return false;
-    return task.department === selectedDepartment;
+    // Ensure selectedDepartment exists and the task has a departmentId
+    if (!selectedDepartment || !task.departmentId) { 
+      return false;
+    }
+    // Compare the task's departmentId with the selected department ID
+    return task.departmentId === selectedDepartment;
   });
+  console.log(`Selected Dept: ${selectedDepartment}, Filtered Tasks Count: ${departmentTasks.length}`); // Debug log
 
+  // Calculate upcoming, ongoing, completed based on the correctly filtered departmentTasks
   const upcomingTasks = departmentTasks.filter(task => 
-    task.status === 'pending' && new Date(task.due_date) > new Date()
+    task.status === 'pending' && new Date(task.dueDate) > new Date()
   );
   
   const ongoingTasks = departmentTasks.filter(task => 
     task.status === 'in_progress' || 
-    (task.status === 'pending' && new Date(task.due_date) <= new Date())
+    (task.status === 'pending' && new Date(task.dueDate) <= new Date())
   );
   
   const completedTasks = departmentTasks.filter(task => 
@@ -188,38 +222,10 @@ const Departments: React.FC = () => {
             
             {/* Right Column - Department Details */}
             <Grid item xs={12} md={8} lg={9}>
-              {loading ? (
-                <Box>
-                  <Paper elevation={0} sx={{ borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)', mb: 3 }}>
-                    <Box p={3}>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                        <Box>
-                          <Skeleton
-                            variant="text"
-                            width={200}
-                            height={40}
-                            animation="wave"
-                            sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
-                          />
-                          <Skeleton
-                            variant="text"
-                            width={250}
-                            height={20}
-                            animation="wave"
-                            sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
-                          />
-                        </Box>
-                        <Skeleton
-                          variant="rectangular"
-                          width={120}
-                          height={36}
-                          animation="wave"
-                          sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
-                        />
-                      </Box>
-                    </Box>
-                  </Paper>
-                </Box>
+              {loading && !selectedDepartment ? ( // Show loading indicator when initially loading or no department selected yet
+                <Paper /* ... skeleton/placeholder styles ... */ >
+                   <Typography>Loading departments...</Typography>
+                </Paper>
               ) : selectedDepartment && departments.length > 0 ? (
                 <>
                   {/* Department Overview Card */}
@@ -260,7 +266,7 @@ const Departments: React.FC = () => {
                               <Box display="flex" alignItems="center" gap={1} mt={1}>
                                 <AssignmentIcon sx={{ color: '#90caf9', fontSize: 36 }} />
                                 <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                  {departmentTasks.length}
+                                  {loading ? <Skeleton width={40} /> : departmentTasks.length}
                                 </Typography>
                               </Box>
                             </CardContent>
@@ -280,7 +286,7 @@ const Departments: React.FC = () => {
                               <Box display="flex" alignItems="center" gap={1} mt={1}>
                                 <WorkIcon sx={{ color: '#a5d6a7', fontSize: 36 }} />
                                 <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                  {completedTasks.length}
+                                  {loading ? <Skeleton width={40} /> : completedTasks.length}
                                 </Typography>
                               </Box>
                             </CardContent>
@@ -300,7 +306,7 @@ const Departments: React.FC = () => {
                               <Box display="flex" alignItems="center" gap={1} mt={1}>
                                 <PeopleIcon sx={{ color: '#ffcc80', fontSize: 36 }} />
                                 <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                  {departments.find(d => d.id === selectedDepartment)?.members_count || 0}
+                                  {loading ? <Skeleton width={40} /> : (departments.find(d => d.id === selectedDepartment)?.members_count || 0)}
                                 </Typography>
                               </Box>
                             </CardContent>
@@ -309,7 +315,7 @@ const Departments: React.FC = () => {
                       </Grid>
                       
                       {/* Top Performers Section */}
-                      {topPerformers.length > 0 && (
+                      {loading ? <Skeleton height={100} /> : topPerformers.length > 0 && (
                         <Box mt={3}>
                           <Typography variant="h6" fontWeight="bold" color="#fff" mb={2}>
                             Top Performers
@@ -439,6 +445,9 @@ const Departments: React.FC = () => {
             onTaskCreated={handleTaskCreated}
             dialogType="assign"
             initialStatus={TaskStatus.PENDING}
+            dialogMode="department"
+            preSelectedDepartment={selectedDepartment || undefined}
+            departmentsList={departments} 
           />
         </>
       )}

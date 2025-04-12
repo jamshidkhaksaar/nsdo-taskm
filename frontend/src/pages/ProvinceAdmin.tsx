@@ -20,6 +20,11 @@ import {
   DialogActions,
   TextField,
   IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -29,6 +34,7 @@ import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { getProvinces, createProvince, updateProvince, deleteProvince, getDepartmentsByProvince, assignDepartmentToProvince } from '../services/provinceService/index'; // Corrected import path
+import { DepartmentService } from '../services/department'; // <-- Import DepartmentService
 import { TaskStatus } from '../types/task'; // Import TaskStatus
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
 
@@ -49,7 +55,9 @@ const ProvinceAdmin: React.FC = () => {
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [selectedProvince, setSelectedProvince] = useState<Province | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [provinceDialogOpen, setProvinceDialogOpen] = useState(false);
   const [editProvince, setEditProvince] = useState<Province | null>(null);
   const [provinceForm, setProvinceForm] = useState({ name: '', description: '' });
@@ -115,8 +123,28 @@ const ProvinceAdmin: React.FC = () => {
     setDepartments([]);
   };
 
-  const handleOpenAssignDialog = () => setAssignDialogOpen(true);
-  const handleCloseAssignDialog = () => setAssignDialogOpen(false);
+  const handleOpenAssignDialog = async () => {
+    setLoadingDepartments(true);
+    try {
+      const fetchedDepartments = await DepartmentService.getDepartments();
+      // Filter out departments already assigned to the selected province
+      const assignedDepartmentIds = new Set(departments.map(d => d.id));
+      setAllDepartments(fetchedDepartments.filter(d => !assignedDepartmentIds.has(d.id)));
+    } catch (error) {
+      console.error("Failed to fetch departments:", error);
+      // Handle error (e.g., show a notification)
+      setAllDepartments([]); // Clear departments on error
+    } finally {
+      setLoadingDepartments(false);
+      setAssignDialogOpen(true);
+    }
+  };
+
+  const handleCloseAssignDialog = () => {
+    setAssignDialogOpen(false);
+    setDepartmentToAssign('');
+    setAllDepartments([]);
+  };
 
   const handleAssignDepartment = async () => {
     if (selectedProvince && departmentToAssign) {
@@ -124,7 +152,6 @@ const ProvinceAdmin: React.FC = () => {
       const data = await getDepartmentsByProvince(selectedProvince.id);
       setDepartments(data);
     }
-    setDepartmentToAssign('');
     handleCloseAssignDialog();
   };
 
@@ -279,21 +306,41 @@ const ProvinceAdmin: React.FC = () => {
             </DialogActions>
           </Dialog>
           {/* Assign Department Dialog */}
-          <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog}>
-            <DialogTitle>Assign Department to Province</DialogTitle>
+          <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} fullWidth maxWidth="xs">
+            <DialogTitle>Assign Department to {selectedProvince?.name}</DialogTitle>
             <DialogContent>
-              <TextField
-                margin="dense"
-                label="Department ID"
-                type="text"
-                fullWidth
-                value={departmentToAssign}
-                onChange={e => setDepartmentToAssign(e.target.value)}
-              />
+              {loadingDepartments ? (
+                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 100 }}>
+                   <CircularProgress />
+                 </Box>
+              ) : allDepartments.length === 0 ? (
+                 <Typography sx={{ mt: 2 }}>No available departments to assign.</Typography>
+              ) : (
+                <FormControl fullWidth margin="dense">
+                  <InputLabel id="assign-department-select-label">Select Department</InputLabel>
+                  <Select
+                    labelId="assign-department-select-label"
+                    id="assign-department-select"
+                    value={departmentToAssign}
+                    label="Select Department"
+                    onChange={e => setDepartmentToAssign(e.target.value as string)}
+                  >
+                    {allDepartments.map((dept) => (
+                      <MenuItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
             </DialogContent>
             <DialogActions>
               <Button onClick={handleCloseAssignDialog}>Cancel</Button>
-              <Button onClick={handleAssignDepartment} variant="contained">
+              <Button
+                onClick={handleAssignDepartment}
+                variant="contained"
+                disabled={!departmentToAssign || loadingDepartments || allDepartments.length === 0}
+              >
                 Assign
               </Button>
             </DialogActions>
@@ -306,7 +353,7 @@ const ProvinceAdmin: React.FC = () => {
               if (selectedProvince) handleSelectProvince(selectedProvince);
             }}
             dialogType="assign"
-            initialStatus={TaskStatus.PENDING} // Use enum
+            initialStatus={TaskStatus.PENDING}
           />
         </Container>
       }
