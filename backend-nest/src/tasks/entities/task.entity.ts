@@ -14,11 +14,11 @@ export enum TaskPriority {
   MEDIUM = 'medium',
   HIGH = 'high'
 }
-
-export enum TaskContext {
-  PERSONAL = 'personal',
+export enum TaskType {
+  USER = 'user',
   DEPARTMENT = 'department',
-  USER = 'user'
+  USER_TO_USER = 'user_to_user',
+  PROVINCE = 'province'
 }
 
 @Entity()
@@ -48,10 +48,10 @@ export class Task {
 
   @Column({
     type: 'enum',
-    enum: TaskContext,
-    default: TaskContext.PERSONAL
+    enum: TaskType,
+    default: TaskType.USER
   })
-  context: TaskContext;
+  type: TaskType;
 
   @Column({ type: 'boolean', default: false })
   is_private: boolean;
@@ -72,20 +72,38 @@ export class Task {
   @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
+  // For user-to-user and delegation
   @ManyToMany(() => User, user => user.assignedTasks)
   @JoinTable({
     name: 'task_assignees',
     joinColumn: { name: 'task_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
   })
-  assignedTo: User[];
+  assignedToUsers: User[];
 
+  // For department/unit assignment (multiple departments)
+  @Column("simple-array", { nullable: true })
+  assignedToDepartmentIds: string[];
+
+  // For province assignment
+  @Column({ nullable: true })
+  assignedToProvinceId: string;
+
+  // For department relation (legacy, for backward compatibility)
   @Column({ nullable: true })
   departmentId: string;
 
   @ManyToOne(() => Department, department => department.tasks)
   @JoinColumn({ name: 'departmentId' })
   department: Department;
+
+  // Delegation
+  @Column({ nullable: true })
+  delegatedByUserId: string;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'delegatedByUserId' })
+  delegatedBy: User;
 }
 
 

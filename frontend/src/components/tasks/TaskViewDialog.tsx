@@ -18,6 +18,9 @@ interface TaskViewDialogProps {
 
 const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, task }) => {
   const theme = useTheme();
+  // Delegation state (must be inside component)
+  const [delegateDialogOpen, setDelegateDialogOpen] = useState(false);
+  const [delegateUserId, setDelegateUserId] = useState('');
 
   if (!task) {
     return (
@@ -78,9 +81,47 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, task }) 
         <Button onClick={onClose} color="primary">
           Close
         </Button>
+        {/* Delegate Task Button */}
+        <Button
+          color="secondary"
+          variant="outlined"
+          onClick={() => setDelegateDialogOpen(true)}
+        >
+          Delegate Task
+        </Button>
       </DialogActions>
+      {/* Delegate Dialog */}
+      <Dialog open={delegateDialogOpen} onClose={() => setDelegateDialogOpen(false)}>
+        <DialogTitle>Delegate Task</DialogTitle>
+        <DialogContent>
+          <Typography>Select user ID to delegate to:</Typography>
+          <input
+            type="text"
+            value={delegateUserId}
+            onChange={e => setDelegateUserId(e.target.value)}
+            placeholder="User ID"
+            style={{ width: '100%', marginTop: 8, marginBottom: 8 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDelegateDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={async () => {
+              await TaskService.delegateTask(task.id, delegateUserId);
+              setDelegateDialogOpen(false);
+              onClose();
+            }}
+            variant="contained"
+            color="primary"
+            disabled={!delegateUserId}
+          >
+            Delegate
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };
+
 
 export default TaskViewDialog;

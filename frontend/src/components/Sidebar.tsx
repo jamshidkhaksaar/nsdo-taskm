@@ -36,6 +36,7 @@ const mainMenuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { title: 'Departments', path: '/departments', icon: <BusinessIcon /> },
   { title: 'Users', path: '/users', icon: <PeopleIcon /> },
+  { title: 'Provinces', path: '/provinces', icon: <AssignmentIcon /> },
 ];
 
 // Items visible only to General Managers and Admins
@@ -61,6 +62,12 @@ const adminMenuItems = [
     path: '/admin/departments', 
     icon: <BusinessIcon />,
     description: 'Manage departments and their settings'
+  },
+  {
+    title: 'Province Management',
+    path: '/admin/provinces',
+    icon: <AssignmentIcon />,
+    description: 'Manage provinces and assign departments'
   },
   { 
     title: 'Activity Logs', 

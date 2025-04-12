@@ -24,7 +24,7 @@ export class AnalyticsService {
     // Get tasks completed by day for the last 30 days
     const completedTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt >= :thirtyDaysAgo', { thirtyDaysAgo })
@@ -37,7 +37,7 @@ export class AnalyticsService {
     // Get current tasks by status
     const tasksByStatus = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .select('task.status as status')
       .addSelect('COUNT(*) as count')
@@ -47,7 +47,7 @@ export class AnalyticsService {
     // Get on-time completion percentage
     const completedOnTimeQuery = this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt >= :thirtyDaysAgo', { thirtyDaysAgo })
@@ -55,7 +55,7 @@ export class AnalyticsService {
     
     const completedTotalQuery = this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt >= :thirtyDaysAgo', { thirtyDaysAgo });
@@ -98,7 +98,7 @@ export class AnalyticsService {
     // Get completed tasks count
     const completedCountQuery = this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt BETWEEN :startDate AND :now', { startDate, now });
@@ -106,7 +106,7 @@ export class AnalyticsService {
     // Get total tasks assigned in that period
     const totalCountQuery = this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.createdAt BETWEEN :startDate AND :now', { startDate, now });
 
@@ -118,7 +118,7 @@ export class AnalyticsService {
     // Get tasks by priority
     const tasksByPriority = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.createdAt >= :startDate', { startDate })
       .select('task.priority as priority')
@@ -129,7 +129,7 @@ export class AnalyticsService {
     // Calculate average time to complete tasks
     const completedTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt BETWEEN :startDate AND :now', { startDate, now })
@@ -161,7 +161,7 @@ export class AnalyticsService {
     // Tasks by category/type
     const tasksByCategory = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .leftJoin('task.department', 'department')
       .where('user.id = :userId', { userId })
       .select('department.name as category')
@@ -174,7 +174,7 @@ export class AnalyticsService {
     
     const upcomingTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.PENDING })
       .andWhere('task.dueDate > :now', { now })
@@ -182,7 +182,7 @@ export class AnalyticsService {
 
     const overdueTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.PENDING })
       .andWhere('task.dueDate < :now', { now })
@@ -191,7 +191,7 @@ export class AnalyticsService {
     // Task completion heatmap data (day of week + hour)
     const heatmapData = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt IS NOT NULL')
@@ -216,7 +216,7 @@ export class AnalyticsService {
     // High priority tasks approaching deadline
     const highPriorityTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.PENDING })
       .andWhere('task.priority = :priority', { priority: TaskPriority.HIGH })
@@ -227,7 +227,7 @@ export class AnalyticsService {
     // Overdue tasks
     const overdueTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.PENDING })
       .andWhere('task.dueDate < :now', { now })
@@ -242,7 +242,7 @@ export class AnalyticsService {
 
     const tasksToStart = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.PENDING })
       .andWhere('task.dueDate BETWEEN :now AND :dueDateThreshold', { now, dueDateThreshold })
@@ -264,7 +264,7 @@ export class AnalyticsService {
     
     const completedTasks = await this.taskRepository
       .createQueryBuilder('task')
-      .leftJoin('task.assignedTo', 'user')
+      .leftJoin('task.assignedToUsers', 'user')
       .where('user.id = :userId', { userId })
       .andWhere('task.status = :status', { status: TaskStatus.COMPLETED })
       .andWhere('task.updatedAt > :thirtyDaysAgo', { thirtyDaysAgo })

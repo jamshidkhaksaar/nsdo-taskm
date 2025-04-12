@@ -390,11 +390,11 @@ export class AdminService {
           { title: Like(`%${search}%`) },
           { description: Like(`%${search}%`) },
         ],
-        relations: ['createdBy', 'department', 'assignedTo'],
+        relations: ['createdBy', 'department', 'assignedToUsers'],
       });
     } else {
       tasks = await this.tasksRepository.find({ 
-        relations: ['createdBy', 'department', 'assignedTo'] 
+        relations: ['createdBy', 'department', 'assignedToUsers']
       });
     }
     
@@ -413,8 +413,8 @@ export class AdminService {
       }
       
       // Replace assignedTo with minimal user info
-      if (sanitizedTask.assignedTo && sanitizedTask.assignedTo.length > 0) {
-        sanitizedTask.assignedTo = task.assignedTo.map(user => ({
+      if (sanitizedTask.assignedToUsers && sanitizedTask.assignedToUsers.length > 0) {
+        sanitizedTask.assignedToUsers = task.assignedToUsers.map(user => ({
           id: user.id,
           username: user.username,
           role: user.role

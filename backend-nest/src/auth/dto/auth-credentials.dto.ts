@@ -1,25 +1,23 @@
-import { IsString, MinLength, MaxLength, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsBoolean } from 'class-validator';
 
 export class LoginCredentialsDto {
   @IsString()
-  @MinLength(4)
-  @MaxLength(20)
+  @IsNotEmpty()
   username: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(32)
+  @IsNotEmpty()
   password: string;
-  
+
+  @IsOptional()
   @IsString()
-  @IsOptional()
-  verification_code?: string;
-  
-  @IsBoolean()
-  @IsOptional()
-  remember_me?: boolean;
-  
-  @IsString()
-  @IsOptional()
   fingerprint?: string;
-} 
+
+  @IsOptional()
+  @IsString()
+  verification_code?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  remember_me?: boolean;
+}

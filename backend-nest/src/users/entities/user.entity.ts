@@ -77,7 +77,7 @@ export class User {
   createdTasks: Task[];
 
   // Tasks assigned to this user
-  @ManyToMany(() => Task, (task) => task.assignedTo)
+  @ManyToMany(() => Task, (task) => task.assignedToUsers)
   assignedTasks: Task[];
 
   // Departments this user belongs to

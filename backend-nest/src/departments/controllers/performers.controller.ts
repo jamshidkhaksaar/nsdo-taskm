@@ -39,14 +39,14 @@ export class DepartmentPerformersController {
           // Get completed tasks count for this user in this department
           const completedTasksCount = department.tasks?.filter(task => 
             task.status === TaskStatus.COMPLETED && 
-            (task.createdById === member.id || 
-             (task.assignedTo && task.assignedTo.some(assignee => assignee.id === member.id)))
+            (task.createdById === member.id ||
+            (task.assignedToUsers && task.assignedToUsers.some(assignee => assignee.id === member.id)))
           ).length || 0;
           
           // Get total tasks for this user in this department
           const totalTasksCount = department.tasks?.filter(task => 
-            task.createdById === member.id || 
-            (task.assignedTo && task.assignedTo.some(assignee => assignee.id === member.id))
+            task.createdById === member.id ||
+            (task.assignedToUsers && task.assignedToUsers.some(assignee => assignee.id === member.id))
           ).length || 0;
           
           // Calculate completion rate

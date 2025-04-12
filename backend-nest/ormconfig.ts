@@ -9,6 +9,7 @@ import { NotificationSettings } from './src/settings/entities/notification-setti
 import { SecuritySettings } from './src/settings/entities/security-settings.entity';
 import { ActivityLog } from './src/admin/entities/activity-log.entity';
 import { Backup } from './src/backup/entities/backup.entity';
+import { Province } from './src/provinces/entities/province.entity';
 
 export default new DataSource({
   type: 'mysql',
@@ -19,17 +20,6 @@ export default new DataSource({
   database: process.env.DATABASE_NAME || 'taskmanagement',
   synchronize: false,
   logging: false,
-  entities: [
-    User,
-    Department,
-    Task,
-    Note,
-    ApiSettings,
-    BackupSettings,
-    NotificationSettings,
-    SecuritySettings,
-    ActivityLog,
-    Backup,
-  ],
-  migrations: ['migrations/*.ts'],
+  entities: ['dist/**/*.entity.js'],
+  migrations: ['dist/migrations/*.js'],
 });

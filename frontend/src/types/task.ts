@@ -18,6 +18,8 @@ export interface DepartmentRef {
   name: string;
 }
 
+export type TaskType = 'user' | 'department' | 'user_to_user' | 'province';
+
 export interface Task {
   id: string;
   title: string;
@@ -32,6 +34,12 @@ export interface Task {
   assigned_to: string[];
   created_by: string;
   context: TaskContext;
+  // --- Enhanced fields for assignment system ---
+  type?: TaskType;
+  delegatedByUserId?: string | null;
+  assignedToUserIds?: string[];
+  assignedToDepartmentIds?: string[];
+  assignedToProvinceId?: string;
 }
 
 export interface CreateTask {

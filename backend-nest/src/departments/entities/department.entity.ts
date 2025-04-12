@@ -1,6 +1,7 @@
-import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Task } from '../../tasks/entities/task.entity';
+import { Province } from '../../provinces/entities/province.entity';
 
 @Entity()
 export class Department {
@@ -35,9 +36,16 @@ export class Department {
   })
   head: User;
 
+  @ManyToOne(() => Province, province => province.departments, { nullable: true })
+  province: Province;
+
+  @Column({ nullable: true })
+  provinceId: string;
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
-} 
+    // Province relation
+  }

@@ -34,7 +34,10 @@ import { NotificationSettings } from './settings/entities/notification-settings.
 import { SecuritySettings } from './settings/entities/security-settings.entity';
 import { ActivityLog } from './admin/entities/activity-log.entity';
 import { Backup } from './backup/entities/backup.entity';
+import { Province } from './provinces/entities/province.entity';
 import { AnalyticsModule } from './analytics/analytics.module';
+
+import { ProvinceModule } from './provinces/province.module';
 
 @Module({
   imports: [
@@ -62,6 +65,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
           SecuritySettings,
           ActivityLog,
           Backup,
+          Province,
         ],
         synchronize: configService.get('DATABASE_SYNC') === 'true',
       }),
@@ -92,6 +96,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     //   name: 'default',
     // }),
     TerminusModule,
+    ProvinceModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

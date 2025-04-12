@@ -49,6 +49,17 @@ This plan outlines the completed improvements and future proposals to enhance ma
 - Add preview deployments (Vercel, Netlify)
 
 ---
+ 
+## TODO / Future Improvements
+
+- **Error Boundaries & User Feedback:** Implement global error boundaries and user-friendly error/toast notifications for all API failures and unexpected errors.
+- **Progressive Web App (PWA):** Add PWA support for offline access, installability, and better mobile experience.
+- **Performance Monitoring:** Integrate tools like Sentry or LogRocket for real-time frontend error and performance monitoring.
+- **Accessibility:** Automate accessibility testing (e.g., with axe-core or Lighthouse CI) in your CI pipeline.
+- **End-to-End Testing:** Add Cypress or Playwright for robust e2e tests covering critical user flows.
+- **Component Library:** Consider extracting reusable UI components into a shared library for future projects or microfrontends.
+- **API Mocking for Dev/CI:** Expand use of MSW to mock all backend endpoints for frontend development and CI.
+- **Security:** Use Content Security Policy (CSP) headers and audit dependencies for vulnerabilities (e.g., with npm audit or Snyk).
 
 ## Summary
 The frontend has been modernized with Vite, React Query, Storybook, CI/CD, and improved documentation. Remaining work focuses on performance, testing, UI/UX polish, and API documentation.

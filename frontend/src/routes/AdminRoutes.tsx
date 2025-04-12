@@ -9,6 +9,7 @@ import {
   SystemSettings,
   BackupRestore,
 } from '../pages/admin';
+import ProvinceAdmin from '../pages/ProvinceAdmin';
 
 const AdminRoutes: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -26,6 +27,7 @@ const AdminRoutes: React.FC = () => {
       <Route path="activity-logs" element={<ActivityLogs />} />
       <Route path="settings" element={<SystemSettings />} />
       <Route path="backup" element={<BackupRestore />} />
+      <Route path="provinces" element={<ProvinceAdmin />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

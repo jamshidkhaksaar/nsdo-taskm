@@ -309,5 +309,17 @@ export const TaskService = {
             console.error('Error fetching tasks:', error);
             return [];
         }
+    },
+  // Delegate a task to another user
+  delegateTask: async (taskId: string, delegatedByUserId: string) => {
+    try {
+      const response = await apiClient.patch(`/tasks/${taskId}/`, {
+        delegatedByUserId
+      });
+      return TaskService.standardizeTask(response.data);
+    } catch (error) {
+      console.error('Error delegating task:', error);
+      throw error;
     }
+  }
 };

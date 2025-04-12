@@ -44,4 +44,13 @@ export class TasksController {
   assignTask(@Param('id') id: string, @Body('user_id') userId: string) {
     return this.tasksService.assignTask(+id, userId);
   }
-} 
+  // Delegate a task to other users
+  @Post(':id/delegate')
+  delegateTask(
+    @Param('id') id: string,
+    @Body('user_ids') userIds: string[],
+    @Request() req
+  ) {
+    return this.tasksService.delegateTask(+id, userIds, req.user);
+  }
+}

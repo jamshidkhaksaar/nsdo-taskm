@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Task, TaskStatus, TaskContext } from './entities/task.entity';
+import { Task, TaskStatus, TaskType } from './entities/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { UserRole } from '../users/entities/user.entity';
@@ -23,18 +23,14 @@ export class TasksService {
       task.description = createTaskDto.description;
       task.createdById = user.userId;
       
-      // Set context based on DTO or default to PERSONAL
-      if (createTaskDto.context) {
-        task.context = createTaskDto.context.toUpperCase() === 'PERSONAL' ? 
-                      TaskContext.PERSONAL : 
-                      createTaskDto.context.toUpperCase() === 'DEPARTMENT' ? 
-                      TaskContext.DEPARTMENT : 
-                      TaskContext.USER;
+      // Set type based on DTO or default to USER
+      if (createTaskDto.type) {
+        task.type = createTaskDto.type;
       } else {
-        task.context = TaskContext.PERSONAL;
+        task.type = TaskType.USER;
       }
       
-      console.log('Task context set to:', task.context);
+      console.log('Task type set to:', task.type);
       
       // Handle role-based permissions for task creation contexts
       if (user.role !== UserRole.GENERAL_MANAGER && user.role !== UserRole.ADMIN) {
@@ -61,8 +57,8 @@ export class TasksService {
                            (createTaskDto.department && typeof createTaskDto.department === 'string' ? 
                             createTaskDto.department : null);
                             
-      if (departmentId && 
-          (task.context === TaskContext.DEPARTMENT || user.role === UserRole.GENERAL_MANAGER || user.role === UserRole.ADMIN)) {
+      if (departmentId &&
+          (task.type === TaskType.DEPARTMENT || user.role === UserRole.GENERAL_MANAGER || user.role === UserRole.ADMIN)) {
         task.departmentId = departmentId;
         console.log('Task department set to:', task.departmentId);
       }
@@ -82,17 +78,18 @@ export class TasksService {
       const savedTask = await this.tasksRepository.save(task);
       console.log('Task saved successfully with ID:', savedTask.id);
       
-      // Handle assignedTo separately if provided
-      // Look for both assignedTo and assigned_to from the request
-      const assignedUsers = createTaskDto.assignedTo || createTaskDto.assigned_to;
-      if (assignedUsers && assignedUsers.length > 0) {
-        console.log('Assigned users found:', assignedUsers);
-        // For personal tasks, these are collaborators
-        // For user tasks, these are assignees
-        // In this step we would typically set up the relationships
-        savedTask.assignedTo = [];
-      } else {
-        console.log('No assigned users found');
+      // Flexible assignment logic
+      if (createTaskDto.assignedToUsers && createTaskDto.assignedToUsers.length > 0) {
+        savedTask.assignedToUsers = createTaskDto.assignedToUsers.map(id => ({ id } as any));
+      }
+      if (createTaskDto.assignedToDepartmentIds && createTaskDto.assignedToDepartmentIds.length > 0) {
+        savedTask.assignedToDepartmentIds = createTaskDto.assignedToDepartmentIds;
+      }
+      if (createTaskDto.assignedToProvinceId) {
+        savedTask.assignedToProvinceId = createTaskDto.assignedToProvinceId;
+      }
+      if (createTaskDto.delegatedByUserId) {
+        savedTask.delegatedByUserId = createTaskDto.delegatedByUserId;
       }
       
       return savedTask;
@@ -120,6 +117,7 @@ export class TasksService {
       
       if (query.status) {
         queryBuilder = queryBuilder.andWhere('task.status = :status', { status: query.status });
+        // Delegate a task to other users
       }
 
       if (query.context) {
@@ -213,16 +211,35 @@ export class TasksService {
     }
   }
 
+  // Delegate a task to other users
+  async delegateTask(id: number, userIds: string[], delegator: any): Promise<Task> {
+    const task = await this.findOne(id);
+    if (!task) throw new NotFoundException('Task not found');
+    // Only allow delegation if the user is assigned or is the creator
+    if (
+      task.createdById !== delegator.userId &&
+      !(task.assignedToUsers && task.assignedToUsers.some(u => u.id === delegator.userId))
+    ) {
+      throw new ForbiddenException('You are not allowed to delegate this task');
+    }
+    // Set delegatedByUserId
+    task.delegatedByUserId = delegator.userId;
+    // Assign new users (replace or add to assignedToUsers)
+    // For simplicity, replace the list
+    task.assignedToUsers = userIds.map(id => ({ id } as any));
+    return this.tasksRepository.save(task);
+  }
+
   async updateStatus(id: number, status: string): Promise<Task> {
     const task = await this.findOne(id);
-    
+
     // Validate status
     if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
       throw new Error(`Invalid status: ${status}`);
     }
-    
+
     task.status = status as TaskStatus;
-    
+
     return this.tasksRepository.save(task);
   }
 
@@ -232,4 +249,4 @@ export class TasksService {
     const task = await this.findOne(id);
     return task;
   }
-} 
+}

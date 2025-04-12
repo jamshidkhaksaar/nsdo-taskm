@@ -10,6 +10,8 @@ const TasksOverview = lazy(() => import('../pages/TasksOverview'));
 const AdminRoutes = lazy(() => import('./AdminRoutes'));
 const ForgotPassword = lazy(() => import('../pages/ForgotPassword'));
 
+const ProvincePage = lazy(() => import('../pages/Province'));
+
 const AppRoutes: React.FC = () => {
   return (
     <Suspense fallback={<div>Loading...</div>}>
@@ -45,6 +47,14 @@ const AppRoutes: React.FC = () => {
           element={
             <PrivateRoute>
               <TasksOverview />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/provinces"
+          element={
+            <PrivateRoute>
+              <ProvincePage />
             </PrivateRoute>
           }
         />

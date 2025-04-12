@@ -152,8 +152,8 @@ export class NotificationsService {
     const users: User[] = [];
     
     // Add assigned users if there are any
-    if (completeTask.assignedTo && completeTask.assignedTo.length > 0) {
-      for (const assignedUser of completeTask.assignedTo) {
+    if (completeTask.assignedToUsers && completeTask.assignedToUsers.length > 0) {
+      for (const assignedUser of completeTask.assignedToUsers) {
         const user = await this.usersService.findById(assignedUser.id);
         if (user && !users.some(u => u.id === user.id)) {
           users.push(user);

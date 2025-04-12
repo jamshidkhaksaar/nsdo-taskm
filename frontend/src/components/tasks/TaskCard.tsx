@@ -178,6 +178,31 @@ const TaskCard: React.FC<TaskCardProps> = ({
       
       <CardContent>
         <Typography variant="h6" sx={{ mb: 1, ...customStyles.text.primary }}>
+        {/* Context label for assignment/delegation */}
+        {(() => {
+          // "Myself" for personal tasks
+          if (task.type === 'user' && task.created_by?.toString() === currentUserId.toString()) {
+            return <Chip label="Myself" size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
+          }
+          // "Assigned by [username]" for tasks assigned to user
+          if (task.type === 'user' && task.created_by?.toString() !== currentUserId.toString()) {
+            return <Chip label={`Assigned by ${creatorName}`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
+          }
+          // "Assigned to [department] by myself" for department tasks
+          if (task.type === 'department' && task.created_by?.toString() === currentUserId.toString()) {
+            return <Chip label={`Assigned to ${departmentName} by myself`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
+          }
+          // "Assigned to [province], [departments] by myself" for province tasks
+          if (task.type === 'province' && task.created_by?.toString() === currentUserId.toString()) {
+            return <Chip label={`Assigned to province by myself`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
+          }
+          // "Delegated to [user]" for delegated tasks
+          if (task.delegatedByUserId) {
+            const delegatedUser = users.find(u => u.id.toString() === task.delegatedByUserId?.toString());
+            return <Chip label={`Delegated to ${delegatedUser ? delegatedUser.first_name + ' ' + delegatedUser.last_name : 'user'}`} size="small" sx={{ ...customStyles.chip, mb: 1, mr: 1 }} />;
+          }
+          return null;
+        })()}
           {task.title}
         </Typography>
         
