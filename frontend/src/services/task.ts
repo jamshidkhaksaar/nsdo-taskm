@@ -35,55 +35,65 @@ const ensureStringId = (id: string | number): string => {
 
 // Standardize task data received from API
 const standardizeTask = (data: any): Task => {
-    // Ensure data exists
     if (!data) {
         console.error("standardizeTask received null or undefined data");
-        // Return a default/empty task structure or throw an error
-        // depending on how you want to handle invalid data
-        return { 
-            id: 'invalid-' + Date.now(), 
-            title: 'Invalid Task Data', 
+        return {
+            id: 'invalid-' + Date.now(),
+            title: 'Invalid Task Data',
             description: '',
             status: TaskStatus.PENDING,
             priority: TaskPriority.MEDIUM,
             dueDate: null,
             departmentId: null
-            // Add other required fields with default values
-         } as Task; 
+         } as Task;
     }
 
+    // Robustly map all possible field names for dashboard columns
+    const createdById = data.createdById || data.created_by || data.created_by_id || null;
+    // Prefer department object if available, fallback to string or null
+    const department =
+        data.department && typeof data.department === 'object'
+            ? data.department
+            : data.department_obj && typeof data.department_obj === 'object'
+                ? data.department_obj
+                : data.department_name
+                    ? { id: data.departmentId || data.department_id || null, name: data.department_name }
+                    : null;
+    const assignedToDepartmentIds = data.assignedToDepartmentIds || data.assigned_to_departments || null;
+    const assignedToProvinceId = data.assignedToProvinceId || data.assigned_to_province_id || null;
+    const assignedToUsers = data.assignedToUsers || data.assigned_to_users || [];
+    // Accept both array of user objects or array of user IDs
+    const assignedToUsersNormalized = Array.isArray(assignedToUsers)
+        ? assignedToUsers.map(u => typeof u === 'object' ? u : { id: u })
+        : [];
+
     const task: Task = {
-        // Ensure ID is always treated as string early on
-        id: ensureStringId(data.id), 
-        title: data.title || 'Untitled Task', // Provide default title
+        id: ensureStringId(data.id),
+        title: data.title || 'Untitled Task',
         description: data.description || '',
         status: data.status || TaskStatus.PENDING,
         priority: data.priority || TaskPriority.MEDIUM,
-        // Use dueDate and departmentId directly from API response if available
         dueDate: data.dueDate || data.due_date || null,
-        departmentId: data.departmentId || null,
-        // Keep optional fields
-        department: data.department, // Optional DepartmentRef or string
-        createdAt: data.createdAt || data.created_at, // Map both possibilities
-        updatedAt: data.updatedAt || data.updated_at, // Map both possibilities
-        createdById: data.createdById ? ensureStringId(data.createdById) : null,
-        assigned_to: Array.isArray(data.assigned_to) 
-                        ? data.assigned_to.map(ensureStringId) 
+        departmentId: data.departmentId || data.department_id || null,
+        // department property is set below with robust mapping
+        createdAt: data.createdAt || data.created_at,
+        updatedAt: data.updatedAt || data.updated_at,
+        createdById: createdById ? ensureStringId(createdById) : null,
+        assigned_to: Array.isArray(data.assigned_to)
+                        ? data.assigned_to.map(ensureStringId)
                         : (data.assigned_to ? [ensureStringId(data.assigned_to)] : []),
-        // Add other fields from Task interface if they exist in 'data'
         type: data.type,
         is_private: data.is_private,
+        department, // Add department object if available
         delegatedByUserId: data.delegatedByUserId ? ensureStringId(data.delegatedByUserId) : null,
-        assignedToDepartmentIds: data.assignedToDepartmentIds,
-        assignedToProvinceId: data.assignedToProvinceId,
+        assignedToDepartmentIds: assignedToDepartmentIds || [],
+        assignedToProvinceId: assignedToProvinceId || null,
+        assignedToUsers: assignedToUsersNormalized,
         context: data.context,
-        // Map created_by for backward compatibility if needed
-        created_by: data.created_by ? ensureStringId(data.created_by) : undefined, 
+        created_by: data.created_by ? ensureStringId(data.created_by) : undefined,
     };
 
-    // Clean up potential undefined values that shouldn't be null
     if (task.assigned_to === undefined) task.assigned_to = [];
-    // Add other cleanups as needed
 
     return task;
 };

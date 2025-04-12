@@ -10,7 +10,7 @@ const TasksOverview = lazy(() => import('../pages/TasksOverview'));
 const AdminRoutes = lazy(() => import('./AdminRoutes'));
 const ForgotPassword = lazy(() => import('../pages/ForgotPassword'));
 
-const ProvincePage = lazy(() => import('../pages/Province'));
+const ProvinceView = lazy(() => import('../pages/ProvinceView'));
 
 const AppRoutes: React.FC = () => {
   return (
@@ -54,7 +54,7 @@ const AppRoutes: React.FC = () => {
           path="/provinces"
           element={
             <PrivateRoute>
-              <ProvincePage />
+              <ProvinceView />
             </PrivateRoute>
           }
         />

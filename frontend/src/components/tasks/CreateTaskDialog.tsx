@@ -64,7 +64,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const glassStyles = getGlassmorphismStyles(theme);
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
-  const [dueDate, setDueDate] = useState<Date | null>(task?.due_date ? new Date(task.due_date) : null);
+  const [dueDate, setDueDate] = useState<Date | null>(task?.dueDate ? new Date(task.dueDate) : null);
   const [priority, setPriority] = useState<TaskPriority>(task?.priority || TaskPriority.MEDIUM);
   const [status, setStatus] = useState<TaskStatus>(task?.status || initialStatus || TaskStatus.PENDING);
   const [collaborators, setCollaborators] = useState<User[]>([]);
@@ -137,7 +137,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       // Edit mode - populate form with task data
       setTitle(task.title);
       setDescription(task.description || '');
-      setDueDate(task.due_date ? new Date(task.due_date) : new Date());
+      setDueDate(task.dueDate ? new Date(task.dueDate) : new Date());
       // Ensure priority is set from the task, defaulting to MEDIUM if not present
       setPriority(task.priority || TaskPriority.MEDIUM);
       setDateError(null);
@@ -275,16 +275,16 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           description,
           status,
           priority,
-          due_date: dueDate.toISOString(),
+          dueDate: dueDate.toISOString(),
           assigned_to: pageContext === 'user' 
             ? selectedUsers.map(u => u.id.toString()) 
             : pageContext === 'dashboard'
               ? collaborators.map(c => c.id.toString()) 
               : task.assigned_to,
-          department: pageContext === 'department' ? department : undefined,
+          departmentId: pageContext === 'department' ? department : undefined,
         };
         console.log('[Submit] Update Payload:', updateData);
-        const updatedTask = await TaskService.updateTask(task.id, updateData);
+        const updatedTask = await TaskService.updateTask(String(task.id), updateData);
         if (onTaskUpdated) {
           onTaskUpdated(updatedTask);
         }
@@ -296,7 +296,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         const newTask: CreateTask = {
           title,
           description,
-          due_date: dueDate.toISOString(),
+          dueDate: dueDate.toISOString(),
           priority,
           status: initialStatus || TaskStatus.PENDING,
           departmentId: undefined, // Initialize

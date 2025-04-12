@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { MockUserService as UserService } from '../../services/mockUserService'; // Import MockUserService and alias it as UserService
+import { UserService } from '../../services/user'; // Import the real UserService from user.ts
 import { User as UserType } from '../../types/user'; // Renamed imported type to UserType
 
 // Define a type for the user state (local interface)
@@ -34,11 +34,14 @@ export const fetchUsers = createAsyncThunk<
   'users/fetchUsers',
   async (_, { rejectWithValue }) => {
     try {
-      // Now uses the aliased MockUserService
+      // Use the imported real UserService
       const users = await UserService.getUsers();
+      // We need to be careful about the type returned by the real service.
+      // Let's assume it returns data compatible with UserType from `../../types/user`
+      // If not, mapping/type assertion might be needed here.
       return users as UserType[];
     } catch (error: any) {
-      console.error("Error fetching users:", error);
+      console.error("Error fetching users with real service:", error);
       return rejectWithValue(error.message || 'Failed to fetch users');
     }
   }

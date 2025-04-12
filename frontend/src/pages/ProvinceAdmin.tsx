@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../store';
+import { fetchProvinces } from '../store/slices/provinceSlice';
 import {
   Box,
   Container,
@@ -33,9 +36,9 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
-import { getProvinces, createProvince, updateProvince, deleteProvince, getDepartmentsByProvince, assignDepartmentToProvince } from '../services/provinceService/index'; // Corrected import path
-import { DepartmentService } from '../services/department'; // <-- Import DepartmentService
-import { TaskStatus } from '../types/task'; // Import TaskStatus
+import { getDepartmentsByProvince, createProvince, updateProvince, deleteProvince, assignDepartmentToProvince } from '../services/provinceService/index';
+import { DepartmentService } from '../services/department';
+import { TaskStatus } from '../types/task';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
 
 interface Province {
@@ -52,39 +55,38 @@ interface Department {
 
 const ProvinceAdmin: React.FC = () => {
   const navigate = useNavigate();
-  const [provinces, setProvinces] = useState<Province[]>([]);
+  const dispatch = useDispatch<AppDispatch>();
+
+  const { provinces, loading, error } = useSelector((state: RootState) => state.provinces);
   const [selectedProvince, setSelectedProvince] = useState<Province | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [provinceDialogOpen, setProvinceDialogOpen] = useState(false);
   const [editProvince, setEditProvince] = useState<Province | null>(null);
   const [provinceForm, setProvinceForm] = useState({ name: '', description: '' });
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [departmentToAssign, setDepartmentToAssign] = useState<string>('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Add state for sidebar
-  const DRAWER_WIDTH = 240; // Define drawer width
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const DRAWER_WIDTH = 240;
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
 
   useEffect(() => {
-    fetchProvinces();
-  }, []);
-
-  const fetchProvinces = async () => {
-    setLoading(true);
-    const data = await getProvinces();
-    // Ensure provinces is always an array
-    setProvinces(Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []));
-    setLoading(false);
-  };
+    dispatch(fetchProvinces());
+  }, [dispatch]);
 
   const handleSelectProvince = async (province: Province) => {
     setSelectedProvince(province);
-    setLoading(true);
-    const data = await getDepartmentsByProvince(province.id);
-    setDepartments(data);
-    setLoading(false);
+    setLoadingDepartments(true);
+    try {
+      const data = await getDepartmentsByProvince(province.id);
+      setDepartments(data || []);
+    } catch (fetchError) {
+      console.error("Error fetching departments for province:", fetchError);
+      setDepartments([]);
+    } finally {
+      setLoadingDepartments(false);
+    }
   };
 
   const handleOpenProvinceDialog = (province?: Province) => {
@@ -107,33 +109,41 @@ const ProvinceAdmin: React.FC = () => {
   };
 
   const handleSaveProvince = async () => {
-    if (editProvince) {
-      await updateProvince(editProvince.id, provinceForm);
-    } else {
-      await createProvince(provinceForm);
+    try {
+      if (editProvince) {
+        await updateProvince(editProvince.id, provinceForm);
+      } else {
+        await createProvince(provinceForm);
+      }
+      dispatch(fetchProvinces());
+      handleCloseProvinceDialog();
+    } catch (saveError) {
+      console.error("Error saving province:", saveError);
     }
-    await fetchProvinces();
-    handleCloseProvinceDialog();
   };
 
   const handleDeleteProvince = async (provinceId: string) => {
-    await deleteProvince(provinceId);
-    await fetchProvinces();
-    setSelectedProvince(null);
-    setDepartments([]);
+    try {
+      await deleteProvince(provinceId);
+      dispatch(fetchProvinces());
+      if (selectedProvince?.id === provinceId) {
+        setSelectedProvince(null);
+        setDepartments([]);
+      }
+    } catch (deleteError) {
+      console.error("Error deleting province:", deleteError);
+    }
   };
 
   const handleOpenAssignDialog = async () => {
     setLoadingDepartments(true);
     try {
       const fetchedDepartments = await DepartmentService.getDepartments();
-      // Filter out departments already assigned to the selected province
       const assignedDepartmentIds = new Set(departments.map(d => d.id));
       setAllDepartments(fetchedDepartments.filter(d => !assignedDepartmentIds.has(d.id)));
     } catch (error) {
       console.error("Failed to fetch departments:", error);
-      // Handle error (e.g., show a notification)
-      setAllDepartments([]); // Clear departments on error
+      setAllDepartments([]);
     } finally {
       setLoadingDepartments(false);
       setAssignDialogOpen(true);
@@ -148,9 +158,12 @@ const ProvinceAdmin: React.FC = () => {
 
   const handleAssignDepartment = async () => {
     if (selectedProvince && departmentToAssign) {
-      await assignDepartmentToProvince(selectedProvince.id, departmentToAssign);
-      const data = await getDepartmentsByProvince(selectedProvince.id);
-      setDepartments(data);
+      try {
+        await assignDepartmentToProvince(selectedProvince.id, departmentToAssign);
+        handleSelectProvince(selectedProvince);
+      } catch(assignError) {
+        console.error("Error assigning department:", assignError);
+      }
     }
     handleCloseAssignDialog();
   };
@@ -160,7 +173,6 @@ const ProvinceAdmin: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    // Handle logout logic here
     navigate('/login');
   };
 
@@ -172,22 +184,22 @@ const ProvinceAdmin: React.FC = () => {
         <Sidebar
           open={isSidebarOpen}
           onToggleDrawer={handleToggleSidebar}
-          onLogout={handleLogout} // Add dummy logout handler
+          onLogout={handleLogout}
           drawerWidth={DRAWER_WIDTH}
         />
       }
       topBar={
         <DashboardTopBar
-          username="Admin" // Placeholder username
-          notificationCount={0} // Placeholder count
+          username="Admin"
+          notificationCount={0}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={() => console.log('Notification clicked')} // Dummy handler
-          onLogout={handleLogout} // Dummy handler
-          onProfileClick={() => navigate('/profile')} // Dummy handler
-          onSettingsClick={() => navigate('/settings')} // Dummy handler
-          onHelpClick={() => console.log('Help clicked')} // Dummy handler
-          onToggleTopWidgets={() => {}} // Dummy handler
-          topWidgetsVisible={true} // Placeholder value
+          onNotificationClick={() => console.log('Notification clicked')}
+          onLogout={handleLogout}
+          onProfileClick={() => navigate('/profile')}
+          onSettingsClick={() => navigate('/settings')}
+          onHelpClick={() => console.log('Help clicked')}
+          onToggleTopWidgets={() => {}}
+          topWidgetsVisible={true}
         />
       }
       mainContent={
@@ -201,7 +213,6 @@ const ProvinceAdmin: React.FC = () => {
             </Typography>
           </Box>
           <Grid container spacing={3}>
-            {/* Province List */}
             <Grid item xs={12} md={4} lg={3}>
               <Paper sx={{ p: 2, mb: 2, background: 'rgba(255,255,255,0.08)' }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -211,31 +222,38 @@ const ProvinceAdmin: React.FC = () => {
                   </IconButton>
                 </Box>
                 <Divider sx={{ mb: 2 }} />
-                <List>
-                  {Array.isArray(provinces) && provinces.map(province => (
-                    <ListItem
-                      button
-                      key={province.id}
-                      selected={selectedProvince?.id === province.id}
-                      onClick={() => handleSelectProvince(province)}
-                      secondaryAction={
-                        <>
-                          <IconButton edge="end" onClick={() => handleOpenProvinceDialog(province)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton edge="end" onClick={() => handleDeleteProvince(province.id)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </>
-                      }
-                    >
-                      <ListItemText primary={province.name} secondary={province.description} />
-                    </ListItem>
-                  ))}
-                </List>
+                {loading && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                    <CircularProgress />
+                  </Box>
+                )}
+                {error && <Typography color="error">Error: {error}</Typography>}
+                {!loading && !error && (
+                  <List>
+                    {(Array.isArray(provinces) ? provinces : []).map(province => (
+                      <ListItem
+                        button
+                        key={province.id}
+                        selected={selectedProvince?.id === province.id}
+                        onClick={() => handleSelectProvince(province)}
+                        secondaryAction={
+                          <>
+                            <IconButton edge="end" onClick={() => handleOpenProvinceDialog(province)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton edge="end" onClick={() => handleDeleteProvince(province.id)}>
+                              <DeleteIcon />
+                            </IconButton>
+                          </>
+                        }
+                      >
+                        <ListItemText primary={province.name} secondary={province.description} />
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
               </Paper>
             </Grid>
-            {/* Province Details */}
             <Grid item xs={12} md={8} lg={9}>
               {selectedProvince ? (
                 <Paper sx={{ p: 3, background: 'rgba(255,255,255,0.08)' }}>
@@ -251,30 +269,35 @@ const ProvinceAdmin: React.FC = () => {
                   <Typography variant="subtitle1" color="rgba(255,255,255,0.7)" mb={2}>
                     Departments in this province:
                   </Typography>
-                  <List>
-                    {departments.map(dept => (
-                      <ListItem key={dept.id}>
-                        <ListItemText primary={dept.name} secondary={dept.description} />
-                        <Button variant="outlined" onClick={() => setCreateTaskDialogOpen(true)}>
-                          Assign Task
-                        </Button>
-                      </ListItem>
-                    ))}
-                  </List>
-                  <Button variant="contained" sx={{ mt: 2 }} onClick={() => setCreateTaskDialogOpen(true)}>
-                    Assign Task to Province
-                  </Button>
+                  {loadingDepartments ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <>
+                      <List>
+                        {departments.map(dept => (
+                          <ListItem key={dept.id}>
+                            <ListItemText primary={dept.name} secondary={dept.description} />
+                            <Button variant="outlined" onClick={() => setCreateTaskDialogOpen(true)}>
+                              Assign Task
+                            </Button>
+                          </ListItem>
+                        ))}
+                      </List>
+                      <Button variant="contained" sx={{ mt: 2 }} onClick={() => setCreateTaskDialogOpen(true)}>
+                        Assign Task to Province
+                      </Button>
+                    </>
+                  )}
                 </Paper>
               ) : (
-                <Paper sx={{ p: 3, background: 'rgba(255,255,255,0.08)', textAlign: 'center' }}>
-                  <Typography variant="h6" color="#fff">
-                    Select a province to view details
-                  </Typography>
+                <Paper sx={{ p: 3, background: 'rgba(255,255,255,0.08)' }}>
+                  <Typography color="rgba(255, 255, 255, 0.7)">Select a province to view details.</Typography>
                 </Paper>
               )}
             </Grid>
           </Grid>
-          {/* Province Create/Edit Dialog */}
           <Dialog open={provinceDialogOpen} onClose={handleCloseProvinceDialog}>
             <DialogTitle>{editProvince ? 'Edit Province' : 'Create Province'}</DialogTitle>
             <DialogContent>
@@ -305,16 +328,15 @@ const ProvinceAdmin: React.FC = () => {
               </Button>
             </DialogActions>
           </Dialog>
-          {/* Assign Department Dialog */}
           <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} fullWidth maxWidth="xs">
             <DialogTitle>Assign Department to {selectedProvince?.name}</DialogTitle>
             <DialogContent>
               {loadingDepartments ? (
-                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 100 }}>
-                   <CircularProgress />
-                 </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 100 }}>
+                  <CircularProgress />
+                </Box>
               ) : allDepartments.length === 0 ? (
-                 <Typography sx={{ mt: 2 }}>No available departments to assign.</Typography>
+                <Typography sx={{ mt: 2 }}>No available departments to assign.</Typography>
               ) : (
                 <FormControl fullWidth margin="dense">
                   <InputLabel id="assign-department-select-label">Select Department</InputLabel>
@@ -345,7 +367,6 @@ const ProvinceAdmin: React.FC = () => {
               </Button>
             </DialogActions>
           </Dialog>
-          {/* Create Task Dialog */}
           <CreateTaskDialog
             open={createTaskDialogOpen}
             onClose={() => setCreateTaskDialogOpen(false)}

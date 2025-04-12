@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, List, ListItem, ListItemText, Divider, Button, CircularProgress } from '@mui/material';
-import { getProvinces, getDepartmentsByProvince } from '../services/provinceService';
+import { getProvinces, getDepartmentsByProvince } from '../services/provinceService/index';
 import { useNavigate } from 'react-router-dom';
 
 interface Province {
