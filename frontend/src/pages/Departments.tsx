@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { useQuery } from 'react-query';
 import {
   Box,
   Container,
@@ -19,6 +20,7 @@ import {
   Divider,
   AvatarGroup,
   Skeleton,
+  Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import WorkIcon from '@mui/icons-material/Work';
@@ -34,14 +36,15 @@ import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
-
+import { Department } from '../types/department';
+import DepartmentDetail from '../components/departments/DepartmentDetail';
 
 const DRAWER_WIDTH = 240;
 
 const Departments: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
@@ -57,6 +60,33 @@ const Departments: React.FC = () => {
   
   // State for task dialog
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
+
+  // --- React Query Hook for Departments ---
+  const { 
+    data: departmentsData = [], 
+    isLoading: isLoadingDepartments, 
+    error: fetchDepartmentsError 
+  } = useQuery<Department[], Error>(
+    'departments', 
+    DepartmentService.getDepartments, 
+    {
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      onError: (err) => {
+        console.error('Failed to load departments:', err);
+        // Potentially set a local error state if needed beyond the query error
+      },
+      onSuccess: (data) => {
+        // Select first department by default if none is selected and data is available
+        if (!selectedDepartment && data && data.length > 0) {
+          setSelectedDepartment(data[0].id);
+        }
+      }
+    }
+  );
+
+  // Combined loading state and error handling (adjust if other queries are added)
+  const isLoading = isLoadingDepartments;
+  const combinedError = fetchDepartmentsError;
 
   // Fetch departments and ALL tasks initially and when selectedDepartment changes (for performers)
   const fetchData = useCallback(async () => {
@@ -177,12 +207,17 @@ const Departments: React.FC = () => {
   };
   
   const handleCreateTask = () => {
-    setCreateTaskDialogOpen(true);
+    if (selectedDepartment) { // Only open if a department is selected
+      setCreateTaskDialogOpen(true);
+    } else {
+      alert("Please select a department first."); // Or provide better user feedback
+    }
   };
   
   const handleTaskCreated = () => {
-    // console.log("Task created, refetching data..."); // Debug log
-    fetchData(); // Refetch all data
+    setCreateTaskDialogOpen(false);
+    // Optionally, refetch tasks for the department or invalidate query cache
+    // queryClient.invalidateQueries(['departmentTasks', selectedDepartment]);
   };
 
   // Filter tasks based on selected department (CLIENT-SIDE FILTERING)
@@ -212,263 +247,88 @@ const Departments: React.FC = () => {
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      {error ? (
-        <Typography sx={{ color: '#f44336', textAlign: 'center', mt: 4 }}>{error}</Typography>
-      ) : (
-        <>
-          {/* Header Section */}
-          <Box mb={4}>
-            <Typography variant="h4" fontWeight="bold" color="#fff" mb={1}>
-              Department Management
-            </Typography>
-            <Typography variant="body1" color="rgba(255, 255, 255, 0.7)">
-              Manage departments and assign tasks to specific teams
-            </Typography>
-          </Box>
-           
-          
-          {/* Content Section */}
+      {/* Header Section */}
+      <Box mb={4}>
+        <Typography variant="h4" fontWeight="bold" color="#fff" mb={1}>
+          Department Management
+        </Typography>
+        <Typography variant="body1" color="rgba(255, 255, 255, 0.7)">
+          View and manage departments and their associated tasks/users.
+        </Typography>
+      </Box>
+
+      {isLoading ? (
         <Grid container spacing={3}>
-            {/* Left Column - Departments */}
-            <Grid item xs={12} md={4} lg={3}>
-              <DepartmentList
-                departments={departments}
-                selectedDepartment={selectedDepartment}
-                onSelectDepartment={setSelectedDepartment}
-              />
-            </Grid>
-            
-            {/* Right Column - Department Details */}
-            <Grid item xs={12} md={8} lg={9}>
-              {loading && !selectedDepartment ? ( // Show loading indicator when initially loading or no department selected yet
-                <Paper /* ... skeleton/placeholder styles ... */ >
-                   <Typography>Loading departments...</Typography>
-                </Paper>
-              ) : selectedDepartment && departments.length > 0 ? (
-                <>
-                  {/* Department Overview Card */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      borderRadius: 2,
-                      overflow: 'hidden',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      backdropFilter: 'blur(10px)',
-                      mb: 3
-                    }}
-                  >
-                    <Box p={3}>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                        <Box>
-                          <Typography variant="h5" fontWeight="bold" color="#fff">
-                            {departments.find(d => d.id === selectedDepartment)?.name || 'Department'}
-                          </Typography>
-                          <Typography variant="body2" color="rgba(255, 255, 255, 0.7)" mt={0.5}>
-                            {departments.find(d => d.id === selectedDepartment)?.description || 'No description available'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      
-                      <Grid container spacing={2} mt={1}>
-                        <Grid item xs={12} sm={4}>
-                          <Card sx={{ 
-                            background: 'linear-gradient(to right, rgba(25, 118, 210, 0.2), rgba(25, 118, 210, 0.4))',
-                            border: '1px solid rgba(25, 118, 210, 0.3)',
-                            borderRadius: 2,
-                            height: '100%'
-                          }}>
-                            <CardContent>
-                              <Typography variant="overline" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                                Tasks
-                              </Typography>
-                              <Box display="flex" alignItems="center" gap={1} mt={1}>
-                                <AssignmentIcon sx={{ color: '#90caf9', fontSize: 36 }} />
-                                <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                  {loading ? <Skeleton width={40} /> : departmentTasks.length}
-                                </Typography>
-                              </Box>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                          <Card sx={{ 
-                            background: 'linear-gradient(to right, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.4))',
-                            border: '1px solid rgba(76, 175, 80, 0.3)',
-                            borderRadius: 2, 
-                            height: '100%'
-                          }}>
-                            <CardContent>
-                              <Typography variant="overline" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                                Completed
-                              </Typography>
-                              <Box display="flex" alignItems="center" gap={1} mt={1}>
-                                <WorkIcon sx={{ color: '#a5d6a7', fontSize: 36 }} />
-                                <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                  {loading ? <Skeleton width={40} /> : completedTasks.length}
-                                </Typography>
-                              </Box>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                          <Card sx={{ 
-                            background: 'linear-gradient(to right, rgba(245, 124, 0, 0.2), rgba(245, 124, 0, 0.4))',
-                            border: '1px solid rgba(245, 124, 0, 0.3)',
-                            borderRadius: 2, 
-                            height: '100%'
-                          }}>
-                            <CardContent>
-                              <Typography variant="overline" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                                Members
-                              </Typography>
-                              <Box display="flex" alignItems="center" gap={1} mt={1}>
-                                <PeopleIcon sx={{ color: '#ffcc80', fontSize: 36 }} />
-                                <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                  {loading ? <Skeleton width={40} /> : (departments.find(d => d.id === selectedDepartment)?.members_count || 0)}
-                                </Typography>
-                              </Box>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      </Grid>
-                      
-                      {/* Top Performers Section */}
-                      {loading ? <Skeleton height={100} /> : topPerformers.length > 0 && (
-                        <Box mt={3}>
-                          <Typography variant="h6" fontWeight="bold" color="#fff" mb={2}>
-                            Top Performers
-                          </Typography>
-                          <Grid container spacing={2}>
-                            {topPerformers.slice(0, 3).map((performer) => (
-                              <Grid item xs={12} sm={4} key={performer.id}>
-                                <Paper 
-                                  elevation={0}
-                                  sx={{
-                                    p: 2,
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    backdropFilter: 'blur(5px)',
-                                    borderRadius: 2,
-                                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                                  }}
-                                >
-                                  <Box display="flex" alignItems="center" gap={2}>
-                                    <Avatar 
-                                      src={performer.avatar} 
-                                      alt={performer.name} 
-                                      sx={{ 
-                                        width: 56, 
-                                        height: 56,
-                                        border: '2px solid rgba(255, 255, 255, 0.2)',
-                                      }} 
-                                    />
-                                    <Box>
-                                      <Typography variant="subtitle1" color="#fff" fontWeight="medium">
-                                        {`${performer.first_name} ${performer.last_name}`}
-                                      </Typography>
-                                      <Box display="flex" alignItems="center" gap={0.5}>
-                                        <Typography variant="caption" color="rgba(255, 255, 255, 0.7)">
-                                          {performer.completed_tasks} tasks
-                                        </Typography>
-                                        <Typography variant="caption" color="#4caf50" fontWeight="bold">
-                                          {performer.completion_rate}%
-                </Typography>
-                                      </Box>
-                                    </Box>
-                                  </Box>
-                                </Paper>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </Box>
-              )}
-            </Box>
-                  </Paper>
-                  
-                  {/* Tasks Section */}
-                  <Paper 
-                    elevation={0}
-              sx={{
-                      borderRadius: 2,
-                      overflow: 'auto',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                      maxHeight: '400px',
-                    }}
-                  >
-                    <Box p={3}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography variant="h6" fontWeight="bold" color="#fff">
-                          Tasks Overview
-                        </Typography>
-                        <AvatarGroup max={5} sx={{ '& .MuiAvatar-root': { width: 30, height: 30, fontSize: '0.8rem' } }}>
-                          {Array.isArray(topPerformers) && topPerformers.map((performer) => (
-                            <Tooltip title={`${performer.first_name} ${performer.last_name}`} key={performer.id}>
-                              <Avatar alt={`${performer.first_name} ${performer.last_name}`} src={performer.avatar}>
-                                {performer.first_name.charAt(0)}
-                              </Avatar>
-                            </Tooltip>
-                          ))}
-                        </AvatarGroup>
-                      </Box>
-              <TasksSection
-                currentUserId={user?.id ? Number(user.id) : 0}
-                currentDepartmentId={selectedDepartment ? Number(selectedDepartment) : 0}
-                viewMode="department"
-                upcomingTasks={upcomingTasks}
-                ongoingTasks={ongoingTasks}
-                completedTasks={completedTasks}
-                        onAddTask={handleCreateTask}
-                        showAddButton={true}
-              />
-            </Box>
-                  </Paper>
-                </>
-              ) : (
-                <Paper 
-                  elevation={0}
-                  sx={{
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    height: '50vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                  }}
-                >
-                  <Typography variant="h5" color="#fff" textAlign="center" mb={2}>
-                    Select a department to view details
-                  </Typography>
-                  <Typography variant="body1" color="rgba(255, 255, 255, 0.7)" textAlign="center" maxWidth="450px" mb={4}>
-                    Choose a department from the list to view tasks, members, and performance metrics
-                  </Typography>
-                  <PeopleIcon sx={{ fontSize: 80, color: 'rgba(255, 255, 255, 0.2)' }} />
-                </Paper>
-              )}
-            </Grid>
+          <Grid item xs={12} md={4} lg={3}>
+            <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 2, bgcolor: 'grey.800' }} />
           </Grid>
-          
-          {/* Add Task Floating Action Button */}
-          
-          {/* Create Task Dialog */}
-          <CreateTaskDialog
-            open={createTaskDialogOpen}
-            onClose={() => setCreateTaskDialogOpen(false)}
-            onTaskCreated={handleTaskCreated}
-            dialogType="assign"
-            initialStatus={TaskStatus.PENDING}
-            dialogMode="department"
-            preSelectedDepartment={selectedDepartment || undefined}
-            departmentsList={departments} 
-          />
-        </>
+          <Grid item xs={12} md={8} lg={9}>
+            <Skeleton variant="rectangular" height={600} sx={{ borderRadius: 2, bgcolor: 'grey.800' }} />
+          </Grid>
+        </Grid>
+      ) : combinedError ? (
+        <Alert severity="error" sx={{ m: 3 }}>
+          {combinedError.message || 'An unknown error occurred loading departments.'}
+        </Alert>
+      ) : (
+        <Grid container spacing={3}>
+          {/* Left Column - Department List */}
+          <Grid item xs={12} md={4} lg={3}>
+            <DepartmentList
+              departments={departments}
+              selectedDepartment={selectedDepartment}
+              onSelectDepartment={setSelectedDepartment}
+            />
+          </Grid>
+
+          {/* Right Column - Department Details */}
+          <Grid item xs={12} md={8} lg={9}>
+            {selectedDepartment ? (
+              <DepartmentDetail 
+                departmentId={selectedDepartment} 
+                onAddTaskClick={handleCreateTask} // Pass the handler down
+              />
+            ) : (
+              <Paper 
+                elevation={0}
+                sx={{
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  height: 'calc(100vh - 200px)', 
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  p: 3,
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+                }}
+              >
+                <PeopleIcon sx={{ fontSize: 80, color: 'rgba(255, 255, 255, 0.2)' }} />
+                <Typography variant="h6" color="rgba(255, 255, 255, 0.7)" mt={2}>
+                  Select a department
+                </Typography>
+                <Typography variant="body2" color="rgba(255, 255, 255, 0.5)" textAlign="center">
+                  Choose a department from the list to view details.
+                </Typography>
+              </Paper>
+            )}
+          </Grid>
+        </Grid>
       )}
+      
+      {/* Re-add Create Task Dialog for Department mode */}
+      <CreateTaskDialog
+        open={createTaskDialogOpen}
+        onClose={() => setCreateTaskDialogOpen(false)}
+        onTaskCreated={handleTaskCreated} 
+        dialogType="assign"
+        dialogMode="department"
+        preSelectedDepartment={selectedDepartment || undefined}
+        // departmentsList={departments} 
+      />
     </Container>
   );
 
@@ -484,7 +344,7 @@ const Departments: React.FC = () => {
       }
       topBar={
         <DashboardTopBar
-          username={user?.username || 'User'}
+          username={currentUser?.username || 'User'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
           onNotificationClick={() => console.log('Notification clicked')}

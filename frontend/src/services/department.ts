@@ -1,21 +1,7 @@
-import axios from '../utils/axios';
-
-export interface Department {
-    id: string;
-    name: string;
-    description: string;
-    head: {
-        id: string;
-        username: string;
-        first_name: string;
-        last_name: string;
-    } | null;
-    created_at: string;
-    updated_at: string;
-    members_count: number;
-    active_projects: number;
-    completion_rate: number;
-}
+import { apiClient } from './api';
+import { Department } from '../types/department';
+import { Task } from '../types/task';
+import { User } from '../types/user';
 
 export interface DepartmentPerformer {
     id: string;
@@ -29,10 +15,10 @@ export interface DepartmentPerformer {
 
 export const DepartmentService = {
     // Get all departments
-    getDepartments: async () => {
+    getDepartments: async (): Promise<Department[]> => {
         try {
-            const response = await axios.get('/departments/');
-            return response.data;
+            const response = await apiClient.get<Department[]>('/departments');
+            return response;
         } catch (error) {
             console.error('Error fetching departments:', error);
             throw error;
@@ -40,13 +26,13 @@ export const DepartmentService = {
     },
 
     // Get a single department
-    getDepartment: async (id: string) => {
+    getDepartment: async (id: string): Promise<Department> => {
         try {
-            const response = await axios.get(`/departments/${id}/`);
-            if (!response.data) {
+            const response = await apiClient.get<Department>(`/departments/${id}`);
+            if (!response) {
                 throw new Error(`Department with ID ${id} not found`);
             }
-            return response.data;
+            return response;
         } catch (error) {
             console.error(`Error fetching department ${id}:`, error);
             throw error;
@@ -54,10 +40,10 @@ export const DepartmentService = {
     },
 
     // Get department members
-    getDepartmentMembers: async (id: string) => {
+    getDepartmentMembers: async (id: string): Promise<User[]> => {
         try {
-            const response = await axios.get(`/departments/${id}/members/`);
-            return response.data;
+            const response = await apiClient.get<User[]>(`/departments/${id}/members`);
+            return response;
         } catch (error) {
             console.error(`Error fetching members for department ${id}:`, error);
             throw error;
@@ -65,10 +51,10 @@ export const DepartmentService = {
     },
 
     // Create a department
-    createDepartment: async (department: Omit<Department, 'id' | 'created_at' | 'updated_at'>) => {
+    createDepartment: async (departmentData: Omit<Department, 'id'>): Promise<Department> => {
         try {
-            const response = await axios.post('/departments/', department);
-            return response.data;
+            const response = await apiClient.post<Department>('/departments', departmentData);
+            return response;
         } catch (error) {
             console.error('Error creating department:', error);
             throw error;
@@ -76,10 +62,10 @@ export const DepartmentService = {
     },
 
     // Update a department
-    updateDepartment: async (id: string, department: Partial<Department>) => {
+    updateDepartment: async (id: string, departmentData: Partial<Department>): Promise<Department> => {
         try {
-            const response = await axios.put(`/departments/${id}/`, department);
-            return response.data;
+            const response = await apiClient.put<Department>(`/departments/${id}`, departmentData);
+            return response;
         } catch (error) {
             console.error(`Error updating department ${id}:`, error);
             throw error;
@@ -87,9 +73,9 @@ export const DepartmentService = {
     },
 
     // Delete a department
-    deleteDepartment: async (id: string) => {
+    deleteDepartment: async (id: string): Promise<void> => {
         try {
-            await axios.delete(`/departments/${id}/`);
+            await apiClient.delete<void>(`/departments/${id}`);
         } catch (error) {
             console.error(`Error deleting department ${id}:`, error);
             throw error;
@@ -97,10 +83,10 @@ export const DepartmentService = {
     },
 
     // Get department statistics
-    getDepartmentStats: async () => {
+    getDepartmentStats: async (): Promise<any> => {
         try {
-            const response = await axios.get('/department-stats/');
-            return response.data;
+            const response = await apiClient.get<any>('/department-stats');
+            return response;
         } catch (error) {
             console.error('Error fetching department statistics:', error);
             throw error;
@@ -108,10 +94,10 @@ export const DepartmentService = {
     },
 
     // Get department tasks
-    getDepartmentTasks: async (id: string) => {
+    getDepartmentTasks: async (id: string): Promise<Task[]> => {
         try {
-            const response = await axios.get(`/departments/${id}/tasks/`);
-            return response.data;
+            const response = await apiClient.get<Task[]>(`/departments/${id}/tasks`);
+            return response;
         } catch (error) {
             console.error(`Error fetching tasks for department ${id}:`, error);
             throw error;
@@ -119,13 +105,42 @@ export const DepartmentService = {
     },
 
     // Get top performers in a department
-    getDepartmentPerformers: async (id: string) => {
+    getDepartmentPerformers: async (id: string): Promise<DepartmentPerformer[]> => {
         try {
-            const response = await axios.get(`/departments/${id}/performers/`);
-            return response.data;
+            const response = await apiClient.get<DepartmentPerformer[]>(`/departments/${id}/performers`);
+            return response;
         } catch (error) {
             console.error(`Error fetching performers for department ${id}:`, error);
             throw error;
         }
+    },
+
+    // Add function to get all departments, potentially for admin use in selectors
+    getAllAdminDepartments: async (): Promise<Department[]> => {
+        console.log("Fetching all departments for admin contexts...");
+        return DepartmentService.getDepartments();
+    },
+
+    // START: Add Member Management Functions
+    addMemberToDepartment: async (departmentId: string, userId: string): Promise<Department> => { // Assuming backend returns updated department
+        try {
+            // Backend route was /departments/:id/members/:userId/
+            const response = await apiClient.post<Department>(`/departments/${departmentId}/members/${userId}/`, {}); // POST request with empty body
+            return response;
+        } catch (error) {
+            console.error(`Error adding member ${userId} to department ${departmentId}:`, error);
+            throw error;
+        }
+    },
+
+    removeMemberFromDepartment: async (departmentId: string, userId: string): Promise<void> => {
+        try {
+             // Backend route was /departments/:id/members/:userId/
+            await apiClient.delete<void>(`/departments/${departmentId}/members/${userId}/`);
+        } catch (error) {
+            console.error(`Error removing member ${userId} from department ${departmentId}:`, error);
+            throw error;
+        }
     }
+    // END: Add Member Management Functions
 }; 

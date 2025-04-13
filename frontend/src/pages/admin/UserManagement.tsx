@@ -52,6 +52,7 @@ import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { AdminService } from '../../services/admin';
 import { UserService, User as ServiceUser } from '../../services/user';
+import TasksSection from '../../components/departments/TasksSection';
 
 const DRAWER_WIDTH = 240;
 
@@ -115,6 +116,7 @@ const UserManagement: React.FC = () => {
   const [notifications, setNotifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +136,25 @@ const UserManagement: React.FC = () => {
   const [editMode, setEditMode] = useState<EditMode>({ isEdit: false, userId: null });
   const glassStyles = getGlassmorphismStyles(theme);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
+
+  // Fetch assigned tasks when selectedUser changes
+  useEffect(() => {
+    const fetchAssignedTasks = async () => {
+      if (selectedUser) {
+        try {
+          // Import TaskService dynamically to avoid circular import issues
+          const { TaskService } = await import('../../services/task');
+          const tasks = await TaskService.getAssignedTasks(selectedUser);
+          setAssignedTasks(tasks);
+        } catch (error) {
+          setAssignedTasks([]);
+        }
+      } else {
+        setAssignedTasks([]);
+      }
+    };
+    fetchAssignedTasks();
+  }, [selectedUser]);
 
   const handleUserSelect = (userId: string) => {
     setSelectedUser(userId);
@@ -417,6 +438,19 @@ const UserManagement: React.FC = () => {
             }}
           >
             Selected User: {users.find(u => u.id === selectedUser)?.username}
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" sx={{ color: '#fff', mb: 1 }}>
+                Assigned Tasks
+              </Typography>
+              <Box>
+                <TasksSection
+                  tasks={assignedTasks}
+                  currentUserId={selectedUser ? Number(selectedUser) : 0}
+                  currentDepartmentId={0}
+                  viewMode="assigned"
+                />
+              </Box>
+            </Box>
           </Typography>
         )}
       </Box>

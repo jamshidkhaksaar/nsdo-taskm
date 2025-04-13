@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Logger, BadRequestException, Param, Delete, Put, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request, Logger, BadRequestException, Param, Delete, Put, Inject, forwardRef, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { ActivityLogService } from '../admin/services/activity-log.service';
+import { TasksService } from '../tasks/tasks.service';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +17,7 @@ export class UsersController {
     private readonly usersService: UsersService,
     @Inject(forwardRef(() => ActivityLogService))
     private readonly activityLogService: ActivityLogService,
+    private tasksService: TasksService,
   ) {}
 
   @Get()
@@ -193,5 +197,48 @@ export class UsersController {
       first_name: updateUserDto.first_name || updatedUser.username,
       last_name: updateUserDto.last_name || '',
     };
+  }
+
+  @Get(':id/tasks')
+  async getUserTasks(@Param('id') id: string, @Request() req) {
+    this.logger.log(`Fetching tasks for user with ID: ${id}`);
+    
+    // Validate user exists (optional but good practice)
+    try {
+      await this.usersService.findById(id); 
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new NotFoundException(`User with ID "${id}" not found.`);
+      }
+      throw error; // Re-throw other errors
+    }
+
+    // Log the activity
+    // Consider logging the specific user ID being queried
+    try {
+      await this.activityLogService.logFromRequest(
+        req,
+        'view',
+        'user_tasks',
+        `Viewed tasks for user ID: ${id}`,
+        id, // Log against the user being viewed
+      );
+    } catch (logError) {
+      console.error(`Failed to log user task view activity: ${logError.message}`);
+    }
+
+    // Call the correct service method to get tasks *assigned to* the user with the given ID
+    const tasks = await this.tasksService.getTasksForUser(id);
+    return tasks;
+  }
+
+  @Get('/:id/performance')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.MANAGER)
+  async getPerformance(@Param('id') id: string, @Request() req) {
+    // TODO: Implement performance fetching logic in usersService
+    console.log(`Fetching performance for user ${id}`);
+    // Placeholder response
+    return { userId: id, performanceData: 'Not implemented yet' };
   }
 } 

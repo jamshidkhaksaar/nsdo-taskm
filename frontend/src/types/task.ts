@@ -50,26 +50,21 @@ export interface Task {
 
 export interface CreateTask {
   title: string;
-  description?: string;
-  status?: TaskStatus;
-  due_date?: string;
-  dueDate?: string;
+  description: string;
   priority?: TaskPriority;
-  departmentId?: string;
-  assigned_to?: string[];
-  is_private?: boolean;
+  status?: TaskStatus;
+  dueDate?: string;
+  type: TaskType;
+  assignedToUserIds?: string[];
+  assignedToDepartmentIds?: string[];
+  assignedToProvinceId?: string | null;
 }
 
-export interface TaskUpdate {
-  title?: string;
-  description?: string;
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  dueDate?: string;
-  departmentId?: string;
-  assigned_to?: string[];
-  is_private?: boolean;
-}
+export type TaskUpdate = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'assignedToUsers' | 'assignedToDepartments' | 'assignedToProvince' | 'delegatedBy' | 'delegatedFromTask'> & {
+  assignedToUserIds?: string[];
+  assignedToDepartmentIds?: string[];
+  assignedToProvinceId?: string | null;
+}>;
 
 export interface Comment {
   id: string;
@@ -83,4 +78,12 @@ export interface Comment {
     name: string;
     avatar?: string;
   };
+}
+
+export interface DashboardTasksResponse {
+  myPersonalTasks: Task[];
+  tasksICreatedForOthers: Task[];
+  tasksAssignedToMe: Task[];
+  tasksDelegatedByMe: Task[];
+  tasksDelegatedToMe: Task[];
 }

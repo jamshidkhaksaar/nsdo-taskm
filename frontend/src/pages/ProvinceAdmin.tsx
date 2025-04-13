@@ -238,16 +238,31 @@ const ProvinceAdmin: React.FC = () => {
                         onClick={() => handleSelectProvince(province)}
                         secondaryAction={
                           <>
-                            <IconButton edge="end" onClick={() => handleOpenProvinceDialog(province)}>
+                            <IconButton 
+                              edge="end" 
+                              onClick={() => handleOpenProvinceDialog(province)}
+                              sx={{ color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#fff' } }}
+                            >
                               <EditIcon />
                             </IconButton>
-                            <IconButton edge="end" onClick={() => handleDeleteProvince(province.id)}>
+                            <IconButton 
+                              edge="end" 
+                              onClick={() => handleDeleteProvince(province.id)}
+                              sx={{ color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#f44336' } }}
+                            >
                               <DeleteIcon />
                             </IconButton>
                           </>
                         }
                       >
-                        <ListItemText primary={province.name} secondary={province.description} />
+                        <ListItemText 
+                          primary={province.name} 
+                          secondary={province.description} 
+                          sx={{
+                            '.MuiListItemText-primary': { color: '#fff' },
+                            '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
+                          }}
+                        />
                       </ListItem>
                     ))}
                   </List>
@@ -261,7 +276,15 @@ const ProvinceAdmin: React.FC = () => {
                     <Typography variant="h5" color="#fff">
                       {selectedProvince.name}
                     </Typography>
-                    <Button variant="outlined" onClick={handleOpenAssignDialog}>
+                    <Button 
+                      variant="outlined" 
+                      onClick={handleOpenAssignDialog}
+                      sx={{ 
+                        borderColor: 'rgba(255, 255, 255, 0.3)', 
+                        color: '#fff',
+                        '&:hover': { borderColor: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' } 
+                      }}
+                    >
                       Assign Department
                     </Button>
                   </Box>
@@ -278,14 +301,37 @@ const ProvinceAdmin: React.FC = () => {
                       <List>
                         {departments.map(dept => (
                           <ListItem key={dept.id}>
-                            <ListItemText primary={dept.name} secondary={dept.description} />
-                            <Button variant="outlined" onClick={() => setCreateTaskDialogOpen(true)}>
+                            <ListItemText 
+                              primary={dept.name} 
+                              secondary={dept.description} 
+                              sx={{
+                                '.MuiListItemText-primary': { color: '#fff' },
+                                '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
+                              }}
+                            />
+                            <Button 
+                              variant="outlined" 
+                              onClick={() => setCreateTaskDialogOpen(true)}
+                              sx={{ 
+                                borderColor: 'rgba(255, 255, 255, 0.3)', 
+                                color: '#fff',
+                                '&:hover': { borderColor: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' } 
+                              }}
+                            >
                               Assign Task
                             </Button>
                           </ListItem>
                         ))}
                       </List>
-                      <Button variant="contained" sx={{ mt: 2 }} onClick={() => setCreateTaskDialogOpen(true)}>
+                      <Button 
+                        variant="contained" 
+                        sx={{ 
+                          mt: 2,
+                          backgroundColor: 'primary.main',
+                          '&:hover': { backgroundColor: 'primary.dark' },
+                        }} 
+                        onClick={() => setCreateTaskDialogOpen(true)}
+                      >
                         Assign Task to Province
                       </Button>
                     </>

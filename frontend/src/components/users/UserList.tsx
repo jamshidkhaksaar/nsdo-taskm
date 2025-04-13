@@ -1,34 +1,28 @@
+import React from 'react';
 import {
   Box,
   List,
-  ListItemButton,
-  ListItemText,
+  ListItem,
   ListItemAvatar,
+  ListItemText,
   Typography,
   Divider,
   TextField,
   InputAdornment,
   Avatar,
+  Checkbox
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  avatar?: string;
-  role: string;
-  first_name?: string;
-  last_name?: string;
-  department?: string;
-}
+import { User } from '../../types/user';
 
 interface UserListProps {
   users: User[];
   selectedUser: string | null;
-  onSelectUser: (id: string) => void;
+  onSelectUser: (userId: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  selectedUserIds: string[];
+  onSelectedUsersChange: (ids: string[]) => void;
 }
 
 const UserList: React.FC<UserListProps> = ({
@@ -37,7 +31,22 @@ const UserList: React.FC<UserListProps> = ({
   onSelectUser,
   searchQuery,
   onSearchChange,
+  selectedUserIds,
+  onSelectedUsersChange
 }) => {
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>, userId: string) => {
+    event.stopPropagation();
+    const isChecked = event.target.checked;
+    let newSelectedIds: string[];
+
+    if (isChecked) {
+      newSelectedIds = [...selectedUserIds, userId];
+    } else {
+      newSelectedIds = selectedUserIds.filter(id => id !== userId);
+    }
+    onSelectedUsersChange(newSelectedIds);
+  };
+
   return (
     <Box
       sx={{
@@ -91,47 +100,60 @@ const UserList: React.FC<UserListProps> = ({
       <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', mb: 2 }} />
       
       <List sx={{ flexGrow: 1, overflow: 'auto' }}>
-        {users.map((user) => (
-          <ListItemButton
-            key={user.id}
-            selected={selectedUser === user.id}
-            onClick={() => onSelectUser(user.id)}
-            sx={{
-              borderRadius: 1,
-              mb: 1,
-              '&.Mui-selected': {
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                },
-              },
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              },
-            }}
-          >
-            <ListItemAvatar>
-              <Avatar src={user.avatar} alt={user.username}>
-                {user.first_name ? user.first_name.charAt(0) : user.username.charAt(0)}
-              </Avatar>
-            </ListItemAvatar>
-            <ListItemText
-              primary={user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username}
-              secondary={
-                <Box component="span" sx={{ display: 'block' }}>
-                  <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    {user.role}
-                  </Typography>
-                </Box>
-              }
+        {users.map((user) => {
+          const isSelectedForTask = selectedUserIds.includes(user.id.toString());
+          return (
+            <ListItem
+              key={user.id}
+              button
+              selected={selectedUser === user.id.toString()}
+              onClick={() => onSelectUser(user.id.toString())}
               sx={{
-                '& .MuiListItemText-primary': {
-                  color: '#fff',
+                borderRadius: 1,
+                mb: 1,
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                  },
+                },
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
                 },
               }}
-            />
-          </ListItemButton>
-        ))}
+              secondaryAction={
+                <Checkbox
+                  edge="end"
+                  onChange={(event) => handleCheckboxChange(event, user.id.toString())}
+                  checked={isSelectedForTask}
+                  inputProps={{ 'aria-labelledby': `checkbox-list-label-${user.id}` }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              }
+            >
+              <ListItemAvatar>
+                <Avatar src={user.avatar} alt={user.username}>
+                  {user.first_name ? user.first_name.charAt(0) : user.username.charAt(0)}
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary={user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username}
+                secondary={
+                  <Box component="span" sx={{ display: 'block' }}>
+                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                      {user.role}
+                    </Typography>
+                  </Box>
+                }
+                sx={{
+                  '& .MuiListItemText-primary': {
+                    color: '#fff',
+                  },
+                }}
+              />
+            </ListItem>
+          );
+        })}
       </List>
     </Box>
   );

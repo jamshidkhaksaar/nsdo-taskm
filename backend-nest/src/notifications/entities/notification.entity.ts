@@ -13,8 +13,8 @@ export enum NotificationType {
 
 @Entity('notifications')
 export class Notification {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column()
   message: string;
@@ -29,19 +29,19 @@ export class Notification {
   @Column({ default: false })
   read: boolean;
 
-  @ManyToOne(() => User, { nullable: false })
+  @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column()
-  user_id: number;
+  @Column({ type: 'uuid' })
+  user_id: string;
 
-  @ManyToOne(() => Task, { nullable: true })
+  @ManyToOne(() => Task, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'task_id' })
   task: Task;
 
-  @Column({ nullable: true })
-  task_id: number;
+  @Column({ type: 'uuid', nullable: true })
+  task_id: string;
 
   @CreateDateColumn()
   created_at: Date;

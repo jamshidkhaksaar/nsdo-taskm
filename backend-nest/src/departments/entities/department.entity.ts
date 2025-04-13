@@ -22,9 +22,6 @@ export class Department {
   })
   members: User[];
 
-  @OneToMany(() => Task, task => task.department)
-  tasks: Task[];
-
   @Column({ nullable: true })
   headId: string;
 
@@ -34,18 +31,20 @@ export class Department {
     joinColumn: { name: 'department_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'head_id', referencedColumnName: 'id' },
   })
-  head: User;
+  head: User | null;
 
   @ManyToOne(() => Province, province => province.departments, { nullable: true })
-  province: Province;
+  province: Province | null;
 
   @Column({ nullable: true })
-  provinceId: string;
+  provinceId: string | null;
+
+  @ManyToMany(() => Task, task => task.assignedToDepartments)
+  assignedTasks: Task[];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
-    // Province relation
-  }
+}

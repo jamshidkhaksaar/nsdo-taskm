@@ -1,31 +1,71 @@
-import apiClient from '../../utils/axios';
+import { apiClient } from '../api';
+import { Province, Department, CreateProvinceDto, UpdateProvinceDto, AssignDepartmentsDto } from '../../types';
 
-export async function getProvinces() {
-  const res = await apiClient.get('/provinces');
-  return res.data;
-}
+// --- Admin Province Endpoints --- 
 
-export async function getDepartmentsByProvince(provinceId: string) {
-  const res = await apiClient.get(`/provinces/${provinceId}/departments`);
-  return res.data;
-}
+const ADMIN_BASE_URL = '/admin/provinces';
 
-export async function createProvince(data: { name: string; description?: string }) {
-  const res = await apiClient.post('/provinces', data);
-  return res.data;
-}
+/**
+ * Fetches all provinces (Admin context).
+ */
+export const getAdminProvinces = async (): Promise<Province[]> => {
+  return apiClient.get<Province[]>(ADMIN_BASE_URL);
+};
 
-export async function updateProvince(id: string, data: { name: string; description?: string }) {
-  const res = await apiClient.put(`/provinces/${id}`, data);
-  return res.data;
-}
+/**
+ * Fetches a single province by ID (Admin context).
+ */
+export const getAdminProvinceById = async (id: string): Promise<Province> => {
+  return apiClient.get<Province>(`${ADMIN_BASE_URL}/${id}`);
+};
 
-export async function deleteProvince(id: string) {
-  const res = await apiClient.delete(`/provinces/${id}`);
-  return res.data;
-}
+/**
+ * Creates a new province (Admin context).
+ */
+export const createAdminProvince = async (data: CreateProvinceDto): Promise<Province> => {
+  return apiClient.post<Province>(ADMIN_BASE_URL, data);
+};
 
-export async function assignDepartmentToProvince(provinceId: string, departmentId: string) {
-  const res = await apiClient.post(`/provinces/${provinceId}/assign-department`, { departmentId });
-  return res.data;
-}
+/**
+ * Updates an existing province (Admin context).
+ */
+export const updateAdminProvince = async (id: string, data: UpdateProvinceDto): Promise<Province> => {
+  return apiClient.put<Province>(`${ADMIN_BASE_URL}/${id}`, data);
+};
+
+/**
+ * Deletes a province (Admin context).
+ */
+export const deleteAdminProvince = async (id: string): Promise<{ success: boolean; message: string }> => {
+  // Assuming backend returns { success: true, message: '...' }
+  return apiClient.delete<{ success: boolean; message: string }>(`${ADMIN_BASE_URL}/${id}`);
+};
+
+// --- Admin Province Department Management --- 
+
+/**
+ * Fetches departments associated with a specific province (Admin context).
+ */
+export const getAdminDepartmentsForProvince = async (provinceId: string): Promise<Department[]> => {
+  return apiClient.get<Department[]>(`${ADMIN_BASE_URL}/${provinceId}/departments`);
+};
+
+/**
+ * Assigns existing departments to a province (Admin context).
+ */
+export const assignDepartmentsToProvince = async (provinceId: string, data: AssignDepartmentsDto): Promise<Province> => {
+  // Backend expects { departmentIds: ['id1', 'id2'] }
+  return apiClient.post<Province>(`${ADMIN_BASE_URL}/${provinceId}/departments`, data);
+};
+
+/**
+ * Removes a department from a province (Admin context).
+ */
+export const removeDepartmentFromProvince = async (provinceId: string, departmentId: string): Promise<void> => {
+  await apiClient.delete<void>(`${ADMIN_BASE_URL}/${provinceId}/departments/${departmentId}`);
+};
+
+// --- Potential Public Endpoints (if needed separate from admin) ---
+// export const getPublicProvinces = async (): Promise<Province[]> => {
+//   return apiClient.get<Province[]>('/provinces');
+// };

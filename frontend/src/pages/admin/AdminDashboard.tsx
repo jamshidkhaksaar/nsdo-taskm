@@ -111,7 +111,7 @@ const AdminDashboard: React.FC = () => {
       
       // Fetch dashboard data from the real API
       // The baseURL and endpoints should match your actual API
-      const response = await axios.get('/api/admin/dashboard');
+      const response = await axios.get('/admin/dashboard');
       
       console.log('API response:', response.data);
       

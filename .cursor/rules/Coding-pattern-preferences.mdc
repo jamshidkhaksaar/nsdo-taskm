@@ -1,8 +1,10 @@
 ---
-description: Coding pattern preferences
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
+ - Important: try to fix things at the cause, not the symptom.
+ - Be very detailed with summarization and do not miss out things that are important.
  - Always prefer simple solutions
 - Avoid duplication of code whenever possible, which means checking for other areas of the codebase that might already have similar code and functionality
 - Write code that takes into account the different enifironments: dev and prod

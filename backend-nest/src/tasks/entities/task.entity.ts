@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Department } from '../../departments/entities/department.entity';
+import { Province } from '../../provinces/entities/province.entity';
 
 export enum TaskStatus {
   PENDING = 'pending',
@@ -14,17 +15,18 @@ export enum TaskPriority {
   MEDIUM = 'medium',
   HIGH = 'high'
 }
+
 export enum TaskType {
-  USER = 'user',
+  PERSONAL = 'personal',
   DEPARTMENT = 'department',
-  USER_TO_USER = 'user_to_user',
-  PROVINCE = 'province'
+  USER = 'user',
+  PROVINCE_DEPARTMENT = 'province_department'
 }
 
 @Entity()
 export class Task {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column()
   title: string;
@@ -49,7 +51,6 @@ export class Task {
   @Column({
     type: 'enum',
     enum: TaskType,
-    default: TaskType.USER
   })
   type: TaskType;
 
@@ -57,7 +58,7 @@ export class Task {
   is_private: boolean;
 
   @Column({ type: 'datetime', nullable: true })
-  dueDate: Date;
+  dueDate: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -65,45 +66,52 @@ export class Task {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: false })
   createdById: string;
 
-  @ManyToOne(() => User, user => user.createdTasks, { eager: false })
+  @ManyToOne(() => User, user => user.createdTasks, { eager: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
-  // For user-to-user and delegation
   @ManyToMany(() => User, user => user.assignedTasks)
   @JoinTable({
-    name: 'task_assignees',
+    name: 'task_user_assignees',
     joinColumn: { name: 'task_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
   })
   assignedToUsers: User[];
 
-  // For department/unit assignment (multiple departments)
-  @Column("simple-array", { nullable: true })
-  assignedToDepartmentIds: string[];
+  @ManyToMany(() => Department, department => department.assignedTasks)
+  @JoinTable({
+    name: 'task_department_assignees',
+    joinColumn: { name: 'task_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'department_id', referencedColumnName: 'id' },
+  })
+  assignedToDepartments: Department[];
 
-  // For province assignment
-  @Column({ nullable: true })
-  assignedToProvinceId: string;
+  @Column({ type: 'uuid', nullable: true })
+  assignedToProvinceId: string | null;
 
-  // For department relation (legacy, for backward compatibility)
-  @Column({ nullable: true })
-  departmentId: string;
+  @ManyToOne(() => Province, province => province.assignedTasks, { nullable: true, eager: false })
+  @JoinColumn({ name: 'assignedToProvinceId' })
+  assignedToProvince: Province | null;
 
-  @ManyToOne(() => Department, department => department.tasks)
-  @JoinColumn({ name: 'departmentId' })
-  department: Department;
+  @Column({ type: 'boolean', default: false })
+  isDelegated: boolean;
 
-  // Delegation
-  @Column({ nullable: true })
-  delegatedByUserId: string;
+  @Column({ type: 'uuid', nullable: true })
+  delegatedByUserId: string | null;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, eager: false })
   @JoinColumn({ name: 'delegatedByUserId' })
-  delegatedBy: User;
+  delegatedBy: User | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  delegatedFromTaskId: string | null;
+
+  @ManyToOne(() => Task, { nullable: true, eager: false, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'delegatedFromTaskId' })
+  delegatedFromTask: Task | null;
 }
 
 

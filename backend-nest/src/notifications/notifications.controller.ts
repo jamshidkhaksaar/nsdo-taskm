@@ -36,21 +36,21 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get a notification by id' })
   @ApiResponse({ status: 200, description: 'Return a notification' })
   findOne(@Param('id') id: string) {
-    return this.notificationsService.findOne(+id);
+    return this.notificationsService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a notification' })
   @ApiResponse({ status: 200, description: 'Notification updated successfully' })
   update(@Param('id') id: string, @Body() updateNotificationDto: UpdateNotificationDto) {
-    return this.notificationsService.update(+id, updateNotificationDto);
+    return this.notificationsService.update(id, updateNotificationDto);
   }
 
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark a notification as read' })
   @ApiResponse({ status: 200, description: 'Notification marked as read' })
   markAsRead(@Param('id') id: string) {
-    return this.notificationsService.markAsRead(+id);
+    return this.notificationsService.markAsRead(id);
   }
 
   @Patch('user/read-all')
@@ -64,6 +64,6 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Delete a notification' })
   @ApiResponse({ status: 200, description: 'Notification deleted successfully' })
   remove(@Param('id') id: string) {
-    return this.notificationsService.remove(+id);
+    return this.notificationsService.remove(id);
   }
 } 

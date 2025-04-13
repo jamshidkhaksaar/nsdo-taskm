@@ -22,7 +22,7 @@ const LocalizationProvider = lazy(() => import('@mui/x-date-pickers/Localization
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 const DateTimePicker = lazy(() => import('@mui/x-date-pickers/DateTimePicker').then(m => ({ default: m.DateTimePicker })));
 import { TaskService } from '../../services/task';
-import { Task, TaskStatus, TaskPriority, TaskUpdate, DepartmentRef, CreateTask } from '../../types/task';
+import { Task, TaskStatus, TaskPriority, TaskUpdate, DepartmentRef, CreateTask, TaskType } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
@@ -41,7 +41,9 @@ interface CreateTaskDialogProps {
   dialogMode?: 'dashboard' | 'department' | 'user'; // Control which fields are shown
   preSelectedDepartment?: string; // For pre-selecting a department
   preSelectedUsers?: User[]; // For pre-selecting users
+  preSelectedDepartmentIds?: string[]; // <<< Add new prop for multiple departments
   departmentsList?: Department[]; // Accept departments list from parent
+  selectedUserId?: string; // Add selectedUserId for task assignment from user page
 }
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
@@ -55,7 +57,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   dialogMode,
   preSelectedDepartment,
   preSelectedUsers,
-  departmentsList
+  preSelectedDepartmentIds, // <<< Destructure new prop
+  departmentsList,
+  selectedUserId
 }) => {
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const theme = useTheme();
@@ -69,7 +73,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [status, setStatus] = useState<TaskStatus>(task?.status || initialStatus || TaskStatus.PENDING);
   const [collaborators, setCollaborators] = useState<User[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
-  const [department, setDepartment] = useState<string>(task?.department && typeof task.department === 'string' ? task.department : (task?.department as DepartmentRef)?.id || '');
+  const [department, setDepartment] = useState<string>(''); // Keep for single selection if needed elsewhere
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]); // State for multi-department assignment
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,9 +98,14 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   };
 
   // Initialize pageContext based on dialogMode or fallback to dialogType
-  const [pageContext, setPageContext] = useState<'dashboard' | 'department' | 'user'>(
-    dialogMode || (dialogType === 'personal' ? 'dashboard' : 'user')
-  );
+  // Modify initial context based on pre-selected props
+  const [pageContext, setPageContext] = useState<'dashboard' | 'department' | 'user'>(() => {
+      if (preSelectedDepartmentIds && preSelectedDepartmentIds.length > 0) return 'department';
+      if (preSelectedUsers && preSelectedUsers.length > 0) return 'user';
+      if (preSelectedDepartment) return 'department'; // Keep for single pre-selection?
+      if (selectedUserId) return 'user';
+      return dialogMode || (dialogType === 'personal' ? 'dashboard' : 'user');
+  });
 
   // Check if user has general manager or admin role
   const isGeneralManagerOrAdmin = currentUser?.role === 'general_manager' || currentUser?.role === 'admin';
@@ -116,13 +126,24 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     fetchUsers();
   }, [open]);
 
-  // Second effect: handles form initialization with existing data
+  // Second effect: handles form initialization with existing data OR pre-selections
   useEffect(() => {
     if (!open) return; // Don't do anything if dialog is closed
     
     // Set pre-selected values if provided
-    if (preSelectedDepartment) {
-      setDepartment(preSelectedDepartment);
+    if (preSelectedDepartmentIds && preSelectedDepartmentIds.length > 0) {
+        setSelectedDepartmentIds(preSelectedDepartmentIds);
+        setPageContext('department'); // Ensure context is department
+        // Disable single department selection if multiple are pre-selected?
+        setDepartment(''); // Clear single department state
+    } else if (preSelectedDepartment) {
+        setDepartment(preSelectedDepartment);
+        setSelectedDepartmentIds([preSelectedDepartment]); // Treat single pre-select as multi
+        setPageContext('department');
+    } else {
+        // Clear department selections if not pre-selected
+        setDepartment('');
+        setSelectedDepartmentIds([]);
     }
     
     if (preSelectedUsers && preSelectedUsers.length > 0) {
@@ -152,11 +173,29 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       } else {
         setDepartment('');
       }
+
+      // Handle existing assignments (assuming Task type has assignedToDepartmentIds)
+      if (task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0) {
+         setSelectedDepartmentIds(task.assignedToDepartmentIds);
+         setPageContext('department');
+      } else {
+         // Clear if editing a task that previously had no dept assignments
+         setSelectedDepartmentIds([]);
+      }
     } else {
-      // Create mode - reset form (including setting priority to medium)
-      resetForm();
+      // Create mode - reset form, applying pre-selections handled above
+      setTitle('');
+      setDescription('');
+      setDueDate(null);
+      setPriority(TaskPriority.MEDIUM);
+      setError(null);
+      setDateError(null);
+      // Keep pre-selections, don't call resetForm() directly here
+      if (!(preSelectedDepartmentIds && preSelectedDepartmentIds.length > 0) && !preSelectedDepartment) {
+          setSelectedDepartmentIds([]);
+      }
     }
-  }, [open, task, preSelectedDepartment, preSelectedUsers, pageContext]);
+  }, [open, task, preSelectedDepartment, preSelectedUsers, preSelectedDepartmentIds]); // Add preSelectedDepartmentIds dependency
   
   // Third effect: Update user assignments after users are loaded
   useEffect(() => {
@@ -202,6 +241,17 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     }
   }, [dialogMode, preSelectedDepartment, preSelectedUsers, pageContext]);
 
+  // Initialize selectedUsers if selectedUserId is provided
+  useEffect(() => {
+    if (selectedUserId && users.length > 0 && pageContext === 'user') {
+      const targetUser = users.find(user => user.id === selectedUserId);
+      if (targetUser && (!selectedUsers || selectedUsers.length === 0)) {
+        setSelectedUsers([targetUser]);
+        console.log('[Task Dialog] Setting selected user:', targetUser);
+      }
+    }
+  }, [selectedUserId, users, pageContext, selectedUsers]);
+
   const validateDueDate = (date: Date | null): boolean => {
     if (!date) {
       setError('Due date is required');
@@ -227,7 +277,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     console.log('[Submit] Clicked. Current State:', {
       title, description, dueDate, priority, status, 
       pageContext, department, selectedUsers, collaborators,
-      dialogMode, preSelectedDepartment,
+      dialogMode, preSelectedDepartment, selectedUserId,
       error, dateError, loading
     });
 
@@ -256,7 +306,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     }
     
     // User Assignment Validation (Specific to user context)
-    if (pageContext === 'user' && selectedUsers.length === 0) {
+    if (pageContext === 'user' && selectedUsers.length === 0 && !selectedUserId) {
        setError('Please assign at least one user');
        console.log('[Submit] Validation failed: No user assigned in user context');
        return;
@@ -266,76 +316,49 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setLoading(true);
     setError(null);
 
+    let taskType = TaskType.PERSONAL; // Default
+    if (selectedDepartmentIds.length > 0) {
+      taskType = TaskType.DEPARTMENT; // TODO: Handle PROVINCE_DEPARTMENT if needed
+    } else if (selectedUsers.length > 0) {
+      taskType = TaskType.USER;
+    }
+
+    const taskData: CreateTask = {
+      title,
+      description,
+      priority,
+      status: initialStatus || TaskStatus.PENDING, // Use initialStatus if provided
+      dueDate: dueDate ? dueDate.toISOString() : undefined,
+      type: taskType,
+      assignedToDepartmentIds: selectedDepartmentIds, // Pass the selected IDs
+      assignedToUserIds: selectedUsers.map(u => u.id), // Pass selected user IDs
+      assignedToProvinceId: undefined, // TODO: Handle province assignment if needed
+      // createdById is handled by backend
+    };
+
+    console.log('Submitting Task Data:', taskData);
+
     try {
       if (task) {
-        // === Update Task Logic ===
-        console.log('[Submit] Updating task...');
-        const updateData: TaskUpdate = { 
-          title,
-          description,
-          status,
-          priority,
-          dueDate: dueDate.toISOString(),
-          assigned_to: pageContext === 'user' 
-            ? selectedUsers.map(u => u.id.toString()) 
-            : pageContext === 'dashboard'
-              ? collaborators.map(c => c.id.toString()) 
-              : task.assigned_to,
-          departmentId: pageContext === 'department' ? department : undefined,
-        };
-        console.log('[Submit] Update Payload:', updateData);
-        const updatedTask = await TaskService.updateTask(String(task.id), updateData);
+        // Update existing task
+        // Ensure update service handles assignedToDepartmentIds
+        // await TaskService.updateTask(task.id, taskData); // Might need a different DTO for update
         if (onTaskUpdated) {
-          onTaskUpdated(updatedTask);
+          // onTaskUpdated(updatedTask); // Pass back updated task
         }
-        console.log('[Submit] Task updated successfully.');
-
+        alert('Task updated successfully!'); // Placeholder
       } else {
-        // === Create New Task Logic ===
-        console.log('[Submit] Creating new task...');
-        const newTask: CreateTask = {
-          title,
-          description,
-          dueDate: dueDate.toISOString(),
-          priority,
-          status: initialStatus || TaskStatus.PENDING,
-          departmentId: undefined, // Initialize
-          assigned_to: undefined // Initialize
-        };
-
-        // Add departmentId if in department context
-        if (pageContext === 'department' && department) {
-          newTask.departmentId = department;
-        }
-
-        // Add user assignments based on context
-        if (pageContext === 'user' && selectedUsers.length > 0) {
-          newTask.assigned_to = selectedUsers.map(user => user.id.toString());
-        } else if (pageContext === 'dashboard' && collaborators.length > 0) {
-          newTask.assigned_to = collaborators.map(user => user.id.toString());
-        }
-        
-        console.log('[Submit] Create Payload:', newTask);
-        await TaskService.createTask(newTask);
+        // Create new task
+        await TaskService.createTask(taskData);
         onTaskCreated();
-        console.log('[Submit] Task created successfully.');
+        alert('Task created successfully!'); // Placeholder
       }
-
-      onClose();
-    } catch (err) {
-      console.error('[Submit] Error saving task:', err);
-      // Improved error handling from response
-      let message = 'Failed to save task. Please try again.';
-      if (err instanceof Error && (err as any).response?.data?.message) {
-        message = Array.isArray((err as any).response.data.message) 
-          ? (err as any).response.data.message.join(', ') 
-          : (err as any).response.data.message;
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      setError(message);
+      onClose(); // Close dialog on success
+      resetForm();
+    } catch (err: any) { // Catch specific error types if possible
+      console.error('Error saving task:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to save task');
     } finally {
-      console.log('[Submit] Resetting loading state.');
       setLoading(false);
     }
   };

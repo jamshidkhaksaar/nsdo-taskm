@@ -181,15 +181,15 @@ export class AdminService {
     try {
       // Get departments with their relations
       const departmentEntities = await this.departmentsRepository.find({
-        relations: ['members', 'tasks', 'head'],
+        relations: ['members', 'assignedTasks', 'head'],
       });
 
       return departmentEntities.map(department => {
         const membersCount = department.members ? department.members.length : 0;
         
-        const totalTasks = department.tasks ? department.tasks.length : 0;
-        const completedTasks = department.tasks 
-          ? department.tasks.filter(task => task.status === TaskStatus.COMPLETED).length 
+        const totalTasks = department.assignedTasks ? department.assignedTasks.length : 0;
+        const completedTasks = department.assignedTasks 
+          ? department.assignedTasks.filter(task => task.status === TaskStatus.COMPLETED).length 
           : 0;
         
         const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -357,24 +357,35 @@ export class AdminService {
     // Sanitize the department data to avoid sending full user objects
     return departments.map(department => {
       // Create a sanitized version of the department
-      const sanitizedDepartment = { ...department } as any;
+      const sanitizedDepartment = { 
+          id: department.id,
+          name: department.name,
+          description: department.description,
+          provinceId: department.provinceId,
+          createdAt: department.createdAt,
+          updatedAt: department.updatedAt,
+          head: null, // Initialize head as null
+          members: [] // Initialize members as empty array
+       } as any; // Use 'as any' temporarily if needed, or define a proper DTO
       
-      // Replace head with minimal user info
-      if (sanitizedDepartment.head) {
+      // Replace head with minimal user info safely
+      if (department.head) { 
         sanitizedDepartment.head = {
-          id: department.head.id,
+          id: department.head.id, 
           username: department.head.username,
           role: department.head.role
         };
       }
       
       // Replace members with minimal user info
-      if (sanitizedDepartment.members && sanitizedDepartment.members.length > 0) {
+      if (department.members && department.members.length > 0) {
         sanitizedDepartment.members = department.members.map(user => ({
           id: user.id,
           username: user.username,
           role: user.role
         }));
+      } else {
+          sanitizedDepartment.members = [];
       }
       
       return sanitizedDepartment;

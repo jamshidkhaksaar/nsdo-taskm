@@ -1,6 +1,6 @@
 import apiClient from '../utils/axios';
 import { AxiosResponse } from 'axios';
-import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef, TaskPriority } from '../types/task';
+import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef, TaskPriority, DashboardTasksResponse } from '../types/task';
 import { User } from '../types/user';
 import { parseDate, toISOString } from '../utils/dateUtils';
 
@@ -167,9 +167,15 @@ export const TaskService = {
                 description: taskData.description || '',
                 status,
                 departmentId: taskData.departmentId,
-                assigned_to: taskData.assigned_to,
+                // Convert assigned_to to assignedToUsers for API compatibility
+                assignedToUsers: taskData.assignedToUsers || taskData.assigned_to,
                 priority: taskData.priority,
+                assignedToDepartmentIds: taskData.assignedToDepartmentIds,
+                assignedToProvinceId: taskData.assignedToProvinceId
             };
+
+            // Remove assigned_to to prevent backend error
+            delete payload.assigned_to;
 
             if (taskData.due_date) {
                 payload.dueDate = toISOString(taskData.due_date);
@@ -349,5 +355,30 @@ export const TaskService = {
       console.error('Error delegating task:', error);
       throw error;
     }
-  }
+  },
+
+  // START: Add Dashboard Task Fetching Function
+  getDashboardTasks: async (): Promise<DashboardTasksResponse> => {
+    try {
+      console.log("Fetching dashboard tasks...");
+      const response = await apiClient.get<DashboardTasksResponse>('/tasks/dashboard');
+      console.log("Dashboard tasks received:", response);
+      // Explicitly return the .data property to match the expected type
+      // This assumes apiClient.get might sometimes return the full AxiosResponse
+      // or handles the case where it directly returns data.
+      return response.data; 
+    } catch (error) {
+      console.error('Error fetching dashboard tasks:', error);
+      // Return an empty structure or rethrow based on how consuming components handle errors
+      // throw error; 
+       return { 
+          myPersonalTasks: [], 
+          tasksICreatedForOthers: [], 
+          tasksAssignedToMe: [], 
+          tasksDelegatedByMe: [], 
+          tasksDelegatedToMe: [] 
+      };
+    }
+  },
+  // END: Add Dashboard Task Fetching Function
 };

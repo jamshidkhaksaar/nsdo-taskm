@@ -13,15 +13,15 @@ export class CreateNotificationDto {
   @IsEnum(NotificationType)
   type: NotificationType;
 
-  @ApiProperty({ description: 'User ID to notify' })
+  @ApiProperty({ description: 'User ID to notify', type: String })
   @IsNotEmpty()
-  @IsNumber()
-  user_id: number;
+  @IsString()
+  user_id: string;
 
-  @ApiProperty({ description: 'Task ID related to the notification', required: false })
+  @ApiProperty({ description: 'Task ID related to the notification', required: false, type: String })
   @IsOptional()
-  @IsNumber()
-  task_id?: number;
+  @IsString()
+  task_id?: string;
 
   @ApiProperty({ description: 'Whether the notification has been read', default: false })
   @IsOptional()

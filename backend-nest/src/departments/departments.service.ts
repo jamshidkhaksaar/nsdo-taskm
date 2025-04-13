@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException, ConflictException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Department } from './entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { ProvinceService } from '../provinces/province.service';
 
 @Injectable()
 export class DepartmentsService {
@@ -14,6 +16,7 @@ export class DepartmentsService {
     private departmentsRepository: Repository<Department>,
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
+    private provinceService: ProvinceService,
   ) {}
 
   async findAll(): Promise<Department[]> {
@@ -22,7 +25,7 @@ export class DepartmentsService {
         relations: {
           members: true,
           head: true,
-          tasks: true
+          assignedTasks: true
         }
       });
     } catch (error) {
@@ -38,7 +41,7 @@ export class DepartmentsService {
         .createQueryBuilder('department')
         .leftJoinAndSelect('department.members', 'members')
         .leftJoinAndSelect('department.head', 'head')
-        .leftJoinAndSelect('department.tasks', 'tasks')
+        .leftJoinAndSelect('department.assignedTasks', 'assignedTasks')
         .where('department.id = :id', { id })
         .getOne();
 
@@ -101,6 +104,26 @@ export class DepartmentsService {
         department.description = createDepartmentDto.description;
       }
       
+      // START: Handle provinceId during creation
+      if (createDepartmentDto.provinceId) {
+        try {
+          // Validate province exists
+          await this.provinceService.findOne(createDepartmentDto.provinceId);
+          department.provinceId = createDepartmentDto.provinceId;
+          console.log(`Assigning department to province: ${department.provinceId}`);
+        } catch (error) {
+          // Handle case where province validation fails (e.g., province not found)
+          console.error(`Error validating province ${createDepartmentDto.provinceId} during department creation: ${error.message}`);
+          // Depending on requirements, you might throw a BadRequestException here
+          // throw new BadRequestException(`Province with ID "${createDepartmentDto.provinceId}" not found.`);
+          // For now, let's just log the error and proceed without assigning the province
+          department.provinceId = null;
+        }
+      } else {
+          department.provinceId = null; // Ensure it's null if not provided
+      }
+      // END: Handle provinceId during creation
+
       // Save department to get an ID
       const savedDepartment = await this.departmentsRepository.save(department);
       console.log(`Created department with ID: ${savedDepartment.id}`);
@@ -149,6 +172,29 @@ export class DepartmentsService {
   async update(id: string, updateDepartmentDto: UpdateDepartmentDto): Promise<Department> {
     try {
       console.log(`Updating department ${id} with DTO:`, JSON.stringify(updateDepartmentDto, null, 2));
+      
+      // Use QueryDeepPartialEntity for the update payload
+      const updatePayload: QueryDeepPartialEntity<Department> = {};
+      
+      if (updateDepartmentDto.name !== undefined) {
+          updatePayload.name = updateDepartmentDto.name;
+      }
+      
+      if (updateDepartmentDto.description !== undefined) {
+          updatePayload.description = updateDepartmentDto.description;
+      }
+      
+      if (updateDepartmentDto.provinceId !== undefined) {
+          // Handle null case for unassigning province
+          if (updateDepartmentDto.provinceId === null || updateDepartmentDto.provinceId === '') {
+               updatePayload.provinceId = null; // Should now be type-correct
+          } else {
+              // Validate province exists
+              await this.provinceService.findOne(updateDepartmentDto.provinceId); // Throws if not found
+              
+              updatePayload.provinceId = updateDepartmentDto.provinceId;
+          }
+      }
       
       // Get the existing department
       const department = await this.findOne(id);
@@ -316,7 +362,7 @@ export class DepartmentsService {
         departmentId: department.id,
         name: department.name,
         totalMembers: department.members?.length || 0,
-        totalTasks: department.tasks?.length || 0,
+        totalTasks: department.assignedTasks?.length || 0,
         // Add more metrics as needed
       };
     } catch (error) {
@@ -363,4 +409,59 @@ export class DepartmentsService {
       return false;
     }
   }
+
+  // START: Add missing methods for Province-Department assignment
+  async assignDepartmentsToProvince(provinceId: string, departmentIds: string[]) {
+    try {
+      console.log(`Assigning departments [${departmentIds.join(', ')}] to province ${provinceId}`);
+      // Validate province exists
+      await this.provinceService.findOne(provinceId);
+
+      // Validate all departments exist
+      const departments = await this.departmentsRepository.findBy({ id: In(departmentIds) });
+      if (departments.length !== departmentIds.length) {
+        const foundIds = departments.map(d => d.id);
+        const notFoundIds = departmentIds.filter(id => !foundIds.includes(id));
+        throw new NotFoundException(`Departments with IDs [${notFoundIds.join(', ')}] not found.`);
+      }
+
+      // Update provinceId for each department
+      await this.departmentsRepository.update(
+        { id: In(departmentIds) },
+        { provinceId: provinceId }
+      );
+      console.log(`Successfully updated provinceId for departments.`);
+
+      // Return the updated province entity with its departments
+      return this.provinceService.findOne(provinceId);
+    } catch (error) {
+      console.error(`Error assigning departments to province ${provinceId}:`, error);
+      throw error;
+    }
+  }
+
+  async removeDepartmentFromProvince(provinceId: string, departmentId: string): Promise<void> {
+    try {
+      console.log(`Removing department ${departmentId} from province ${provinceId}`);
+      // Validate province and department exist
+      await this.provinceService.findOne(provinceId); // Ensure province exists
+      const department = await this.findOne(departmentId); // Ensure department exists
+
+      // Check if the department is actually assigned to this province
+      if (department.provinceId !== provinceId) {
+        // Optionally throw an error or just log and return
+        console.warn(`Department ${departmentId} is not assigned to province ${provinceId}. Current province: ${department.provinceId}`);
+        // throw new BadRequestException(`Department ${departmentId} is not assigned to province ${provinceId}.`);
+        return; // Or handle as appropriate
+      }
+
+      // Set provinceId to null for the department
+      await this.departmentsRepository.update(departmentId, { provinceId: null });
+      console.log(`Successfully removed department ${departmentId} from province ${provinceId}`);
+    } catch (error) {
+      console.error(`Error removing department ${departmentId} from province ${provinceId}:`, error);
+      throw error;
+    }
+  }
+  // END: Add missing methods for Province-Department assignment
 } 

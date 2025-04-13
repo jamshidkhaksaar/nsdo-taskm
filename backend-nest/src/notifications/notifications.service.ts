@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, Optional } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Optional, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 import { TasksService } from '../tasks/tasks.service';
 import { Task } from '../tasks/entities/task.entity';
 import { User } from '../users/entities/user.entity';
+import { DeepPartial } from 'typeorm';
 
 @Injectable()
 export class NotificationsService {
@@ -21,65 +22,60 @@ export class NotificationsService {
 
   // Create a notification
   async create(createNotificationDto: CreateNotificationDto): Promise<Notification> {
-    const notification = this.notificationsRepository.create(createNotificationDto);
+    const notification = this.notificationsRepository.create(createNotificationDto as DeepPartial<Notification>);
     return this.notificationsRepository.save(notification);
   }
 
   // Find all notifications for a user
-  async findAllForUser(userId: number): Promise<Notification[]> {
+  async findAllForUser(userId: string): Promise<Notification[]> {
     return this.notificationsRepository.find({
       where: { user_id: userId },
       order: { created_at: 'DESC' },
-      relations: ['task'],
     });
   }
 
   // Find unread notifications for a user
-  async findUnreadForUser(userId: number): Promise<Notification[]> {
+  async findUnreadForUser(userId: string): Promise<Notification[]> {
     return this.notificationsRepository.find({
       where: { user_id: userId, read: false },
       order: { created_at: 'DESC' },
-      relations: ['task'],
     });
   }
 
   // Find a single notification by ID
-  async findOne(id: number): Promise<Notification> {
-    const notification = await this.notificationsRepository.findOne({
-      where: { id },
-      relations: ['task', 'user'],
-    });
+  async findOne(id: string): Promise<Notification> {
+    const notification = await this.notificationsRepository.findOne({ where: { id } });
     
     if (!notification) {
-      throw new Error(`Notification with ID ${id} not found`);
+      throw new NotFoundException(`Notification with ID ${id} not found`);
     }
     
     return notification;
   }
 
   // Update a notification
-  async update(id: number, updateNotificationDto: UpdateNotificationDto): Promise<Notification> {
+  async update(id: string, updateNotificationDto: UpdateNotificationDto): Promise<Notification> {
     await this.notificationsRepository.update(id, updateNotificationDto);
     return this.findOne(id);
   }
 
   // Mark a notification as read
-  async markAsRead(id: number): Promise<Notification> {
+  async markAsRead(id: string): Promise<Notification> {
     await this.notificationsRepository.update(id, { read: true });
     return this.findOne(id);
   }
 
   // Mark all notifications as read for a user
-  async markAllAsRead(userId: number): Promise<void> {
-    await this.notificationsRepository.update(
-      { user_id: userId, read: false },
-      { read: true }
-    );
+  async markAllAsRead(userId: string): Promise<void> {
+    await this.notificationsRepository.update({ user_id: userId, read: false }, { read: true });
   }
 
   // Remove a notification
-  async remove(id: number): Promise<void> {
-    await this.notificationsRepository.delete(id);
+  async remove(id: string): Promise<void> {
+    const result = await this.notificationsRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Notification with ID ${id} not found`);
+    }
   }
 
   // Helper methods for creating specific types of notifications
@@ -93,7 +89,7 @@ export class NotificationsService {
     await this.create({
       message,
       type: NotificationType.TASK_ASSIGNED,
-      user_id: Number(assignedUser.id),
+      user_id: assignedUser.id,
       task_id: task.id,
       read: false,
     });
@@ -108,7 +104,7 @@ export class NotificationsService {
     await this.create({
       message,
       type: NotificationType.COLLABORATOR_ADDED,
-      user_id: Number(collaborator.id),
+      user_id: collaborator.id,
       task_id: task.id,
       read: false,
     });
@@ -134,7 +130,7 @@ export class NotificationsService {
           this.create({
             message,
             type: NotificationType.TASK_STATUS_CHANGED,
-            user_id: Number(user.id),
+            user_id: user.id,
             task_id: task.id,
             read: false,
           })

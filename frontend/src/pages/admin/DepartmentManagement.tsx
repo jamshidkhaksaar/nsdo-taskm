@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import {
   Grid,
   Card,
@@ -34,6 +35,7 @@ import {
   Tabs,
   Tab,
   Fade,
+  SelectChangeEvent,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -44,7 +46,6 @@ import BusinessIcon from '@mui/icons-material/Business';
 import PersonIcon from '@mui/icons-material/Person';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
-import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -52,6 +53,11 @@ import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLay
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
+import { DepartmentService } from '../../services/department';
+import { Department } from '../../types/department';
+import { User } from '../../types/user';
+import { Province } from '../../types/province';
+import * as provinceService from '../../services/provinceService';
 
 interface AdminDepartment {
   id: string;
@@ -78,6 +84,7 @@ interface DepartmentFormData {
   name: string;
   description: string;
   head: string;
+  provinceId: string | null;
 }
 
 interface EditMode {
@@ -85,24 +92,23 @@ interface EditMode {
   departmentId: string | null;
 }
 
-
 const DRAWER_WIDTH = 240;
 
 const DepartmentManagement: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState<AdminDepartment | null>(null);
-  const [departments, setDepartments] = useState<AdminDepartment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [formData, setFormData] = useState<DepartmentFormData>({
     name: '',
     description: '',
     head: '',
+    provinceId: null,
   });
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [error, setError] = useState<string | null>(null);
@@ -114,12 +120,11 @@ const DepartmentManagement: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const glassStyles = getGlassmorphismStyles(theme);
   
-  // State for managing adding members
   const [openAddMemberDialog, setOpenAddMemberDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState('');
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
+  const [availableProvinces, setAvailableProvinces] = useState<Province[]>([]);
 
-  // Define dialogPaperProps with glassmorphism styles
   const dialogPaperProps = {
     sx: {
       ...glassStyles.form,
@@ -138,162 +143,135 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  const fetchDepartments = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/departments');
-      const departments: AdminDepartment[] = response.data;
-      console.log('Received departments:', departments);
-      
-      // Log head information for debugging
-      departments.forEach((dept) => {
-        console.log(`Department ${dept.name} (${dept.id}):`, {
-          head: dept.head,
-          head_name: dept.head_name,
-          members_count: dept.members_count
-        });
-      });
-      
-      setDepartments(departments);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-      setError('Failed to fetch departments');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: departments = [], isLoading: isLoadingDepartments, error: fetchDepartmentsError } = 
+    useQuery<Department[], Error>('departments', DepartmentService.getDepartments, {
+      staleTime: 5 * 60 * 1000,
+    });
 
-  useEffect(() => {
-    fetchDepartments();
-  }, [fetchDepartments]);
+  const { data: provincesData = [], isLoading: isLoadingProvinces } = 
+    useQuery<Province[], Error>('adminProvincesForSelect', provinceService.getAdminProvinces, {
+      staleTime: 10 * 60 * 1000,
+      onSuccess: (data) => setAvailableProvinces(data)
+    });
 
-  const fetchAvailableUsers = async () => {
-    try {
-      const response = await axios.get('/users');
-      const users = response.data;
-      
-      // Map the user data to the format expected by the dropdown
-      const formattedUsers = users.map((user: any) => ({
-        id: user.id,
-        name: `${user.first_name || user.username} ${user.last_name || ''}`.trim()
-      }));
-      
-      setAvailableUsers(formattedUsers);
-    } catch (error) {
-      console.error('Error fetching available users:', error);
-      setError('Failed to fetch available users');
-    }
-  };
-
-  useEffect(() => {
-    if (openDialog) {
-      fetchAvailableUsers();
-    }
-  }, [openDialog]);
-
-  // Add effect to fetch users when add member dialog opens
-  useEffect(() => {
-    if (openAddMemberDialog) {
-      fetchAvailableUsers();
-      console.log('Fetching available users for member dialog');
-    }
-  }, [openAddMemberDialog]);
-
-  // Add effect to refresh department data when members dialog opens
-  useEffect(() => {
-    if (openMembersDialog && selectedDepartment) {
-      // Refresh the selected department data to get latest members
-      const refreshDepartmentData = async () => {
-        try {
-          const response = await axios.get(`/departments/${selectedDepartment.id}`);
-          console.log('Refreshed department data for members dialog:', response.data);
-          setSelectedDepartment(response.data);
-        } catch (error) {
-          console.error('Error refreshing department data:', error);
-        }
-      };
-      
-      refreshDepartmentData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openMembersDialog, selectedDepartment?.id]);
-
-  const handleAddDepartment = async () => {
-    try {
-      if (editMode.isEdit && editMode.departmentId) {
-        // Update existing department
-        const departmentData = {
-          name: formData.name,
-          description: formData.description,
-          head: formData.head // Using just the user ID string
-        };
-        
-        await axios.put(`/departments/${editMode.departmentId}/`, departmentData);
-        alert('Department updated successfully!');
-      } else {
-        // Create new department
-        await axios.post('/departments/', formData);
-        alert('Department created successfully!');
-      }
-      
+  const createDepartmentMutation = useMutation(DepartmentService.createDepartment, {
+    onSuccess: () => {
+      queryClient.invalidateQueries('departments');
       handleCloseDialog();
-      await fetchDepartments();
-    } catch (error) {
-      console.error('Error saving department:', error);
-      setError(`Failed to ${editMode.isEdit ? 'update' : 'create'} department`);
+      alert('Department created successfully!');
+    },
+    onError: (err: any) => {
+      console.error("Error creating department:", err);
+      setError(err.response?.data?.message || err.message || 'Failed to create department');
     }
-  };
+  });
 
-  const handleEditDepartment = (deptId: string) => {
-    const department = departments.find(d => d.id === deptId);
-    if (department) {
-      setFormData({
-        name: department.name,
-        description: department.description,
-        head: department.head?.id || ''
-      });
-      setEditMode({ isEdit: true, departmentId: deptId });
-      setOpenDialog(true);
-    }
-  };
-
-  const handleDeleteDepartment = async (deptId: string) => {
-    if (window.confirm('Are you sure you want to delete this department?')) {
-      try {
-        await axios.delete(`/departments/${deptId}/`);
-        alert('Department deleted successfully!');
-        await fetchDepartments();
-      } catch (error) {
-        console.error('Error deleting department:', error);
-        setError('Failed to delete department');
+  const updateDepartmentMutation = useMutation(
+    (data: { id: string, dto: Partial<Department> }) => DepartmentService.updateDepartment(data.id, data.dto),
+    {
+      onSuccess: (updatedDept) => {
+        queryClient.invalidateQueries('departments');
+        handleCloseDialog();
+        alert('Department updated successfully!');
+      },
+      onError: (err: any) => {
+        console.error("Error updating department:", err);
+        setError(err.response?.data?.message || err.message || 'Failed to update department');
       }
     }
+  );
+
+  const deleteDepartmentMutation = useMutation(DepartmentService.deleteDepartment, {
+    onSuccess: () => {
+      queryClient.invalidateQueries('departments');
+      alert('Department deleted successfully!');
+    },
+    onError: (err: any) => {
+      console.error("Error deleting department:", err);
+      setError(err.response?.data?.message || err.message || 'Failed to delete department');
+    }
+  });
+
+  const handleFormChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [event.target.name]: event.target.value });
+  };
+  
+  const handleProvinceChange = (event: SelectChangeEvent<string | null>) => {
+    const value = event.target.value;
+    setFormData({ 
+        ...formData, 
+        provinceId: value === '' ? null : value 
+    });
+  };
+  
+  const handleHeadChange = (event: SelectChangeEvent<string>) => {
+    const value = event.target.value;
+    setFormData({ 
+        ...formData, 
+        head: value
+    });
   };
 
-  const handleViewMembers = async (deptId: string) => {
-    try {
-      // Get the latest department data with members
-      const response = await axios.get(`/departments/${deptId}`);
-      const department = response.data;
-      
-      setSelectedDepartment(department);
-      setOpenMembersDialog(true);
-      
-      console.log('Department members:', department.members);
-    } catch (error) {
-      console.error('Error fetching department details:', error);
-      setError('Failed to load department members');
+  const handleSaveDepartment = () => {
+    setError(null);
+    const submissionData: Partial<Department> & { headId?: string | null } = {
+        name: formData.name,
+        description: formData.description,
+        headId: formData.head === '' ? null : formData.head, 
+        provinceId: formData.provinceId || null
+    };
+    
+    Object.keys(submissionData).forEach(key => {
+       if (submissionData[key as keyof typeof submissionData] === '') { 
+          if (key === 'description') { 
+          } else if (key !== 'headId' && key !== 'provinceId') {
+          } 
+       }
+    });
+
+    if (editMode.isEdit && editMode.departmentId) {
+        console.log("Updating department:", editMode.departmentId, submissionData);
+        updateDepartmentMutation.mutate({ id: editMode.departmentId, dto: submissionData as any });
+    } else {
+        console.log("Creating department:", submissionData);
+        if (!submissionData.name) {
+            setError("Department Name is required.");
+            return;
+        }
+        createDepartmentMutation.mutate(submissionData as any);
     }
+  };
+
+  const handleDeleteDepartment = (deptId: string) => {
+    if (window.confirm('Are you sure you want to delete this department and potentially reassign its members/tasks?')) {
+        deleteDepartmentMutation.mutate(deptId);
+    }
+  };
+
+  const handleEditDepartment = (dept: Department) => {
+    setEditMode({ isEdit: true, departmentId: dept.id });
+    setFormData({
+      name: dept.name,
+      description: dept.description || '',
+      head: dept.head?.id || '',
+      provinceId: dept.provinceId || null
+    });
+    setError(null);
+    setOpenDialog(true);
+  };
+
+  const handleOpenCreateDialog = () => {
+    setEditMode({ isEdit: false, departmentId: null });
+    setFormData({ name: '', description: '', head: '', provinceId: null });
+    setError(null);
+    setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditMode({ isEdit: false, departmentId: null });
-    setFormData({
-      name: '',
-      description: '',
-      head: '',
-    });
+    setFormData({ name: '', description: '', head: '', provinceId: '' });
+    setError(null);
   };
 
   const handleToggleSidebar = useCallback(() => {
@@ -305,18 +283,14 @@ const DepartmentManagement: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    // Handle logout logic here
     navigate('/login');
   };
-
-
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
   const getRandomGradient = (id: string) => {
-    // Generate a consistent gradient based on the department ID
     const hash = id.split('').reduce((acc, char) => {
       return char.charCodeAt(0) + ((acc << 5) - acc);
     }, 0);
@@ -327,7 +301,6 @@ const DepartmentManagement: React.FC = () => {
     return `linear-gradient(135deg, hsl(${h1}, 70%, 35%) 0%, hsl(${h2}, 80%, 25%) 100%)`;
   };
 
-  // Function to open the add member dialog
   const handleOpenAddMemberDialog = () => {
     if (selectedDepartment) {
       setOpenAddMemberDialog(true);
@@ -335,39 +308,23 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  // Function to add a member to a department
   const handleAddMemberToDepartment = async () => {
     if (!selectedDepartment || !selectedMember) return;
     
     try {
       console.log(`Adding user ${selectedMember} to department ${selectedDepartment.id}`);
-      setLoading(true);
-      await axios.post(`/departments/${selectedDepartment.id}/members/${selectedMember}/`);
+      await DepartmentService.addMemberToDepartment(selectedDepartment.id, selectedMember);
       
-      // Close the dialog
       setOpenAddMemberDialog(false);
       setSelectedMember('');
       
-      // Find the user that was added to display in the alert
-      const addedUser = availableUsers.find(user => user.id === selectedMember);
-      alert(`Member "${addedUser?.name || 'User'}" added successfully!`);
+      await queryClient.invalidateQueries('departments');
       
-      // Refresh department data
-      await fetchDepartments();
-      
-      // Refresh the selected department to see the new member
       if (selectedDepartment && selectedDepartment.id) {
         try {
-          const updatedDept = await axios.get(`/departments/${selectedDepartment.id}/`);
-          console.log('Updated department after adding member:', updatedDept.data);
-          setSelectedDepartment(updatedDept.data);
-          
-          // Update the department in the main departments list as well
-          setDepartments(prevDepts => 
-            prevDepts.map(dept => 
-              dept.id === selectedDepartment.id ? updatedDept.data : dept
-            )
-          );
+          const updatedDept = await DepartmentService.getDepartment(selectedDepartment.id);
+          console.log('Updated department after adding member:', updatedDept);
+          setSelectedDepartment(updatedDept);
         } catch (fetchError) {
           console.error('Error fetching updated department:', fetchError);
         }
@@ -375,12 +332,9 @@ const DepartmentManagement: React.FC = () => {
     } catch (error) {
       console.error('Error adding member:', error);
       setError('Failed to add member to department');
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Function to remove a member from a department
   const handleRemoveMemberFromDepartment = async (userId: string) => {
     if (!selectedDepartment) return;
     
@@ -389,15 +343,13 @@ const DepartmentManagement: React.FC = () => {
     }
     
     try {
-      await axios.delete(`/departments/${selectedDepartment.id}/members/${userId}/`);
+      await DepartmentService.removeMemberFromDepartment(selectedDepartment.id, userId);
       alert('Member removed successfully!');
       
-      // Refresh department data
-      await fetchDepartments();
+      await queryClient.invalidateQueries('departments');
       
-      // Refresh the selected department
-      const updatedDept = await axios.get(`/departments/${selectedDepartment.id}/`);
-      setSelectedDepartment(updatedDept.data);
+      const updatedDept = await DepartmentService.getDepartment(selectedDepartment.id);
+      setSelectedDepartment(updatedDept);
     } catch (error) {
       console.error('Error removing member:', error);
       setError('Failed to remove member from department');
@@ -471,7 +423,7 @@ const DepartmentManagement: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setOpenDialog(true)}
+              onClick={handleOpenCreateDialog}
               sx={{
                 borderRadius: '8px',
                 px: 3,
@@ -509,7 +461,7 @@ const DepartmentManagement: React.FC = () => {
         </Box>
       </Paper>
 
-      {loading ? (
+      {isLoadingDepartments ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
           <CircularProgress size={60} thickness={4} sx={{ color: theme.palette.primary.main }} />
         </Box>
@@ -535,7 +487,7 @@ const DepartmentManagement: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setOpenDialog(true)}
+            onClick={handleOpenCreateDialog}
             sx={{
               borderRadius: '8px',
               px: 3,
@@ -657,7 +609,7 @@ const DepartmentManagement: React.FC = () => {
                     <Tooltip title="Edit department details">
                       <IconButton 
                         size="small" 
-                        onClick={() => handleEditDepartment(dept.id)}
+                        onClick={() => handleEditDepartment(dept)}
                         sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
                       >
                         <EditIcon fontSize="small" />
@@ -666,7 +618,10 @@ const DepartmentManagement: React.FC = () => {
                     <Tooltip title="View department members">
                       <IconButton 
                         size="small" 
-                        onClick={() => handleViewMembers(dept.id)}
+                        onClick={() => {
+                          setSelectedDepartment(dept);
+                          setOpenMembersDialog(true);
+                        }}
                         sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
                       >
                         <GroupIcon fontSize="small" />
@@ -699,10 +654,11 @@ const DepartmentManagement: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             <TextField
               label="Department Name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={handleFormChange}
               fullWidth
               required
               variant="outlined"
@@ -724,7 +680,7 @@ const DepartmentManagement: React.FC = () => {
             <TextField
               label="Description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={handleFormChange}
               multiline
               rows={3}
               fullWidth
@@ -737,27 +693,34 @@ const DepartmentManagement: React.FC = () => {
                 '& .MuiOutlinedInput-root': glassStyles.input,
               }}
             />
-            <FormControl fullWidth variant="outlined">
-              <InputLabel sx={glassStyles.inputLabel}>Department Head</InputLabel>
+            <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
+              <InputLabel id="department-head-label">Department Head</InputLabel>
               <Select
-                value={formData.head || ''}
-                onChange={(e) => setFormData({ ...formData, head: e.target.value })}
+                labelId="department-head-label"
+                name="head"
+                value={formData.head}
                 label="Department Head"
-                sx={{
-                  '& .MuiOutlinedInput-root': glassStyles.input,
-                  ...glassStyles.input
-                }}
-                startAdornment={
-                  <InputAdornment position="start">
-                    <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-                  </InputAdornment>
-                }
+                onChange={handleHeadChange}
               >
-                <MenuItem value="">None</MenuItem>
+                <MenuItem value=""><em>None</em></MenuItem>
                 {availableUsers.map((user) => (
-                  <MenuItem key={user.id} value={user.id.toString()}>
-                    {user.name}
-                  </MenuItem>
+                  <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
+              <InputLabel id="department-province-label">Assigned Province</InputLabel>
+              <Select
+                labelId="department-province-label"
+                name="provinceId"
+                value={formData.provinceId ?? ''}
+                label="Assigned Province"
+                onChange={handleProvinceChange}
+                disabled={isLoadingProvinces}
+              >
+                <MenuItem value=""><em>None</em></MenuItem>
+                {availableProvinces.map((province) => (
+                  <MenuItem key={province.id} value={province.id}>{province.name}</MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -777,7 +740,7 @@ const DepartmentManagement: React.FC = () => {
             Cancel
           </Button>
           <Button 
-            onClick={handleAddDepartment} 
+            onClick={handleSaveDepartment} 
             variant="contained" 
             disabled={!formData.name}
             sx={glassStyles.button}
@@ -862,7 +825,6 @@ const DepartmentManagement: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Add Member Dialog */}
       <Dialog 
         open={openAddMemberDialog} 
         onClose={() => setOpenAddMemberDialog(false)}
@@ -918,12 +880,6 @@ const DepartmentManagement: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {error && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
-        </Alert>
-      )}
     </Container>
   );
 

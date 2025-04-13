@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Box, useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton } from '@mui/material';
+import { Box, useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton, Paper } from '@mui/material';
 
 // Custom Components
 import ErrorDisplay from '../components/common/ErrorDisplay';
@@ -20,8 +20,8 @@ import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 
 // Custom Hooks
-import { useTasks } from '../hooks/useTasks';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { useQuery, useQueryClient } from 'react-query';
 
 // Redux and Services
 import { AppDispatch, RootState } from '../store';

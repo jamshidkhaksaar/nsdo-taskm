@@ -24,6 +24,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ActivityLogService } from '../admin/services/activity-log.service';
 import { TaskStatus } from '../tasks/entities/task.entity';
+import { TasksService } from '../tasks/tasks.service';
 
 @Controller('departments')
 @UseGuards(JwtAuthGuard)
@@ -32,6 +33,7 @@ export class DepartmentsController {
     private departmentsService: DepartmentsService,
     @Inject(forwardRef(() => ActivityLogService))
     private activityLogService: ActivityLogService,
+    private tasksService: TasksService,
   ) {}
 
   @Get()
@@ -174,6 +176,28 @@ export class DepartmentsController {
     return await this.formatDepartmentResponse(department);
   }
 
+  @Get('/:id/tasks')
+  async getDepartmentTasks(@Param('id') id: string, @Request() req) {
+    // TODO: Add permission check? (e.g., only members/head can view?)
+    const tasks = await this.tasksService.getTasksForDepartment(id);
+    
+    // Log activity
+    try {
+      const department = await this.departmentsService.findOne(id); // Get name for logging
+      await this.activityLogService.logFromRequest(
+        req,
+        'view',
+        'department_tasks',
+        `Viewed tasks for department: ${department.name}`,
+        id,
+      );
+    } catch (logError) {
+      console.error(`Failed to log department task view activity: ${logError.message}`);
+    }
+    
+    return tasks;
+  }
+
   @Get('/:id/performance')
   getDepartmentPerformance(@Param('id') id: string): Promise<any> {
     return this.departmentsService.getDepartmentPerformance(id);
@@ -240,14 +264,14 @@ export class DepartmentsController {
       members.length > 0 ? members.map(m => `${m.name} (${m.id})`).join(', ') : 'None');
     
     // Get tasks count for active projects (simplified)
-    const active_projects = department.tasks ? 
-      department.tasks.filter(task => task.status !== TaskStatus.COMPLETED).length > 0 ? 1 : 0 : 
+    const active_projects = department.assignedTasks ? 
+      department.assignedTasks.filter(task => task.status !== TaskStatus.COMPLETED).length > 0 ? 1 : 0 : 
       0;
     
     // Calculate completion rate
-    const totalTasks = department.tasks ? department.tasks.length : 0;
-    const completedTasks = department.tasks ? 
-      department.tasks.filter(task => task.status === TaskStatus.COMPLETED).length : 
+    const totalTasks = department.assignedTasks ? department.assignedTasks.length : 0;
+    const completedTasks = department.assignedTasks ? 
+      department.assignedTasks.filter(task => task.status === TaskStatus.COMPLETED).length : 
       0;
     const completion_rate = totalTasks > 0 ? 
       Math.round((completedTasks / totalTasks) * 100) : 

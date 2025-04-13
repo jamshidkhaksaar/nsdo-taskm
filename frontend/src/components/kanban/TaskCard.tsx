@@ -10,6 +10,7 @@ import {
   AvatarGroup,
   Menu,
   MenuItem,
+  Divider,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -17,6 +18,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import PersonIcon from '@mui/icons-material/Person';
 import { Task, TaskStatus } from '../../types/task';
 import TaskStatusBadge from './TaskStatusBadge';
 
@@ -96,22 +98,37 @@ const TaskCard: React.FC<TaskCardProps> = ({
   theme,
 }) => {
   const [assigneeNames, setAssigneeNames] = useState<{ [key: string]: string }>({});
+  const [creatorName, setCreatorName] = useState<string>('');
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
-    const loadUserNames = async () => {
-      if (task.assigned_to) {
+    const loadUserDetails = async () => {
+      // Load assignee names
+      if (task.assigned_to && task.assigned_to.length > 0) {
         const names: { [key: string]: string } = {};
         for (const userId of task.assigned_to) {
-          names[userId] = await getUserName(userId);
+          if (userId) {
+            names[userId] = await getUserName(userId);
+          }
         }
         setAssigneeNames(names);
       }
+      
+      // Load creator name
+      if (task.created_by) {
+        try {
+          const name = await getUserName(task.created_by);
+          setCreatorName(name);
+        } catch (error) {
+          console.error('Error fetching creator name:', error);
+          setCreatorName('Unknown');
+        }
+      }
     };
 
-    loadUserNames();
-  }, [task.assigned_to, getUserName]);
+    loadUserDetails();
+  }, [task.assigned_to, task.created_by, getUserName]);
 
   // Check if a due date is overdue
   const isOverdue = (dateString: string): boolean => {
@@ -130,7 +147,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
       setStatusAnchorEl(null);
       setIsChangingStatus(true);
       try {
-        await onChangeStatus(task.id, newStatus);
+        await onChangeStatus(String(task.id), newStatus);
       } finally {
         setIsChangingStatus(false);
       }
@@ -190,7 +207,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             <Tooltip title="Edit Task">
               <IconButton
                 size="small"
-                onClick={() => onEdit && onEdit(task.id)}
+                onClick={() => onEdit && onEdit(String(task.id))}
                 sx={{ ml: 1, color: 'text.secondary' }}
               >
                 <EditIcon fontSize="small" />
@@ -199,7 +216,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             <Tooltip title="Delete Task">
               <IconButton
                 size="small"
-                onClick={() => onDelete && onDelete(task.id)}
+                onClick={() => onDelete && onDelete(String(task.id))}
                 sx={{ color: 'error.light' }}
               >
                 <DeleteIcon fontSize="small" />
@@ -208,6 +225,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
           </Box>
         </Box>
 
+        {/* Created by info */}
+        {task.created_by && (
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <PersonIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5, fontSize: '0.875rem' }} />
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Created by: {creatorName || 'Loading...'}
+            </Typography>
+          </Box>
+        )}
+        
         {/* Task description */}
         {task.description && (
           <Typography
@@ -280,7 +307,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             </Menu>
             
             {/* Show overdue warning if applicable */}
-            {isOverdue(task.due_date) && (
+            {isOverdue(task.dueDate || '') && (
               <Tooltip title="Overdue">
                 <ErrorOutlineIcon 
                   color="error" 
@@ -292,61 +319,80 @@ const TaskCard: React.FC<TaskCardProps> = ({
           </Box>
 
           <Typography variant="caption" color="text.secondary">
-            {formatDate(task.due_date)}
+            {formatDate(task.dueDate || '')}
           </Typography>
         </Box>
 
         {/* Assigned users */}
-        {task.assigned_to && task.assigned_to.length > 0 && (
-          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <AvatarGroup
-              max={3}
-              sx={{
-                '& .MuiAvatar-root': {
-                  width: 24,
-                  height: 24,
-                  fontSize: '0.75rem',
-                  border: `1px solid ${theme.palette.background.paper}`,
-                },
-              }}
-            >
-              {task.assigned_to.map((userId) => (
-                <Tooltip key={userId} title={assigneeNames[userId] || 'User'}>
-                  <Avatar sx={{ bgcolor: stringToColor(userId) }}>
-                    {(assigneeNames[userId] || 'U').charAt(0)}
-                  </Avatar>
-                </Tooltip>
-              ))}
-            </AvatarGroup>
+        {task.assigned_to && task.assigned_to.length > 0 ? (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Assigned to:
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
+                {Object.entries(assigneeNames).length > 0 ? (
+                  <AvatarGroup
+                    max={3}
+                    sx={{
+                      '& .MuiAvatar-root': {
+                        width: 24,
+                        height: 24,
+                        fontSize: '0.75rem',
+                        border: `1px solid ${theme.palette.background.paper}`,
+                      },
+                    }}
+                  >
+                    {Object.entries(assigneeNames).map(([userId, name]) => (
+                      <Tooltip key={userId} title={name || 'User'}>
+                        <Avatar sx={{ bgcolor: stringToColor(userId) }}>
+                          {(name || 'U').charAt(0)}
+                        </Avatar>
+                      </Tooltip>
+                    ))}
+                  </AvatarGroup>
+                ) : (
+                  <Typography variant="caption" color="text.secondary">
+                    Loading assignees...
+                  </Typography>
+                )}
+              </Box>
 
-            {/* Status change buttons (optional, in addition to dropdown) */}
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              {previousStatus && (
-                <Tooltip title={`Move to ${getStatusLabel(previousStatus)}`}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleStatusChange(previousStatus)}
-                    disabled={isChangingStatus}
-                    sx={{ color: 'text.secondary' }}
-                  >
-                    <ArrowBackIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              
-              {nextStatus && (
-                <Tooltip title={`Move to ${getStatusLabel(nextStatus)}`}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleStatusChange(nextStatus)}
-                    disabled={isChangingStatus}
-                    sx={{ color: 'text.secondary' }}
-                  >
-                    <ArrowForwardIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
+              {/* Status change buttons (optional, in addition to dropdown) */}
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {previousStatus && (
+                  <Tooltip title={`Move to ${getStatusLabel(previousStatus)}`}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleStatusChange(previousStatus)}
+                      disabled={isChangingStatus}
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      <ArrowBackIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                
+                {nextStatus && (
+                  <Tooltip title={`Move to ${getStatusLabel(nextStatus)}`}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleStatusChange(nextStatus)}
+                      disabled={isChangingStatus}
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      <ArrowForwardIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
             </Box>
+          </Box>
+        ) : (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" color="text.secondary">
+              No assignees
+            </Typography>
           </Box>
         )}
       </Box>

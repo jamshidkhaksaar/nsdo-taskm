@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { useQuery, useQueryClient } from 'react-query';
 import {
   Box,
   Container,
@@ -19,6 +20,7 @@ import {
   Fab,
   LinearProgress,
   Skeleton,
+  Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
@@ -29,14 +31,14 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import Sidebar from '../components/Sidebar';
 import UserList from '../components/users/UserList';
 import TasksSection from '../components/departments/TasksSection';
-import { Task } from '../types/task';
+import { Task, TaskStatus } from '../types/task';
+import { User } from '../types/user';
 import { UserService } from '../services/user';
 import { TaskService } from '../services/task';
 import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
-import { TaskStatus } from '../types/task';
 
 
 const DRAWER_WIDTH = 240;
@@ -44,11 +46,9 @@ const DRAWER_WIDTH = 240;
 const Users: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const queryClient = useQueryClient();
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(3);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -59,57 +59,49 @@ const Users: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // START: Add state for user selection for task assignment
+  const [selectedUserIdsForTask, setSelectedUserIdsForTask] = useState<string[]>([]);
+  // END: Add state
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('[Users] Fetching users and tasks data...');
-      
-      const [usersResponse, tasksResponse] = await Promise.all([
-        UserService.getUsers(),
-        TaskService.getTasks(),
-      ]);
-      
-      console.log('[Users] Users data received:', usersResponse);
-      console.log('[Users] Tasks data received:', tasksResponse);
-      
-      // Check if users data is valid
-      if (!usersResponse || (Array.isArray(usersResponse) && usersResponse.length === 0)) {
-        console.warn('[Users] No users data returned from API');
-        setUsers([]);
-        // Don't set an error, just show empty state
-      } else {
-        setUsers(usersResponse);
-        // If no user is selected, select the first one
-        if (!selectedUser && usersResponse.length > 0) {
-          setSelectedUser(usersResponse[0].id);
-        }
-      }
-      
-      // Check if tasks data is valid
-      if (!tasksResponse || (Array.isArray(tasksResponse) && tasksResponse.length === 0)) {
-        console.warn('[Users] No tasks data returned from API');
-        setTasks([]);
-      } else {
-        setTasks(tasksResponse);
-      }
-      
-    } catch (err) {
-      console.error('[Users] Error fetching data:', err);
-      setError('Failed to load data. Please try again later.');
-      // Initialize with empty arrays to prevent undefined errors
-      setUsers([]);
-      setTasks([]);
-    } finally {
-      setLoading(false);
-    }
+  // START: Handler for UserList checkbox changes
+  const handleSelectedUsersChange = (ids: string[]) => {
+    setSelectedUserIdsForTask(ids);
   };
+  // END: Handler
+
+  // --- React Query Hooks ---
+  const { data: users = [], isLoading: isLoadingUsers, error: fetchUsersError } = 
+    useQuery<User[], Error>('users', UserService.getUsers, {
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+        onError: (err) => {
+            console.error('Failed to load users:', err);
+            setError(`Failed to load users: ${err.message}`); // Set local error state
+        },
+        onSuccess: (data) => {
+            // Select first user by default if none is selected and data is available
+            if (!selectedUser && data && data.length > 0) {
+                setSelectedUser(data[0].id);
+            }
+        }
+    });
+
+  // Fetch all tasks - adjust if only specific user tasks are needed
+  const { data: tasks = [], isLoading: isLoadingTasks, error: fetchTasksError } = 
+    useQuery<Task[], Error>(
+      'allTasksForUsersPage', 
+      () => TaskService.getTasks(), // Wrap service call in arrow function
+      { 
+        staleTime: 2 * 60 * 1000, 
+        onError: (err) => {
+            console.error('Failed to load tasks:', err);
+            setError(`Failed to load tasks: ${err.message}`);
+        },
+    });
+
+  // Combined loading state and error handling
+  const isLoading = isLoadingUsers || isLoadingTasks;
+  // Ensure combinedError is always an Error object or null/undefined for consistent access
+  const combinedError = fetchUsersError || fetchTasksError || (error ? new Error(error) : null);
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -149,25 +141,34 @@ const Users: React.FC = () => {
   };
   
   const handleCreateTask = () => {
-    setCreateTaskDialogOpen(true);
+      // This handler is now for the multi-user assignment button
+      if (selectedUserIdsForTask.length > 0) {
+          setCreateTaskDialogOpen(true);
+      } else {
+          alert("Please select at least one user to assign a task.");
+      }
   };
   
-  const handleTaskCreated = async () => {
-    await fetchData();
+  const handleTaskCreated = () => {
+    queryClient.invalidateQueries('allTasksForUsersPage'); 
+    setSelectedUserIdsForTask([]); // Reset selection
+    setCreateTaskDialogOpen(false); // Close dialog
   };
 
-  // Calculate user stats for the selected user
+  // Update calculations to use data from useQuery
   const selectedUserData = selectedUser 
-    ? users.find((u: any) => u.id === selectedUser) 
+    ? users.find((u: User) => u.id === selectedUser) // Use 'users' from useQuery
     : users.length > 0 
       ? users[0] 
       : null;
 
-  // Filter tasks for the selected user
+  // Update task filtering logic based on central Task type
   const userTasks = selectedUser 
-    ? tasks.filter(task => 
-        task.assigned_to?.includes(selectedUser) || 
-        task.created_by === selectedUser
+    ? tasks.filter(task => // Use 'tasks' from useQuery
+        // Check assignedToUsers relation (array of User objects)
+        task.assignedToUsers?.some(assignee => assignee.id === selectedUser) || 
+        // Check createdById
+        task.createdById === selectedUser
       ) 
     : [];
 
@@ -191,9 +192,17 @@ const Users: React.FC = () => {
       : 0
   } : null;
 
+  // Filter users based on search query (client-side example)
+  const filteredUsers = users.filter(u => // Use 'users' from useQuery
+      (u.first_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (u.last_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      {loading ? (
+      {isLoading ? (
         <Box sx={{ p: 3 }}>
           <Box mb={3}>
             <Skeleton
@@ -219,8 +228,8 @@ const Users: React.FC = () => {
             sx={{ '& .MuiSkeleton-wave': { animationDuration: '3s' } }}
           />
         </Box>
-      ) : error ? (
-        <Typography sx={{ color: '#f44336', textAlign: 'center', mt: 4 }}>{error}</Typography>
+      ) : combinedError ? (
+        <Alert severity="error" sx={{ m: 3 }}>{combinedError.message || 'An unknown error occurred.'}</Alert>
       ) : (
         <>
           {/* Header Section */}
@@ -234,6 +243,19 @@ const Users: React.FC = () => {
            
           </Box>
           
+          {/* START: Add Assign Task Button */}    
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button 
+              variant="contained"
+              startIcon={<AssignmentIcon />}
+              disabled={selectedUserIdsForTask.length === 0}
+              onClick={handleCreateTask} // Reuse handler, now context is multi-user
+            >
+              Assign Task to Selected ({selectedUserIdsForTask.length})
+            </Button>
+          </Box>
+          {/* END: Add Assign Task Button */}    
+
           <Grid container spacing={3}>
             {/* Left Column - User List */}
             <Grid item xs={12} md={4} lg={3}>
@@ -250,11 +272,13 @@ const Users: React.FC = () => {
                 }}
               >
                 <UserList 
-                  users={users} 
+                  users={filteredUsers} 
                   selectedUser={selectedUser}
                   onSelectUser={handleSelectUser}
                   searchQuery={searchQuery}
                   onSearchChange={handleSearchChange}
+                  selectedUserIds={selectedUserIdsForTask}
+                  onSelectedUsersChange={handleSelectedUsersChange}
                 />
               </Paper>
             </Grid>
@@ -537,13 +561,14 @@ const Users: React.FC = () => {
           
           {/* Floating Action Button */}
           
-          {/* Create Task Dialog */}
+          {/* Create Task Dialog (now handles multi-user assignment) */}
           <CreateTaskDialog
             open={createTaskDialogOpen}
             onClose={() => setCreateTaskDialogOpen(false)}
             onTaskCreated={handleTaskCreated}
             dialogType="assign"
-            initialStatus={TaskStatus.PENDING}
+            dialogMode="user"
+            preSelectedUsers={users.filter(user => selectedUserIdsForTask.includes(user.id))}
           />
         </>
       )}
@@ -583,7 +608,7 @@ const Users: React.FC = () => {
       }
       topBar={
         <DashboardTopBar
-          username={user?.username || 'User'}
+          username={currentUser?.username || 'User'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
           onNotificationClick={() => console.log('Notification clicked')}

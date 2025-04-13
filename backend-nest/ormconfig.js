@@ -3,6 +3,7 @@ const { User } = require('./dist/src/users/entities/user.entity');
 const { Department } = require('./dist/src/departments/entities/department.entity');
 const { Task } = require('./dist/src/tasks/entities/task.entity');
 const { Note } = require('./dist/src/notes/entities/note.entity');
+const { Province } = require('./dist/src/provinces/entities/province.entity');
 const { ApiSettings } = require('./dist/src/settings/entities/api-settings.entity');
 const { BackupSettings } = require('./dist/src/settings/entities/backup-settings.entity');
 const { NotificationSettings } = require('./dist/src/settings/entities/notification-settings.entity');
@@ -17,13 +18,14 @@ module.exports = new DataSource({
   username: 'root',
   password: 'root',
   database: 'taskmanagement',
-  synchronize: true,
+  synchronize: false,
   logging: false,
   entities: [
     User,
     Department,
     Task,
     Note,
+    Province,
     ApiSettings,
     BackupSettings,
     NotificationSettings,
@@ -31,5 +33,6 @@ module.exports = new DataSource({
     ActivityLog,
     Backup,
   ],
-  migrations: ['migrations/*.js'],
+  migrations: ['src/migrations/*.ts'],
+  migrationsTableName: "typeorm_migrations",
 });

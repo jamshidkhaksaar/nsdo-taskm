@@ -37,14 +37,14 @@ export class DepartmentPerformersController {
       const performers = await Promise.all(department.members.map(async (member) => {
         try {
           // Get completed tasks count for this user in this department
-          const completedTasksCount = department.tasks?.filter(task => 
+          const completedTasksCount = department.assignedTasks?.filter(task => 
             task.status === TaskStatus.COMPLETED && 
             (task.createdById === member.id ||
             (task.assignedToUsers && task.assignedToUsers.some(assignee => assignee.id === member.id)))
           ).length || 0;
           
           // Get total tasks for this user in this department
-          const totalTasksCount = department.tasks?.filter(task => 
+          const totalTasksCount = department.assignedTasks?.filter(task => 
             task.createdById === member.id ||
             (task.assignedToUsers && task.assignedToUsers.some(assignee => assignee.id === member.id))
           ).length || 0;

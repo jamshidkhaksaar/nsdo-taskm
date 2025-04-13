@@ -10,6 +10,10 @@ export class CreateDepartmentDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID('4') // Validate as UUID
   head?: string;
+
+  @IsOptional()
+  @IsUUID('4') // Validate as UUID
+  provinceId?: string;
 } 

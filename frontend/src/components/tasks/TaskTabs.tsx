@@ -46,6 +46,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onTaskUpdated
 }) => {
   const [assignedUsers, setAssignedUsers] = React.useState<User[]>([]);
+  const [creatorUser, setCreatorUser] = React.useState<User | null>(null);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [statusAnchorEl, setStatusAnchorEl] = React.useState<null | HTMLElement>(null);
   const [currentTask, setCurrentTask] = React.useState<ExtendedTask>({
@@ -97,6 +98,24 @@ const TaskItem: React.FC<TaskItemProps> = ({
     fetchUsers();
   }, [currentTask.assigned_to]);
 
+  // Fetch creator user
+  React.useEffect(() => {
+    const fetchCreator = async () => {
+      if (currentTask.created_by) {
+        try {
+          const response = await TaskService.getUsers();
+          const found = response.find((user: User) => user.id.toString() === currentTask.created_by?.toString());
+          setCreatorUser(found || null);
+        } catch (err) {
+          setCreatorUser(null);
+        }
+      } else {
+        setCreatorUser(null);
+      }
+    };
+    fetchCreator();
+  }, [currentTask.created_by]);
+
   const handlePriorityChange = async (newPriority: TaskPriority) => {
     try {
       setAnchorEl(null);
@@ -111,9 +130,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
       }));
 
       // Send only the priority update to the server
-      const updatedTask = await TaskService.updateTask(currentTask.id, {
+      const updatedTask = await TaskService.updateTask(String(currentTask.id), {
         priority: newPriority,
-        updated_at: new Date().toISOString()
       });
 
       console.log('Task updated successfully:', updatedTask);
@@ -143,7 +161,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       }
 
       // Double-check the update with a fresh fetch
-      const refreshedTask = await TaskService.getTask(currentTask.id);
+      const refreshedTask = await TaskService.getTask(String(currentTask.id));
       console.log('Refreshed task from server:', refreshedTask);
 
       if (refreshedTask.priority !== newPriority) {
@@ -154,9 +172,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
         
         // Force another update if needed
         if (refreshedTask.priority !== newPriority) {
-          await TaskService.updateTask(currentTask.id, {
+          await TaskService.updateTask(String(currentTask.id), {
             priority: newPriority,
-            updated_at: new Date().toISOString()
           });
         }
       }
@@ -191,9 +208,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
         isUpdating: true
       }));
 
-      const updatedTask = await TaskService.updateTask(currentTask.id, {
-        status: newStatus,
-        updated_at: new Date().toISOString()
+      const updatedTask = await TaskService.updateTask(String(currentTask.id), {
+        status: newStatus
       });
 
       if (!updatedTask || !updatedTask.status) {
@@ -421,18 +437,44 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <AccessTimeIcon sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px' }} />
               <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                {currentTask?.due_date ?
-                  format(new Date(currentTask.due_date), 'MMM d, h:mm a') :
+                {currentTask?.dueDate ?
+                  format(new Date(currentTask.dueDate), 'MMM d, h:mm a') :
                   'No due date'
                 }
               </Typography>
             </Box>
 
-            {assignedUsers.length > 0 && (
-              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+            {/* Assigned To */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
+              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Assigned to:
+              </Typography>
+              {assignedUsers.length > 0 ? (
                 <CollaboratorAvatars collaborators={assignedUsers} />
-              </Box>
-            )}
+              ) : (
+                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                  -
+                </Typography>
+              )}
+            </Box>
+
+            {/* Created By */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
+              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Created by:
+              </Typography>
+              {creatorUser ? (
+                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+                  {creatorUser.first_name || creatorUser.last_name
+                    ? `${creatorUser.first_name || ''} ${creatorUser.last_name || ''}`.trim()
+                    : creatorUser.username}
+                </Typography>
+              ) : (
+                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                  -
+                </Typography>
+              )}
+            </Box>
           </Box>
         </Box>
 
@@ -441,7 +483,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Tooltip title="Edit Task" arrow placement="top">
               <IconButton
                 size="small"
-                onClick={() => handleEditClick(currentTask.id)}
+                onClick={() => handleEditClick(String(currentTask.id))}
                 sx={{
                   color: 'rgba(255, 255, 255, 0.7)',
                   '&:hover': {
@@ -458,7 +500,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Tooltip title="Delete Task" arrow placement="top">
               <IconButton
                 size="small"
-                onClick={() => onDeleteTask(currentTask.id)}
+                onClick={() => onDeleteTask && onDeleteTask(String(currentTask.id))}
                 sx={{
                   color: 'rgba(255, 255, 255, 0.7)',
                   '&:hover': {

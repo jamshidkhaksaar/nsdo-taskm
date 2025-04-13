@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsDate } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsDateString, IsArray, IsUUID } from 'class-validator';
 import { TaskStatus, TaskPriority, TaskType } from '../entities/task.entity';
 
 export class UpdateTaskDto {
@@ -23,21 +23,20 @@ export class UpdateTaskDto {
   type?: TaskType;
 
   @IsOptional()
-  @IsString()
-  departmentId?: string;
+  @IsDateString()
+  dueDate?: string;
 
   @IsOptional()
-  @IsDate()
-  dueDate?: Date;
-  @IsOptional()
-  @IsString({ each: true })
-  assignedToUsers?: string[];
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assignedToUserIds?: string[];
 
   @IsOptional()
-  @IsString({ each: true })
+  @IsArray()
+  @IsUUID('4', { each: true })
   assignedToDepartmentIds?: string[];
 
   @IsOptional()
-  @IsString()
+  @IsUUID('4')
   assignedToProvinceId?: string;
 }

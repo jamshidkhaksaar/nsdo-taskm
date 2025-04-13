@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request, HttpCode, HttpStatus, Put } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { Task } from './entities/task.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { TaskStatus, TaskPriority } from './entities/task.entity';
+import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -20,37 +23,81 @@ export class TasksController {
     return this.tasksService.findAll(query, req.user);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tasksService.findOne(+id);
+  @Get('dashboard')
+  getDashboardTasks(@Request() req) {
+    return this.tasksService.getDashboardTasks(req.user);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto) {
-    return this.tasksService.update(+id, updateTaskDto);
+  @Get('assigned-to-me')
+  getTasksAssignedToMe(@Request() req) {
+    return this.tasksService.getTasksAssignedToUser(req.user.userId);
+  }
+
+  @Get('created-by-me')
+  getTasksCreatedByMe(@Request() req) {
+    return this.tasksService.getTasksCreatedByUser(req.user.userId);
+  }
+
+  @Get('delegated-by-me')
+  getTasksDelegatedByMe(@Request() req) {
+    return this.tasksService.getTasksDelegatedByUser(req.user.userId);
+  }
+
+  @Get('delegated-to-me')
+  getTasksDelegatedToMe(@Request() req) {
+    return this.tasksService.getTasksDelegatedToUser(req.user.userId);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.tasksService.findOne(id);
+  }
+
+  @Put(':id')
+  update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto, @Request() req) {
+    return this.tasksService.update(id, updateTaskDto, req.user);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.tasksService.remove(+id);
+  remove(@Param('id') id: string, @Request() req) {
+    return this.tasksService.remove(id, req.user);
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.tasksService.updateStatus(+id, status);
+  updateStatus(
+    @Param('id') id: string,
+    @Body() updateTaskStatusDto: UpdateTaskStatusDto,
+    @Request() req
+  ) {
+    return this.tasksService.updateStatus(id, updateTaskStatusDto, req.user);
+  }
+
+  @Patch(':id/priority')
+  updatePriority(
+    @Param('id') id: string,
+    @Body() updateTaskPriorityDto: UpdateTaskPriorityDto,
+    @Request() req
+  ) {
+    return this.tasksService.updatePriority(id, updateTaskPriorityDto, req.user);
   }
 
   @Post(':id/assign')
-  assignTask(@Param('id') id: string, @Body('user_id') userId: string) {
-    return this.tasksService.assignTask(+id, userId);
+  assignTask(@Param('id') id: string, @Body('user_id') userId: string, @Request() req) {
+    return this.tasksService.assignTask(id, userId, req.user);
   }
-  // Delegate a task to other users
+
   @Post(':id/delegate')
   delegateTask(
     @Param('id') id: string,
     @Body('user_ids') userIds: string[],
     @Request() req
   ) {
-    return this.tasksService.delegateTask(+id, userIds, req.user);
+    return this.tasksService.delegateTask(id, userIds, req.user);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelTask(@Param('id') id: string, @Request() req) {
+    return this.tasksService.cancelTask(id, req.user);
   }
 }

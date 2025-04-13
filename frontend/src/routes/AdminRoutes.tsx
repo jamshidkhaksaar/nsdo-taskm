@@ -1,3 +1,4 @@
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
@@ -10,6 +11,7 @@ import {
   BackupRestore,
 } from '../pages/admin';
 import ProvinceAdmin from '../pages/ProvinceAdmin';
+import ProvinceManagement from '../pages/admin/ProvinceManagement';
 
 const AdminRoutes: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -27,7 +29,7 @@ const AdminRoutes: React.FC = () => {
       <Route path="activity-logs" element={<ActivityLogs />} />
       <Route path="settings" element={<SystemSettings />} />
       <Route path="backup" element={<BackupRestore />} />
-      <Route path="provinces" element={<ProvinceAdmin />} />
+      <Route path="provinces" element={<ProvinceManagement />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

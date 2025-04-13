@@ -224,7 +224,7 @@ const NotesWidget: React.FC = () => {
                   multiline
                   rows={3}
                   placeholder="Write your note here..."
-                  value={newNoteContent}
+                  value={newNoteContent || ''}
                   onChange={(e) => setNewNoteContent(e.target.value)}
                   fullWidth
                   variant="outlined"
@@ -376,7 +376,7 @@ const NotesWidget: React.FC = () => {
                           <TextField
                             multiline
                             rows={3}
-                            value={editingContent}
+                            value={editingContent || ''}
                             onChange={(e) =>
                               setEditingContent(e.target.value)
                             }
