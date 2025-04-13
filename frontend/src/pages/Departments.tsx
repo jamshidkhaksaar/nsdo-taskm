@@ -109,20 +109,38 @@ const Departments: React.FC = () => {
   // Recalculate department task counts whenever tasks or initial departments list changes
   useEffect(() => {
     if (tasks.length > 0 && departments.length > 0) {
-      // console.log("Recalculating department task counts..."); // Debug log
+      console.log("Recalculating department task counts...");
+      console.log("Tasks data:", tasks.map(t => ({ id: t.id, title: t.title, departmentId: t.departmentId, department: t.department })));
+      
       const departmentsWithCount = departments.map(dept => {
+        // Check both legacy departmentId field and new assignedToDepartmentIds array
         const count = tasks.filter(task => {
-          if (!task.department) return false;
-          const deptId = typeof task.department === 'object' && task.department !== null ? task.department.id : task.department;
-          return deptId === dept.id;
+          // Check direct departmentId match
+          if (task.departmentId === dept.id) return true;
+          
+          // Check in department object if it exists
+          if (task.department) {
+            const deptId = typeof task.department === 'object' && task.department !== null 
+              ? task.department.id 
+              : task.department;
+            if (deptId === dept.id) return true;
+          }
+          
+          // Check in assignedToDepartmentIds array if it exists
+          if (task.assignedToDepartmentIds && Array.isArray(task.assignedToDepartmentIds)) {
+            return task.assignedToDepartmentIds.includes(dept.id);
+          }
+          
+          return false;
         }).length;
-        // console.log(`Department ${dept.name} (${dept.id}) count: ${count}`); // Debug log
+        
+        console.log(`Department ${dept.name} (${dept.id}) count: ${count}`);
         return { ...dept, tasksCount: count };
       });
 
       // Only update state if counts actually changed to prevent infinite loops
       if (JSON.stringify(departments.map(d => d.tasksCount)) !== JSON.stringify(departmentsWithCount.map(d => d.tasksCount))) {
-        // console.log("Updating department counts state."); // Debug log
+        console.log("Updating department counts state.");
         setDepartments(departmentsWithCount);
       }
     }
@@ -180,12 +198,12 @@ const Departments: React.FC = () => {
 
   // Calculate upcoming, ongoing, completed based on the correctly filtered departmentTasks
   const upcomingTasks = departmentTasks.filter(task => 
-    task.status === 'pending' && new Date(task.dueDate) > new Date()
+    task.status === 'pending' && task.dueDate && new Date(task.dueDate) > new Date()
   );
   
   const ongoingTasks = departmentTasks.filter(task => 
     task.status === 'in_progress' || 
-    (task.status === 'pending' && new Date(task.dueDate) <= new Date())
+    (task.status === 'pending' && task.dueDate && new Date(task.dueDate) <= new Date())
   );
   
   const completedTasks = departmentTasks.filter(task => 
