@@ -14,21 +14,23 @@ import {
   useTheme,
   useMediaQuery,
   Drawer,
+  FormControl,
+  InputLabel,
   Select,
-  IconButton,
-  Alert,
 } from '@mui/material';
 const LocalizationProvider = lazy(() => import('@mui/x-date-pickers/LocalizationProvider').then(m => ({ default: m.LocalizationProvider })));
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 const DateTimePicker = lazy(() => import('@mui/x-date-pickers/DateTimePicker').then(m => ({ default: m.DateTimePicker })));
 import { TaskService } from '../../services/task';
-import { Task, TaskStatus, TaskPriority, TaskUpdate, DepartmentRef, CreateTask, TaskType } from '../../types/task';
+import { Task, TaskStatus, TaskPriority, CreateTask, TaskType } from '../../types/task';
 import { User } from '../../types/user';
 import { RootState } from '../../store';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { isValidDueDate } from '../../utils/dateUtils';
-import { UserService } from '../../services/user';
-import { Department } from '../../services/department';
+// import { UserService } from '../../services/user';
+import type { Department } from '../../types/department';
+import { DateTimeValidationError } from '@mui/x-date-pickers/models';
+import { Dayjs } from 'dayjs';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -42,6 +44,7 @@ interface CreateTaskDialogProps {
   preSelectedDepartment?: string; // For pre-selecting a department
   preSelectedUsers?: User[]; // For pre-selecting users
   preSelectedDepartmentIds?: string[]; // <<< Add new prop for multiple departments
+  preSelectedProvince?: string | null; // For pre-selecting a province
   departmentsList?: Department[]; // Accept departments list from parent
   selectedUserId?: string; // Add selectedUserId for task assignment from user page
 }
@@ -58,23 +61,26 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   preSelectedDepartment,
   preSelectedUsers,
   preSelectedDepartmentIds, // <<< Destructure new prop
+  preSelectedProvince,
   departmentsList,
   selectedUserId
 }) => {
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
+  const { provinces } = useSelector((state: RootState) => state.provinces);
   const theme = useTheme();
   const isMobileQuery = useMediaQuery('(max-width:768px)');
   const isMobile = isMobileQuery;
   const glassStyles = getGlassmorphismStyles(theme);
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
-  const [dueDate, setDueDate] = useState<Date | null>(task?.dueDate ? new Date(task.dueDate) : null);
+  const [dueDate, setDueDate] = useState<Dayjs | null>(task?.dueDate ? task.dueDate.toDayjs() : null);
   const [priority, setPriority] = useState<TaskPriority>(task?.priority || TaskPriority.MEDIUM);
-  const [status, setStatus] = useState<TaskStatus>(task?.status || initialStatus || TaskStatus.PENDING);
+  const status = task?.status || initialStatus || TaskStatus.PENDING;
   const [collaborators, setCollaborators] = useState<User[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [department, setDepartment] = useState<string>(''); // Keep for single selection if needed elsewhere
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]); // State for multi-department assignment
+  const [selectedProvinceId, setSelectedProvinceId] = useState<string | null>(null); // State for province selection
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +96,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     if (dialogMode !== 'department') {
       setDepartment('');
     }
+    setSelectedProvinceId(null); // Reset province selection
     setPriority(TaskPriority.MEDIUM);
     setError(null); // Reset errors
     setDateError(null);
@@ -122,14 +129,14 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         console.error('Error fetching users:', err);
       }
     };
-    
+
     fetchUsers();
   }, [open]);
 
   // Second effect: handles form initialization with existing data OR pre-selections
   useEffect(() => {
     if (!open) return; // Don't do anything if dialog is closed
-    
+
     // Set pre-selected values if provided
     if (preSelectedDepartmentIds && preSelectedDepartmentIds.length > 0) {
         setSelectedDepartmentIds(preSelectedDepartmentIds);
@@ -145,7 +152,12 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setDepartment('');
         setSelectedDepartmentIds([]);
     }
-    
+
+    // Set pre-selected province if provided
+    if (preSelectedProvince) {
+        setSelectedProvinceId(preSelectedProvince);
+    }
+
     if (preSelectedUsers && preSelectedUsers.length > 0) {
       if (pageContext === 'dashboard') {
         setCollaborators(preSelectedUsers);
@@ -153,16 +165,16 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setSelectedUsers(preSelectedUsers);
       }
     }
-    
+
     if (task) {
       // Edit mode - populate form with task data
       setTitle(task.title);
       setDescription(task.description || '');
-      setDueDate(task.dueDate ? new Date(task.dueDate) : new Date());
+      setDueDate(task.dueDate ? task.dueDate.toDayjs() : null);
       // Ensure priority is set from the task, defaulting to MEDIUM if not present
       setPriority(task.priority || TaskPriority.MEDIUM);
       setDateError(null);
-      
+
       // Handle department which can be string, DepartmentRef, or null
       if (task.department) {
         if (typeof task.department === 'string') {
@@ -196,22 +208,22 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       }
     }
   }, [open, task, preSelectedDepartment, preSelectedUsers, preSelectedDepartmentIds]); // Add preSelectedDepartmentIds dependency
-  
+
   // Third effect: Update user assignments after users are loaded
   useEffect(() => {
     if (!open || !task || users.length === 0) return;
-    
+
     // Determine if users are collaborators or assignees based on task context
     if (task.context === 'personal') {
       // For personal tasks, we treat assigned_to as collaborators
-      const taskCollaborators = users.filter(user => 
+      const taskCollaborators = users.filter(user =>
         task.assigned_to?.includes(user.id.toString())
       );
       setCollaborators(taskCollaborators);
       setSelectedUsers([]);
     } else {
       // For department or user tasks, these are assignees
-      const assignedUsers = users.filter(user => 
+      const assignedUsers = users.filter(user =>
         task.assigned_to?.includes(user.id.toString())
       );
       setSelectedUsers(assignedUsers);
@@ -228,7 +240,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         setPageContext('department');
       }
       // Clear any potential validation error once department is set
-      setError(null); 
+      setError(null);
     } else if (dialogMode === 'user' && preSelectedUsers) {
       setSelectedUsers(preSelectedUsers);
       if (pageContext !== 'user') {
@@ -252,13 +264,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     }
   }, [selectedUserId, users, pageContext, selectedUsers]);
 
-  const validateDueDate = (date: Date | null): boolean => {
+  const validateDueDate = (date: Dayjs | null): boolean => {
     if (!date) {
       setError('Due date is required');
       return false;
     }
 
-    if (!isValidDueDate(date)) {
+    if (!isValidDueDate(date.toDate())) {
       setError('Due date must be in the future');
       return false;
     }
@@ -266,16 +278,21 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     return true;
   };
 
-  const handleDueDateChange = (newValue: Date | null) => {
+  const handleDueDateChange = (newValue: Dayjs | null) => {
     setDueDate(newValue);
     if (newValue) {
       validateDueDate(newValue);
     }
   };
 
+  // Define the DatePicker change handler with correct value type
+  const handleDateChange = (value: Dayjs | null /*, context: any */) => { // Context type might be inferred
+    setDueDate(value);
+  };
+
   const handleSubmit = async () => {
     console.log('[Submit] Clicked. Current State:', {
-      title, description, dueDate, priority, status, 
+      title, description, dueDate, priority, status,
       pageContext, department, selectedUsers, collaborators,
       dialogMode, preSelectedDepartment, selectedUserId,
       error, dateError, loading
@@ -304,7 +321,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       console.log('[Submit] Validation failed: Department missing in department context');
       return;
     }
-    
+
     // User Assignment Validation (Specific to user context)
     if (pageContext === 'user' && selectedUsers.length === 0 && !selectedUserId) {
        setError('Please assign at least one user');
@@ -316,11 +333,17 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setLoading(true);
     setError(null);
 
-    let taskType = TaskType.PERSONAL; // Default
+    let taskType: TaskType = TaskType.USER; // Default
     if (selectedDepartmentIds.length > 0) {
-      taskType = TaskType.DEPARTMENT; // TODO: Handle PROVINCE_DEPARTMENT if needed
+      if (selectedProvinceId) {
+        taskType = TaskType.PROVINCE_DEPARTMENT;
+      } else {
+        taskType = TaskType.DEPARTMENT;
+      }
     } else if (selectedUsers.length > 0) {
       taskType = TaskType.USER;
+    } else {
+      taskType = TaskType.PERSONAL;
     }
 
     const taskData: CreateTask = {
@@ -330,9 +353,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       status: initialStatus || TaskStatus.PENDING, // Use initialStatus if provided
       dueDate: dueDate ? dueDate.toISOString() : undefined,
       type: taskType,
-      assignedToDepartmentIds: selectedDepartmentIds, // Pass the selected IDs
-      assignedToUserIds: selectedUsers.map(u => u.id), // Pass selected user IDs
-      assignedToProvinceId: undefined, // TODO: Handle province assignment if needed
+      assignedToDepartmentIds: selectedDepartmentIds.length > 0 ? selectedDepartmentIds : undefined, // Pass the selected IDs
+      assignedToUserIds: selectedUsers.length > 0 ? selectedUsers.map(u => u.id.toString()) : undefined, // Pass selected user IDs
+      assignedToProvinceId: selectedProvinceId
       // createdById is handled by backend
     };
 
@@ -365,7 +388,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
   function getDialogTitle() {
     if (task) return 'Edit Task';
-    
+
     switch(pageContext) {
       case 'dashboard': return 'Create Personal Task';
       case 'department': return 'Create Department Task';
@@ -444,13 +467,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 '& .MuiOutlinedInput-root': glassStyles.input,
               }}
             />
-            
+
             <Suspense fallback={<div>Loading Date Picker...</div>}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DateTimePicker
                   label="Due Date"
                   value={dueDate}
-                  onChange={handleDueDateChange}
+                  onChange={handleDateChange}
                   slotProps={{
                     textField: {
                       fullWidth: true,
@@ -461,8 +484,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                         '& .MuiOutlinedInput-root': glassStyles.input,
                       }
                     },
-                    popper: { 
-                      sx: { zIndex: 9999 } 
+                    popper: {
+                      sx: { zIndex: 9999 }
                     }
                   }}
                 />
@@ -473,7 +496,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 {dateError}
               </FormHelperText>
             )}
-            
+
             {/* Priority selector */}
             <TextField
               select
@@ -492,7 +515,28 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               <MenuItem value="medium">Medium</MenuItem>
               <MenuItem value="high">High</MenuItem>
             </TextField>
-            
+
+            {/* Province selector */}
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel id="province-select-label" sx={glassStyles.inputLabel}>Province</InputLabel>
+              <Select
+                labelId="province-select-label"
+                value={selectedProvinceId || ''}
+                onChange={(e) => setSelectedProvinceId(e.target.value === '' ? null : e.target.value)}
+                label="Province"
+                sx={{
+                  '& .MuiOutlinedInput-root': glassStyles.input,
+                }}
+              >
+                <MenuItem value="">None</MenuItem>
+                {provinces?.map((province: any) => (
+                  <MenuItem key={province.id} value={province.id}>
+                    {province.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             {/* Department selector: Hide if dialogMode is 'department' */}
             {(pageContext === 'department' && dialogMode !== 'department') && (
               <TextField
@@ -517,7 +561,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 ))}
               </TextField>
             )}
-            
+
             {/* Show selected department name (read-only) if mode is 'department' */}
             {(pageContext === 'department' && dialogMode === 'department') && (
               <TextField
@@ -533,7 +577,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 }}
               />
             )}
-            
+
             {/* User assignment: Hide if dialogMode is 'user' */}
             {(pageContext === 'user' && dialogMode !== 'user') && (
               <Autocomplete
@@ -563,7 +607,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 )}
               />
             )}
-            
+
             {/* Show selected users (read-only) if mode is 'user' */}
             {(pageContext === 'user' && dialogMode === 'user') && (
               <Autocomplete
@@ -591,7 +635,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 )}
               />
             )}
-            
+
             {/* Collaborators (only for dashboard/personal context) */}
             {pageContext === 'dashboard' && (
               <Autocomplete
@@ -620,7 +664,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 )}
               />
             )}
-            
+
             {error && (
               <FormHelperText error sx={{ fontSize: '0.9rem', mt: 1 }}>
                 {error}
@@ -628,7 +672,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             )}
           </Box>
         </DialogContent>
-        
+
         <DialogActions>
           <Button onClick={onClose} color="inherit">
             Cancel
@@ -646,9 +690,9 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       </Box>
     </Drawer>
   ) : (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
+    <Dialog
+      open={open}
+      onClose={onClose}
       PaperProps={{ sx: { ...glassStyles.form, minWidth: '500px', overflow: 'visible' } }}
     >
       <DialogTitle sx={{ ...glassStyles.text.primary }}>{getDialogTitle()}</DialogTitle>
@@ -703,13 +747,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               '& .MuiOutlinedInput-root': glassStyles.input,
             }}
           />
-          
+
           <Suspense fallback={<div>Loading Date Picker...</div>}>
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DateTimePicker
                 label="Due Date"
                 value={dueDate}
-                onChange={handleDueDateChange}
+                onChange={handleDateChange}
                 slotProps={{
                   textField: {
                     fullWidth: true,
@@ -720,8 +764,8 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                       '& .MuiOutlinedInput-root': glassStyles.input,
                     }
                   },
-                  popper: { 
-                    sx: { zIndex: 9999 } 
+                  popper: {
+                    sx: { zIndex: 9999 }
                   }
                 }}
               />
@@ -732,7 +776,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               {dateError}
             </FormHelperText>
           )}
-          
+
           {/* Priority selector */}
           <TextField
             select
@@ -751,7 +795,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             <MenuItem value="medium">Medium</MenuItem>
             <MenuItem value="high">High</MenuItem>
           </TextField>
-          
+
           {/* Department selector: Hide if dialogMode is 'department' */}
           {(pageContext === 'department' && dialogMode !== 'department') && (
             <TextField
@@ -776,7 +820,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               ))}
             </TextField>
           )}
-          
+
           {/* Show selected department name (read-only) if mode is 'department' */}
           {(pageContext === 'department' && dialogMode === 'department') && (
             <TextField
@@ -792,7 +836,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               }}
             />
           )}
-          
+
           {/* User assignment: Hide if dialogMode is 'user' */}
           {(pageContext === 'user' && dialogMode !== 'user') && (
             <Autocomplete
@@ -822,7 +866,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               )}
             />
           )}
-          
+
           {/* Show selected users (read-only) if mode is 'user' */}
           {(pageContext === 'user' && dialogMode === 'user') && (
             <Autocomplete
@@ -850,7 +894,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               )}
             />
           )}
-          
+
           {/* Collaborators (only for dashboard/personal context) */}
           {pageContext === 'dashboard' && (
             <Autocomplete
@@ -879,7 +923,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               )}
             />
           )}
-          
+
           {error && (
             <FormHelperText error sx={{ fontSize: '0.9rem', mt: 1 }}>
               {error}
@@ -887,7 +931,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           )}
         </Box>
       </DialogContent>
-      
+
       <DialogActions>
         <Button onClick={onClose} color="inherit">
           Cancel

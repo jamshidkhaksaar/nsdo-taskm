@@ -17,10 +17,10 @@ import { ActivityLogsController } from './controllers/activity-logs.controller';
     TypeOrmModule.forFeature([User, Department, Task, ActivityLog]),
     forwardRef(() => UsersModule),
     forwardRef(() => DepartmentsModule),
-    TasksModule,
+    // forwardRef(() => TasksModule), // TasksModule imports AdminModule, use forwardRef
   ],
   controllers: [AdminController, ActivityLogsController],
   providers: [AdminService, ActivityLogService],
-  exports: [ActivityLogService],
+  exports: [ActivityLogService, TypeOrmModule], // Export TypeOrmModule
 })
 export class AdminModule {} 

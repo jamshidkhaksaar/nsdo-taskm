@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { Department } from '../types/department';
+import { Department } from '@/types/department';
 import { Task } from '../types/task';
 import { User } from '../types/user';
 
@@ -64,7 +64,10 @@ export const DepartmentService = {
     // Update a department
     updateDepartment: async (id: string, departmentData: Partial<Department>): Promise<Department> => {
         try {
-            const response = await apiClient.put<Department>(`/departments/${id}`, departmentData);
+            console.log(`Updating department ${id} with data:`, departmentData);
+            // Use the admin endpoint as per the plan for updates involving province linking
+            const response = await apiClient.put<Department>(`/api/admin/departments/${id}`, departmentData);
+            console.log('Department updated:', response);
             return response;
         } catch (error) {
             console.error(`Error updating department ${id}:`, error);
@@ -115,12 +118,6 @@ export const DepartmentService = {
         }
     },
 
-    // Add function to get all departments, potentially for admin use in selectors
-    getAllAdminDepartments: async (): Promise<Department[]> => {
-        console.log("Fetching all departments for admin contexts...");
-        return DepartmentService.getDepartments();
-    },
-
     // START: Add Member Management Functions
     addMemberToDepartment: async (departmentId: string, userId: string): Promise<Department> => { // Assuming backend returns updated department
         try {
@@ -143,4 +140,6 @@ export const DepartmentService = {
         }
     }
     // END: Add Member Management Functions
-}; 
+};
+
+export type { Department }; 

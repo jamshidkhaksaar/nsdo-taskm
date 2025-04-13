@@ -19,7 +19,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@ne
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply Auth and Roles guards
 @Roles(UserRole.ADMIN) // Specify that only ADMIN role is allowed
-@Controller('api/admin/provinces')
+@Controller('admin/provinces')
 export class ProvinceController {
   constructor(
     private readonly provinceService: ProvinceService,

@@ -154,7 +154,7 @@ export class TasksService {
       let queryBuilder = this.tasksRepository.createQueryBuilder('task')
         .leftJoinAndSelect('task.createdBy', 'createdBy')
         .leftJoinAndSelect('task.assignedToUsers', 'assignedToUsers')
-        .leftJoinAndSelect('task.department', 'department');
+        .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments');
 
       if (query.departmentId) {
         queryBuilder = queryBuilder.andWhere('task.departmentId = :departmentId', { departmentId: query.departmentId });
@@ -641,7 +641,9 @@ export class TasksService {
             const invalidUsers = targetUsers.filter(targetUser => {
                 // A target user is valid if their department ID is one of the departments
                 // the task is assigned to AND the delegator is the head of.
-                return !(targetUser.departmentId && delegatorHeadOfDeptIds.includes(targetUser.departmentId));
+                // Check if the user belongs to *any* of the departments the delegator manages for this task
+                const userDeptIds = targetUser.departments?.map(d => d.id) || [];
+                return !userDeptIds.some(deptId => delegatorHeadOfDeptIds.includes(deptId));
             });
 
             if (invalidUsers.length > 0) {
@@ -682,14 +684,15 @@ export class TasksService {
 
             // Log activity for each delegated task creation
             try {
-                await this.activityLogService.logManual(
-                  delegatorInfo.userId,
-                  'delegate',
-                  'task',
-                  `Delegated task "${originalTask.title}" to user ${targetUser.username}`,
-                  originalTask.id, // Log against the original task ID
-                  { delegatedToUserId: targetUser.id, delegatedTaskId: savedDelegatedTask.id } // Add context
-                );
+                await this.activityLogService.createLog({
+                  user: delegator, // Pass the delegator User object
+                  action: 'delegate',
+                  target: 'task',
+                  target_id: originalTask.id, // Log against the original task ID
+                  details: `Delegated task "${originalTask.title}" (New Task ID: ${savedDelegatedTask.id}) to user ${targetUser.username} (ID: ${targetUser.id})`,
+                  status: 'success',
+                  // Add context as part of details or handle separately if needed
+                });
             } catch (logError) {
                 console.error(`Failed to log task delegation activity: ${logError.message}`);
             }

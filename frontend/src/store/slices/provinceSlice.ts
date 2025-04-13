@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { getProvinces } from '../../services/provinceService/index'; // Using the correct service implementation
+import { getAdminProvinces } from '@/services/provinceService/index'; // Corrected import name and path
 
 // Basic Province interface (refine if shared type exists)
 interface Province {
@@ -30,8 +30,8 @@ export const fetchProvinces = createAsyncThunk<
   async (_, { rejectWithValue }) => {
     console.log("[fetchProvinces] Thunk started"); // Debug log
     try {
-      console.log("[fetchProvinces] Calling getProvinces service function..."); // Debug log
-      const provinces = await getProvinces();
+      console.log("[fetchProvinces] Calling getAdminProvinces service function..."); // Debug log
+      const provinces = await getAdminProvinces(); // Corrected function call
       console.log("[fetchProvinces] Service function returned:", provinces); // Debug log
       return provinces || [];
     } catch (error: any) {

@@ -2,6 +2,7 @@ export interface Department {
   id: string;
   name: string;
   description?: string;
+  provinceId?: string;
   created_at?: string;
   updated_at?: string;
   members_count?: number;

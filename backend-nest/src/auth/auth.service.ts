@@ -39,7 +39,9 @@ export class AuthService {
     this.logger.log(`Login attempt for user: ${username}`);
     
     try {
+      this.logger.log(`[signIn] Calling usersService.findOne for username: '${username}'...`);
       const user = await this.usersService.findOne(username);
+      this.logger.log(`[signIn] usersService.findOne returned: ${user ? 'User object' : 'null or undefined'}`);
       if (!user) {
         this.logger.warn(`User not found: ${username}`);
         throw new UnauthorizedException('Please check your login credentials');

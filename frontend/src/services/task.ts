@@ -1,6 +1,6 @@
 import apiClient from '../utils/axios';
 import { AxiosResponse } from 'axios';
-import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef, TaskPriority, DashboardTasksResponse } from '../types/task';
+import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef, TaskPriority, DashboardTasksResponse, DelegateTaskData } from '../types/task';
 import { User } from '../types/user';
 import { parseDate, toISOString } from '../utils/dateUtils';
 
@@ -102,17 +102,17 @@ export const TaskService = {
     // Add helper functions to the TaskService object for compatibility
     standardizeTask,
     ensureStringId,
-    
+
     // Get all tasks with enhanced filtering for different user roles
     getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
             // Add support for role-based filtering
             const response = await apiClient.get<any[]>('/tasks/', { params });
             console.log('Tasks fetched from API:', response);
-            
+
             // Map backend data to standardized frontend Task objects
             const mappedTasks = response.data.map(standardizeTask);
-            
+
             console.log('Mapped tasks in TaskService:', mappedTasks);
             return mappedTasks;
         } catch (error) {
@@ -157,28 +157,27 @@ export const TaskService = {
     createTask: async (taskData: CreateTask): Promise<Task> => {
         try {
             const status = frontendToBackendStatus[taskData.status || TaskStatus.PENDING] || 'pending';
-            
+
             console.log('Creating task with data:', taskData);
-            
+
             const taskPriorities = JSON.parse(localStorage.getItem('taskPriorities') || '{}');
-            
+
             const payload: any = {
                 title: taskData.title,
                 description: taskData.description || '',
                 status,
-                departmentId: taskData.departmentId,
-                // Convert assigned_to to assignedToUsers for API compatibility
-                assignedToUsers: taskData.assignedToUsers || taskData.assigned_to,
+                assignedToUserIds: taskData.assignedToUserIds,
                 priority: taskData.priority,
                 assignedToDepartmentIds: taskData.assignedToDepartmentIds,
-                assignedToProvinceId: taskData.assignedToProvinceId
+                assignedToProvinceId: taskData.assignedToProvinceId,
+                type: taskData.type,
+                isDelegated: taskData.isDelegated,
+                delegatedByUserId: taskData.delegatedByUserId,
+                delegatedFromTaskId: taskData.delegatedFromTaskId
             };
 
-            // Remove assigned_to to prevent backend error
-            delete payload.assigned_to;
-
-            if (taskData.due_date) {
-                payload.dueDate = toISOString(taskData.due_date);
+            if (taskData.dueDate) {
+                payload.dueDate = toISOString(taskData.dueDate);
             } else {
                 delete payload.dueDate;
             }
@@ -187,7 +186,7 @@ export const TaskService = {
 
             console.log('Sending payload to API:', payload);
 
-            const response = await apiClient.post('/tasks/', payload);
+            const response = await apiClient.post('/api/tasks/', payload);
             const createdTask = response.data;
 
             // Store the priority if provided
@@ -224,9 +223,14 @@ export const TaskService = {
     },
 
     // Delete a task
-    deleteTask: async (taskId: string) => {
+    deleteTask: async (taskId: string): Promise<void> => {
         const stringTaskId = ensureStringId(taskId);
-        await apiClient.delete(`/tasks/${stringTaskId}/`);
+        try {
+            await apiClient.delete(`/api/tasks/${stringTaskId}`);
+        } catch (error) {
+            console.error(`Error deleting task ${stringTaskId}:`, error);
+            throw error;
+        }
     },
 
     // Assign a task to a user
@@ -234,13 +238,13 @@ export const TaskService = {
         try {
             const stringTaskId = ensureStringId(taskId);
             const stringUserId = ensureStringId(userId);
-            
+
             const response = await apiClient.post<any>(`/tasks/${stringTaskId}/assign/`, {
                 user_id: stringUserId
             });
-            
+
             console.log('Task assignment response:', response);
-            
+
             // Standardize the task object
             return standardizeTask(response);
         } catch (error) {
@@ -250,22 +254,27 @@ export const TaskService = {
     },
 
     // Change task status
-    changeTaskStatus: async (taskId: string, status: TaskStatus) => {
+    changeTaskStatus: async (taskId: string, status: TaskStatus): Promise<Task> => {
+        const stringTaskId = ensureStringId(taskId);
         try {
-            const stringTaskId = ensureStringId(taskId);
             console.log(`Changing task ${stringTaskId} status to ${status}`);
-            
-            // Use the updateTask endpoint with only the status field
-            const response = await apiClient.patch<any>(`/tasks/${stringTaskId}/`, {
-                status: status
-            });
-            
-            console.log('Status change response:', response);
-            
-            // Standardize the task object
-            return standardizeTask(response);
+            const response = await apiClient.patch<Task>(`/api/tasks/${stringTaskId}/status`, { status });
+            return standardizeTask(response.data);
         } catch (error) {
-            console.error('Error changing task status:', error);
+            console.error(`Error changing status for task ${stringTaskId}:`, error);
+            throw error;
+        }
+    },
+
+    // Change task priority
+    changeTaskPriority: async (taskId: string, priority: TaskPriority): Promise<Task> => {
+        const stringTaskId = ensureStringId(taskId);
+        try {
+            console.log(`Changing task ${stringTaskId} priority to ${priority}`);
+            const response = await apiClient.patch<Task>(`/api/tasks/${stringTaskId}/priority`, { priority }); // Use plan endpoint
+            return standardizeTask(response.data);
+        } catch (error) {
+            console.error(`Error changing priority for task ${stringTaskId}:`, error);
             throw error;
         }
     },
@@ -285,7 +294,7 @@ export const TaskService = {
     getTask: async (taskId: string): Promise<Task> => {
         try {
             const response = await apiClient.get<Task>(`/tasks/${taskId}/`);
-            
+
             // Convert backend status to frontend status
             return standardizeTask(response.data);
         } catch (error) {
@@ -304,9 +313,9 @@ export const TaskService = {
                 task_type: type,
                 ...filters,
             };
-            
+
             const response = await apiClient.get<any[]>('/tasks/', { params }); // Expect any[] from API
-            
+
             // Map using standardizeTask
             return response.data.map(standardizeTask);
         } catch (error) {
@@ -314,7 +323,7 @@ export const TaskService = {
             throw error;
         }
     },
-    
+
     // Alias for getVisibleTasks for backward compatibility
     getAllVisibleTasks: async (
         type: 'my_tasks' | 'assigned' | 'created' | 'all' = 'all',
@@ -330,13 +339,13 @@ export const TaskService = {
             const response: AxiosResponse<any[]> = await apiClient.get('/tasks');
             console.log('API response for tasks:', response.data);
             console.log('Response status:', response.status);
-            
+
             if (response.status === 200) {
                 const tasks = response.data;
                 console.log(`Received ${tasks.length} tasks from API`);
                 const mappedTasks = tasks.map(standardizeTask);
                 console.log('Mapped tasks:', mappedTasks);
-                return mappedTasks; 
+                return mappedTasks;
             }
             return [];
         } catch (error) {
@@ -344,41 +353,108 @@ export const TaskService = {
             return [];
         }
     },
-  // Delegate a task to another user
-  delegateTask: async (taskId: string, delegatedByUserId: string) => {
-    try {
-      const response = await apiClient.patch(`/tasks/${taskId}/`, {
-        delegatedByUserId
-      });
-      return TaskService.standardizeTask(response.data);
-    } catch (error) {
-      console.error('Error delegating task:', error);
-      throw error;
-    }
-  },
 
-  // START: Add Dashboard Task Fetching Function
-  getDashboardTasks: async (): Promise<DashboardTasksResponse> => {
-    try {
-      console.log("Fetching dashboard tasks...");
-      const response = await apiClient.get<DashboardTasksResponse>('/tasks/dashboard');
-      console.log("Dashboard tasks received:", response);
-      // Explicitly return the .data property to match the expected type
-      // This assumes apiClient.get might sometimes return the full AxiosResponse
-      // or handles the case where it directly returns data.
-      return response.data; 
-    } catch (error) {
-      console.error('Error fetching dashboard tasks:', error);
-      // Return an empty structure or rethrow based on how consuming components handle errors
-      // throw error; 
-       return { 
-          myPersonalTasks: [], 
-          tasksICreatedForOthers: [], 
-          tasksAssignedToMe: [], 
-          tasksDelegatedByMe: [], 
-          tasksDelegatedToMe: [] 
-      };
-    }
-  },
-  // END: Add Dashboard Task Fetching Function
+    // Delegate a task to another user
+    delegateTask: async (originalTaskId: string, delegationData: DelegateTaskData): Promise<Task> => {
+        const stringTaskId = ensureStringId(originalTaskId);
+        try {
+            console.log(`Delegating task ${stringTaskId} with data:`, delegationData);
+            const response = await apiClient.post<Task>(`/api/tasks/${stringTaskId}/delegate`, delegationData);
+            return standardizeTask(response.data);
+        } catch (error) {
+            console.error(`Error delegating task ${stringTaskId}:`, error);
+            throw error;
+        }
+    },
+
+    // Get all tasks relevant for the user's dashboard view
+    getDashboardTasks: async (): Promise<DashboardTasksResponse> => {
+        try {
+            console.log('[TaskService] Fetching tasks for dashboard...');
+            const response = await apiClient.get<DashboardTasksResponse>('/api/tasks/dashboard');
+            console.log('[TaskService] Dashboard tasks received:', response.data);
+
+            // Assuming the backend response directly matches DashboardTasksResponse structure
+            // which might contain categorized task lists (e.g., myTasks, assignedToMe, etc.)
+            // We might need standardization within the response lists if backend doesn't do it.
+            // For now, returning the raw structure.
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching dashboard tasks:', error);
+            throw error;
+        }
+    },
+
+    // Get details for a single task
+    getTaskDetails: async (taskId: string): Promise<Task> => {
+        const stringTaskId = ensureStringId(taskId);
+        try {
+            const response = await apiClient.get<Task>(`/api/tasks/${stringTaskId}`);
+            return standardizeTask(response.data);
+        } catch (error) {
+            console.error(`Error fetching details for task ${stringTaskId}:`, error);
+            throw error;
+        }
+    },
+
+    // Fetch tasks delegated BY the current user
+    getDelegatedByMeTasks: async (): Promise<Task[]> => {
+        try {
+            const response = await apiClient.get<Task[]>('/api/tasks/delegated-by-me');
+            return response.data.map(standardizeTask);
+        } catch (error) {
+            console.error('Error fetching tasks delegated by me:', error);
+            throw error;
+        }
+    },
+
+    // Fetch tasks delegated TO the current user
+    getDelegatedToMeTasks: async (): Promise<Task[]> => {
+        try {
+            const response = await apiClient.get<Task[]>('/api/tasks/delegated-to-me');
+            return response.data.map(standardizeTask);
+        } catch (error) {
+            console.error('Error fetching tasks delegated to me:', error);
+            throw error;
+        }
+    },
+
+    // Update partial task details (e.g., status, priority from assignees)
+    updateTaskPartial: async (taskId: string, updates: TaskUpdate): Promise<Task> => {
+        const stringTaskId = ensureStringId(taskId);
+        try {
+            console.log(`Partially updating task ${stringTaskId} with:`, updates);
+            const response = await apiClient.patch(`/tasks/${stringTaskId}/`, updates);
+            return standardizeTask(response.data);
+        } catch (error) {
+            console.error(`Error partially updating task ${stringTaskId}:`, error);
+            throw error;
+        }
+    },
+
+    // Update full task details (Creator only)
+    updateTaskDetails: async (taskId: string, taskData: Partial<Task>): Promise<Task> => {
+        const stringTaskId = ensureStringId(taskId);
+        try {
+            console.log(`Updating full details for task ${stringTaskId} with:`, taskData);
+            const response = await apiClient.put<Task>(`/api/tasks/${stringTaskId}`, taskData);
+            return standardizeTask(response.data);
+        } catch (error) {
+            console.error(`Error updating details for task ${stringTaskId}:`, error);
+            throw error;
+        }
+    },
+
+    // Cancel a task
+    cancelTask: async (taskId: string): Promise<Task> => {
+        const stringTaskId = ensureStringId(taskId);
+        try {
+            console.log(`Cancelling task ${stringTaskId}`);
+            const response = await apiClient.post<Task>(`/api/tasks/${stringTaskId}/cancel`);
+            return standardizeTask(response.data);
+        } catch (error) {
+            console.error(`Error cancelling task ${stringTaskId}:`, error);
+            throw error;
+        }
+    },
 };

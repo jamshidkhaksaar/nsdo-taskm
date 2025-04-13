@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+// Task type definitions
 import { User } from './user';
 
 export enum TaskStatus {
@@ -14,6 +14,13 @@ export enum TaskPriority {
   HIGH = 'high'
 }
 
+export enum TaskType {
+  PERSONAL = 'personal',
+  DEPARTMENT = 'department',
+  USER = 'user',
+  PROVINCE_DEPARTMENT = 'province_department'
+}
+
 export type TaskContext = 'personal' | 'department' | 'user';
 
 export interface DepartmentRef {
@@ -21,7 +28,8 @@ export interface DepartmentRef {
   name: string;
 }
 
-export type TaskType = 'user' | 'department' | 'user_to_user' | 'province';
+// Deprecated - use TaskType enum instead
+// export type TaskType = 'user' | 'department' | 'user_to_user' | 'province';
 
 export interface Task {
   id: string | number;
@@ -43,6 +51,8 @@ export interface Task {
   context?: TaskContext;
   type?: TaskType;
   delegatedByUserId?: string | null;
+  delegatedFromTaskId?: string | null;
+  isDelegated?: boolean;
   assignedToUsers?: User[];
   assignedToDepartmentIds?: string[] | null;
   assignedToProvinceId?: string | null;
@@ -58,6 +68,9 @@ export interface CreateTask {
   assignedToUserIds?: string[];
   assignedToDepartmentIds?: string[];
   assignedToProvinceId?: string | null;
+  isDelegated?: boolean;
+  delegatedByUserId?: string | null;
+  delegatedFromTaskId?: string | null;
 }
 
 export type TaskUpdate = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'assignedToUsers' | 'assignedToDepartments' | 'assignedToProvince' | 'delegatedBy' | 'delegatedFromTask'> & {
@@ -78,6 +91,13 @@ export interface Comment {
     name: string;
     avatar?: string;
   };
+}
+
+// Data structure for the delegate task API call
+export interface DelegateTaskData {
+  assignedToUserIds: string[]; // Users to delegate the task to
+  comment?: string; // Optional comment for the delegation
+  // Potentially other options like copying description, changing due date?
 }
 
 export interface DashboardTasksResponse {

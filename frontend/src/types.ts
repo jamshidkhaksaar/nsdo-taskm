@@ -41,4 +41,29 @@ export interface JWTResponse {
 // Root State type
 export interface RootState {
   auth: AuthState;
+}
+
+// Department type
+export interface Department {
+  id: number;
+  name: string;
+  description: string;
+  provinceId?: string | number | null;
+  headId?: string | number | null;
+  head_name?: string;
+  members_count?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Task type
+export interface Task {
+  id: number;
+  title: string;
+  description: string;
+  status: 'todo' | 'in-progress' | 'done'; // Example statuses
+  userId: number | null; // Assignee User ID
+  departmentId: number | null;
+  createdAt: string;
+  updatedAt: string;
 } 

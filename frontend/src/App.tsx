@@ -5,6 +5,10 @@ import { AppRoutes } from './routes';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import ProtectedRoute from './routes/ProtectedRoute';
+import DepartmentsPage from './pages/DepartmentsPage';
+import UsersPage from './pages/UsersPage';
+import ProvincesPage from './pages/ProvincesPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
 
 const App: React.FC = () => {
   return (
@@ -27,6 +31,9 @@ const App: React.FC = () => {
               </ProtectedRoute>
             } 
           />
+          <Route path="/departments" element={<DepartmentsPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/provinces" element={<ProvincesPage />} />
           <Route path="*" element={<AppRoutes />} />
         </Routes>
       </ThemeProvider>
