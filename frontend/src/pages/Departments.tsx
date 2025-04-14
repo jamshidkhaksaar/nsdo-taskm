@@ -29,14 +29,13 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import Sidebar from '../components/Sidebar';
 import DepartmentList from '../components/departments/DepartmentList';
 import TasksSection from '../components/departments/TasksSection';
-import { Task, TaskStatus } from '../types/task';
+import { Task, TaskStatus, Department } from '@/types/index';
 import { DepartmentService } from '../services/department';
 import { TaskService } from '../services/task';
 import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
-import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
-import { Department } from '../types/department';
+import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
 import DepartmentDetail from '../components/departments/DepartmentDetail';
 
 const DRAWER_WIDTH = 240;
@@ -140,29 +139,12 @@ const Departments: React.FC = () => {
   useEffect(() => {
     if (tasks.length > 0 && departments.length > 0) {
       console.log("Recalculating department task counts...");
-      console.log("Tasks data:", tasks.map(t => ({ id: t.id, title: t.title, departmentId: t.departmentId, department: t.department })));
+      console.log("Tasks data:", tasks.map(t => ({ id: t.id, title: t.title, assignedToDepartmentIds: t.assignedToDepartmentIds })) );
       
       const departmentsWithCount = departments.map(dept => {
-        // Check both legacy departmentId field and new assignedToDepartmentIds array
-        const count = tasks.filter(task => {
-          // Check direct departmentId match
-          if (task.departmentId === dept.id) return true;
-          
-          // Check in department object if it exists
-          if (task.department) {
-            const deptId = typeof task.department === 'object' && task.department !== null 
-              ? task.department.id 
-              : task.department;
-            if (deptId === dept.id) return true;
-          }
-          
-          // Check in assignedToDepartmentIds array if it exists
-          if (task.assignedToDepartmentIds && Array.isArray(task.assignedToDepartmentIds)) {
-            return task.assignedToDepartmentIds.includes(dept.id);
-          }
-          
-          return false;
-        }).length;
+        const count = tasks.filter(task => 
+          task.assignedToDepartmentIds && task.assignedToDepartmentIds.includes(dept.id)
+        ).length;
         
         console.log(`Department ${dept.name} (${dept.id}) count: ${count}`);
         return { ...dept, tasksCount: count };
@@ -222,12 +204,10 @@ const Departments: React.FC = () => {
 
   // Filter tasks based on selected department (CLIENT-SIDE FILTERING)
   const departmentTasks = tasks.filter(task => {
-    // Ensure selectedDepartment exists and the task has a departmentId
-    if (!selectedDepartment || !task.departmentId) { 
+    if (!selectedDepartment) { 
       return false;
     }
-    // Compare the task's departmentId with the selected department ID
-    return task.departmentId === selectedDepartment;
+    return task.assignedToDepartmentIds && task.assignedToDepartmentIds.includes(selectedDepartment);
   });
   console.log(`Selected Dept: ${selectedDepartment}, Filtered Tasks Count: ${departmentTasks.length}`); // Debug log
 
@@ -325,9 +305,6 @@ const Departments: React.FC = () => {
         onClose={() => setCreateTaskDialogOpen(false)}
         onTaskCreated={handleTaskCreated} 
         dialogType="assign"
-        dialogMode="department"
-        preSelectedDepartment={selectedDepartment || undefined}
-        // departmentsList={departments} 
       />
     </Container>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Task } from '../../types';
+import { Task, TaskStatus, TaskPriority, TaskType } from '../../types';
 import { addTask, updateTask } from '../../services/tasks.service';
 // Import services to fetch users and departments if needed for dropdowns
 // import { getUsers } from '../../services/users.service';
@@ -15,9 +15,10 @@ interface TaskFormProps {
 const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'todo' | 'in-progress' | 'done'>('todo');
-  const [userId, setUserId] = useState<number | null>(null);
-  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const [status, setStatus] = useState<TaskStatus>(TaskStatus.PENDING);
+  const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [type, setType] = useState<TaskType>(TaskType.PERSONAL);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -31,15 +32,17 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
       setTitle(task.title);
       setDescription(task.description);
       setStatus(task.status);
-      setUserId(task.userId);
-      setDepartmentId(task.departmentId);
+      setPriority(task.priority);
+      setDueDate(task.dueDate ? task.dueDate.split('T')[0] : null);
+      setType(task.type);
     } else {
       // Reset form for add mode
       setTitle('');
       setDescription('');
-      setStatus('todo');
-      setUserId(null);
-      setDepartmentId(null);
+      setStatus(TaskStatus.PENDING);
+      setPriority(TaskPriority.MEDIUM);
+      setDueDate(null);
+      setType(TaskType.PERSONAL);
     }
 
     // Fetch data for dropdowns - uncomment and implement later
@@ -63,30 +66,47 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
     setLoading(true);
     setError(null);
 
-    const taskData = { title, description, status, userId, departmentId };
+    const formattedDueDate = dueDate ? new Date(dueDate).toISOString() : null;
+
+    const taskDataPayload = {
+      title,
+      description,
+      status,
+      priority,
+      dueDate: formattedDueDate,
+      type,
+    };
+
+    type TaskPayload = Omit<Task,
+      'id' | 'createdAt' | 'updatedAt' |
+      'createdById' | 'createdBy' |
+      'assignedToUserIds' | 'assignedToUsers' |
+      'assignedToDepartmentIds' | 'assignedToDepartments' |
+      'assignedToProvinceId' | 'assignedToProvince' |
+      'isDelegated' | 'delegatedFromTaskId' | 'delegatedFromTask' |
+      'delegatedByUserId' | 'delegatedBy'
+    >;
 
     try {
       if (task) {
-        // Edit mode
-        await updateTask(task.id, taskData);
+        await updateTask(task.id, taskDataPayload as Partial<TaskPayload>);
         alert('Task updated successfully');
       } else {
-        // Add mode
-        await addTask(taskData);
+        await addTask(taskDataPayload as TaskPayload);
         alert('Task added successfully');
       }
-      onSuccess(); // Trigger refresh and close form in parent
+      onSuccess();
     } catch (err) {
-      setError(task ? 'Failed to update task' : 'Failed to add task');
+      const message = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(task ? `Failed to update task: ${message}` : `Failed to add task: ${message}`);
       console.error(err);
-      alert(error); // Show error alert
+      alert(error);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    // Basic modal structure - consider using a dedicated modal component library
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
       <div className="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
@@ -120,32 +140,54 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
             <select
               id="status"
               value={status}
-              onChange={(e) => setStatus(e.target.value as 'todo' | 'in-progress' | 'done')}
+              onChange={(e) => setStatus(e.target.value as TaskStatus)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
-              <option value="todo">To Do</option>
-              <option value="in-progress">In Progress</option>
-              <option value="done">Done</option>
+              <option value={TaskStatus.PENDING}>To Do</option>
+              <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
+              <option value={TaskStatus.COMPLETED}>Completed</option>
+              <option value={TaskStatus.CANCELLED}>Cancelled</option>
             </select>
           </div>
 
-          {/* Placeholder for User Assignee Dropdown */}
-          {/* <div className="mb-4">
-             <label htmlFor="userId" className="block text-sm font-medium text-gray-700">Assignee</label>
-             <select id="userId" value={userId ?? ''} onChange={(e) => setUserId(e.target.value ? parseInt(e.target.value) : null)} className="...">
-               <option value="">Unassigned</option>
-               {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)} // Need User type with name
-             </select>
-           </div> */}
+          <div className="mb-4">
+            <label htmlFor="priority" className="block text-sm font-medium text-gray-700">Priority</label>
+            <select
+              id="priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as TaskPriority)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            >
+              <option value={TaskPriority.LOW}>Low</option>
+              <option value={TaskPriority.MEDIUM}>Medium</option>
+              <option value={TaskPriority.HIGH}>High</option>
+            </select>
+          </div>
 
-          {/* Placeholder for Department Dropdown */}
-          {/* <div className="mb-4">
-             <label htmlFor="departmentId" className="block text-sm font-medium text-gray-700">Department</label>
-             <select id="departmentId" value={departmentId ?? ''} onChange={(e) => setDepartmentId(e.target.value ? parseInt(e.target.value) : null)} className="...">
-               <option value="">None</option>
-               {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
-             </select>
-           </div> */}
+          <div className="mb-4">
+            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700">Due Date</label>
+            <input
+              type="date"
+              id="dueDate"
+              value={dueDate || ''}
+              onChange={(e) => setDueDate(e.target.value || null)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="type" className="block text-sm font-medium text-gray-700">Type</label>
+            <select
+              id="type"
+              value={type}
+              onChange={(e) => setType(e.target.value as TaskType)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            >
+              <option value={TaskType.PERSONAL}>Personal</option>
+              <option value={TaskType.TEAM}>Team</option>
+              <option value={TaskType.PROJECT}>Project</option>
+            </select>
+          </div>
 
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 

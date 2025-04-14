@@ -7,9 +7,8 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs, { Dayjs } from 'dayjs';
 import { TaskService } from '@/services/task';
-import { TaskStatus, TaskPriority, TaskType, CreateTask } from '@/types/task';
+import { TaskStatus, TaskPriority, TaskType, Department, CreateTask } from '@/types/index';
 import { User } from '@/types/user';
-import { Department } from '@/types/department';
 import { Province } from '@/types/province';
 import useReferenceData from '../../hooks/useReferenceData';
 

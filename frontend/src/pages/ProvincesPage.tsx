@@ -11,8 +11,8 @@ import { Department } from '../types/department';
 import { fetchProvinces } from '../store/slices/provinceSlice'; // Assuming province slice exists
 import { fetchDepartments } from '../store/slices/departmentSlice'; // Fetch all departments
 import { useErrorHandler } from '@/hooks/useErrorHandler';
-import CreateTaskDialog from '@/components/dialogs/CreateTaskDialog'; // For assigning tasks
-import { TaskType } from '@/types/task';
+import CreateTaskDialog from '@/components/dialogs/CreateTaskDialog';
+import { TaskType } from '@/types';
 
 const ProvincesPage: React.FC = () => {
     const dispatch = useDispatch<AppDispatch>();

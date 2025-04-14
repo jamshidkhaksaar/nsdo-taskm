@@ -1,3 +1,5 @@
+import { Dayjs } from 'dayjs';
+
 export interface User {
   id: number;
   username: string;
@@ -63,6 +65,8 @@ export interface Department {
   headId?: string | null;
   head?: User | null;
   members?: User[];
+  createdAt: string; // Added createdAt
+  updatedAt: string; // Added updatedAt
   // Add other relevant fields from backend entity if needed
 }
 
@@ -132,6 +136,51 @@ export interface Task {
   delegatedFromTask?: Task | null; // Optional relation
   delegatedByUserId?: string | null;
   delegatedBy?: User | null; // Optional relation
+}
+
+// Define CreateTask interface (matching CreateTaskDto from backend, excluding backend-managed fields)
+export interface CreateTask {
+  title: string;
+  description: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  type: TaskType;
+  dueDate?: string | Dayjs | null; // Allow Dayjs for picker, convert before sending
+  assignedToUserIds?: string[];
+  assignedToDepartmentIds?: string[];
+  assignedToProvinceId?: string | null;
+  isDelegated?: boolean;
+  delegatedFromTaskId?: string | null;
+  delegatedByUserId?: string | null;
+}
+
+// Define TaskUpdate interface (similar to UpdateTaskDto from backend)
+export type TaskUpdate = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'createdById' | 'assignedToUsers' | 'assignedToDepartments' | 'assignedToProvince' | 'delegatedFromTask' | 'delegatedBy'>> & {
+  assignedToUserIds?: string[];
+  assignedToDepartmentIds?: string[];
+  assignedToProvinceId?: string | null;
+};
+
+// Define DelegateTaskData interface
+export interface DelegateTaskData {
+  newAssigneeUserId: string;
+  delegationReason?: string;
+  // Maybe include original Task ID if needed by backend
+}
+
+// Define Dashboard Task Count Type
+export interface DashboardTaskCounts {
+  pending: number;
+  in_progress: number;
+  completed: number;
+  cancelled: number;
+  total: number;
+}
+
+// Define response type for fetching dashboard tasks
+export interface DashboardTasksResponse {
+  tasks: Task[];
+  counts: DashboardTaskCounts;
 }
 
 // END: Add Task and Dashboard Types

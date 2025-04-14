@@ -5,8 +5,8 @@ import { AppRoutes } from './routes';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import ProtectedRoute from './routes/ProtectedRoute';
-import DepartmentsPage from './pages/DepartmentsPage';
-import UsersPage from './pages/UsersPage';
+import DepartmentsPage from './pages/Departments';
+import UsersPage from './pages/Users';
 import ProvincesPage from './pages/ProvincesPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 

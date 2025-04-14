@@ -1,8 +1,9 @@
 import apiClient from '../utils/axios';
 import { AxiosResponse } from 'axios';
-import { Task, CreateTask, TaskStatus, TaskUpdate, DepartmentRef, TaskPriority, DashboardTasksResponse, DelegateTaskData } from '../types/task';
-import { User } from '../types/user';
+import { Task, CreateTask, TaskStatus, TaskUpdate, Department, TaskPriority, DashboardTasksResponse, DelegateTaskData, TaskType } from '@/types/index';
+import { User } from '@/types/user';
 import { parseDate, toISOString } from '../utils/dateUtils';
+import dayjs from 'dayjs';
 
 // Enhanced interface to support role-based task creation
 interface GetTasksParams {
@@ -37,35 +38,56 @@ const ensureStringId = (id: string | number): string => {
 const standardizeTask = (data: any): Task => {
     if (!data) {
         console.error("standardizeTask received null or undefined data");
+        // Return a valid Task object with default/placeholder values
         return {
             id: 'invalid-' + Date.now(),
             title: 'Invalid Task Data',
             description: '',
             status: TaskStatus.PENDING,
             priority: TaskPriority.MEDIUM,
+            type: TaskType.PERSONAL, // Default type
             dueDate: null,
-            departmentId: null
-         } as Task;
+            createdAt: new Date().toISOString(), // Default timestamp
+            updatedAt: new Date().toISOString(), // Default timestamp
+            createdById: 'unknown_user', // Default creator
+            isDelegated: false, // Default delegation status
+            // Optional fields can be omitted or set to null/empty arrays
+            assignedToUserIds: [],
+            assignedToUsers: [],
+            assignedToDepartmentIds: [],
+            assignedToDepartments: [],
+            assignedToProvinceId: null,
+            assignedToProvince: null,
+            delegatedFromTaskId: null,
+            delegatedFromTask: null,
+            delegatedByUserId: null,
+            delegatedBy: null,
+         };
     }
 
     // Robustly map all possible field names for dashboard columns
-    const createdById = data.createdById || data.created_by || data.created_by_id || null;
+    const rawCreatedById = data.createdById || data.created_by || data.created_by_id || null;
+    const createdById = rawCreatedById ? ensureStringId(rawCreatedById) : 'unknown_user'; // Ensure string, default if null
+    
     // Prefer department object if available, fallback to string or null
-    const department =
-        data.department && typeof data.department === 'object'
-            ? data.department
-            : data.department_obj && typeof data.department_obj === 'object'
-                ? data.department_obj
-                : data.department_name
-                    ? { id: data.departmentId || data.department_id || null, name: data.department_name }
-                    : null;
+    // Removed department logic as it's not directly part of the Task interface
+    // It's handled via assignedToDepartments or other relations
+    
     const assignedToDepartmentIds = data.assignedToDepartmentIds || data.assigned_to_departments || null;
     const assignedToProvinceId = data.assignedToProvinceId || data.assigned_to_province_id || null;
-    const assignedToUsers = data.assignedToUsers || data.assigned_to_users || [];
-    // Accept both array of user objects or array of user IDs
-    const assignedToUsersNormalized = Array.isArray(assignedToUsers)
-        ? assignedToUsers.map(u => typeof u === 'object' ? u : { id: u })
+    const assignedToUsersData = data.assignedToUsers || data.assigned_to_users || [];
+    // Accept both array of user objects or array of user IDs for assignedToUsers
+    const assignedToUsersNormalized = Array.isArray(assignedToUsersData)
+        ? assignedToUsersData.map(u => typeof u === 'object' ? u : { id: ensureStringId(u) }) // Ensure user object structure with string ID
         : [];
+    const assignedToUserIds = assignedToUsersNormalized.map(u => u.id);
+
+    // Similarly handle assigned departments if provided as objects or IDs
+    const assignedToDepartmentsData = data.assignedToDepartments || data.assigned_to_departments || [];
+    const assignedToDepartmentsNormalized = Array.isArray(assignedToDepartmentsData)
+        ? assignedToDepartmentsData.map(d => typeof d === 'object' ? d : { id: ensureStringId(d) })
+        : [];
+    // assignedToDepartmentIds already derived above, ensure consistency or use this
 
     const task: Task = {
         id: ensureStringId(data.id),
@@ -73,27 +95,31 @@ const standardizeTask = (data: any): Task => {
         description: data.description || '',
         status: data.status || TaskStatus.PENDING,
         priority: data.priority || TaskPriority.MEDIUM,
+        type: data.type || TaskType.USER, // Default if missing
         dueDate: data.dueDate || data.due_date || null,
-        departmentId: data.departmentId || data.department_id || null,
-        // department property is set below with robust mapping
-        createdAt: data.createdAt || data.created_at,
-        updatedAt: data.updatedAt || data.updated_at,
-        createdById: createdById ? ensureStringId(createdById) : null,
-        assigned_to: Array.isArray(data.assigned_to)
-                        ? data.assigned_to.map(ensureStringId)
-                        : (data.assigned_to ? [ensureStringId(data.assigned_to)] : []),
-        type: data.type,
-        is_private: data.is_private,
-        department, // Add department object if available
+        createdAt: data.createdAt || data.created_at || new Date().toISOString(), // Default if missing
+        updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(), // Default if missing
+        createdById: createdById, // Now guaranteed to be string
+        isDelegated: data.isDelegated !== undefined ? data.isDelegated : false, // Default if missing
+        // Assign normalized arrays/IDs
+        assignedToUserIds: assignedToUserIds, // Array of IDs
+        assignedToUsers: assignedToUsersNormalized, // Array of User stubs/objects
+        assignedToDepartmentIds: assignedToDepartmentsNormalized.map(d => d.id), // Array of IDs
+        assignedToDepartments: assignedToDepartmentsNormalized, // Array of Dept stubs/objects
+        assignedToProvinceId: assignedToProvinceId, // string | null
+        assignedToProvince: data.assignedToProvince || null, // Province | null
+        delegatedFromTaskId: data.delegatedFromTaskId || null,
+        delegatedFromTask: data.delegatedFromTask || null,
         delegatedByUserId: data.delegatedByUserId ? ensureStringId(data.delegatedByUserId) : null,
-        assignedToDepartmentIds: assignedToDepartmentIds || [],
-        assignedToProvinceId: assignedToProvinceId || null,
-        assignedToUsers: assignedToUsersNormalized,
-        context: data.context,
-        created_by: data.created_by ? ensureStringId(data.created_by) : undefined,
+        delegatedBy: data.delegatedBy || null,
+        // Remove legacy fields if they existed
+        // departmentId: data.departmentId || data.department_id || null, // Removed as it's not in Task type
+        // context: data.context, // Removed unless added back to Task type
+        // created_by: data.created_by ? ensureStringId(data.created_by) : undefined, // Removed, use createdById
     };
 
-    if (task.assigned_to === undefined) task.assigned_to = [];
+    // Clean up potential undefined issues (optional)
+    // Object.keys(task).forEach(key => task[key] === undefined && delete task[key]);
 
     return task;
 };
@@ -177,7 +203,10 @@ export const TaskService = {
             };
 
             if (taskData.dueDate) {
-                payload.dueDate = toISOString(taskData.dueDate);
+                // Convert Dayjs object to ISO string if necessary
+                payload.dueDate = typeof taskData.dueDate === 'string' 
+                    ? taskData.dueDate 
+                    : dayjs(taskData.dueDate).toISOString(); 
             } else {
                 delete payload.dueDate;
             }

@@ -243,9 +243,9 @@ const Dashboard: React.FC = () => {
   // Placeholder handlers for TasksSection props
   // Moved to the main handlers section to avoid duplication
 
-  // Ensure signature matches (Task) => Promise<void>
-  const handleTaskUpdated = async (task: Task): Promise<void> => {
-    console.log('Task updated in section:', task);
+  // Ensure signature matches () => void for EditTaskDialog prop
+  const handleTaskUpdated = async (): Promise<void> => {
+    console.log('[Dashboard] Task updated, refreshing dashboard data...');
     // Refetch ALL dashboard data after update for consistency
     await fetchDashboardTasks();
   };
