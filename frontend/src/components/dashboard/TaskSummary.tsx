@@ -4,7 +4,7 @@ import PendingIcon from '@mui/icons-material/Pending';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { Task } from '../../types/task';
+import { Task, TaskStatus } from '../../types';
 
 interface TaskSummaryProps {
   tasks: Task[];
@@ -22,10 +22,10 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks, compact = false }) => 
   } = useMemo(() => {
     return {
       totalCount: tasks.length,
-      pendingCount: tasks.filter(task => task.status === 'pending').length,
-      inProgressCount: tasks.filter(task => task.status === 'in_progress').length,
-      completedCount: tasks.filter(task => task.status === 'completed').length,
-      cancelledCount: tasks.filter(task => task.status === 'cancelled').length
+      pendingCount: tasks.filter(task => task.status === TaskStatus.PENDING).length,
+      inProgressCount: tasks.filter(task => task.status === TaskStatus.IN_PROGRESS).length,
+      completedCount: tasks.filter(task => task.status === TaskStatus.COMPLETED).length,
+      cancelledCount: tasks.filter(task => task.status === TaskStatus.CANCELLED).length
     };
   }, [tasks]);
 

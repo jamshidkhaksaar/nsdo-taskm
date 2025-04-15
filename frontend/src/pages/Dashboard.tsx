@@ -32,9 +32,7 @@ import { logout } from '../store/slices/authSlice';
 import { fetchUsers } from '../store/slices/userSlice';
 import { fetchDepartments } from '../store/slices/departmentSlice';
 import { fetchProvinces } from '../store/slices/provinceSlice';
-import { Task, TaskPriority, TaskStatus, TaskContext, TaskType, DashboardTasksResponse, TaskUpdate } from '../types/task';
-import { User } from '../types/user';
-import { Department } from '../types/department';
+import { Task, TaskPriority, TaskStatus, TaskType, DashboardTasksResponse, TaskUpdate, User, Department } from '../types';
 import axios from '@/utils/axios';
 import { TaskService } from '@/services/task';
 import TasksSection from '@/components/departments/TasksSection'; // Import TasksSection
@@ -263,12 +261,15 @@ const Dashboard: React.FC = () => {
   // --- End Sidebar and Widget Toggle Handlers ---
 
   const handleEditTask = (taskId: string) => {
-    // TODO: Update this logic to find the task within the new dashboardData structure
-    // This might involve searching across multiple arrays (e.g., assignedToMe, delegatedToMe)
-    // For now, it might be broken or only find tasks in one specific list if that list is still rendered somewhere.
-    // Example placeholder: Find task in 'tasksAssignedToMe' for now
-    const taskToEdit = dashboardData.tasksAssignedToMe.find(t => String(t.id) === taskId) || null;
-    console.warn("[Dashboard] handleEditTask needs updating for new data structure. Searching in assignedToMe only for now.");
+    // Search all dashboardData lists for the task
+    const taskToEdit =
+      [
+        ...dashboardData.myPersonalTasks,
+        ...dashboardData.tasksICreatedForOthers,
+        ...dashboardData.tasksAssignedToMe,
+        ...dashboardData.tasksDelegatedByMe,
+        ...dashboardData.tasksDelegatedToMe,
+      ].find(t => String(t.id) === taskId) || null;
     setSelectedTask(taskToEdit);
     setEditTaskDialogOpen(true);
   };

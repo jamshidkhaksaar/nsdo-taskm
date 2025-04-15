@@ -9,7 +9,7 @@ import {
   useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import { Task, TaskStatus, TaskPriority } from '../../types/task';
+import { Task, TaskStatus, TaskPriority } from '../../types';
 import { UserService } from '../../services/user';
 import { formatDate, DATE_FORMATS, parseDate } from '../../utils/dateUtils';
 import { KanbanColumn } from '../kanban';
