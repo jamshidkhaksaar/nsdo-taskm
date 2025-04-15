@@ -14,6 +14,7 @@ import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
 import { UsersService } from '../users/users.service';
 import { ActivityLog } from '../admin/entities/activity-log.entity';
+import { DelegateTaskDto } from './dto/delegate-task.dto';
 
 @Injectable()
 export class TasksService {
@@ -536,180 +537,52 @@ export class TasksService {
     return updatedTask;
   }
 
-  async delegateTask(id: string, userIds: string[], delegatorInfo: any): Promise<Task> {
-    console.log(`Attempting to delegate task ${id} to users ${userIds.join(', ')} by delegator:`, JSON.stringify(delegatorInfo, null, 2));
-
-    if (!userIds || userIds.length === 0) {
-        throw new BadRequestException('At least one user ID must be provided for delegation.');
+  async delegateTask(id: string, dto: DelegateTaskDto, delegatorInfo: any): Promise<Task[]> {
+    // 1. Find the original task
+    const originalTask = await this.tasksRepository.findOne({ where: { id }, relations: ['assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'createdBy'] });
+    if (!originalTask) {
+      throw new NotFoundException(`Task with ID ${id} not found.`);
     }
 
-    try {
-        // Fetch the original task with necessary relations for permission checks
-        const originalTask = await this.tasksRepository.findOne({
-            where: { id },
-            relations: [
-                'createdBy',
-                'assignedToUsers',
-                'assignedToDepartments', // Ensure departments are loaded
-            ],
-        });
-
-        if (!originalTask) {
-            console.error(`Delegation failed: Original task with ID ${id} not found.`);
-            throw new NotFoundException(`Task with ID "${id}" not found`);
-        }
-        console.log(`Original task found: ${originalTask.title}, Type: ${originalTask.type}`);
-
-        // Fetch the full delegator user entity
-        const delegator = await this.usersService.findById(delegatorInfo.userId);
-        if (!delegator) {
-             console.error(`Delegation failed: Delegator user with ID ${delegatorInfo.userId} not found.`);
-            throw new NotFoundException(`Delegator user with ID ${delegatorInfo.userId} not found.`);
-        }
-        console.log(`Delegator user found: ${delegator.username}, Role: ${delegator.role}`);
-
-        // --- Permission Check ---
-        const isCreator = originalTask.createdById === delegator.id;
-        const isDirectAssignee = originalTask.assignedToUsers.some(user => user.id === delegator.id);
-
-        let isDepartmentHeadDelegating = false;
-        let isAllowedToDelegate = isCreator || isDirectAssignee;
-
-        // Check if the delegator is a department head and the task is assigned to their department
-        if (!isAllowedToDelegate && (delegator.role === UserRole.MANAGER || delegator.role === UserRole.GENERAL_MANAGER)) {
-            console.log(`Checking if delegator ${delegator.username} is a head of assigned departments...`);
-            if (originalTask.type === TaskType.DEPARTMENT || originalTask.type === TaskType.PROVINCE_DEPARTMENT) {
-                const assignedDeptIds = originalTask.assignedToDepartments.map(dept => dept.id);
-                console.log(`Task assigned to departments: ${assignedDeptIds.join(', ')}`);
-                // Find departments where the delegator is the head AND the task is assigned to it
-                const headOfAssignedDepts = await this.departmentsRepository.count({
-                     where: {
-                         id: In(assignedDeptIds),
-                         headId: delegator.id, // Check if delegator is the head
-                     },
-                 });
-
-                 if (headOfAssignedDepts > 0) {
-                     isDepartmentHeadDelegating = true;
-                     isAllowedToDelegate = true; // Grant permission
-                     console.log(`Delegator ${delegator.username} is head of ${headOfAssignedDepts} department(s) this task is assigned to. Granting delegation permission.`);
-                 } else {
-                     console.log(`Delegator ${delegator.username} is not a head of any department this task is assigned to.`);
-                 }
-            } else {
-                 console.log(`Delegation as Department Head not applicable for task type ${originalTask.type}.`);
-            }
-        }
-
-        if (!isAllowedToDelegate) {
-            console.error(`Delegation failed: User ${delegator.username} (${delegator.id}) does not have permission to delegate task ${id}.`);
-            throw new ForbiddenException('You do not have permission to delegate this task.');
-        }
-        // --- End Permission Check ---
-
-
-        // --- Validate Target Users ---
-        const targetUsers = await this.usersRepository.find({
-            where: { id: In(userIds) },
-            relations: ['department'], // Load department relation for validation
-        });
-
-        if (targetUsers.length !== userIds.length) {
-            const foundIds = targetUsers.map(u => u.id);
-            const notFoundIds = userIds.filter(id => !foundIds.includes(id));
-            console.error(`Delegation failed: One or more target users not found: ${notFoundIds.join(', ')}`);
-            throw new BadRequestException(`One or more target users not found: ${notFoundIds.join(', ')}`);
-        }
-        console.log(`Found ${targetUsers.length} target users for delegation.`);
-
-        // Additional validation if a Department Head is delegating
-        if (isDepartmentHeadDelegating) {
-            console.log(`Validating target users for Department Head delegation...`);
-            const taskAssignedDeptIds = originalTask.assignedToDepartments.map(dept => dept.id);
-            // Find the departments the delegator is head of *among those the task is assigned to*
-            const delegatorHeadOfDepts = await this.departmentsRepository.find({
-                 where: {
-                     id: In(taskAssignedDeptIds),
-                     headId: delegator.id,
-                 },
-                 select: ['id']
-            });
-            const delegatorHeadOfDeptIds = delegatorHeadOfDepts.map(d => d.id);
-            console.log(`Delegator is head of these assigned departments: ${delegatorHeadOfDeptIds.join(', ')}`);
-
-
-            const invalidUsers = targetUsers.filter(targetUser => {
-                // A target user is valid if their department ID is one of the departments
-                // the task is assigned to AND the delegator is the head of.
-                // Check if the user belongs to *any* of the departments the delegator manages for this task
-                const userDeptIds = targetUser.departments?.map(d => d.id) || [];
-                return !userDeptIds.some(deptId => delegatorHeadOfDeptIds.includes(deptId));
-            });
-
-            if (invalidUsers.length > 0) {
-                const invalidUsernames = invalidUsers.map(u => u.username).join(', ');
-                console.error(`Delegation failed: Department Head ${delegator.username} can only delegate to users within the assigned departments they manage. Invalid users: ${invalidUsernames}`);
-                throw new ForbiddenException(`You can only delegate this task to users within the department(s) you manage and to which this task is assigned. Invalid users: ${invalidUsernames}`);
-            }
-             console.log(`All target users are valid members for Department Head delegation.`);
-        }
-        // --- End Validate Target Users ---
-
-
-        console.log(`Proceeding to create delegated tasks for task ${id}...`);
-        const delegatedTasks: Task[] = [];
-
-        for (const targetUser of targetUsers) {
-            const delegatedTask = new Task();
-            // Copy relevant details from the original task
-            delegatedTask.title = `(Delegated) ${originalTask.title}`;
-            delegatedTask.description = originalTask.description;
-            delegatedTask.priority = originalTask.priority;
-            delegatedTask.dueDate = originalTask.dueDate;
-            delegatedTask.type = TaskType.USER; // Delegated tasks are always assigned to specific users
-            delegatedTask.status = TaskStatus.PENDING; // Start as pending
-            // Link back to original task and delegator
-            delegatedTask.isDelegated = true;
-            delegatedTask.delegatedFromTaskId = originalTask.id;
-            delegatedTask.delegatedByUserId = delegator.id;
-            // Assign to the target user
-            delegatedTask.assignedToUsers = [targetUser];
-            // Set the creator as the delegator (or should it be the original creator? TBD - using delegator for now)
-            delegatedTask.createdById = delegator.id; // Delegator becomes the creator of the delegated task
-
-            console.log(`Creating delegated task for user ${targetUser.username} (ID: ${targetUser.id}).`);
-            const savedDelegatedTask = await this.tasksRepository.save(delegatedTask);
-            delegatedTasks.push(savedDelegatedTask);
-            console.log(`Saved delegated task with ID: ${savedDelegatedTask.id}`);
-
-            // Log activity for each delegated task creation
-            try {
-                await this.activityLogService.createLog({
-                  user: delegator, // Pass the delegator User object
-                  action: 'delegate',
-                  target: 'task',
-                  target_id: originalTask.id, // Log against the original task ID
-                  details: `Delegated task "${originalTask.title}" (New Task ID: ${savedDelegatedTask.id}) to user ${targetUser.username} (ID: ${targetUser.id})`,
-                  status: 'success',
-                  // Add context as part of details or handle separately if needed
-                });
-            } catch (logError) {
-                console.error(`Failed to log task delegation activity: ${logError.message}`);
-            }
-        }
-
-        console.log(`Successfully created ${delegatedTasks.length} delegated tasks.`);
-        // Return the original task (or perhaps the list of delegated tasks? Returning original for now)
-        // Reload original task to reflect any potential changes (though none are made here directly)
-        return this.findOne(originalTask.id);
-
-    } catch (error) {
-        console.error(`Error during task delegation for task ${id}:`, error);
-        if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ForbiddenException) {
-            throw error;
-        }
-        throw new BadRequestException(`Failed to delegate task: ${error.message || 'Unknown error'}`);
+    // 2. Permission check: Only the creator, assignee, or department head can delegate
+    const isCreator = originalTask.createdById === delegatorInfo.userId;
+    const isAssignee = originalTask.assignedToUsers?.some(u => u.id === delegatorInfo.userId);
+    // TODO: Add department head check if needed
+    if (!isCreator && !isAssignee) {
+      throw new ForbiddenException('You do not have permission to delegate this task.');
     }
+
+    // 3. For each new assignee, create a delegated task
+    const delegatedTasks: Task[] = [];
+    for (const userId of dto.newAssigneeUserIds) {
+      // Find the user
+      const user = await this.usersRepository.findOneBy({ id: userId });
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found.`);
+      }
+      // Create the delegated task
+      const delegatedTask = this.tasksRepository.create({
+        title: originalTask.title,
+        description: originalTask.description,
+        priority: originalTask.priority,
+        dueDate: originalTask.dueDate,
+        type: originalTask.type,
+        status: TaskStatus.PENDING,
+        createdById: delegatorInfo.userId,
+        assignedToUsers: [user],
+        assignedToDepartments: originalTask.assignedToDepartments,
+        assignedToProvinceId: originalTask.assignedToProvinceId,
+        isDelegated: true,
+        delegatedByUserId: delegatorInfo.userId,
+        delegatedFromTaskId: originalTask.id,
+        // Optionally, store delegationReason in a custom field or activity log
+      });
+      await this.tasksRepository.save(delegatedTask);
+      delegatedTasks.push(delegatedTask);
+    }
+    // Optionally, log the delegation reason/activity
+    // await this.activityLogService.logDelegation(...)
+    return delegatedTasks;
   }
 
   async assignTask(id: string, userId: string, user: any): Promise<Task> {

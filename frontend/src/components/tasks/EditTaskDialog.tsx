@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button,
-  Select, MenuItem, FormControl, InputLabel, Box, CircularProgress, Alert
+  Select, MenuItem, FormControl, InputLabel, Box, CircularProgress, Alert, Typography
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs, { Dayjs } from 'dayjs';
 import { TaskService } from '@/services/task';
-import { Task, TaskStatus, TaskPriority, TaskType } from '@/types/task'; // Import Task types
+import { Task, TaskStatus, TaskPriority, TaskType, Department } from '@/types/index'; // Import Task types
 import useReferenceData from '@/hooks/useReferenceData'; // For assignee selectors
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 
@@ -65,8 +65,8 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
           // setTaskType(taskDetails.type || TaskType.USER);
 
           // Initialize assignment state based on fetched task
-          setAssignedToUserIds(taskDetails.assignedToUsers?.map(u => u.id) ?? taskDetails.assigned_to ?? []);
-          setAssignedToDepartmentIds(taskDetails.assignedToDepartmentIds ?? []);
+          setAssignedToUserIds((taskDetails.assignedToUsers?.map(u => String(u.id)) ?? (taskDetails.assignedToUserIds ?? [])).map(String));
+          setAssignedToDepartmentIds((taskDetails.assignedToDepartmentIds ?? []).map(String));
           setAssignedToProvinceId(taskDetails.assignedToProvinceId ?? null);
 
         } catch (err: any) {
@@ -114,7 +114,7 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
       priority: priority !== task.priority ? priority : undefined,
       dueDate: (dueDate ? dayjs(dueDate).toISOString() : null) !== task.dueDate ? (dueDate ? dayjs(dueDate).toISOString() : null) : undefined,
       // Include assignee updates if they differ from the original task
-      assignedToUserIds: task.type === TaskType.USER && JSON.stringify(assignedToUserIds) !== JSON.stringify(task.assignedToUsers?.map(u=>u.id) ?? task.assigned_to ?? []) ? assignedToUserIds : undefined,
+      assignedToUserIds: task.type === TaskType.USER && JSON.stringify(assignedToUserIds) !== JSON.stringify(task.assignedToUsers?.map(u=>u.id) ?? task.assignedToUserIds ?? []) ? assignedToUserIds : undefined,
       assignedToDepartmentIds: (task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && JSON.stringify(assignedToDepartmentIds) !== JSON.stringify(task.assignedToDepartmentIds ?? []) ? assignedToDepartmentIds : undefined,
       assignedToProvinceId: task.type === TaskType.PROVINCE_DEPARTMENT && assignedToProvinceId !== task.assignedToProvinceId ? assignedToProvinceId : undefined,
     };
@@ -235,7 +235,7 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth disabled={loadingUpdate}>
+        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>Edit Task {taskId ? `(ID: ${taskId})` : ''}</DialogTitle>
             <DialogContent>
                 {renderFormContent()}

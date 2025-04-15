@@ -1,8 +1,9 @@
-import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, OneToMany } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Task } from '../../tasks/entities/task.entity';
 import { Department } from '../../departments/entities/department.entity';
 import { Note } from '../../notes/entities/note.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 export enum UserRole {
   USER = 'user',
@@ -13,8 +14,8 @@ export enum UserRole {
 
 @Entity('user')
 export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Column({ type: 'varchar', length: 36, primary: true })
+  id: string = uuidv4();
 
   @Column({ unique: true })
   username: string;

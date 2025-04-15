@@ -11,6 +11,7 @@ import { Task } from '../tasks/entities/task.entity';
 import { ActivityLog } from './entities/activity-log.entity';
 import { ActivityLogService } from './services/activity-log.service';
 import { ActivityLogsController } from './controllers/activity-logs.controller';
+import { AdminDepartmentsController } from './controllers/admin-departments.controller';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { ActivityLogsController } from './controllers/activity-logs.controller';
     forwardRef(() => DepartmentsModule),
     // forwardRef(() => TasksModule), // TasksModule imports AdminModule, use forwardRef
   ],
-  controllers: [AdminController, ActivityLogsController],
+  controllers: [AdminController, ActivityLogsController, AdminDepartmentsController],
   providers: [AdminService, ActivityLogService],
   exports: [ActivityLogService, TypeOrmModule], // Export TypeOrmModule
 })

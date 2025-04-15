@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject, forwardRef, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -25,7 +25,8 @@ export class DepartmentsService {
         relations: {
           members: true,
           head: true,
-          assignedTasks: true
+          assignedTasks: true,
+          province: true
         }
       });
     } catch (error) {
@@ -41,6 +42,7 @@ export class DepartmentsService {
         .createQueryBuilder('department')
         .leftJoinAndSelect('department.members', 'members')
         .leftJoinAndSelect('department.head', 'head')
+        .leftJoinAndSelect('department.province', 'province')
         .leftJoinAndSelect('department.assignedTasks', 'assignedTasks')
         .where('department.id = :id', { id })
         .getOne();
@@ -173,33 +175,14 @@ export class DepartmentsService {
     try {
       console.log(`Updating department ${id} with DTO:`, JSON.stringify(updateDepartmentDto, null, 2));
       
-      // Use QueryDeepPartialEntity for the update payload
-      const updatePayload: QueryDeepPartialEntity<Department> = {};
-      
-      if (updateDepartmentDto.name !== undefined) {
-          updatePayload.name = updateDepartmentDto.name;
-      }
-      
-      if (updateDepartmentDto.description !== undefined) {
-          updatePayload.description = updateDepartmentDto.description;
-      }
-      
-      if (updateDepartmentDto.provinceId !== undefined) {
-          // Handle null case for unassigning province
-          if (updateDepartmentDto.provinceId === null || updateDepartmentDto.provinceId === '') {
-               updatePayload.provinceId = null; // Should now be type-correct
-          } else {
-              // Validate province exists
-              await this.provinceService.findOne(updateDepartmentDto.provinceId); // Throws if not found
-              
-              updatePayload.provinceId = updateDepartmentDto.provinceId;
-          }
-      }
-      
-      // Get the existing department
+      // Fetch the existing department first
       const department = await this.findOne(id);
       
-      // Update simple properties
+      // Flag to track if head needs to be added as member later
+      let shouldAddHeadAsMember = false;
+      let newHeadUser: User | null = null;
+
+      // Apply updates to the department entity
       if (updateDepartmentDto.name !== undefined) {
         department.name = updateDepartmentDto.name;
       }
@@ -208,119 +191,138 @@ export class DepartmentsService {
         department.description = updateDepartmentDto.description;
       }
       
-      // Save the updated basic properties
-      await this.departmentsRepository.save(department);
+      if (updateDepartmentDto.provinceId !== undefined) {
+          if (updateDepartmentDto.provinceId === null || updateDepartmentDto.provinceId === '') {
+               department.provinceId = null;
+          } else {
+              await this.provinceService.findOne(updateDepartmentDto.provinceId); // Validate province
+              department.provinceId = updateDepartmentDto.provinceId;
+          }
+      }
       
-      // If head is included in the update, handle it separately
-      if (updateDepartmentDto.head !== undefined) {
-        const newHeadId = updateDepartmentDto.head;
+      // Handle headId update (Prepare the relationship)
+      if (updateDepartmentDto.headId !== undefined) {
+        const newHeadId = updateDepartmentDto.headId;
         
-        // If head is null or empty string, remove the head
         if (!newHeadId) {
-          console.log(`Removing head from department ${id}`);
-          department.headId = null as unknown as string;
-          department.head = null as unknown as User;
-          await this.departmentsRepository.save(department);
+          console.log(`Preparing to remove head from department ${id}`);
+          department.head = null;
+          newHeadUser = null;
         } else {
-          // Otherwise, set the new head
           try {
-            console.log(`Setting head for department ${id} to user with ID: ${newHeadId}`);
+            console.log(`Attempting to set head for department ${id} to user ID: ${newHeadId}`);
             const headUser = await this.usersService.findById(newHeadId);
-            
             if (headUser) {
-              department.headId = headUser.id;
-              department.head = headUser;
-              
-              // Save the department with the head
-              await this.departmentsRepository.save(department);
-              console.log(`Set head for department ${id} to user: ${headUser.username}`);
-              
-              // Add head as a member of the department if not already
-              const isDepartmentMember = await this.isDepartmentMember(id, headUser.id);
-              if (!isDepartmentMember) {
-                console.log(`Adding head ${headUser.username} as member of department ${id}`);
-                await this.addMember(id, headUser.id);
-              }
+              department.head = headUser; // Set the related entity
+              newHeadUser = headUser; // Store for potentially adding as member later
+              console.log(`Prepared head for department ${id} to user: ${headUser.username}`);
+              shouldAddHeadAsMember = true; // Flag to add member later
             } else {
-              console.warn(`Head user with ID ${newHeadId} not found, cannot set as department head`);
+              console.warn(`Head user with ID ${newHeadId} not found.`);
+              throw new NotFoundException(`User with ID "${newHeadId}" not found to be set as head.`);
             }
           } catch (error) {
-            console.error(`Error setting department head: ${error.message}`);
+            console.error(`Error preparing department head update: ${error.message}`);
+            throw error;
           }
         }
       }
-      
-      // Reload department with all relations
+
+      // *** Single save call for all updates ***
+      console.log('Saving all department updates...', JSON.stringify(department, null, 2)); // Log the state before save
+      try {
+          await this.departmentsRepository.save(department);
+          console.log('Department updates saved successfully.');
+      } catch (saveError) {
+          console.error('******** ERROR DURING SAVE ********', saveError); // Log the specific save error
+          throw saveError; // Re-throw to be caught by outer catch
+      }
+
+      // *** Add head as member AFTER successful save ***
+      if (shouldAddHeadAsMember && newHeadUser) {
+         console.log(`Checking if head ${newHeadUser.username} (${newHeadUser.id}) is already a member...`);
+         const isMember = await this.isDepartmentMember(id, newHeadUser.id);
+         console.log(`Is head already a member? ${isMember}`);
+         if (!isMember) {
+             console.log(`Attempting to add head ${newHeadUser.username} as member post-save.`);
+             try {
+               await this.addMember(id, newHeadUser.id); 
+               console.log(`Successfully added head ${newHeadUser.username} as member.`);
+             } catch(addMemberError) {
+                // Log error but don't fail the whole update if only adding member fails
+                console.error(`Failed to add head ${newHeadUser.username} as member after update: ${addMemberError.message}`, addMemberError);
+             }
+         }
+      }
+
+      // Reload department with potentially updated relations
+      console.log(`Update successful for department ${id}, reloading...`);
       return this.findOne(id);
     } catch (error) {
-      console.error(`Error updating department ${id}:`, error);
+      console.error(`******** TOP LEVEL ERROR in update department ${id}: ********`, error); // Log the full error object here
       
       if (error.code === '23505') {
         throw new ConflictException(`Department with name '${updateDepartmentDto.name}' already exists`);
       }
       
-      throw error;
+      // Ensure a generic error is thrown if specific checks fail
+      throw new InternalServerErrorException(error.message || 'Internal server error during department update');
     }
   }
 
   async addMember(id: string, userId: string): Promise<Department> {
     try {
-      console.log(`Adding member ${userId} to department ${id}`);
+      console.log(`[addMember-SQL] Adding member ${userId} to department ${id}`);
       
-      // First get the department and user entities
-      const department = await this.findOne(id);
+      // Fetching entities is still needed for validation and context
+      const department = await this.departmentsRepository.findOneBy({ id });
+      if (!department) {
+        throw new NotFoundException(`[addMember-SQL] Department with ID "${id}" not found`);
+      }
+
       const user = await this.usersService.findById(userId);
-
       if (!user) {
-        throw new NotFoundException(`User with ID "${userId}" not found`);
+        throw new NotFoundException(`[addMember-SQL] User with ID "${userId}" not found`);
       }
 
-      // Initialize members array if it doesn't exist
-      if (!department.members) {
-        department.members = [];
-      }
+      // Check if the relationship already exists using a direct query
+      const existingRelation = await this.departmentsRepository.manager.query(
+        `SELECT COUNT(*) as count FROM user_departments WHERE department_id = ? AND user_id = ?`,
+        [id, userId]
+      );
+      const isAlreadyMember = parseInt(existingRelation[0]?.count || '0', 10) > 0;
+      console.log(`[addMember-SQL] Is user ${userId} already in user_departments for ${id}? ${isAlreadyMember}`);
 
-      // Check if user is already a member
-      if (!department.members.some(member => member.id === userId)) {
-        console.log(`User ${user.username} (${userId}) not already a member, adding now`);
-        
-        // Try both approaches in sequence for maximum reliability
+      if (!isAlreadyMember) {
+        console.log(`[addMember-SQL] Relationship does not exist, attempting direct INSERT...`);
         try {
-          // First try removing any existing relation to avoid duplicates
+          // Use raw SQL to insert directly into the join table
           await this.departmentsRepository.manager.query(
-            `DELETE FROM department_members WHERE department_id = ? AND user_id = ?`,
+            `INSERT INTO user_departments (department_id, user_id) VALUES (?, ?)`,
             [id, userId]
           );
-          
-          // Then add with direct query
-          await this.departmentsRepository.manager.query(
-            `INSERT INTO department_members (department_id, user_id) VALUES (?, ?)`,
-            [id, userId]
-          );
-          console.log(`Successfully added member ${userId} to department ${id} with direct query`);
-        } catch (queryError) {
-          console.error(`Error with direct query, trying ORM approach: ${queryError.message}`);
-          
-          // If direct query fails, try the ORM approach
-          // First, make sure user isn't already in the array
-          const existingIndex = department.members.findIndex(m => m.id === userId);
-          if (existingIndex === -1) {
-            department.members.push(user);
-          }
-          await this.departmentsRepository.save(department);
-          console.log(`Successfully added member ${userId} to department ${id} with ORM`);
+          console.log(`[addMember-SQL] Successfully INSERTED relation for dept ${id} and user ${userId}.`);
+        } catch (insertError) {
+            console.error(`[addMember-SQL] ********* ERROR DURING DIRECT SQL INSERT *********`, insertError);
+            // If the raw SQL fails, re-throw the specific error
+            throw new InternalServerErrorException(`Database error adding member relation: ${insertError.message}`);
         }
       } else {
-        console.log(`User ${userId} is already a member of department ${id}`);
+        console.log(`[addMember-SQL] User ${userId} relation already exists. No INSERT needed.`);
       }
 
-      // Return the updated department
-      const updatedDepartment = await this.findOne(id);
-      console.log(`Department now has ${updatedDepartment.members?.length || 0} members`);
-      return updatedDepartment;
+      // Return the department (refetch to get potentially updated state if needed elsewhere)
+      console.log(`[addMember-SQL] Operation complete, refetching department ${id}...`);
+      return this.findOne(id); 
+
     } catch (error) {
-      console.error(`Error adding member ${userId} to department ${id}:`, error);
-      throw error;
+      // Catch errors from findOne, findById, or the re-thrown insertError
+      console.error(`[addMember-SQL] Error in addMember for dept ${id}, user ${userId}:`, error);
+      // Ensure a standard error format is thrown
+      if (error instanceof NotFoundException || error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(error.message || 'Failed to add member to department');
     }
   }
 
@@ -449,10 +451,8 @@ export class DepartmentsService {
 
       // Check if the department is actually assigned to this province
       if (department.provinceId !== provinceId) {
-        // Optionally throw an error or just log and return
         console.warn(`Department ${departmentId} is not assigned to province ${provinceId}. Current province: ${department.provinceId}`);
-        // throw new BadRequestException(`Department ${departmentId} is not assigned to province ${provinceId}.`);
-        return; // Or handle as appropriate
+        return; // Department not assigned to this province, nothing to do
       }
 
       // Set provinceId to null for the department
@@ -464,4 +464,4 @@ export class DepartmentsService {
     }
   }
   // END: Add missing methods for Province-Department assignment
-} 
+}

@@ -46,6 +46,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import PersonIcon from '@mui/icons-material/Person';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -54,42 +55,35 @@ import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { DepartmentService } from '../../services/department';
-import { Department } from '../../types/department';
-import { User } from '../../types/user';
+import { Department } from '@/types/index';
 import { Province } from '../../types/province';
 import * as provinceService from '../../services/provinceService';
-
-interface AdminDepartment {
-  id: string;
-  name: string;
-  description: string;
-  head: {
-    id: string;
-    username: string;
-    first_name: string;
-    last_name: string;
-  } | null;
-  head_name?: string;
-  members_count: number;
-  active_projects: number;
-  completion_rate: number;
-  members?: {
-    id: string;
-    name: string;
-    avatar?: string;
-  }[];
-}
+import { UserService } from '../../services/user';
 
 interface DepartmentFormData {
   name: string;
   description: string;
-  head: string;
+  headId: string;
   provinceId: string | null;
 }
 
 interface EditMode {
   isEdit: boolean;
   departmentId: string | null;
+}
+
+interface LocalUser {
+  id: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  department?: { id: string; name: string };
+  created_at: string;
+  updated_at: string;
+  avatar?: string;
+  role?: string;
+  status: string;
 }
 
 const DRAWER_WIDTH = 240;
@@ -107,10 +101,10 @@ const DepartmentManagement: React.FC = () => {
   const [formData, setFormData] = useState<DepartmentFormData>({
     name: '',
     description: '',
-    head: '',
+    headId: '',
     provinceId: null,
   });
-  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [availableUsers, setAvailableUsers] = useState<LocalUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openMembersDialog, setOpenMembersDialog] = useState(false);
   const [editMode, setEditMode] = useState<EditMode>({
@@ -124,6 +118,7 @@ const DepartmentManagement: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState('');
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   const [availableProvinces, setAvailableProvinces] = useState<Province[]>([]);
+  const [fullDepartments, setFullDepartments] = useState<Department[]>([]);
 
   const dialogPaperProps = {
     sx: {
@@ -199,8 +194,8 @@ const DepartmentManagement: React.FC = () => {
   const handleProvinceChange = (event: SelectChangeEvent<string | null>) => {
     const value = event.target.value;
     setFormData({ 
-        ...formData, 
-        provinceId: value === '' ? null : value 
+      ...formData, 
+      provinceId: value === '' ? null : String(value)
     });
   };
   
@@ -208,37 +203,26 @@ const DepartmentManagement: React.FC = () => {
     const value = event.target.value;
     setFormData({ 
         ...formData, 
-        head: value
+        headId: value
     });
   };
 
   const handleSaveDepartment = () => {
     setError(null);
-    const submissionData: Partial<Department> & { headId?: string | null } = {
-        name: formData.name,
-        description: formData.description,
-        headId: formData.head === '' ? null : formData.head, 
-        provinceId: formData.provinceId || null
+    const submissionData: any = {
+      name: formData.name,
+      description: formData.description,
+      provinceId: formData.provinceId ? String(formData.provinceId) : null,
+      headId: formData.headId ? String(formData.headId) : null
     };
-    
-    Object.keys(submissionData).forEach(key => {
-       if (submissionData[key as keyof typeof submissionData] === '') { 
-          if (key === 'description') { 
-          } else if (key !== 'headId' && key !== 'provinceId') {
-          } 
-       }
-    });
-
     if (editMode.isEdit && editMode.departmentId) {
-        console.log("Updating department:", editMode.departmentId, submissionData);
-        updateDepartmentMutation.mutate({ id: editMode.departmentId, dto: submissionData as any });
+      updateDepartmentMutation.mutate({ id: editMode.departmentId, dto: submissionData });
     } else {
-        console.log("Creating department:", submissionData);
-        if (!submissionData.name) {
-            setError("Department Name is required.");
-            return;
-        }
-        createDepartmentMutation.mutate(submissionData as any);
+      if (!submissionData.name) {
+        setError("Department Name is required.");
+        return;
+      }
+      createDepartmentMutation.mutate(submissionData);
     }
   };
 
@@ -253,7 +237,7 @@ const DepartmentManagement: React.FC = () => {
     setFormData({
       name: dept.name,
       description: dept.description || '',
-      head: dept.head?.id || '',
+      headId: dept.head?.id || '',
       provinceId: dept.provinceId || null
     });
     setError(null);
@@ -262,7 +246,7 @@ const DepartmentManagement: React.FC = () => {
 
   const handleOpenCreateDialog = () => {
     setEditMode({ isEdit: false, departmentId: null });
-    setFormData({ name: '', description: '', head: '', provinceId: null });
+    setFormData({ name: '', description: '', headId: '', provinceId: null });
     setError(null);
     setOpenDialog(true);
   };
@@ -270,7 +254,7 @@ const DepartmentManagement: React.FC = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditMode({ isEdit: false, departmentId: null });
-    setFormData({ name: '', description: '', head: '', provinceId: '' });
+    setFormData({ name: '', description: '', headId: '', provinceId: '' });
     setError(null);
   };
 
@@ -335,7 +319,7 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  const handleRemoveMemberFromDepartment = async (userId: string) => {
+  const handleRemoveMemberFromDepartment = async (userId: string | number) => {
     if (!selectedDepartment) return;
     
     if (!window.confirm('Are you sure you want to remove this member?')) {
@@ -343,7 +327,7 @@ const DepartmentManagement: React.FC = () => {
     }
     
     try {
-      await DepartmentService.removeMemberFromDepartment(selectedDepartment.id, userId);
+      await DepartmentService.removeMemberFromDepartment(selectedDepartment.id, String(userId));
       alert('Member removed successfully!');
       
       await queryClient.invalidateQueries('departments');
@@ -355,6 +339,36 @@ const DepartmentManagement: React.FC = () => {
       setError('Failed to remove member from department');
     }
   };
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const users = await UserService.getUsers();
+        setAvailableUsers(users.map((u: any) => ({ ...u, id: String(u.id) })));
+      } catch (error) {
+        setAvailableUsers([]);
+      }
+    }
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    async function fetchFullDepartments() {
+      if (!departments || departments.length === 0) {
+        setFullDepartments([]);
+        return;
+      }
+      try {
+        const details = await Promise.all(
+          departments.map(dept => DepartmentService.getDepartment(dept.id))
+        );
+        setFullDepartments(details);
+      } catch (error) {
+        setFullDepartments([]);
+      }
+    }
+    fetchFullDepartments();
+  }, [departments]);
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -465,7 +479,7 @@ const DepartmentManagement: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
           <CircularProgress size={60} thickness={4} sx={{ color: theme.palette.primary.main }} />
         </Box>
-      ) : departments.length === 0 ? (
+      ) : fullDepartments.length === 0 ? (
         <Paper sx={{
           background: 'rgba(255, 255, 255, 0.05)',
           backdropFilter: 'blur(10px)',
@@ -502,7 +516,7 @@ const DepartmentManagement: React.FC = () => {
       ) : (
         <Fade in={true} timeout={500}>
           <Grid container spacing={3}>
-            {departments.map((dept) => (
+            {fullDepartments.map((dept) => (
               <Grid item xs={12} sm={6} md={4} key={dept.id}>
                 <Card sx={{
                   height: '100%',
@@ -548,6 +562,15 @@ const DepartmentManagement: React.FC = () => {
                     <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2, minHeight: 40 }}>
                       {dept.description || 'No description provided'}
                     </Typography>
+
+                    {dept.province_name && (
+                       <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LocationOnIcon sx={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.5)' }} />
+                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                          {dept.province_name}
+                        </Typography>
+                      </Box>
+                    )}
                     
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block', mb: 0.5 }}>
@@ -558,7 +581,7 @@ const DepartmentManagement: React.FC = () => {
                           <PersonIcon sx={{ fontSize: 16 }} />
                         </Avatar>
                         <Typography variant="body2" sx={{ color: '#fff' }}>
-                          {dept.head?.username || dept.head_name || 'No Head Assigned'}
+                          {dept.head_name || 'No Head Assigned'}
                         </Typography>
                       </Box>
                     </Box>
@@ -580,19 +603,19 @@ const DepartmentManagement: React.FC = () => {
                           }}
                         >
                           {(dept.members || [])
-                            .filter(member => member && member.name)
+                            .filter(member => member && (member.username || member.first_name))
                             .map((member) => (
                               <Avatar 
                                 key={member.id || 'unknown'} 
                                 src={member.avatar}
                                 sx={{ bgcolor: theme.palette.primary.dark }}
                               >
-                                {member.name.charAt(0)}
+                                {(member.username || (member.first_name ? member.first_name[0] : '?'))}
                               </Avatar>
                             ))}
-                          {dept.members_count > 5 && (
+                          {(dept.members && dept.members.length > 5) && (
                             <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)', color: '#fff' }}>
-                              +{dept.members_count - 5}
+                              +{dept.members.length - 5}
                             </Avatar>
                           )}
                         </AvatarGroup>
@@ -657,6 +680,7 @@ const DepartmentManagement: React.FC = () => {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             <TextField
               label="Department Name"
+              name="name"
               value={formData.name}
               onChange={handleFormChange}
               fullWidth
@@ -679,6 +703,7 @@ const DepartmentManagement: React.FC = () => {
             />
             <TextField
               label="Description"
+              name="description"
               value={formData.description}
               onChange={handleFormChange}
               multiline
@@ -697,15 +722,17 @@ const DepartmentManagement: React.FC = () => {
               <InputLabel id="department-head-label">Department Head</InputLabel>
               <Select
                 labelId="department-head-label"
-                name="head"
-                value={formData.head}
+                name="headId"
+                value={formData.headId}
                 label="Department Head"
                 onChange={handleHeadChange}
               >
                 <MenuItem value=""><em>None</em></MenuItem>
-                {availableUsers.map((user) => (
-                  <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
-                ))}
+                {availableUsers
+                  .filter(user => user.status === 'active')
+                  .map((user) => (
+                    <MenuItem key={user.id} value={user.id}>{user.username || (user.first_name + ' ' + user.last_name)}</MenuItem>
+                  ))}
               </Select>
             </FormControl>
             <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
@@ -792,22 +819,62 @@ const DepartmentManagement: React.FC = () => {
         <DialogContent>
           {selectedDepartment && selectedDepartment.members && selectedDepartment.members.length > 0 ? (
             <List>
-              {selectedDepartment.members.map((member) => (
-                <ListItem key={member?.id || 'unknown'}
-                  secondaryAction={
-                    <IconButton edge="end" onClick={() => handleRemoveMemberFromDepartment(member.id)}>
-                      <DeleteIcon />
-                    </IconButton>
+              {(selectedDepartment?.members || [])
+                .map((member) => {
+                  if (!member || !member.id) return null;
+
+                  const firstName = member.first_name || '';
+                  const lastName = member.last_name || '';
+                  const fullName = `${firstName} ${lastName}`.trim();
+                  let displayName = member.username || fullName;
+
+                  if (!displayName) {
+                    const fullUser = availableUsers.find(u => String(u.id) === String(member.id));
+                    if (fullUser) {
+                      const fullUserFirstName = fullUser.first_name || '';
+                      const fullUserLastName = fullUser.last_name || '';
+                      const fullUserFullName = `${fullUserFirstName} ${fullUserLastName}`.trim();
+                      displayName = fullUser.username || fullUserFullName;
+                    }
                   }
-                >
-                  <ListItemAvatar>
-                    <Avatar>
-                      <PersonIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText primary={member.name} />
-                </ListItem>
-              ))}
+
+                  if (!displayName) {
+                    displayName = `User ID: ${member.id}`;
+                  }
+
+                  return (
+                    <ListItem 
+                      key={member.id}
+                      secondaryAction={
+                        <IconButton edge="end" onClick={() => handleRemoveMemberFromDepartment(member.id)}>
+                          <DeleteIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                        </IconButton>
+                      }
+                      sx={{ 
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                        '&:last-child': { borderBottom: 'none' } 
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
+                          {member.avatar ? (
+                            <img src={member.avatar} alt={displayName} width="100%" height="100%" style={{ objectFit: 'cover' }}/>
+                          ) : displayName.includes('User ID:') ? (
+                            <PersonIcon />
+                          ) : (
+                            (displayName.split(' ')[0]?.[0] || '') + (displayName.split(' ')[1]?.[0] || '')
+                          )}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText 
+                        primary={displayName} 
+                        sx={{ color: '#fff' }} 
+                      />
+                    </ListItem>
+                  );
+                })
+                .filter(Boolean)
+              }
             </List>
           ) : (
             <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -846,10 +913,10 @@ const DepartmentManagement: React.FC = () => {
               >
                 <MenuItem value="">Select a user</MenuItem>
                 {availableUsers
-                  .filter(user => !selectedDepartment?.members?.some(member => member.id === user.id))
+                  .filter(user => !selectedDepartment?.members?.some(member => String(member.id) === String(user.id)))
                   .map((user) => (
-                    <MenuItem key={user.id} value={user.id.toString()}>
-                      {user.name}
+                    <MenuItem key={user.id} value={String(user.id)}>
+                      {user.username || (user.first_name + ' ' + user.last_name)}
                     </MenuItem>
                   ))
                 }

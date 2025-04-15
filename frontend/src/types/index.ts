@@ -1,17 +1,22 @@
 import { Dayjs } from 'dayjs';
 
 export interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
   first_name: string;
   last_name: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'manager';
+  isActive?: boolean;
+  status?: string;
   avatar?: string;
   department?: {
-    id: number;
+    id: string;
     name: string;
   };
+  position?: string;
+  date_joined?: string;
+  last_login?: string | null;
 }
 
 export interface APIError {
@@ -58,15 +63,18 @@ export interface UserDetail {
 
 // START: Add Province and related types
 export interface Department {
-  id: string; // Changed to string based on backend UUIDs
+  id: string;
   name: string;
   description?: string;
   provinceId?: string | null;
+  province_name?: string | null;
   headId?: string | null;
   head?: User | null;
+  head_name?: string | null;
   members?: User[];
-  createdAt: string; // Added createdAt
-  updatedAt: string; // Added updatedAt
+  members_count?: number;
+  createdAt: string;
+  updatedAt: string;
   // Add other relevant fields from backend entity if needed
 }
 

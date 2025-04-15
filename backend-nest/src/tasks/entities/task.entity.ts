@@ -1,7 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Department } from '../../departments/entities/department.entity';
 import { Province } from '../../provinces/entities/province.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 export enum TaskStatus {
   PENDING = 'pending',
@@ -25,8 +26,8 @@ export enum TaskType {
 
 @Entity()
 export class Task {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Column({ type: 'varchar', length: 36, primary: true })
+  id: string = uuidv4();
 
   @Column()
   title: string;
@@ -66,7 +67,7 @@ export class Task {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column({ type: 'uuid', nullable: false })
+  @Column({ type: 'varchar', length: 36, nullable: false })
   createdById: string;
 
   @ManyToOne(() => User, user => user.createdTasks, { eager: false, onDelete: 'CASCADE' })
@@ -89,7 +90,7 @@ export class Task {
   })
   assignedToDepartments: Department[];
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   assignedToProvinceId: string | null;
 
   @ManyToOne(() => Province, province => province.assignedTasks, { nullable: true, eager: false })
@@ -99,14 +100,14 @@ export class Task {
   @Column({ type: 'boolean', default: false })
   isDelegated: boolean;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   delegatedByUserId: string | null;
 
   @ManyToOne(() => User, { nullable: true, eager: false })
   @JoinColumn({ name: 'delegatedByUserId' })
   delegatedBy: User | null;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   delegatedFromTaskId: string | null;
 
   @ManyToOne(() => Task, { nullable: true, eager: false, onDelete: 'SET NULL' })

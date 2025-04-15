@@ -400,7 +400,7 @@ export const TaskService = {
     getDashboardTasks: async (): Promise<DashboardTasksResponse> => {
         try {
             console.log('[TaskService] Fetching tasks for dashboard...');
-            const response = await apiClient.get<DashboardTasksResponse>('/api/tasks/dashboard');
+            const response = await apiClient.get<DashboardTasksResponse>('/tasks/dashboard');
             console.log('[TaskService] Dashboard tasks received:', response.data);
 
             // Assuming the backend response directly matches DashboardTasksResponse structure

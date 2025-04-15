@@ -29,8 +29,16 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, Assignment } from '@mui/icons-material';
 import * as provinceService from '../../services/provinceService'; // Assuming service functions are exported
-import { Province, CreateProvinceDto, UpdateProvinceDto, Department } from '../../types'; // Assuming types are defined
+import { Department, Province, CreateProvinceDto, UpdateProvinceDto } from '@/types/index';
 import { DepartmentService } from '../../services/department'; // Import DepartmentService
+import Sidebar from '../../components/Sidebar';
+import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
+import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import { useNavigate } from 'react-router-dom';
+import Tooltip from '@mui/material/Tooltip';
 
 // --- Department Assignment Dialog Component ---
 interface DepartmentAssignmentDialogProps {
@@ -46,7 +54,7 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
 
     // Fetch all departments
     const { data: allDepartments, isLoading: isLoadingAllDepts, error: errorAllDepts } = 
-        useQuery<Department[], Error>('allAdminDepartments', DepartmentService.getAllAdminDepartments, {
+        useQuery<Department[], Error>('allAdminDepartments', DepartmentService.getDepartments, {
             enabled: open, // Only fetch when dialog is open
             staleTime: 5 * 60 * 1000,
         });
@@ -60,7 +68,7 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
                 staleTime: 1 * 60 * 1000, // Shorter stale time for potentially frequent updates
                 onSuccess: (data) => {
                     // Set initial checkbox state based on currently assigned departments
-                    setSelectedDepartmentIds(data.map(dept => dept.id));
+                    setSelectedDepartmentIds(data.map(dept => String(dept.id)));
                 }
             }
         );
@@ -80,12 +88,13 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
         }
     });
 
-    const handleToggle = (departmentId: string) => () => {
-        const currentIndex = selectedDepartmentIds.indexOf(departmentId);
+    const handleToggle = (departmentId: string | number) => () => {
+        const idStr = String(departmentId);
+        const currentIndex = selectedDepartmentIds.indexOf(idStr);
         const newChecked = [...selectedDepartmentIds];
 
         if (currentIndex === -1) {
-            newChecked.push(departmentId);
+            newChecked.push(idStr);
         } else {
             newChecked.splice(currentIndex, 1);
         }
@@ -121,7 +130,7 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
                                     <ListItemIcon sx={{ minWidth: 0, mr: 1 }}>
                                         <Checkbox
                                             edge="start"
-                                            checked={selectedDepartmentIds.indexOf(department.id) !== -1}
+                                            checked={selectedDepartmentIds.indexOf(String(department.id)) !== -1}
                                             tabIndex={-1}
                                             disableRipple
                                             inputProps={{ 'aria-labelledby': labelId }}
@@ -153,13 +162,20 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
 };
 // --- End Department Assignment Dialog ---
 
+const DRAWER_WIDTH = 240;
+
 const ProvinceManagement: React.FC = () => {
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
+    const { user } = useSelector((state: RootState) => state.auth);
     const [openDialog, setOpenDialog] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedProvince, setSelectedProvince] = useState<Province | null>(null);
     const [formData, setFormData] = useState<CreateProvinceDto | UpdateProvinceDto>({ name: '', description: '' });
     const [dialogError, setDialogError] = useState<string | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [notifications, setNotifications] = useState(0);
+    const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
     // State for Department Assignment Dialog
     const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
@@ -264,52 +280,68 @@ const ProvinceManagement: React.FC = () => {
         setProvinceForAssignment(null);
     };
 
+    const handleLogout = () => {
+        navigate('/login');
+    };
+
+    const handleToggleSidebar = () => {
+        setIsSidebarOpen(prev => !prev);
+    };
+
+    const handleToggleTopWidgets = () => {
+        setTopWidgetsVisible(prev => !prev);
+    };
+
     if (isLoading) return <CircularProgress />;
     if (error) return <Alert severity="error">Error fetching provinces: {error.message}</Alert>;
 
-    return (
+    const mainContent = (
         <Box sx={{ p: 3 }}>
-            <Typography variant="h4" gutterBottom>Province Management</Typography>
+            <Typography variant="h4" gutterBottom sx={{ color: '#fff' }}>Province Management</Typography>
             <Button 
                 variant="contained" 
                 startIcon={<Add />} 
                 onClick={handleOpenCreateDialog} 
-                sx={{ mb: 2 }}
+                sx={{ mb: 2, color: '#fff' }}
             >
                 Create Province
             </Button>
-            
-            <TableContainer component={Paper}>
+            <TableContainer component={Paper} sx={{ ...getGlassmorphismStyles().card }}>
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Name</TableCell>
-                            <TableCell>Description</TableCell>
-                            <TableCell>Actions</TableCell>
+                            <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Name</TableCell>
+                            <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Description</TableCell>
+                            <TableCell sx={{ color: '#fff', fontWeight: 'bold' }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {provinces?.map((province) => (
                             <TableRow key={province.id}>
-                                <TableCell>{province.name}</TableCell>
-                                <TableCell>{province.description || '-'}</TableCell>
+                                <TableCell sx={{ color: '#fff' }}>{province.name}</TableCell>
+                                <TableCell sx={{ color: '#fff' }}>{province.description || '-'}</TableCell>
                                 <TableCell>
-                                    <IconButton onClick={() => handleOpenEditDialog(province)} color="primary" aria-label="edit province">
-                                        <Edit />
-                                    </IconButton>
-                                    <IconButton onClick={() => handleDelete(province.id)} color="error" aria-label="delete province">
-                                        <Delete />
-                                    </IconButton>
-                                    {/* Button to open department assignment dialog */}
-                                    <IconButton onClick={() => handleOpenAssignmentDialog(province)} color="secondary" aria-label="assign departments">
-                                        <Assignment />
-                                    </IconButton>
+                                    <Tooltip title="Edit Province" arrow>
+                                        <IconButton onClick={() => handleOpenEditDialog(province)} color="primary" aria-label="edit province">
+                                            <Edit />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete Province" arrow>
+                                        <IconButton onClick={() => handleDelete(String(province.id))} color="error" aria-label="delete province">
+                                            <Delete />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Assign Departments" arrow>
+                                        <IconButton onClick={() => handleOpenAssignmentDialog(province)} color="secondary" aria-label="assign departments">
+                                            <Assignment />
+                                        </IconButton>
+                                    </Tooltip>
                                 </TableCell>
                             </TableRow>
                         ))}
                         {provinces?.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={3} align="center">No provinces found.</TableCell>
+                                <TableCell colSpan={3} align="center" sx={{ color: '#fff' }}>No provinces found.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
@@ -317,8 +349,8 @@ const ProvinceManagement: React.FC = () => {
             </TableContainer>
 
             {/* Create/Edit Dialog */}
-            <Dialog open={openDialog} onClose={handleCloseDialog}>
-                <DialogTitle>{isEditMode ? 'Edit Province' : 'Create Province'}</DialogTitle>
+            <Dialog open={openDialog} onClose={handleCloseDialog} PaperProps={{ sx: { ...getGlassmorphismStyles().card } }}>
+                <DialogTitle sx={{ color: '#fff' }}>{isEditMode ? 'Edit Province' : 'Create Province'}</DialogTitle>
                 <DialogContent>
                     {dialogError && <Alert severity="error" sx={{ mb: 2 }}>{dialogError}</Alert>}
                     <TextField
@@ -332,6 +364,8 @@ const ProvinceManagement: React.FC = () => {
                         value={formData.name}
                         onChange={handleFormChange}
                         required
+                        InputLabelProps={{ style: { color: '#fff' } }}
+                        InputProps={{ style: { color: '#fff' } }}
                     />
                     <TextField
                         margin="dense"
@@ -344,6 +378,8 @@ const ProvinceManagement: React.FC = () => {
                         rows={3}
                         value={formData.description}
                         onChange={handleFormChange}
+                        InputLabelProps={{ style: { color: '#fff' } }}
+                        InputProps={{ style: { color: '#fff' } }}
                     />
                 </DialogContent>
                 <DialogActions>
@@ -364,6 +400,36 @@ const ProvinceManagement: React.FC = () => {
                 province={provinceForAssignment}
             />
         </Box>
+    );
+
+    return (
+        <ModernDashboardLayout
+            sidebar={
+                <Sidebar
+                    open={isSidebarOpen}
+                    onToggleDrawer={handleToggleSidebar}
+                    onLogout={handleLogout}
+                    drawerWidth={DRAWER_WIDTH}
+                />
+            }
+            topBar={
+                <DashboardTopBar
+                    username={user?.username || 'Admin'}
+                    notificationCount={notifications}
+                    onToggleSidebar={handleToggleSidebar}
+                    onNotificationClick={() => setNotifications(0)}
+                    onLogout={handleLogout}
+                    onProfileClick={() => navigate('/profile')}
+                    onSettingsClick={() => navigate('/admin/settings')}
+                    onHelpClick={() => console.log('Help clicked')}
+                    onToggleTopWidgets={handleToggleTopWidgets}
+                    topWidgetsVisible={topWidgetsVisible}
+                />
+            }
+            mainContent={mainContent}
+            sidebarOpen={isSidebarOpen}
+            drawerWidth={DRAWER_WIDTH}
+        />
     );
 };
 

@@ -2,20 +2,28 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     Box, Typography, Paper, List, ListItem, ListItemText, Button,
-    CircularProgress, Alert, Grid, Divider, Checkbox, IconButton
+    CircularProgress, Alert, Grid, Divider, Checkbox
 } from '@mui/material';
 import AddTaskIcon from '@mui/icons-material/AddTask';
 import { AppDispatch, RootState } from '../store';
-import { Province } from '../types/province';
-import { Department } from '../types/department';
-import { fetchProvinces } from '../store/slices/provinceSlice'; // Assuming province slice exists
-import { fetchDepartments } from '../store/slices/departmentSlice'; // Fetch all departments
+import { Province, Department } from '@/types/index';
+import { fetchProvinces } from '../store/slices/provinceSlice';
+import { fetchDepartments } from '../store/slices/departmentSlice';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import CreateTaskDialog from '@/components/dialogs/CreateTaskDialog';
-import { TaskType } from '@/types';
+import { TaskType } from '@/types/index';
+import Sidebar from '../components/Sidebar';
+import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
+import DashboardTopBar from '../components/dashboard/DashboardTopBar';
+import { useNavigate } from 'react-router-dom';
+import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
+
+const DRAWER_WIDTH = 240;
 
 const ProvincesPage: React.FC = () => {
     const dispatch = useDispatch<AppDispatch>();
+    const navigate = useNavigate();
+    const { user } = useSelector((state: RootState) => state.auth);
     const { provinces, loading: loadingProvinces, error: errorProvinces } = useSelector((state: RootState) => state.provinces);
     const { departments, loading: loadingDepartments, error: errorDepartments } = useSelector((state: RootState) => state.departments);
     const { error: generalError, handleError, clearError } = useErrorHandler();
@@ -23,8 +31,10 @@ const ProvincesPage: React.FC = () => {
     const [selectedProvince, setSelectedProvince] = useState<Province | null>(null);
     const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
     const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [notifications, setNotifications] = useState(0);
+    const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
-    // Fetch initial data
     useEffect(() => {
         dispatch(fetchProvinces());
         dispatch(fetchDepartments());
@@ -57,24 +67,34 @@ const ProvincesPage: React.FC = () => {
     };
 
     const handleTaskCreated = () => {
-        // Optionally add feedback or clear selection
         setSelectedDepartments([]);
-        console.log('Task assigned to province departments.');
+        // Optionally, show a notification or feedback
     };
+
+    const handleLogout = () => {
+        navigate('/login');
+    };
+
+    const handleToggleSidebar = useCallback(() => {
+        setIsSidebarOpen(prev => !prev);
+    }, []);
+
+    const handleToggleTopWidgets = useCallback(() => {
+        setTopWidgetsVisible(prev => !prev);
+    }, []);
 
     // Filter departments for the selected province
     const departmentsInSelectedProvince = React.useMemo(() => {
         if (!selectedProvince) return [];
-        // Ensure departments have provinceId linked
-        return departments.filter(dept => dept.provinceId === selectedProvince.id);
+        return (departments as Department[]).filter(dept => dept.provinceId && dept.provinceId === selectedProvince.id);
     }, [selectedProvince, departments]);
 
     const isLoading = loadingProvinces || loadingDepartments;
     const combinedError = errorProvinces || errorDepartments || generalError;
 
-    return (
+    const mainContent = (
         <Box sx={{ p: 3 }}>
-            <Typography variant="h4" gutterBottom>Provinces</Typography>
+            <Typography variant="h4" gutterBottom sx={{ color: '#fff' }}>Provinces</Typography>
 
             {combinedError && (
                 <Alert severity="error" sx={{ mb: 2 }}>
@@ -92,8 +112,8 @@ const ProvincesPage: React.FC = () => {
                 <Grid container spacing={3}>
                     {/* Province List */}
                     <Grid item xs={12} md={4}>
-                        <Paper elevation={1} sx={{ p: 2 }}>
-                            <Typography variant="h6" gutterBottom>Select Province</Typography>
+                        <Paper elevation={0} sx={{ ...getGlassmorphismStyles().card, p: 2, color: '#fff' }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Select Province</Typography>
                             <List component="nav" dense>
                                 {provinces.map((province) => (
                                     <ListItem
@@ -101,13 +121,32 @@ const ProvincesPage: React.FC = () => {
                                         key={province.id}
                                         selected={selectedProvince?.id === province.id}
                                         onClick={() => handleProvinceSelect(province)}
+                                        sx={{
+                                            borderRadius: 1,
+                                            mb: 1,
+                                            '&.Mui-selected': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.16)',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.24)',
+                                                }
+                                            },
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                            }
+                                        }}
                                     >
-                                        <ListItemText primary={province.name} />
+                                        <ListItemText 
+                                            primary={province.name} 
+                                            sx={{
+                                                '.MuiListItemText-primary': { color: '#fff' },
+                                                '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
+                                            }}
+                                        />
                                     </ListItem>
                                 ))}
                                 {provinces.length === 0 && (
                                     <ListItem>
-                                        <ListItemText primary="No provinces found." />
+                                        <ListItemText primary="No provinces found." sx={{ '.MuiListItemText-primary': { color: '#fff' } }} />
                                     </ListItem>
                                 )}
                             </List>
@@ -116,8 +155,8 @@ const ProvincesPage: React.FC = () => {
 
                     {/* Department List for Selected Province */}
                     <Grid item xs={12} md={8}>
-                        <Paper elevation={1} sx={{ p: 2, minHeight: '300px' }}>
-                            <Typography variant="h6" gutterBottom>
+                        <Paper elevation={0} sx={{ ...getGlassmorphismStyles().card, p: 2, minHeight: '300px', color: '#fff' }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>
                                 {selectedProvince ? `Departments in ${selectedProvince.name}` : 'Select a Province'}
                             </Typography>
                             {selectedProvince && (
@@ -133,26 +172,28 @@ const ProvincesPage: React.FC = () => {
                                                             onChange={() => handleDepartmentToggle(dept.id)}
                                                             checked={selectedDepartments.includes(dept.id)}
                                                             inputProps={{ 'aria-labelledby': `checkbox-list-label-${dept.id}` }}
+                                                            sx={{ color: '#fff' }}
                                                         />
                                                     }
                                                     disablePadding
                                                 >
-                                                    <ListItemText id={`checkbox-list-label-${dept.id}`} primary={dept.name} />
+                                                    <ListItemText id={`checkbox-list-label-${dept.id}`} primary={dept.name} sx={{ '.MuiListItemText-primary': { color: '#fff' } }} />
                                                 </ListItem>
                                             ))
                                         ) : (
                                             <ListItem>
-                                                <ListItemText primary={`No departments found associated with ${selectedProvince.name}.`} />
+                                                <ListItemText primary={`No departments found associated with ${selectedProvince.name}.`} sx={{ '.MuiListItemText-primary': { color: '#fff' } }} />
                                             </ListItem>
                                         )}
                                     </List>
-                                    <Divider sx={{ my: 2 }} />
+                                    <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.2)' }} />
                                     <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                                         <Button
                                             variant="contained"
                                             startIcon={<AddTaskIcon />}
                                             onClick={handleOpenCreateTaskDialog}
                                             disabled={selectedDepartments.length === 0}
+                                            sx={{ color: '#fff' }}
                                         >
                                             Assign Task to Selected Department(s)
                                         </Button>
@@ -160,7 +201,7 @@ const ProvincesPage: React.FC = () => {
                                 </>)
                             }
                             {!selectedProvince && (
-                                <Typography variant="body2" color="text.secondary">Please select a province from the list to view its departments.</Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>Please select a province from the list to view its departments.</Typography>
                             )}
                         </Paper>
                     </Grid>
@@ -171,15 +212,40 @@ const ProvincesPage: React.FC = () => {
                 open={createTaskDialogOpen}
                 onClose={handleCloseCreateTaskDialog}
                 onTaskCreated={handleTaskCreated}
-                // Pre-fill context for Province-Department assignment
                 initialType={TaskType.PROVINCE_DEPARTMENT}
-                // Pass selected province and departments for pre-filling if dialog supports it
-                // initialProvinceId={selectedProvince?.id}
-                // initialDepartmentIds={selectedDepartments}
                 dialogType="assign"
             />
-
         </Box>
+    );
+
+    return (
+        <ModernDashboardLayout
+            sidebar={
+                <Sidebar
+                    open={isSidebarOpen}
+                    onToggleDrawer={handleToggleSidebar}
+                    onLogout={handleLogout}
+                    drawerWidth={DRAWER_WIDTH}
+                />
+            }
+            topBar={
+                <DashboardTopBar
+                    username={user?.username || 'User'}
+                    notificationCount={notifications}
+                    onToggleSidebar={handleToggleSidebar}
+                    onNotificationClick={() => setNotifications(0)}
+                    onLogout={handleLogout}
+                    onProfileClick={() => navigate('/profile')}
+                    onSettingsClick={() => navigate('/settings')}
+                    onHelpClick={() => console.log('Help clicked')}
+                    onToggleTopWidgets={handleToggleTopWidgets}
+                    topWidgetsVisible={topWidgetsVisible}
+                />
+            }
+            mainContent={mainContent}
+            sidebarOpen={isSidebarOpen}
+            drawerWidth={DRAWER_WIDTH}
+        />
     );
 };
 

@@ -31,14 +31,14 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import Sidebar from '../components/Sidebar';
 import UserList from '../components/users/UserList';
 import TasksSection from '../components/departments/TasksSection';
-import { Task, TaskStatus } from '../types/task';
+import { Task, TaskStatus } from '../types/index';
 import { User } from '../types/user';
 import { UserService } from '../services/user';
 import { TaskService } from '../services/task';
 import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
-import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
+import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
 
 
 const DRAWER_WIDTH = 240;
@@ -166,9 +166,9 @@ const Users: React.FC = () => {
   const userTasks = selectedUser 
     ? tasks.filter(task => // Use 'tasks' from useQuery
         // Check assignedToUsers relation (array of User objects)
-        task.assignedToUsers?.some(assignee => assignee.id === selectedUser) || 
+        task.assignedToUsers?.some(assignee => String(assignee.id) === String(selectedUser)) || 
         // Check createdById
-        task.createdById === selectedUser
+        String(task.createdById) === String(selectedUser)
       ) 
     : [];
 
@@ -567,8 +567,6 @@ const Users: React.FC = () => {
             onClose={() => setCreateTaskDialogOpen(false)}
             onTaskCreated={handleTaskCreated}
             dialogType="assign"
-            dialogMode="user"
-            preSelectedUsers={users.filter(user => selectedUserIdsForTask.includes(user.id))}
           />
         </>
       )}

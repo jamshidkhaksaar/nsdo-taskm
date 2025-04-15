@@ -1,10 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Entity()
 export class Note {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Column({ type: 'varchar', length: 36, primary: true })
+  id: string = uuidv4();
 
   @Column('text')
   content: string;

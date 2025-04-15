@@ -1,6 +1,5 @@
 import { apiClient } from './api';
-import { Department } from '@/types/department';
-import { Task } from '../types/task';
+import { Department, Task } from '@/types/index';
 import { User } from '../types/user';
 
 export interface DepartmentPerformer {
@@ -65,8 +64,8 @@ export const DepartmentService = {
     updateDepartment: async (id: string, departmentData: Partial<Department>): Promise<Department> => {
         try {
             console.log(`Updating department ${id} with data:`, departmentData);
-            // Use the admin endpoint as per the plan for updates involving province linking
-            const response = await apiClient.put<Department>(`/api/admin/departments/${id}`, departmentData);
+            // Use the correct admin endpoint path
+            const response = await apiClient.put<Department>(`/admin/departments/${id}`, departmentData);
             console.log('Department updated:', response);
             return response;
         } catch (error) {

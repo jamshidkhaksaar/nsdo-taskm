@@ -7,9 +7,12 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskStatus, TaskPriority } from './entities/task.entity';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
+import { DelegateTaskDto } from './dto/delegate-task.dto';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
+@ApiTags('Tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
@@ -87,12 +90,16 @@ export class TasksController {
   }
 
   @Post(':id/delegate')
-  delegateTask(
+  @ApiOperation({ summary: 'Delegate a task to one or more users' })
+  @ApiBody({ type: DelegateTaskDto })
+  @ApiResponse({ status: 201, description: 'Task delegated successfully.' })
+  @ApiResponse({ status: 400, description: 'Invalid input or permissions.' })
+  async delegateTask(
     @Param('id') id: string,
-    @Body('user_ids') userIds: string[],
+    @Body() delegateTaskDto: DelegateTaskDto,
     @Request() req
   ) {
-    return this.tasksService.delegateTask(id, userIds, req.user);
+    return this.tasksService.delegateTask(id, delegateTaskDto, req.user);
   }
 
   @Post(':id/cancel')

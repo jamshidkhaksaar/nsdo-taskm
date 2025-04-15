@@ -11,7 +11,7 @@ export class UpdateDepartmentDto {
 
   @IsOptional()
   @IsUUID('4')
-  head?: string;
+  headId?: string;
 
   @IsOptional()
   @IsUUID('4')

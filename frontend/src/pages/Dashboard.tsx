@@ -32,7 +32,7 @@ import { logout } from '../store/slices/authSlice';
 import { fetchUsers } from '../store/slices/userSlice';
 import { fetchDepartments } from '../store/slices/departmentSlice';
 import { fetchProvinces } from '../store/slices/provinceSlice';
-import { Task, TaskPriority, TaskStatus, TaskType, DashboardTasksResponse, TaskUpdate, User, Department } from '../types';
+import { Task, TaskPriority, TaskStatus, TaskType, DashboardTasksResponse, TaskUpdate, User, Department } from '../types/index';
 import axios from '@/utils/axios';
 import { TaskService } from '@/services/task';
 import TasksSection from '@/components/departments/TasksSection'; // Import TasksSection
@@ -526,7 +526,7 @@ const Dashboard: React.FC = () => {
 
   // --- Add Correct Main Return --
   return (
-    <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
+    <Box sx={{ display: 'flex', height: '100vh', color: 'text.primary', ...standardBackgroundStyleNoPosition }}>
       {sidebarElement}
       <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {topBarElement}

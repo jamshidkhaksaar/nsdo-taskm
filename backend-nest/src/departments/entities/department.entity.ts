@@ -1,12 +1,13 @@
-import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Task } from '../../tasks/entities/task.entity';
 import { Province } from '../../provinces/entities/province.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Entity()
 export class Department {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Column({ type: 'varchar', length: 36, primary: true })
+  id: string = uuidv4();
 
   @Column({ unique: true })
   name: string;
@@ -22,15 +23,11 @@ export class Department {
   })
   members: User[];
 
-  @Column({ nullable: true })
+  @Column({ name: 'head_id', nullable: true })
   headId: string;
 
-  @ManyToMany(() => User)
-  @JoinTable({
-    name: 'department_heads',
-    joinColumn: { name: 'department_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'head_id', referencedColumnName: 'id' },
-  })
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'head_id' })
   head: User | null;
 
   @ManyToOne(() => Province, province => province.departments, { nullable: true })

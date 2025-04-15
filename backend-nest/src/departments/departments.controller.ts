@@ -67,6 +67,7 @@ export class DepartmentsController {
       id,
     );
     
+    // Apply the same formatting as getAllDepartments
     return await this.formatDepartmentResponse(department);
   }
 
@@ -284,6 +285,8 @@ export class DepartmentsController {
       description: department.description,
       head: head || department.head,
       head_name,
+      provinceId: department.provinceId,
+      province_name: department.province?.name || null,
       members_count,
       members,
       active_projects,

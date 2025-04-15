@@ -1,7 +1,7 @@
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { User } from '../types/user';
-import { Department } from '../types/department';
+import { Department } from '@/types/index';
 import { Province } from '../types/province';
 
 interface ReferenceData {
