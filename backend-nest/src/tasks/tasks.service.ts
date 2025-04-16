@@ -367,7 +367,7 @@ export class TasksService {
     try {
       const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
       await this.activityLogService.createLog({
-        user: userObj ?? undefined,
+        user_id: reqUser.userId,
         action: 'update', 
         target: 'task', 
         details: `Updated task: ${updatedTask.title}`, 
@@ -419,7 +419,7 @@ export class TasksService {
     try {
         const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
         await this.activityLogService.createLog({
-            user: userObj ?? undefined,
+            user_id: reqUser.userId,
             action: 'update_status',
             target: 'task',
             details: `Updated status of task "${updatedTask.title}" to ${newStatus}`,
@@ -452,7 +452,7 @@ export class TasksService {
     try {
         const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
         await this.activityLogService.createLog({
-            user: userObj ?? undefined,
+            user_id: reqUser.userId,
             action: 'update_priority',
             target: 'task',
             details: `Updated priority of task "${updatedTask.title}" to ${task.priority}`,
@@ -480,7 +480,7 @@ export class TasksService {
      try {
         const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
         await this.activityLogService.createLog({
-            user: userObj ?? undefined,
+            user_id: reqUser.userId,
             action: 'delete',
             target: 'task',
             details: `Deleted task: ${task.title}`,
@@ -524,7 +524,7 @@ export class TasksService {
      try {
         const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
         await this.activityLogService.createLog({
-            user: userObj ?? undefined,
+            user_id: reqUser.userId,
             action: 'cancel',
             target: 'task',
             details: `Cancelled task: ${updatedTask.title}`,
@@ -658,7 +658,7 @@ export class TasksService {
       try {
         const userObj = await this.usersRepository.findOneBy({ id: userId });
         await this.activityLogService.createLog({
-            user: userObj ?? undefined,
+            user_id: userId,
             action: 'view',
             target: 'dashboard_tasks',
             details: `User viewed their task dashboard.`,

@@ -4,9 +4,12 @@ import { Between, Like, Repository } from 'typeorm';
 import { ActivityLog } from '../entities/activity-log.entity';
 import { User } from '../../users/entities/user.entity';
 import { Request } from 'express';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class ActivityLogService {
+  private readonly logger = new Logger(ActivityLogService.name);
+
   constructor(
     @InjectRepository(ActivityLog)
     private activityLogRepository: Repository<ActivityLog>,
@@ -16,7 +19,7 @@ export class ActivityLogService {
    * Create a new activity log entry
    */
   async createLog(logData: {
-    user?: User;
+    user_id?: string;
     action: string;
     target: string;
     target_id?: string;
@@ -24,9 +27,10 @@ export class ActivityLogService {
     ip_address?: string;
     status?: 'success' | 'warning' | 'error';
   }): Promise<ActivityLog> {
+    this.logger.log(`[createLog] Creating log with data: ${JSON.stringify(logData)}`);
+
     const activityLog = this.activityLogRepository.create({
-      user_id: logData.user?.id,
-      user: logData.user,
+      user_id: logData.user_id,
       action: logData.action,
       target: logData.target,
       target_id: logData.target_id,
@@ -35,7 +39,14 @@ export class ActivityLogService {
       status: logData.status || 'success',
     });
 
-    return this.activityLogRepository.save(activityLog);
+    try {
+      const savedLog = await this.activityLogRepository.save(activityLog);
+      this.logger.log(`[createLog] Log saved successfully with ID: ${savedLog.id}`);
+      return savedLog;
+    } catch (error) {
+      this.logger.error(`[createLog] Failed to save activity log: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   /**
@@ -49,11 +60,21 @@ export class ActivityLogService {
     target_id?: string,
     status: 'success' | 'warning' | 'error' = 'success',
   ): Promise<ActivityLog> {
-    const user = req.user as User;
+    const userContext = req.user as { userId?: string; username?: string; /* other fields */ };
+    const userId = userContext?.userId; // Extract the userId
     const ip_address = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
 
+    this.logger.log(`[logFromRequest] User context from req.user: ${JSON.stringify(userContext)}`);
+    this.logger.log(`[logFromRequest] Extracted userId: ${userId}`);
+
+    if (!userId) {
+        this.logger.error(`[logFromRequest] Cannot log activity, userId is missing from request context!`);
+        throw new Error('User ID missing from request context, cannot create activity log.');
+    }
+
+    // Pass only the userId string to createLog
     return this.createLog({
-      user,
+      user_id: userId, // Pass the extracted ID string
       action,
       target,
       target_id,

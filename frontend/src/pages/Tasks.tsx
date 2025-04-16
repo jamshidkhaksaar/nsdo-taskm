@@ -16,6 +16,7 @@ const Tasks: React.FC = () => {
     setError(null);
     try {
       const data = await getTasks(); // Fetch tasks from the API
+      console.log('Tasks.tsx: Data received from getTasks:', data);
       setTasks(data);
     } catch (err) {
       setError('Failed to fetch tasks');
