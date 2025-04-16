@@ -114,6 +114,68 @@ const SECTION_COLORS: Record<TaskSectionId, string> = {
   delegatedBy: 'rgba(149, 117, 205, 0.08)', // Light Purple tint
 };
 
+// Define the initial order array directly for reference
+const initialSectionOrder: TaskSectionId[] = ['assigned', 'created', 'personal', 'delegatedTo', 'delegatedBy'];
+
+// --- Persistence Logic --- START ---
+
+// Function to load initial section order
+const getInitialSectionOrder = (): TaskSectionId[] => {
+  console.log('[Dashboard] Calculating initial section order...');
+  const savedOrder = localStorage.getItem('dashboardSectionOrder');
+  if (savedOrder) {
+    try {
+      const parsed = JSON.parse(savedOrder);
+      // Stronger validation: check length and content against the known initial order
+      if (Array.isArray(parsed) && parsed.length === initialSectionOrder.length && parsed.every(id => initialSectionOrder.includes(id))) {
+        console.log('[Dashboard] Initializing section order FROM STORAGE:', parsed);
+        return parsed;
+      } else {
+         console.warn('[Dashboard] Invalid saved order found during init, using defaults.');
+         localStorage.removeItem('dashboardSectionOrder');
+      }
+    } catch (e) {
+      console.error('[Dashboard] Error parsing saved order for initial value:', e);
+      localStorage.removeItem('dashboardSectionOrder');
+    }
+  }
+  console.log('[Dashboard] Initializing section order TO DEFAULTS:', initialSectionOrder);
+  return [...initialSectionOrder]; // Return a copy of the default order
+};
+
+// Function to load initial collapsed state
+const getInitialCollapsedState = (): Record<TaskSectionId, boolean> => {
+  console.log('[Dashboard] Calculating initial collapsed state...');
+  const defaults = initialSectionOrder.reduce((acc, id) => { acc[id] = false; return acc; }, {} as Record<TaskSectionId, boolean>);
+  const savedCollapsed = localStorage.getItem('dashboardCollapsedSections');
+
+  if (savedCollapsed) {
+    try {
+      const parsed = JSON.parse(savedCollapsed);
+      if (typeof parsed === 'object' && parsed !== null) {
+        const mergedState = { ...defaults }; // Start with defaults
+        for (const id of initialSectionOrder) { // Iterate through expected keys
+          if (parsed.hasOwnProperty(id) && typeof parsed[id] === 'boolean') {
+            mergedState[id] = parsed[id]; // Apply saved boolean if valid
+          }
+        }
+        console.log('[Dashboard] Initializing collapsed state FROM STORAGE:', mergedState);
+        return mergedState;
+      } else {
+        console.warn('[Dashboard] Invalid saved collapsed state found during init, using defaults.');
+        localStorage.removeItem('dashboardCollapsedSections');
+      }
+    } catch (e) {
+      console.error('[Dashboard] Error parsing saved collapsed state for initial value:', e);
+      localStorage.removeItem('dashboardCollapsedSections');
+    }
+  }
+  console.log('[Dashboard] Initializing collapsed state TO DEFAULTS.', defaults);
+  return defaults;
+};
+
+// --- Persistence Logic --- END ---
+
 const Dashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -166,62 +228,22 @@ const Dashboard: React.FC = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState<AlertColor>('success');
 
   // --- State for Collapsible/Reorderable Sections ---
-  const initialSectionOrder: TaskSectionId[] = ['assigned', 'created', 'personal', 'delegatedTo', 'delegatedBy'];
-  const [sectionOrder, setSectionOrder] = useState<TaskSectionId[]>(initialSectionOrder);
-  const [collapsedSections, setCollapsedSections] = useState<Record<TaskSectionId, boolean>>(
-    () => initialSectionOrder.reduce((acc, id) => { acc[id] = false; return acc; }, {} as Record<TaskSectionId, boolean>)
-  );
+  // Initialize state lazily using the functions defined above
+  const [sectionOrder, setSectionOrder] = useState<TaskSectionId[]>(getInitialSectionOrder);
+  const [collapsedSections, setCollapsedSections] = useState<Record<TaskSectionId, boolean>>(getInitialCollapsedState);
 
-  // --- Persistence Logic ---
-  // Load saved state from localStorage on mount
-  useEffect(() => {
-    const savedOrder = localStorage.getItem('dashboardSectionOrder');
-    if (savedOrder) {
-      try {
-        const parsedOrder = JSON.parse(savedOrder);
-        // Basic validation
-        if (Array.isArray(parsedOrder) && parsedOrder.every(id => initialSectionOrder.includes(id))) {
-          setSectionOrder(parsedOrder);
-        } else {
-          localStorage.removeItem('dashboardSectionOrder'); // Clear invalid
-        }
-      } catch { localStorage.removeItem('dashboardSectionOrder'); }
-    }
+  // --- REMOVED OLD useEffect FOR LOADING STATE ---
 
-    const savedCollapsed = localStorage.getItem('dashboardCollapsedSections');
-    if (savedCollapsed) {
-      try {
-        const parsedCollapsed = JSON.parse(savedCollapsed);
-        // Basic validation (check if it's an object)
-        if (typeof parsedCollapsed === 'object' && parsedCollapsed !== null) {
-            // Ensure all keys exist, default to false if needed
-            const initialCollapsed = initialSectionOrder.reduce((acc, id) => {
-                acc[id] = parsedCollapsed[id] === true; // Ensure boolean, default false
-                return acc;
-            }, {} as Record<TaskSectionId, boolean>);
-             setCollapsedSections(initialCollapsed);
-        } else {
-            localStorage.removeItem('dashboardCollapsedSections');
-        }
-      } catch { localStorage.removeItem('dashboardCollapsedSections'); }
-    } else {
-        // Default all sections to open if nothing saved
-        const initialCollapsed = initialSectionOrder.reduce((acc, id) => {
-            acc[id] = false;
-            return acc;
-        }, {} as Record<TaskSectionId, boolean>);
-        setCollapsedSections(initialCollapsed);
-    }
-
-  }, []); // Empty dependency array means run only on mount
-
+  // --- Keep useEffect hooks for SAVING state --- 
   // Save order to localStorage when it changes
   useEffect(() => {
+     console.log('[Dashboard] Saving section order to localStorage:', sectionOrder);
     localStorage.setItem('dashboardSectionOrder', JSON.stringify(sectionOrder));
   }, [sectionOrder]);
 
   // Save collapsed state to localStorage when it changes
   useEffect(() => {
+    console.log('[Dashboard] Saving collapsed state to localStorage:', collapsedSections);
     localStorage.setItem('dashboardCollapsedSections', JSON.stringify(collapsedSections));
   }, [collapsedSections]);
 
