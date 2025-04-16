@@ -180,48 +180,44 @@ export const TaskService = {
     },
 
     // Create a new task
-    createTask: async (taskData: CreateTask): Promise<Task> => {
+    // Updated to accept task data without status and type, as backend doesn't expect them on creation
+    createTask: async (taskData: Omit<CreateTask, 'status' | 'type'>): Promise<Task> => {
         try {
-            const status = frontendToBackendStatus[taskData.status || TaskStatus.PENDING] || 'pending';
+            // Removed status mapping as it's not sent
+            // const status = frontendToBackendStatus[taskData.status || TaskStatus.PENDING] || 'pending';
 
             console.log('Creating task with data:', taskData);
 
-            const taskPriorities = JSON.parse(localStorage.getItem('taskPriorities') || '{}');
+            // Removed taskPriorities logic as it seems unused or related to status/type
+            // const taskPriorities = JSON.parse(localStorage.getItem('taskPriorities') || '{}');
 
             const payload: any = {
                 title: taskData.title,
                 description: taskData.description || '',
-                status,
+                // status, // Removed
+                priority: taskData.priority, // Keep priority
                 assignedToUserIds: taskData.assignedToUserIds,
-                priority: taskData.priority,
                 assignedToDepartmentIds: taskData.assignedToDepartmentIds,
                 assignedToProvinceId: taskData.assignedToProvinceId,
-                type: taskData.type,
-                isDelegated: taskData.isDelegated,
-                delegatedByUserId: taskData.delegatedByUserId,
-                delegatedFromTaskId: taskData.delegatedFromTaskId
+                // type: taskData.type, // Removed
+                isDelegated: taskData.isDelegated, // Keep if delegation is handled separately
+                // Ensure dueDate is correctly formatted if present
+                // Convert Dayjs object directly to ISO string if it exists
+                dueDate: taskData.dueDate ? (dayjs.isDayjs(taskData.dueDate) ? taskData.dueDate.toISOString() : toISOString(taskData.dueDate)) : null,
             };
 
-            if (taskData.dueDate) {
-                // Convert Dayjs object to ISO string if necessary
-                payload.dueDate = typeof taskData.dueDate === 'string' 
-                    ? taskData.dueDate 
-                    : dayjs(taskData.dueDate).toISOString(); 
-            } else {
-                delete payload.dueDate;
-            }
-
+            // Filter out undefined values from payload before sending
             Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
 
-            console.log('Sending payload to API:', payload);
+            console.log('Submitting payload to API:', payload);
 
-            const response = await apiClient.post('/tasks/', payload);
+            const response = await apiClient.post<Task>('/tasks/', payload);
             const createdTask = response.data;
 
             // Store the priority if provided
             const taskPriority = taskData.priority || 'medium';
-            taskPriorities[createdTask.id] = taskPriority;
-            localStorage.setItem('taskPriorities', JSON.stringify(taskPriorities));
+            // taskPriorities[createdTask.id] = taskPriority;
+            // localStorage.setItem('taskPriorities', JSON.stringify(taskPriorities));
 
             return {
                 ...standardizeTask(createdTask),
