@@ -215,7 +215,7 @@ export const TaskService = {
 
             console.log('Sending payload to API:', payload);
 
-            const response = await apiClient.post('/api/tasks/', payload);
+            const response = await apiClient.post('/tasks/', payload);
             const createdTask = response.data;
 
             // Store the priority if provided

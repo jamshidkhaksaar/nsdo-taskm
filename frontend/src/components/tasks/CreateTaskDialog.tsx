@@ -13,6 +13,7 @@ import { Province } from '@/types/province';
 import useReferenceData from '../../hooks/useReferenceData'; // Use relative path as previously corrected
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { User } from '@/types/user';
+import { glassmorphismCardStyle } from '@/utils/glassmorphismStyles';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -189,16 +190,28 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle>
+        <Dialog 
+            open={open} 
+            onClose={onClose} 
+            maxWidth="sm" 
+            fullWidth
+            PaperProps={{
+                sx: {
+                    ...glassmorphismCardStyle,
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#fff',
+                }
+            }}
+        >
+            <DialogTitle sx={{ color: '#fff' }}>
                {taskType === TaskType.PERSONAL ? 'Create Personal Task' :
                 dialogType === 'create' ? 'Create New Task' : 'Assign Task'}
             </DialogTitle>
             <DialogContent>
                 {renderFormContent()}
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} disabled={loading}>Cancel</Button>
+            <DialogActions sx={{ padding: '16px 24px'}}>
+                <Button onClick={onClose} disabled={loading} sx={{ color: '#ccc' }}>Cancel</Button>
                 <Button onClick={handleSubmit} variant="contained" disabled={loading}>
                     {loading ? <CircularProgress size={24} /> : 'Create Task'}
                 </Button>
