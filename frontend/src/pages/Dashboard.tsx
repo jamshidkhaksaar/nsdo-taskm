@@ -237,6 +237,13 @@ const Dashboard: React.FC = () => {
     localStorage.setItem('quickNotesVisibleState', JSON.stringify(showQuickNotes));
   }, [showQuickNotes]);
 
+  // --- Handlers ---
+
+  const handleToggleQuickNotes = () => {
+    console.log('[Dashboard] Toggling Quick Notes. Current state:', showQuickNotes);
+    setShowQuickNotes(prev => !prev);
+  };
+
   // Handler to toggle section collapse
   const handleToggleCollapse = (sectionId: TaskSectionId) => {
     setCollapsedSections(prev => ({
