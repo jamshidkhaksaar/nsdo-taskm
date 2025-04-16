@@ -155,7 +155,7 @@ const authSlice = createSlice({
         
         // Convert user data to AuthUser type
         const userData = action.payload.user || null;
-        let authUser = null;
+        let authUser: AuthUser | null = null;
         
         if (userData) {
           authUser = {
@@ -189,5 +189,8 @@ const authSlice = createSlice({
 });
 
 export const { setCredentials, updateToken, logout, clearError } = authSlice.actions;
+
+// Selector to get the current user
+export const selectAuthUser = (state: { auth: AuthState }) => state.auth.user;
 
 export default authSlice.reducer; 

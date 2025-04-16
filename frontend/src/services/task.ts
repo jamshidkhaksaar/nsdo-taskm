@@ -180,48 +180,41 @@ export const TaskService = {
     },
 
     // Create a new task
-    // Updated to accept task data without status and type, as backend doesn't expect them on creation
+    // Reverted signature: Accept optional createdById based on CreateTask type
+    // Payload construction will handle conditional inclusion
     createTask: async (taskData: Omit<CreateTask, 'status' | 'type'>): Promise<Task> => {
         try {
-            // Removed status mapping as it's not sent
-            // const status = frontendToBackendStatus[taskData.status || TaskStatus.PENDING] || 'pending';
-
             console.log('Creating task with data:', taskData);
 
-            // Removed taskPriorities logic as it seems unused or related to status/type
-            // const taskPriorities = JSON.parse(localStorage.getItem('taskPriorities') || '{}');
-
+            // Base payload without conditional fields
             const payload: any = {
                 title: taskData.title,
                 description: taskData.description || '',
-                // status, // Removed
-                priority: taskData.priority, // Keep priority
+                priority: taskData.priority,
                 assignedToUserIds: taskData.assignedToUserIds,
                 assignedToDepartmentIds: taskData.assignedToDepartmentIds,
                 assignedToProvinceId: taskData.assignedToProvinceId,
-                // type: taskData.type, // Removed
-                isDelegated: taskData.isDelegated, // Keep if delegation is handled separately
-                // Ensure dueDate is correctly formatted if present
-                // Convert Dayjs object directly to ISO string if it exists
+                isDelegated: taskData.isDelegated,
                 dueDate: taskData.dueDate ? (dayjs.isDayjs(taskData.dueDate) ? taskData.dueDate.toISOString() : toISOString(taskData.dueDate)) : null,
             };
 
-            // Filter out undefined values from payload before sending
-            Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+            // Conditionally add createdById if it exists in taskData
+            // This allows the dialog to control sending it based on task type
+            if (taskData.createdById) {
+                payload.createdById = taskData.createdById;
+            }
+
+            // Filter out undefined/null values from payload before sending
+            Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null) && delete payload[key]);
 
             console.log('Submitting payload to API:', payload);
 
             const response = await apiClient.post<Task>('/tasks/', payload);
             const createdTask = response.data;
 
-            // Store the priority if provided
-            const taskPriority = taskData.priority || 'medium';
-            // taskPriorities[createdTask.id] = taskPriority;
-            // localStorage.setItem('taskPriorities', JSON.stringify(taskPriorities));
-
             return {
                 ...standardizeTask(createdTask),
-                priority: taskPriority as TaskPriority
+                priority: taskData.priority as TaskPriority
             };
         } catch (error) {
             console.error('Error creating task:', error);

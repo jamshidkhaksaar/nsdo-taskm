@@ -23,13 +23,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    const { username } = payload;
+    console.log('[JwtStrategy] Validating payload:', payload); // Log the incoming payload
+    const { username, sub } = payload;
+    // Fetch user primarily to check existence and potentially get roles/permissions
     const user = await this.usersService.findOne(username);
 
     if (!user) {
-      throw new UnauthorizedException();
+      console.error(`[JwtStrategy] User not found for username: ${username}`);
+      throw new UnauthorizedException('User not found');
     }
 
-    return user;
+    // Instead of returning the full entity, return essential info including the ID from the token payload (sub)
+    // This becomes the `req.user` object in controllers
+    const userContext = {
+      userId: sub, // Use 'sub' from the JWT payload as the primary userId
+      username: username,
+      role: user.role, // Include role from the fetched user entity for authorization
+    };
+    console.log('[JwtStrategy] Validation successful, returning user context:', userContext);
+    return userContext;
+    // return user; // Old problematic return
   }
 } 

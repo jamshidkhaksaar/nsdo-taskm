@@ -154,6 +154,7 @@ export interface CreateTask {
   priority?: TaskPriority;
   type: TaskType;
   dueDate?: string | Dayjs | null; // Allow Dayjs for picker, convert before sending
+  createdById?: string; // Add createdById as it's needed by the backend
   assignedToUserIds?: string[];
   assignedToDepartmentIds?: string[];
   assignedToProvinceId?: string | null;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import {
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button,
   Select, MenuItem, FormControl, InputLabel, Box, CircularProgress
@@ -9,8 +10,10 @@ import dayjs, { Dayjs } from 'dayjs';
 import { TaskService } from '@/services/task';
 import { TaskStatus, TaskPriority, TaskType, Department, CreateTask } from '@/types/index';
 import { User } from '@/types/user';
+import { AuthUser } from '@/types/auth';
 import { Province } from '@/types/province';
 import useReferenceData from '../../hooks/useReferenceData';
+import { selectAuthUser } from '@/store/slices/authSlice';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -30,6 +33,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   dialogType,
 }) => {
   const { users, departments, provinces, loading: loadingRefData } = useReferenceData();
+  const currentUser = useSelector(selectAuthUser) as AuthUser | null;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -93,13 +97,20 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       return;
     }
 
+    if (!currentUser?.id) {
+      setError('Unable to identify the current user. Please log in again.');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
-    const newTask: Omit<CreateTask, 'status' | 'type'> = {
+    const newTask = {
       title,
       description,
       priority,
       dueDate: dueDate ? dayjs(dueDate).toISOString() : undefined,
+      createdById: currentUser.id,
       assignedToUserIds: taskType === TaskType.USER ? assignedToUserIds : undefined,
       assignedToDepartmentIds: (taskType === TaskType.DEPARTMENT || taskType === TaskType.PROVINCE_DEPARTMENT) ? assignedToDepartmentIds : undefined,
       assignedToProvinceId: taskType === TaskType.PROVINCE_DEPARTMENT ? assignedToProvinceId : undefined,
