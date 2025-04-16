@@ -1,7 +1,6 @@
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
-import { Task, TaskType } from '../types/task';
-import { User } from '../types/user'; // Import User type if needed for department head check
+import { Task, User, TaskType } from '../types/index';
 
 export interface TaskPermissions {
   canView: boolean;
@@ -35,32 +34,28 @@ export const useTaskPermissions = (task: Task | null | undefined): TaskPermissio
     return defaultPermissions;
   }
 
-  // User details
-  const userId = user.id?.toString();
+  // User details (IDs are strings)
+  const userId = user.id;
   const userRole = user.role || 'user';
-  const userDepartmentId = user.department?.id; // Assuming user object from authSlice has department populated
+  // Get department ID as string
+  const userDepartmentId = user.department?.id;
 
-  // Task details
-  const isCreator = task.createdById?.toString() === userId;
+  // Task details (IDs are strings)
+  const isCreator = userId === task.createdById;
 
-  // Check direct user assignment
-  const isDirectAssignee = task.assignedToUsers?.some(u => u.id?.toString() === userId) ||
-                           task.assigned_to?.includes(userId) || // Fallback check on assigned_to
-                           false;
+  // Check direct user assignment using assignedToUserIds array
+  const isDirectAssignee = !!task.assignedToUserIds?.includes(userId);
 
-  // Check department assignment (if user belongs to assigned department)
-  const isDepartmentAssignee = (task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) &&
+  // Check department assignment using assignedToDepartmentIds array
+  const isDepartmentAssignee = !!((task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) &&
                                userDepartmentId &&
-                               task.assignedToDepartmentIds?.includes(userDepartmentId) ||
-                               false;
+                               task.assignedToDepartmentIds?.includes(userDepartmentId));
 
   // Check if user is a Department Head for an assigned department
-  // NOTE: This requires logic to identify Dept Heads, maybe role === 'department_head' AND user.departmentId is in task.assignedToDepartmentIds
-  const isDeptHeadOfAssignedDept = userRole === 'department_head' && // Simple role check for now
+  const isDeptHeadOfAssignedDept = !!(userRole === 'department_head' &&
                                    userDepartmentId &&
                                    (task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) &&
-                                   task.assignedToDepartmentIds?.includes(userDepartmentId) ||
-                                   false;
+                                   task.assignedToDepartmentIds?.includes(userDepartmentId));
 
   // Combine assignee checks
   const isAssignee = isDirectAssignee || isDepartmentAssignee;

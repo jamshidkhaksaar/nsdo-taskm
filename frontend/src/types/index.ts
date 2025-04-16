@@ -171,8 +171,8 @@ export type TaskUpdate = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt' | '
 
 // Define DelegateTaskData interface
 export interface DelegateTaskData {
-  newAssigneeUserId: string;
-  delegationReason?: string;
+  assignedToUserIds: string[]; // Array of user IDs to delegate to
+  comment?: string; // Optional comment
   // Maybe include original Task ID if needed by backend
 }
 
@@ -187,8 +187,15 @@ export interface DashboardTaskCounts {
 
 // Define response type for fetching dashboard tasks
 export interface DashboardTasksResponse {
-  tasks: Task[];
-  counts: DashboardTaskCounts;
+  // tasks: Task[]; // Remove or comment out the old structure
+  // counts: DashboardTaskCounts;
+  myPersonalTasks: Task[];
+  tasksICreatedForOthers: Task[];
+  tasksAssignedToMe: Task[];
+  tasksDelegatedByMe: Task[];
+  tasksDelegatedToMe: Task[];
+  // Optionally keep counts if the backend still provides them
+  // counts?: DashboardTaskCounts;
 }
 
 // END: Add Task and Dashboard Types

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -18,8 +18,8 @@ import {
   MenuItem,
   FormControl
 } from '@mui/material';
-import { Task, TaskStatus, TaskPriority, TaskType, DelegateTaskData } from '../../types/task';
-import { User } from '../../types/user';
+import { Task, User, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType } from '../../types/index';
+import { UserService } from '../../services/user';
 import { TaskService } from '../../services/task';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -28,6 +28,7 @@ import useReferenceData from '@/hooks/useReferenceData';
 import dayjs from 'dayjs';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { useTaskPermissions } from '@/hooks/useTaskPermissions';
+import { formatDate, DATE_FORMATS, parseDate } from '../../utils/dateUtils';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -35,9 +36,10 @@ interface TaskViewDialogProps {
   taskId: string | null;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onChangeStatus?: (taskId: string, status: TaskStatus) => Promise<boolean>;
 }
 
-const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, onEdit, onDelete }) => {
+const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, onEdit, onDelete, onChangeStatus }) => {
   const theme = useTheme();
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const { users, departments, provinces, loading: loadingRefData } = useReferenceData();
@@ -102,10 +104,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     return prov ? prov.name : `ID: ${provinceId}`;
   }, [provinces]);
 
-  const formatDate = (dateString: string | null | undefined) => {
-    return dateString ? dayjs(dateString).format('YYYY-MM-DD HH:mm') : 'Not set';
-  };
-
   const handleDelegateSubmit = async () => {
     if (!task || !taskId) return;
 
@@ -143,8 +141,18 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     if (task && taskId && permissions.canUpdateStatus) {
       setIsUpdatingStatus(true);
       try {
-        const updatedTask = await TaskService.changeTaskStatus(taskId, newStatus);
-        setTask(updatedTask);
+        let success = true;
+        if (onChangeStatus) {
+            console.log(`[TaskViewDialog] Calling prop onChangeStatus for task ${taskId} to ${newStatus}`);
+            success = await onChangeStatus(taskId, newStatus);
+        } else {
+            console.warn(`[TaskViewDialog] onChangeStatus prop not provided. Falling back to internal service call.`);
+            const updatedTask = await TaskService.changeTaskStatus(taskId, newStatus);
+            setTask(updatedTask);
+        }
+        if (!success) {
+            handleError('Failed to update status via parent component.');
+        }
       } catch (err: any) {
         handleError(`Failed to update status: ${err.message || 'Unknown error'}`);
       } finally {
@@ -197,8 +205,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     let assigneesDisplay = 'N/A';
     if (task.type === TaskType.USER && task.assignedToUsers && task.assignedToUsers.length > 0) {
       assigneesDisplay = task.assignedToUsers.map(u => getUserName(u.id)).join(', ');
-    } else if (task.type === TaskType.USER && task.assigned_to && task.assigned_to.length > 0) {
-      assigneesDisplay = task.assigned_to.map(getUserName).join(', ');
     } else if ((task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0) {
       assigneesDisplay = task.assignedToDepartmentIds.map(getDepartmentName).join(', ');
     } else if (task.type === TaskType.PERSONAL) {
@@ -257,21 +263,21 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
             )}
           </Box>
 
-          <Typography variant="body2"><strong>Type:</strong> {task.type || 'N/A'}</Typography>
+          <Typography variant="body2" sx={{ mr: 1 }}><strong>Type:</strong> {task.type}</Typography>
           <Typography variant="body2"><strong>Due Date:</strong> {formatDate(task.dueDate)}</Typography>
         </Grid>
 
         <Grid item xs={12} md={6}>
           <Typography variant="body2"><strong>Created By:</strong> {getUserName(task.createdById)}</Typography>
-          <Typography variant="body2"><strong>Created At:</strong> {formatDate(task.createdAt || task.created_at)}</Typography>
-          <Typography variant="body2"><strong>Last Updated:</strong> {formatDate(task.updatedAt || task.updated_at)}</Typography>
+          <Typography variant="body2"><strong>Created At:</strong> {formatDate(task.createdAt)}</Typography>
+          <Typography variant="body2"><strong>Last Updated:</strong> {formatDate(task.updatedAt)}</Typography>
           {task.type === TaskType.PROVINCE_DEPARTMENT && (
             <Typography variant="body2"><strong>Province:</strong> {getProvinceName(task.assignedToProvinceId)}</Typography>
           )}
         </Grid>
 
-        <Grid item xs={12}>
-          <Typography variant="body2"><strong>Assignees:</strong> {assigneesDisplay}</Typography>
+        <Grid item xs={12} sx={{ mr: 1 }}>
+          <Typography variant="body2" sx={{ mr: 1 }}><strong>Assignees:</strong> {assigneesDisplay}</Typography>
         </Grid>
 
         {task.isDelegated && (

@@ -2,8 +2,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton, Paper } from '@mui/material';
+import { useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton, Paper, Snackbar, Alert, AlertColor, Fab, Collapse, CardHeader, IconButton, Tooltip } from '@mui/material';
 import Box from '@mui/material/Box';
+import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 // Custom Components
 import ErrorDisplay from '../components/common/ErrorDisplay';
@@ -86,6 +91,29 @@ const initialDashboardData: DashboardTasksResponse = {
   tasksDelegatedToMe: [],
 };
 
+// Define identifiers for task sections
+type TaskSectionId = 'assigned' | 'created' | 'personal' | 'delegatedTo' | 'delegatedBy';
+
+// Define structure for section configuration
+interface TaskSectionConfig {
+  id: TaskSectionId;
+  title: string;
+  tasks: Task[];
+  color: string; // Subtle background color
+  showAddButton?: boolean;
+  addTaskType?: TaskType;
+  viewMode: 'assigned' | 'user'; // Simplified viewMode for TasksSection
+}
+
+// Define subtle colors for sections
+const SECTION_COLORS: Record<TaskSectionId, string> = {
+  assigned: 'rgba(100, 181, 246, 0.08)', // Light Blue tint
+  created: 'rgba(229, 115, 115, 0.08)', // Light Red tint
+  personal: 'rgba(129, 199, 132, 0.08)', // Light Green tint
+  delegatedTo: 'rgba(255, 171, 145, 0.08)', // Light Orange tint
+  delegatedBy: 'rgba(149, 117, 205, 0.08)', // Light Purple tint
+};
+
 const Dashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -111,8 +139,11 @@ const Dashboard: React.FC = () => {
   const [notifications, setNotifications] = useState(3);
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [viewTaskDialogOpen, setViewTaskDialogOpen] = useState(false);
-  const [showQuickNotes, setShowQuickNotes] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState(0); // State for Tabs
+  const [showQuickNotes, setShowQuickNotes] = useState<boolean>(() => {
+    const saved = localStorage.getItem('quickNotesVisibleState');
+    return saved !== null ? JSON.parse(saved) : false; 
+  });
+  const [activeSubTab, setActiveSubTab] = useState(0);
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -122,10 +153,113 @@ const Dashboard: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('sidebarOpenState');
+    return saved !== null ? JSON.parse(saved) : true; 
+  });
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   const [rightSidebarVisible, setRightSidebarVisible] = useState(!isTablet);
-  const handleToggleQuickNotes = () => setShowQuickNotes(prev => !prev);
+
+  // --- Snackbar State ---
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<AlertColor>('success');
+
+  // --- State for Collapsible/Reorderable Sections ---
+  const initialSectionOrder: TaskSectionId[] = ['assigned', 'created', 'personal', 'delegatedTo', 'delegatedBy'];
+  const [sectionOrder, setSectionOrder] = useState<TaskSectionId[]>(initialSectionOrder);
+  const [collapsedSections, setCollapsedSections] = useState<Record<TaskSectionId, boolean>>(
+    () => initialSectionOrder.reduce((acc, id) => { acc[id] = false; return acc; }, {} as Record<TaskSectionId, boolean>)
+  );
+
+  // --- Persistence Logic ---
+  // Load saved state from localStorage on mount
+  useEffect(() => {
+    const savedOrder = localStorage.getItem('dashboardSectionOrder');
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        // Basic validation
+        if (Array.isArray(parsedOrder) && parsedOrder.every(id => initialSectionOrder.includes(id))) {
+          setSectionOrder(parsedOrder);
+        } else {
+          localStorage.removeItem('dashboardSectionOrder'); // Clear invalid
+        }
+      } catch { localStorage.removeItem('dashboardSectionOrder'); }
+    }
+
+    const savedCollapsed = localStorage.getItem('dashboardCollapsedSections');
+    if (savedCollapsed) {
+      try {
+        const parsedCollapsed = JSON.parse(savedCollapsed);
+        // Basic validation (check if it's an object)
+        if (typeof parsedCollapsed === 'object' && parsedCollapsed !== null) {
+            // Ensure all keys exist, default to false if needed
+            const initialCollapsed = initialSectionOrder.reduce((acc, id) => {
+                acc[id] = parsedCollapsed[id] === true; // Ensure boolean, default false
+                return acc;
+            }, {} as Record<TaskSectionId, boolean>);
+             setCollapsedSections(initialCollapsed);
+        } else {
+            localStorage.removeItem('dashboardCollapsedSections');
+        }
+      } catch { localStorage.removeItem('dashboardCollapsedSections'); }
+    } else {
+        // Default all sections to open if nothing saved
+        const initialCollapsed = initialSectionOrder.reduce((acc, id) => {
+            acc[id] = false;
+            return acc;
+        }, {} as Record<TaskSectionId, boolean>);
+        setCollapsedSections(initialCollapsed);
+    }
+
+  }, []); // Empty dependency array means run only on mount
+
+  // Save order to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('dashboardSectionOrder', JSON.stringify(sectionOrder));
+  }, [sectionOrder]);
+
+  // Save collapsed state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('dashboardCollapsedSections', JSON.stringify(collapsedSections));
+  }, [collapsedSections]);
+
+  // Save Sidebar state to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarOpenState', JSON.stringify(sidebarOpen));
+  }, [sidebarOpen]);
+
+  // Save QuickNotes state to localStorage
+  useEffect(() => {
+    // Log state change before saving
+    console.log('[Dashboard] Saving quickNotesVisible to localStorage:', showQuickNotes);
+    localStorage.setItem('quickNotesVisibleState', JSON.stringify(showQuickNotes));
+  }, [showQuickNotes]);
+
+  // Handler to toggle section collapse
+  const handleToggleCollapse = (sectionId: TaskSectionId) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
+  };
+
+  // Handler for Drag and Drop end
+  const onSectionDragEnd = (result: DropResult) => {
+    const { source, destination } = result;
+
+    // Dropped outside the list or no movement
+    if (!destination || destination.index === source.index) {
+      return;
+    }
+
+    const newOrder = Array.from(sectionOrder);
+    const [reorderedItem] = newOrder.splice(source.index, 1);
+    newOrder.splice(destination.index, 0, reorderedItem);
+
+    setSectionOrder(newOrder);
+  };
 
   // Helper functions for name lookups
   const getUserNameById = useCallback((userId: string | null | undefined): string => {
@@ -223,6 +357,33 @@ const Dashboard: React.FC = () => {
   // Dependencies: dispatch is stable, user?.id ensures reload on login/logout, fetchDashboardTasks callback
   }, [dispatch, user?.id, fetchDashboardTasks, handleError]); // Added handleError dependency
 
+  // Combined task lists for consolidated view
+  const tasksRequiringAction = useMemo(() => [
+    ...(dashboardData.tasksAssignedToMe || []),
+    ...(dashboardData.tasksDelegatedToMe || [])
+  ], [dashboardData.tasksAssignedToMe, dashboardData.tasksDelegatedToMe]);
+
+  const tasksManagedByMe = useMemo(() => [
+    ...(dashboardData.tasksICreatedForOthers || []),
+    ...(dashboardData.tasksDelegatedByMe || [])
+  ], [dashboardData.tasksICreatedForOthers, dashboardData.tasksDelegatedByMe]);
+
+  // Filter and combine tasks for the Kanban board view
+  const boardTasks = useMemo(() => {
+    const allRelevantTasks: Task[] = [
+      ...(dashboardData.myPersonalTasks || []),
+      ...(dashboardData.tasksAssignedToMe || []),
+      ...(dashboardData.tasksDelegatedToMe || []),
+      // Potentially add tasks assigned to user's department here if not included above
+      // Example: ...(allTasks.filter(t => t.assignedToDepartmentIds?.includes(user.department.id)))
+    ];
+
+    // Remove duplicates based on task ID
+    const uniqueTasks = Array.from(new Map(allRelevantTasks.map(task => [task.id, task])).values());
+
+    return uniqueTasks;
+  }, [dashboardData]);
+
   // Event handlers
   const handleLogout = () => {
     dispatch(logout());
@@ -289,18 +450,42 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Change task status handler - Modified to return Promise<boolean>
+  // --- Snackbar Helper ---
+  const showSnackbar = (message: string, severity: AlertColor = 'success') => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
+
+  const handleCloseSnackbar = (event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+  };
+
+  // --- Update Handlers to Show Snackbar ---
   const changeTaskStatus = async (taskId: string, status: TaskStatus): Promise<boolean> => {
     try {
       console.log(`Dashboard: Changing task ${taskId} status to ${status}`);
-      await TaskService.changeTaskStatus(taskId, status); // Use TaskService
-      await fetchDashboardTasks(); // Refresh ALL dashboard data after status change
-      return true; // Indicate success
+      await TaskService.changeTaskStatus(taskId, status);
+      await fetchDashboardTasks();
+      // Show success notification
+      showSnackbar(`Task moved to ${status.replace('_', ' ')}`, 'success');
+      return true;
     } catch (err) {
       console.error('Error changing task status in Dashboard:', err);
       handleError('Failed to update task status. Please try again later.');
-      return false; // Indicate failure
+      // Show error notification
+      showSnackbar('Failed to update task status', 'error');
+      return false;
     }
+  };
+
+  const handleTaskCreated = () => {
+    fetchDashboardTasks();
+    // Show success notification
+    showSnackbar('Task created successfully!', 'success');
   };
 
   const handleProfileClick = () => {
@@ -312,7 +497,6 @@ const Dashboard: React.FC = () => {
   };
 
   const handleHelpClick = () => {
-    // Implement help action (e.g., open documentation, chat)
     console.log('Help clicked');
   };
 
@@ -320,32 +504,55 @@ const Dashboard: React.FC = () => {
     setCurrentTab(newValue);
   };
 
-  const handleTaskDrop = async (taskId: string, newStatus: TaskStatus, newContext?: TaskContext) => {
-     console.log(`Task ${taskId} dropped onto ${newStatus} in context ${newContext}`);
-     // TODO: Find the task across dashboardData lists before updating
-     const taskToUpdate = [
-         ...dashboardData.myPersonalTasks,
-         ...dashboardData.tasksICreatedForOthers,
-         ...dashboardData.tasksAssignedToMe,
-         ...dashboardData.tasksDelegatedByMe,
-         ...dashboardData.tasksDelegatedToMe
-     ].find(t => String(t.id) === taskId);
+  // Corrected handleTaskDrop signature
+  const handleTaskDrop = async (taskId: string, newStatus: TaskStatus) => {
+    console.log(`[Dashboard] Task ${taskId} dropped onto ${newStatus}`);
+    setLoadingDashboard(true); // Show loading indicator
+    try {
+      const success = await changeTaskStatus(taskId, newStatus);
+      if (success) {
+        console.log(`[Dashboard] Status changed for ${taskId}, refreshing data...`);
+        // Re-fetch might be too slow, optimistically update local state first
+        // Find the task and update its status in the local dashboardData
+        const updateTaskLocally = (taskCategory: keyof DashboardTasksResponse, id: string, status: TaskStatus) => {
+            const tasks = dashboardData[taskCategory];
+            if (!tasks) return false;
+            const taskIndex = tasks.findIndex(t => t.id === id);
+            if (taskIndex > -1) {
+                const updatedTasks = [...tasks];
+                updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], status: status };
+                setDashboardData(prev => ({ ...prev, [taskCategory]: updatedTasks }));
+                return true;
+            }
+            return false;
+        };
 
-     if (taskToUpdate) {
-         const updatedTaskData: TaskUpdate = { // Use TaskUpdate type
-             status: newStatus,
-             ...(newContext && { context: newContext }), // Add context if provided
-         };
-         try {
-             await TaskService.updateTask(taskId, updatedTaskData); // Use TaskService.updateTask
-             fetchDashboardTasks(); // Refetch for consistency
-         } catch (error) {
-             console.error('Failed to update task status on drop:', error);
-             handleError('Failed to update task status.');
-         }
-     } else {
-        console.warn(`[Dashboard] Task ${taskId} not found in dashboard data for drop operation.`);
-     }
+        let updated = false;
+        if (updateTaskLocally('myPersonalTasks', taskId, newStatus)) updated = true;
+        if (updateTaskLocally('tasksAssignedToMe', taskId, newStatus)) updated = true;
+        if (updateTaskLocally('tasksDelegatedToMe', taskId, newStatus)) updated = true;
+        // Note: We probably shouldn't allow dropping tasks from 'managed' lists
+
+        if (!updated) {
+            // If task not found in expected lists, fall back to full refresh
+            await fetchDashboardTasks();
+        } else {
+             // If updated locally, stop the main loading indicator sooner
+             setLoadingDashboard(false);
+             // Still consider a background refresh for full consistency
+             // queryClient.invalidateQueries('dashboardTasks'); // If using react-query
+        }
+
+      } else {
+        console.error(`[Dashboard] Failed to change status for ${taskId}`);
+        handleError('Failed to update task status.');
+        setLoadingDashboard(false);
+      }
+    } catch (err: any) { // Catch potential errors from changeTaskStatus
+      console.error(`[Dashboard] Error during task drop status change:`, err);
+      handleError(`Error updating task status: ${err.message || 'Unknown error'}`);
+      setLoadingDashboard(false);
+    }
   };
 
   // --- Dialog Close Handlers ---
@@ -374,10 +581,51 @@ const Dashboard: React.FC = () => {
   };
   // --- End Dialog Open Handlers ---
 
-  // --- Task Created/Updated Callbacks ---
-  const handleTaskCreated = () => {
-    fetchDashboardTasks(); // Refetch tasks when a new one is created
-  };
+  // --- Prepare Section Data Structure ---
+  const allSections: TaskSectionConfig[] = useMemo(() => [
+    {
+      id: 'assigned',
+      title: 'Tasks Assigned To Me',
+      tasks: dashboardData.tasksAssignedToMe,
+      color: SECTION_COLORS.assigned,
+      viewMode: 'assigned'
+    },
+    {
+      id: 'created',
+      title: 'Tasks I Created/Assigned',
+      tasks: dashboardData.tasksICreatedForOthers,
+      color: SECTION_COLORS.created,
+      viewMode: 'user'
+    },
+    {
+      id: 'personal',
+      title: 'My Tasks (Personal)',
+      tasks: dashboardData.myPersonalTasks,
+      color: SECTION_COLORS.personal,
+      showAddButton: true,
+      addTaskType: TaskType.PERSONAL,
+      viewMode: 'user'
+    },
+    {
+      id: 'delegatedTo',
+      title: 'Tasks Delegated To Me',
+      tasks: dashboardData.tasksDelegatedToMe,
+      color: SECTION_COLORS.delegatedTo,
+      viewMode: 'assigned'
+    },
+    {
+      id: 'delegatedBy',
+      title: 'Tasks Delegated By Me',
+      tasks: dashboardData.tasksDelegatedByMe,
+      color: SECTION_COLORS.delegatedBy,
+      viewMode: 'user'
+    },
+  ], [dashboardData]);
+
+  // Map section data based on the current order
+  const orderedSections = useMemo(() => {
+      return sectionOrder.map(id => allSections.find(section => section.id === id)).filter(Boolean) as TaskSectionConfig[];
+  }, [sectionOrder, allSections]);
 
   // --- Define Layout Elements ---
   const sidebarElement = (
@@ -391,10 +639,10 @@ const Dashboard: React.FC = () => {
 
   const topBarElement = (
     <DashboardTopBar
-      username={user?.username || 'User'}
+      username={user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'User' : 'User'}
       notificationCount={notifications}
-      onToggleSidebar={handleToggleSidebar} // For hamburger menu
-      onNotificationClick={handleNotificationClick}
+      onToggleSidebar={handleToggleSidebar}
+      onNotificationClick={() => console.log('Notifications clicked')}
       onLogout={handleLogout}
       onProfileClick={handleProfileClick}
       onSettingsClick={handleSettingsClick}
@@ -402,16 +650,26 @@ const Dashboard: React.FC = () => {
       onToggleTopWidgets={handleToggleTopWidgets}
       topWidgetsVisible={topWidgetsVisible}
       rightSidebarVisible={rightSidebarVisible}
-      onToggleRightSidebar={handleToggleRightSidebar}
+      onToggleRightSidebar={() => setRightSidebarVisible(p => !p)}
       onToggleQuickNotes={handleToggleQuickNotes}
       showQuickNotes={showQuickNotes}
+      showQuickNotesButton={true}
     />
   );
 
   const mainContentElement = (
     <>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-
+      {/* Tabs Container */}
+      <Box sx={{ 
+        width: '100%', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        bgcolor: 'rgba(255, 255, 255, 0.03)',
+        px: 2, 
+        borderBottom: '1px solid', 
+        borderColor: 'rgba(255, 255, 255, 0.1)' 
+      }}>
         <Tabs
           value={activeSubTab}
           onChange={(_, newValue) => setActiveSubTab(newValue)}
@@ -419,124 +677,190 @@ const Dashboard: React.FC = () => {
           scrollButtons="auto"
           aria-label="Task Views"
           sx={{
-            bgcolor: 'rgba(255, 255, 255, 0.03)',
             color: '#fff',
-            '& .Mui-selected': {
-              color: '#fff',
+            flexGrow: 1,
+            '& .MuiTabs-indicator': {
+               backgroundColor: theme.palette.primary.main,
             },
+            '& .Mui-selected': {
+              color: '#fff', 
+            },
+            '& .MuiTab-root': {
+               color: 'rgba(255, 255, 255, 0.7)', 
+               '&.Mui-selected': {
+                 color: '#fff',
+               },
+            }
           }}
         >
-          <Tab label="Task List" {...a11yProps(0)} sx={{ color: '#fff' }} />
-          <Tab label="Board View" {...a11yProps(1)} sx={{ color: '#fff' }} />
+          <Tab label="Task List" {...a11yProps(0)} />
+          <Tab label="Board View" {...a11yProps(1)} />
         </Tabs>
+        {/* Add Task Button */} 
+        {activeSubTab === 1 && (
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenCreateTaskDialog(TaskType.PERSONAL)}
+            sx={{
+              ml: 2,
+              borderRadius: '8px',
+              textTransform: 'none'
+            }}
+          >
+            Add Task
+          </Button>
+        )}
+      </Box>
 
+      {/* Tab Panels Container */}
+      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
         <TabPanel value={activeSubTab} index={0}>
-          <Box sx={{ p: 2 }}>
-            {/* Enhanced Task Sections */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {/* Tasks Assigned To Me */}
-              <Paper elevation={0} sx={{ p: 2, background: 'rgba(255, 255, 255, 0.05)', borderRadius: 2 }}>
-                <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Tasks Assigned To Me</Typography>
-                {loadingDashboard ? <CircularProgress size={24} /> :
-                  <TasksSection
-                    tasks={dashboardData.tasksAssignedToMe}
-                    currentUserId={user?.id ? Number(user.id) : 0}
-                    currentDepartmentId={0} // Adjust if needed
-                    viewMode="assigned"
-                    onTaskClick={handleViewTask}
-                    onTaskUpdated={handleTaskUpdated}
-                  />
-                }
-              </Paper>
+          <DragDropContext onDragEnd={onSectionDragEnd}>
+            <Droppable droppableId="taskListSections">
+              {(provided) => (
+                <Box
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}
+                >
+                  {loadingDashboard ? (
+                    // Show skeletons if loading
+                    <> 
+                      <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 2 }} />
+                      <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 2 }} />
+                      <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 2 }} />
+                    </>
+                  ) : (
+                    // Map over ordered sections
+                    orderedSections.map((section, index) => (
+                      <Draggable key={section.id} draggableId={section.id} index={index}>
+                        {(providedDraggable) => (
+                          <Paper
+                            ref={providedDraggable.innerRef as React.RefObject<HTMLDivElement>}
+                            {...providedDraggable.draggableProps}
+                            elevation={0}
+                            sx={{ 
+                              background: section.color, 
+                              borderRadius: 2,
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                            }}
+                          >
+                            {/* Section Header */}
+                            <Box 
+                              sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                p: 1, 
+                                cursor: 'pointer',
+                                borderBottom: collapsedSections[section.id] ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'
+                              }}
+                              onClick={() => handleToggleCollapse(section.id)}
+                            >
+                              {/* Drag Handle */}
+                              <Box 
+                                {...providedDraggable.dragHandleProps} 
+                                sx={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.4)', mr: 1, cursor: 'grab' }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <DragIndicatorIcon fontSize='small' />
+                              </Box>
+                              {/* Title */}
+                              <Typography variant="h6" sx={{ color: '#fff', flexGrow: 1, fontSize: '1rem' }}>
+                                {section.title}
+                              </Typography>
+                              {/* Add Task Button (Personal Section Only) */}
+                              {section.showAddButton && (
+                                <Tooltip title="Add Personal Task">
+                                  <IconButton 
+                                     size="small"
+                                     onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        handleOpenCreateTaskDialog(TaskType.PERSONAL);
+                                     }}
+                                     sx={{ color: '#fff', mr: 1 }}
+                                  >
+                                    <AddIcon fontSize='small'/>
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {/* Collapse Toggle Icon */}
+                              <IconButton 
+                                size="small" 
+                                onClick={(e) => { 
+                                  e.stopPropagation();
+                                  handleToggleCollapse(section.id);
+                                }}
+                                sx={{ color: '#fff' }}
+                              >
+                                {collapsedSections[section.id] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                              </IconButton>
+                            </Box>
 
-              {/* Tasks I Created/Assigned */}
-              <Paper elevation={0} sx={{ p: 2, background: 'rgba(255, 255, 255, 0.05)', borderRadius: 2 }}>
-                <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Tasks I Created/Assigned</Typography>
-                {loadingDashboard ? <CircularProgress size={24} /> :
-                  <TasksSection
-                    tasks={dashboardData.tasksICreatedForOthers}
-                    currentUserId={user?.id ? Number(user.id) : 0}
-                    currentDepartmentId={0} // Adjust if needed
-                    viewMode="user" // Or a new 'created' mode if needed
-                    onTaskClick={handleViewTask}
-                    onTaskUpdated={handleTaskUpdated}
-                  />
-                }
-              </Paper>
+                            {/* Collapsible Content */}
+                            <Collapse in={!collapsedSections[section.id]} timeout="auto" unmountOnExit>
+                              <Box sx={{ p: 1 }}>
+                                <TasksSection
+                                  tasks={section.tasks}
+                                  currentUserId={user?.id ? Number(user.id) : 0}
+                                  currentDepartmentId={0}
+                                  viewMode={section.viewMode}
+                                  onTaskClick={handleViewTask}
+                                  onTaskUpdated={handleTaskUpdated}
+                                />
+                              </Box>
+                            </Collapse>
+                          </Paper>
+                        )}
+                      </Draggable>
+                    ))
+                  )}
+                  {provided.placeholder}
+                </Box>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </TabPanel>
 
-              {/* My Tasks (Personal) */}
-              <Paper elevation={0} sx={{ p: 2, background: 'rgba(255, 255, 255, 0.05)', borderRadius: 2 }}>
-                <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>My Tasks (Personal)</Typography>
-                {loadingDashboard ? <CircularProgress size={24} /> :
-                  <TasksSection
-                    tasks={dashboardData.myPersonalTasks}
-                    currentUserId={user?.id ? Number(user.id) : 0}
-                    currentDepartmentId={0} // Adjust if needed
-                    viewMode="user" // Or a new 'personal' mode
-                    onTaskClick={handleViewTask}
-                    onTaskUpdated={handleTaskUpdated}
-                    showAddButton={true} // Keep this button specific to personal tasks
-                    onAddTask={() => handleOpenCreateTaskDialog(TaskType.PERSONAL)}
-                  />
-                }
-              </Paper>
-
-              {/* Tasks Delegated To Me */}
-              <Paper elevation={0} sx={{ p: 2, background: 'rgba(255, 255, 255, 0.05)', borderRadius: 2 }}>
-                <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Tasks Delegated To Me</Typography>
-                {loadingDashboard ? <CircularProgress size={24} /> :
-                  <TasksSection
-                    tasks={dashboardData.tasksDelegatedToMe}
-                    currentUserId={user?.id ? Number(user.id) : 0}
-                    currentDepartmentId={0} // Adjust if needed
-                    viewMode="assigned" // Or a new 'delegated' mode
-                    onTaskClick={handleViewTask}
-                    onTaskUpdated={handleTaskUpdated}
-                  />
-                }
-              </Paper>
-
-              {/* Tasks Delegated By Me */}
-              <Paper elevation={0} sx={{ p: 2, background: 'rgba(255, 255, 255, 0.05)', borderRadius: 2 }}>
-                <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Tasks Delegated By Me</Typography>
-                {loadingDashboard ? <CircularProgress size={24} /> :
-                  <TasksSection
-                    tasks={dashboardData.tasksDelegatedByMe}
-                    currentUserId={user?.id ? Number(user.id) : 0}
-                    currentDepartmentId={0} // Adjust if needed
-                    viewMode="user" // Or a new 'delegated' mode
-                    onTaskClick={handleViewTask}
-                    onTaskUpdated={handleTaskUpdated}
-                  />
-                }
-              </Paper>
-            </Box>
+        <TabPanel value={activeSubTab} index={1}>
+          {/* Board View Content */}
+          <Box sx={{ pt: 2, height: '100%', overflow: 'hidden' }}> 
+            <TaskKanbanBoard
+              tasks={boardTasks}
+              onTaskStatusChange={changeTaskStatus}
+              onTaskClick={handleViewTask}
+              loading={loadingDashboard}
+              currentUser={user as User | null}
+            />
           </Box>
         </TabPanel>
-
-        {/* Add TabPanel for Board View index 1 here if needed later */}
-        <TabPanel value={activeSubTab} index={1}>
-            {/* Placeholder for Board View Content */}
-            <Typography sx={{ p: 3, color: '#fff' }}>Board View Content</Typography>
-        </TabPanel>
-
       </Box>
     </>
   );
 
-  // --- Add Correct Main Return --
+  // --- Main Return ---
+  if (!isAuthenticated) {
+    // Redirect to login if not authenticated
+    return <Navigate to="/login" />;
+  }
+
+  // Log state just before rendering the layout
+  console.log('[Dashboard] Rendering layout, showQuickNotes:', showQuickNotes);
+
+  // Restore the main return statement for the Dashboard component
   return (
-    <Box sx={{ display: 'flex', height: '100vh', color: 'text.primary', ...standardBackgroundStyleNoPosition }}>
-      {sidebarElement}
-      <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {topBarElement}
-        {/* Add padding or specific layout adjustments for main content if needed */}
-        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 0 /* Adjust padding as needed */ }}>
-            {mainContentElement}
-        </Box>
-        {/* Right Sidebar / Quick Notes logic can be added here if needed */}
-      </Box>
-      {/* Render Dialogs */}
+    <>
+      <ModernDashboardLayout
+        sidebar={sidebarElement}
+        topBar={topBarElement}
+        mainContent={mainContentElement}
+        sidebarOpen={sidebarOpen}
+        drawerWidth={DRAWER_WIDTH}
+        quickNotesPanel={<NotesWidget />}
+        quickNotesVisible={showQuickNotes}
+      />
+      {/* Render Dialogs OUTSIDE/SIBLING to the ModernDashboardLayout */}
       <CreateTaskDialog
         open={createTaskDialogOpen}
         onClose={handleCloseCreateTaskDialog}
@@ -549,7 +873,15 @@ const Dashboard: React.FC = () => {
         open={editTaskDialogOpen}
         onClose={handleCloseEditTaskDialog}
         onTaskUpdated={handleTaskUpdated}
-        taskId={selectedTaskId}
+        taskId={selectedTask?.id || ''} 
+      />
+       <TaskViewDialog
+        open={viewTaskDialogOpen}
+        onClose={() => setViewTaskDialogOpen(false)}
+        taskId={selectedTask?.id || ''}
+        onEdit={handleEditTask}
+        onDelete={handleOpenDeleteDialog}
+        onChangeStatus={changeTaskStatus}
       />
       <ConfirmationDialog
         open={deleteDialogOpen}
@@ -558,8 +890,20 @@ const Dashboard: React.FC = () => {
         title="Confirm Deletion"
         message="Are you sure you want to delete this task?"
       />
-    </Box>
+
+      {/* Snackbar for Notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
+    </>
   );
 };
 
-export default Dashboard;
+export default Dashboard; 

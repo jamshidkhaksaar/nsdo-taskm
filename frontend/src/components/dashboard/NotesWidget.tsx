@@ -1,514 +1,297 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
+  Card,
+  CardContent,
+  CardActions,
   Typography,
   TextField,
   IconButton,
-  Button,
-  Tooltip,
-  Paper,
-  Fade,
+  List,
+  ListItem,
+  ListItemText,
+  InputAdornment,
   Divider,
-  CircularProgress,
-  Skeleton
+  Tooltip,
+  Button,
+  Stack,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
-import CloseIcon from '@mui/icons-material/Close';
+import CancelIcon from '@mui/icons-material/Cancel';
 import StickyNote2Icon from '@mui/icons-material/StickyNote2';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { format } from 'date-fns';
-import { NotesService, Note } from '../../services/notes';
 
-const COLORS = [
-  '#3498db', // Blue
-  '#2ecc71', // Green
-  '#e74c3c', // Red
-  '#f39c12', // Orange
-  '#9b59b6', // Purple
+// Define the structure for a single note with color
+interface QuickNote {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  color: string; // Added color property
+}
+
+// Predefined note colors (adjust as needed)
+const NOTE_COLORS = [
+  'rgba(255, 255, 255, 0.08)', // Default slightly transparent white
+  'rgba(100, 181, 246, 0.2)', // Light Blue
+  'rgba(129, 199, 132, 0.2)', // Light Green
+  'rgba(255, 245, 157, 0.2)', // Light Yellow
+  'rgba(255, 171, 145, 0.2)', // Light Orange
+  'rgba(229, 115, 115, 0.2)', // Light Red
+  'rgba(149, 117, 205, 0.2)', // Light Purple
 ];
 
-// Skeleton for loading notes
-const NoteSkeleton = () => (
-  <Box sx={{ mb: 2 }}>
-    <Skeleton
-      variant="rectangular"
-      width="100%"
-      height={60}
-      sx={{ bgcolor: 'rgba(255, 255, 255, 0.08)', borderRadius: 1 }}
-    />
-  </Box>
-);
-
+// RENAME THE COMPONENT HERE
 const NotesWidget: React.FC = () => {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<QuickNote[]>([]);
   const [newNoteContent, setNewNoteContent] = useState('');
-  const [isAddingNote, setIsAddingNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [editContent, setEditContent] = useState<string>('');
+  const [editColor, setEditColor] = useState<string>(NOTE_COLORS[0]); // State for color during edit
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchNotes();
+    const savedNotes = localStorage.getItem('quickNotesData');
+    if (savedNotes) {
+      try {
+        const parsedNotes: QuickNote[] = JSON.parse(savedNotes);
+        // Add validation for color, provide default if missing
+        if (Array.isArray(parsedNotes) && parsedNotes.every(n => n.id && n.content && n.createdAt)) {
+           setNotes(parsedNotes.map(n => ({ ...n, color: n.color || NOTE_COLORS[0] })));
+        } else {
+           console.warn('Invalid notes data found in localStorage.');
+           localStorage.removeItem('quickNotesData');
+        }
+      } catch (error) {
+        console.error('Failed to parse notes from localStorage:', error);
+        localStorage.removeItem('quickNotesData');
+      }
+    }
   }, []);
 
-  const fetchNotes = async () => {
-    setIsLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      const fetchedNotes = await NotesService.getNotes();
-      setNotes(fetchedNotes);
-    } catch (error) {
-      console.error('Failed to fetch notes:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  const saveNotes = (updatedNotes: QuickNote[]) => {
+    localStorage.setItem('quickNotesData', JSON.stringify(updatedNotes));
+    setNotes(updatedNotes);
   };
 
-  const handleAddNote = async () => {
+  const addNote = () => {
     if (newNoteContent.trim()) {
-      try {
-        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-        const newNote = await NotesService.createNote({
-          content: newNoteContent.trim(),
-          color
-        });
-
-        if (newNote) {
-          setNotes((prevNotes) => [newNote, ...prevNotes]);
-          setNewNoteContent('');
-          setIsAddingNote(false);
-        }
-      } catch (error) {
-        console.error('Failed to create note:', error);
-      }
+      const now = new Date().toISOString();
+      // Cycle through colors for new notes
+      const nextColorIndex = notes.length % NOTE_COLORS.length;
+      const noteToAdd: QuickNote = {
+        id: crypto.randomUUID(),
+        content: newNoteContent,
+        createdAt: now,
+        updatedAt: now,
+        color: NOTE_COLORS[nextColorIndex],
+      };
+      const updatedNotes = [...notes, noteToAdd];
+      saveNotes(updatedNotes);
+      setNewNoteContent('');
     }
   };
 
-  const handleDeleteNote = async (id: string) => {
-    try {
-      const success = await NotesService.deleteNote(id);
-      if (success) {
-        setNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
-      }
-    } catch (error) {
-      console.error(`Failed to delete note ${id}:`, error);
-    }
+  const deleteNote = (id: string) => {
+    const updatedNotes = notes.filter((note) => note.id !== id);
+    saveNotes(updatedNotes);
   };
 
-  const handleEditNote = (note: Note) => {
+  const startEditNote = (note: QuickNote) => {
     setEditingNoteId(note.id);
-    setEditingContent(note.content);
+    setEditContent(note.content);
+    setEditColor(note.color); // Set current color for editing
+    setTimeout(() => {
+      editInputRef.current?.focus();
+    }, 50);
   };
 
-  const handleSaveEdit = async (id: string) => {
-    if (editingContent.trim()) {
-      try {
-        const updatedNote = await NotesService.updateNote(id, {
-          content: editingContent.trim()
-        });
+  const cancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditContent('');
+    setEditColor(NOTE_COLORS[0]); // Reset edit color
+  };
 
-        if (updatedNote) {
-          setNotes((prevNotes) =>
-            prevNotes.map((note) => (note.id === id ? updatedNote : note))
-          );
-        }
-      } catch (error) {
-        console.error(`Failed to update note ${id}:`, error);
+  const saveEditNote = (id: string) => {
+    if (!editContent.trim()) return;
+    const updatedNotes = notes.map(note =>
+      note.id === id
+        ? { ...note, content: editContent, updatedAt: new Date().toISOString(), color: editColor } // Save edited color
+        : note
+    );
+    saveNotes(updatedNotes);
+    cancelEditNote();
+  };
+
+  // Auto-focus input when edit mode starts
+  useEffect(() => {
+      if (editingNoteId && editInputRef.current) {
+          editInputRef.current.focus();
       }
-    }
-    setEditingNoteId(null);
-    setEditingContent('');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingNoteId(null);
-    setEditingContent('');
-  };
+  }, [editingNoteId]);
 
   return (
-    <>
-      <Box
-        sx={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: '8px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          overflow: 'hidden',
-          minHeight: '200px'
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            p: 2,
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-          }}
-        >
-          <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600 }}>
-            Quick Notes {notes.length > 0 && `(${notes.length})`}
+    <Card
+      sx={{
+        background: 'rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(8px)',
+        boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.37)',
+        border: '1px solid rgba(255, 255, 255, 0.18)',
+        mb: 3,
+        borderRadius: '8px',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <StickyNote2Icon sx={{ color: '#64b5f6' }} />
+          <Typography variant="h6" sx={{ color: '#fff' }}>
+            Quick Notes
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Tooltip title="Add new note">
-              <IconButton
-                onClick={() => setIsAddingNote(true)}
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&:hover': {
-                    color: '#fff',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                  },
-                  mr: 1
-                }}
-              >
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
         </Box>
 
-        <Box
-          sx={{
-            flexGrow: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-          }}
-        >
-          <Box
-            sx={{
-              p: 2,
-              flexGrow: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Add a quick note..."
+            value={newNoteContent}
+            onChange={(e) => setNewNoteContent(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && addNote()}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={addNote} edge="end" sx={{ color: '#64b5f6' }}>
+                    <AddIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
             }}
-          >
-            {isLoading && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  height: '100px'
-                }}
-              >
-                <CircularProgress
-                  size={30}
-                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                />
-              </Box>
-            )}
-
-            <Fade in={isAddingNote}>
-              <Box
-                sx={{
-                  mb: 2,
-                  display: isAddingNote ? 'block' : 'none',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  backdropFilter: 'blur(8px)',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  p: 2
-                }}
-              >
-                <TextField
-                  multiline
-                  rows={3}
-                  placeholder="Write your note here..."
-                  value={newNoteContent || ''}
-                  onChange={(e) => setNewNoteContent(e.target.value)}
-                  fullWidth
-                  variant="outlined"
-                  sx={{
-                    mb: 1,
-                    '& .MuiOutlinedInput-root': {
-                      color: '#fff',
-                      '& fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.2)'
-                      },
-                      '&:hover fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.3)'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: 'rgba(255, 255, 255, 0.5)'
-                      }
-                    },
-                    '& .MuiInputBase-input::placeholder': {
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      opacity: 1
-                    }
-                  }}
-                />
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: 1,
-                    mt: 1
-                  }}
-                >
-                  <Button
-                    variant="text"
-                    onClick={() => setIsAddingNote(false)}
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)'
-                      }
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="contained"
-                    onClick={handleAddNote}
-                    startIcon={<SaveIcon />}
-                    disabled={!newNoteContent.trim()}
-                    sx={{
-                      backgroundColor: 'rgba(52, 152, 219, 0.8)',
-                      color: '#fff',
-                      '&:hover': {
-                        backgroundColor: 'rgba(41, 128, 185, 0.9)'
-                      },
-                      '&.Mui-disabled': {
-                        backgroundColor: 'rgba(52, 152, 219, 0.3)',
-                        color: 'rgba(255, 255, 255, 0.5)'
-                      }
-                    }}
-                  >
-                    Save Note
-                  </Button>
-                </Box>
-              </Box>
-            </Fade>
-
-            <Box
-              sx={{
-                flexGrow: 1,
-                overflowY: 'auto',
-                '&::-webkit-scrollbar': {
-                  width: '4px'
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                '& fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.2)',
                 },
-                '&::-webkit-scrollbar-track': {
-                  background: 'rgba(0,0,0,0.05)'
+                '&:hover fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
                 },
-                '&::-webkit-scrollbar-thumb': {
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: '4px'
-                }
-              }}
-            >
-              {isLoading ? (
-                Array.from(new Array(3)).map((_, index) => (
-                  <NoteSkeleton key={index} />
-                ))
-              ) : notes.length === 0 ? (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '100%',
-                    minHeight: '200px',
-                    opacity: 0.7
-                  }}
-                >
-                  <StickyNote2Icon
-                    sx={{
-                      fontSize: 48,
-                      color: 'rgba(255, 255, 255, 0.3)',
-                      mb: 2
-                    }}
-                  />
-                  <Typography
-                    variant="body1"
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      textAlign: 'center'
-                    }}
-                  >
-                    No notes yet
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.3)',
-                      textAlign: 'center',
-                      mt: 1
-                    }}
-                  >
-                    Click the + button to add a note
-                  </Typography>
-                </Box>
-              ) : (
-                notes.map((note, index) => (
-                  <Fade
-                    in={true}
-                    timeout={300 + index * 50}
-                    key={note.id}
-                  >
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        mb: 2,
-                        p: 2,
-                        position: 'relative',
-                        borderLeft: `4px solid ${note.color || '#3498db'}`,
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        borderRadius: '4px',
-                        '&:hover .note-actions': {
-                          opacity: 1
-                        }
-                      }}
-                    >
-                      {editingNoteId === note.id ? (
-                        <Box>
-                          <TextField
-                            multiline
-                            rows={3}
-                            value={editingContent || ''}
-                            onChange={(e) =>
-                              setEditingContent(e.target.value)
-                            }
-                            fullWidth
-                            variant="outlined"
-                            autoFocus
-                            sx={{
-                              mb: 1,
-                              '& .MuiOutlinedInput-root': {
-                                color: '#fff',
-                                '& fieldset': {
-                                  borderColor:
-                                    'rgba(255, 255, 255, 0.2)'
-                                },
-                                '&:hover fieldset': {
-                                  borderColor:
-                                    'rgba(255, 255, 255, 0.3)'
-                                },
-                                '&.Mui-focused fieldset': {
-                                  borderColor:
-                                    'rgba(255, 255, 255, 0.5)'
-                                }
-                              }
-                            }}
-                          />
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              justifyContent: 'flex-end',
-                              gap: 1
-                            }}
-                          >
-                            <Button
-                              onClick={handleCancelEdit}
-                              size="small"
-                              sx={{
-                                color: 'rgba(255, 255, 255, 0.7)'
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                handleSaveEdit(note.id)
-                              }
-                              size="small"
-                              variant="contained"
-                              sx={{ bgcolor: 'primary.main' }}
-                            >
-                              Save
-                            </Button>
-                          </Box>
-                        </Box>
-                      ) : (
-                        <Box>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: '#fff',
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word'
-                            }}
-                          >
-                            {note.content}
-                          </Typography>
-
-                          <Divider
-                            sx={{
-                              my: 1,
-                              borderColor:
-                                'rgba(255, 255, 255, 0.1)'
-                            }}
-                          />
-
-                          <Box
-                            className="note-actions"
-                            sx={{
-                              position: 'absolute',
-                              top: 8,
-                              right: 8,
-                              display: 'flex',
-                              gap: 0.5,
-                              opacity: 0,
-                              transition:
-                                'opacity 0.2s ease-in-out'
-                            }}
-                          >
-                            <Tooltip title="Edit note">
-                              <IconButton
-                                size="small"
-                                onClick={() =>
-                                  handleEditNote(note)
-                                }
-                                sx={{
-                                  color:
-                                    'rgba(255, 255, 255, 0.6)',
-                                  '&:hover': { color: '#fff' }
-                                }}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete note">
-                              <IconButton
-                                size="small"
-                                onClick={() =>
-                                  handleDeleteNote(note.id)
-                                }
-                                sx={{
-                                  color:
-                                    'rgba(255, 255, 255, 0.6)',
-                                  '&:hover': {
-                                    color: '#e74c3c'
-                                  }
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </Box>
-                      )}
-                    </Paper>
-                  </Fade>
-                ))
-              )}
-            </Box>
-          </Box>
+                '&.Mui-focused fieldset': {
+                  borderColor: '#64b5f6',
+                },
+              },
+              '& .MuiInputBase-input': {
+                color: '#fff',
+              },
+            }}
+          />
         </Box>
-      </Box>
-    </>
+
+        <Box sx={{ flexGrow: 1, overflowY: 'auto', pr: 1 }}>
+          {notes.length === 0 ? (
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 2 }}>
+              No notes yet. Add one above!
+            </Typography>
+          ) : (
+            notes.map((note) => (
+              <Card key={note.id} sx={{ mb: 1.5, background: note.color }}>
+                {editingNoteId === note.id ? (
+                  // Edit Mode
+                  <>
+                    <CardContent sx={{ pb: '8px !important' }}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        variant="standard" // Use standard variant for less space
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        autoFocus
+                        inputRef={editInputRef} // Attach ref
+                        sx={{
+                          '& .MuiInputBase-root': { py: 0 },
+                          '& .MuiInputBase-input': { color: '#fff' },
+                          '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255, 255, 255, 0.3)' },
+                          '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: 'rgba(255, 255, 255, 0.5)' },
+                          '& .MuiInput-underline:after': { borderBottomColor: '#64b5f6' },
+                        }}
+                      />
+                      {/* Color Selection Swatches */}
+                      <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
+                        {NOTE_COLORS.map((colorOption) => (
+                          <Tooltip key={colorOption} title="Set color">
+                            <IconButton
+                              size="small"
+                              onClick={() => setEditColor(colorOption)}
+                              sx={{
+                                backgroundColor: colorOption,
+                                border: editColor === colorOption ? '2px solid #fff' : '1px solid rgba(255, 255, 255, 0.3)',
+                                width: 20,
+                                height: 20,
+                                '&:hover': {
+                                  backgroundColor: colorOption,
+                                  opacity: 0.8,
+                                },
+                              }}
+                            />
+                          </Tooltip>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                    <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+                    <CardActions sx={{ justifyContent: 'flex-end', pt: 0.5, pb: '4px !important' }}>
+                      <Tooltip title="Cancel Edit">
+                        <IconButton size="small" onClick={cancelEditNote} sx={{ color: '#e57373' }}>
+                          <CancelIcon fontSize="inherit" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Save Note">
+                        <IconButton size="small" onClick={() => saveEditNote(note.id)} sx={{ color: '#81c784' }}>
+                          <SaveIcon fontSize="inherit" />
+                        </IconButton>
+                      </Tooltip>
+                    </CardActions>
+                  </>
+                ) : (
+                  // View Mode
+                  <>
+                    <CardContent sx={{ pb: '8px !important' }}>
+                      <Typography sx={{ color: '#fff', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                        {note.content}
+                      </Typography>
+                    </CardContent>
+                    <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+                    <CardActions sx={{ justifyContent: 'space-between', pt: 0.5, pb: '4px !important' }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                        {format(new Date(note.updatedAt), 'Pp')}
+                      </Typography>
+                      <Box>
+                        <Tooltip title="Edit Note">
+                          <IconButton size="small" onClick={() => startEditNote(note)} sx={{ color: '#90caf9' }}>
+                            <EditIcon fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Note">
+                          <IconButton size="small" onClick={() => deleteNote(note.id)} sx={{ color: '#e57373' }}>
+                            <DeleteIcon fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </CardActions>
+                  </>
+                )}
+              </Card>
+            ))
+          )}
+        </Box>
+      </CardContent>
+    </Card>
   );
 };
 
+// RENAME THE EXPORT HERE
 export default NotesWidget;

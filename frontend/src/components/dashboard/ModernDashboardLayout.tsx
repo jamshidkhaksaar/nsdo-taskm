@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Box, useTheme, useMediaQuery } from '@mui/material';
+import { Box, useTheme, useMediaQuery, Typography } from '@mui/material';
 import { standardBackgroundStyle } from '../../utils/backgroundStyles';
 
 interface ModernDashboardLayoutProps {
@@ -11,6 +11,8 @@ interface ModernDashboardLayoutProps {
   sidebarOpen: boolean;
   drawerWidth: number;
   disableMainContentScroll?: boolean;
+  quickNotesPanel?: ReactNode;
+  quickNotesVisible?: boolean;
 }
 
 const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
@@ -21,11 +23,16 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
   footer,
   sidebarOpen,
   drawerWidth,
-  disableMainContentScroll = false
+  disableMainContentScroll = false,
+  quickNotesPanel,
+  quickNotesVisible = false
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+
+  // Log received prop value
+  console.log('[ModernDashboardLayout] Received quickNotesVisible:', quickNotesVisible);
 
   // Calculate the correct left margin based on sidebar state
   const sidebarWidth = sidebarOpen ? drawerWidth : (isMobile ? 0 : 65);
@@ -148,17 +155,22 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
             </Box>
           </Box>
 
-          {/* Right panel - only shown on larger screens */}
-          {!isTablet && rightPanel && (
+          {/* Right panel - Conditionally render Quick Notes */}
+          {quickNotesVisible && quickNotesPanel && (
             <Box
               sx={{
-                width: { lg: '300px' },
-                flexBasis: { lg: '300px' },
+                width: { md: '280px', lg: '300px' },
+                flexBasis: { md: '280px', lg: '300px' },
                 flexShrink: 0,
                 height: '100%',
                 overflowY: 'auto',
-                display: { xs: 'none', lg: 'block' },
+                display: { xs: 'none', md: 'block' },
                 borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+                transition: theme.transitions.create(['width', 'margin'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
+
                 '&::-webkit-scrollbar': {
                   width: '6px',
                 },
@@ -174,7 +186,8 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
                 },
               }}
             >
-              {rightPanel}
+              {/* Render the actual quick notes panel passed as a prop */} 
+              {quickNotesPanel} 
             </Box>
           )}
         </Box>

@@ -1,64 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { Task, TaskStatus, TaskPriority, TaskType } from '../../types';
+// Import from the consolidated index file
+import { Task, TaskStatus, TaskPriority, TaskType, CreateTask, TaskUpdate } from '../../types/index';
+// Assuming addTask/updateTask service functions expect types defined in index.ts
 import { addTask, updateTask } from '../../services/tasks.service';
-// Import services to fetch users and departments if needed for dropdowns
-// import { getUsers } from '../../services/users.service';
-// import { getDepartments } from '../../services/departments.service';
-// import { User, Department } from '../../types';
+// Import User and Department if needed for assignment dropdowns
+// import { User, Department } from '../../types/index';
 
 interface TaskFormProps {
-  task: Task | null; // null for add mode, Task object for edit mode
+  task: Task | null;
   onClose: () => void;
-  onSuccess: () => void; // Callback after successful add/edit
+  onSuccess: () => void;
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  // Use TaskStatus from index.ts (e.g., PENDING)
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.PENDING);
+  // Use TaskPriority from index.ts (e.g., MEDIUM)
   const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [dueDate, setDueDate] = useState<string | null>(null);
+  // Use TaskType from index.ts (e.g., PERSONAL)
   const [type, setType] = useState<TaskType>(TaskType.PERSONAL);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // State for dropdown data - uncomment and implement fetching later
-  // const [users, setUsers] = useState<User[]>([]);
-  // const [departments, setDepartments] = useState<Department[]>([]);
+  // Add state for assignees if needed by the form
+  // const [assignedToUserIds, setAssignedToUserIds] = useState<string[]>([]);
+  // const [assignedToDepartmentIds, setAssignedToDepartmentIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (task) {
-      // Pre-fill form for edit mode
       setTitle(task.title);
       setDescription(task.description);
       setStatus(task.status);
       setPriority(task.priority);
-      setDueDate(task.dueDate ? task.dueDate.split('T')[0] : null);
+      setDueDate(task.dueDate ? task.dueDate.split('T')[0] : null); // Keep date format
       setType(task.type);
+      // Set assignee IDs if editing
+      // setAssignedToUserIds(task.assignedToUserIds || []);
+      // setAssignedToDepartmentIds(task.assignedToDepartmentIds || []);
     } else {
-      // Reset form for add mode
+      // Reset form
       setTitle('');
       setDescription('');
       setStatus(TaskStatus.PENDING);
       setPriority(TaskPriority.MEDIUM);
       setDueDate(null);
       setType(TaskType.PERSONAL);
+      // Reset assignees
+      // setAssignedToUserIds([]);
+      // setAssignedToDepartmentIds([]);
     }
-
-    // Fetch data for dropdowns - uncomment and implement later
-    // const fetchData = async () => {
-    //   try {
-    //     // const usersData = await getUsers();
-    //     // const departmentsData = await getDepartments();
-    //     // setUsers(usersData);
-    //     // setDepartments(departmentsData);
-    //   } catch (err) {
-    //     console.error("Failed to fetch users/departments for form", err);
-    //     // Handle error fetching dropdown data
-    //   }
-    // };
-    // fetchData();
-
+    // ... fetch dropdown data ...
   }, [task]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,31 +62,36 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
 
     const formattedDueDate = dueDate ? new Date(dueDate).toISOString() : null;
 
-    const taskDataPayload = {
+    // Construct payload based on CreateTask or TaskUpdate type
+    const commonPayload = {
       title,
       description,
       status,
       priority,
-      dueDate: formattedDueDate,
       type,
+      dueDate: formattedDueDate,
+      // Add assignment fields if handled by form
+      // assignedToUserIds,
+      // assignedToDepartmentIds,
     };
-
-    type TaskPayload = Omit<Task,
-      'id' | 'createdAt' | 'updatedAt' |
-      'createdById' | 'createdBy' |
-      'assignedToUserIds' | 'assignedToUsers' |
-      'assignedToDepartmentIds' | 'assignedToDepartments' |
-      'assignedToProvinceId' | 'assignedToProvince' |
-      'isDelegated' | 'delegatedFromTaskId' | 'delegatedFromTask' |
-      'delegatedByUserId' | 'delegatedBy'
-    >;
 
     try {
       if (task) {
-        await updateTask(task.id, taskDataPayload as Partial<TaskPayload>);
+        // Type assertion for TaskUpdate
+        const updatePayload: TaskUpdate = commonPayload;
+        await updateTask(task.id, updatePayload); // task.id is already string
         alert('Task updated successfully');
       } else {
-        await addTask(taskDataPayload as TaskPayload);
+        // Type assertion for CreateTask
+        const createPayload: CreateTask & { createdById: string } = {
+          ...commonPayload,
+          type: type,
+          // Add createdById to satisfy the type expected by addTask
+          createdById: '', // Assuming backend handles this or user ID should be fetched
+          // Add other required fields from CreateTask if any
+        };
+        // Cast to the type expected by the service function
+        await addTask(createPayload as Omit<Task, "id" | "createdAt" | "updatedAt">);
         alert('Task added successfully');
       }
       onSuccess();
@@ -143,7 +142,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
-              <option value={TaskStatus.PENDING}>To Do</option>
+              {/* Use enum members from index.ts */}
+              <option value={TaskStatus.PENDING}>Pending</option>
               <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
               <option value={TaskStatus.COMPLETED}>Completed</option>
               <option value={TaskStatus.CANCELLED}>Cancelled</option>
@@ -158,6 +158,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
+              {/* Use enum members from index.ts */}
               <option value={TaskPriority.LOW}>Low</option>
               <option value={TaskPriority.MEDIUM}>Medium</option>
               <option value={TaskPriority.HIGH}>High</option>
@@ -183,11 +184,15 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
               onChange={(e) => setType(e.target.value as TaskType)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
+              {/* Use enum members from index.ts */}
               <option value={TaskType.PERSONAL}>Personal</option>
-              <option value={TaskType.TEAM}>Team</option>
-              <option value={TaskType.PROJECT}>Project</option>
+              <option value={TaskType.DEPARTMENT}>Department</option>
+              <option value={TaskType.USER}>User Assigned</option>
+              <option value={TaskType.PROVINCE_DEPARTMENT}>Province Department</option>
             </select>
           </div>
+
+          {/* Add assignee selection fields here if needed */}
 
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
