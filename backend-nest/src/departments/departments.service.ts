@@ -464,4 +464,20 @@ export class DepartmentsService {
     }
   }
   // END: Add missing methods for Province-Department assignment
+
+  async getDepartmentMembers(departmentId: string): Promise<User[]> {
+    // Ensure the department exists first
+    await this.findOne(departmentId); 
+    
+    try {
+      // Reuse the existing logic from usersService to find members
+      const members = await this.usersService.findUsersByDepartment(departmentId);
+      return members || []; // Return members or an empty array if null/undefined
+    } catch (error) {
+      console.error(`Error fetching members for department ${departmentId}:`, error);
+      // Depending on requirements, you might want to throw a specific error here
+      // For now, return an empty array or re-throw the original error
+      throw new InternalServerErrorException(`Failed to fetch members for department ${departmentId}`);
+    }
+  }
 }

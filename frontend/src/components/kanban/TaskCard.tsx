@@ -19,7 +19,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import PersonIcon from '@mui/icons-material/Person';
-import { Task, TaskStatus } from '../../types/task';
+import { Task, TaskStatus } from '../../types';
 import TaskStatusBadge from './TaskStatusBadge';
 
 // Define the props interface

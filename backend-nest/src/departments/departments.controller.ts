@@ -204,6 +204,27 @@ export class DepartmentsController {
     return this.departmentsService.getDepartmentPerformance(id);
   }
 
+  @Get('/:id/members')
+  async getDepartmentMembers(@Param('id') id: string, @Request() req): Promise<User[]> {
+    const members = await this.departmentsService.getDepartmentMembers(id);
+    
+    // Log activity
+    try {
+      const department = await this.departmentsService.findOne(id); // Get name for logging
+      await this.activityLogService.logFromRequest(
+        req,
+        'view',
+        'department_members',
+        `Viewed members for department: ${department.name}`,
+        id,
+      );
+    } catch (logError) {
+      console.error(`Failed to log department member view activity: ${logError.message}`);
+    }
+    
+    return members; // Return the user array directly
+  }
+
   // Helper method to format department responses
   private async formatDepartmentResponse(department: Department) {
     console.log(`Formatting department ${department.id}: head info:`, 

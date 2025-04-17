@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { Department, Task } from '@/types/index';
+import { Department, Task, DepartmentPerformer, CreateDepartmentPayload } from '@/types/index';
 import { User } from '../types/user';
 
 export interface DepartmentPerformer {
@@ -50,7 +50,7 @@ export const DepartmentService = {
     },
 
     // Create a department
-    createDepartment: async (departmentData: Omit<Department, 'id'>): Promise<Department> => {
+    createDepartment: async (departmentData: CreateDepartmentPayload): Promise<Department> => {
         try {
             const response = await apiClient.post<Department>('/departments', departmentData);
             return response;

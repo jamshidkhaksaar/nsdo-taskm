@@ -11,6 +11,11 @@ import {
   CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import SendIcon from '@mui/icons-material/Send';
+import SyncIcon from '@mui/icons-material/Sync';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CancelIcon from '@mui/icons-material/Cancel';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Task, TaskStatus, TaskPriority, User } from '../../types';
 import { UserService } from '../../services/user';
 import { formatDate, DATE_FORMATS, parseDate } from '../../utils/dateUtils';
@@ -59,11 +64,11 @@ const getUserDisplayName = async (userId: string): Promise<string> => {
 };
 
 // Define columns based on TaskStatus
-const columns: { id: TaskStatus; title: string }[] = [
-  { id: TaskStatus.PENDING, title: 'Pending' },
-  { id: TaskStatus.IN_PROGRESS, title: 'In Progress' },
-  { id: TaskStatus.COMPLETED, title: 'Completed' },
-  { id: TaskStatus.CANCELLED, title: 'Cancelled' },
+const columns: { id: TaskStatus; title: string; icon: React.ComponentType<any> }[] = [
+  { id: TaskStatus.PENDING, title: 'Pending', icon: HelpOutlineIcon },
+  { id: TaskStatus.IN_PROGRESS, title: 'In Progress', icon: SyncIcon },
+  { id: TaskStatus.COMPLETED, title: 'Completed', icon: CheckCircleOutlineIcon },
+  { id: TaskStatus.CANCELLED, title: 'Cancelled', icon: CancelIcon },
 ];
 
 // Helper to reorder tasks within the same column (optional, not strictly needed for status change)
@@ -217,140 +222,105 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <Box sx={{ 
-        width: '100%', 
+      <Box sx={{
+        width: '100%',
+        height: '100%', // Ensure board takes full height of its container
         flexGrow: 1,
-        display: 'flex', 
+        display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: '16px',
+        bgcolor: '#1A1F29', // Darker, less transparent background
+        borderRadius: '12px',
         border: '1px solid',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 0 1px rgba(255, 255, 255, 0.1)', // Adds subtle depth
-        p: 2,
+        borderColor: theme.palette.divider, // Use theme divider color
+        boxShadow: theme.shadows[2], // Use theme shadow
+        p: 1.5,
+        overflow: 'hidden', // Hide main container overflow, scrolling handled below
         position: 'relative',
-        '&::after': {  // This adds an additional border effect
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          pointerEvents: 'none'
-        }
       }}>
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        {/* Board Header (Optional Title/Actions) */}
+        <Box sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 2,
-          flexShrink: 0
+          mb: 1.5, // Adjusted margin
+          px: 1, // Add horizontal padding for header content
+          flexShrink: 0, // Prevent header from shrinking
         }}>
-          <Typography variant="h6" sx={{ 
-            color: '#fff',
-            fontWeight: 500 
-          }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 'medium' }}>
             Task Board
           </Typography>
-          {onCreateTask && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => onCreateTask(TaskStatus.PENDING)}
-              sx={{
-                bgcolor: 'primary.main',
-                '&:hover': {
-                  bgcolor: 'primary.dark',
-                },
-              }}
-              size="small"
-            >
-              Add Task
-            </Button>
-          )}
+          {/* Potential Add Task Button for board-level? */}
+          {/* <Button variant="contained" startIcon={<AddIcon />} onClick={() => onCreateTask?.(TaskStatus.PENDING)}>
+            Add Task
+          </Button> */}
         </Box>
 
+        {/* Error Display */}
         {(error || internalError) && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error || internalError}
-          </Alert>
+            <Alert severity="error" sx={{ mb: 2, mx: 1, flexShrink: 0 }}>
+                {error || internalError}
+            </Alert>
         )}
 
-        <Grid 
-          container 
-          spacing={2}
-          sx={{ 
-            flexGrow: 1,
-            m: 0,
-            width: '100%',
-            flexWrap: 'nowrap',
-            overflowX: 'auto',
-            overflowY: 'hidden'
-          }}
-        >
+        {/* Kanban Columns Container - THIS is the scrollable area */}
+        <Box sx={{
+          display: 'flex',
+          flexDirection: 'row', // Columns side-by-side
+          gap: 2, // Space between columns
+          flexGrow: 1, // Allow this area to take remaining space
+          overflowX: 'auto', // Enable horizontal scrolling ONLY when needed
+          overflowY: 'hidden', // Prevent vertical scrolling here (columns handle their own)
+          pb: 1, // Padding at the bottom for scrollbar clearance
+          // Custom Scrollbar Styles
+          '&::-webkit-scrollbar': {
+            height: '8px', // Slimmer scrollbar
+          },
+          '&::-webkit-scrollbar-track': {
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)', // Subtle track
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)', // Subtle thumb
+            borderRadius: '4px',
+            '&:hover': {
+              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)', // Darken on hover
+            },
+          },
+        }}>
           {columns.map((column) => (
-            <Grid 
-              item 
-              xs={12} // Let the KanbanColumn control its own min/max width ideally
-              sm={6} 
-              md={3} // Aim for 4 columns on medium screens
-              lg={3} 
-              key={column.id}
-              sx={{ 
-                height: '100%', // Column wrapper takes full height of the container
-                // overflowY: 'auto' // Let KanbanColumn handle its internal scroll
-                display: 'flex', // Ensure it uses flex for the child
-                flexDirection: 'column',
-                minWidth: '280px' // Ensure columns have a minimum width
-              }}
-            >
-              <Droppable key={column.id} droppableId={column.id}>
-                {(provided, snapshot) => (
-                  <Paper
-                    ref={provided.innerRef as React.RefObject<HTMLDivElement>}
-                    {...provided.droppableProps}
-                    elevation={0}
-                    sx={{
-                      p: 1.5,
-                      width: { xs: '280px', sm: '300px' }, // Responsive column width
-                      minWidth: { xs: '280px', sm: '300px' },
-                      flexShrink: 0,
-                      height: '100%', // Allow column to take full height
-                      maxHeight: 'calc(100vh - 150px)', // Adjust max height as needed
-                      overflowY: 'auto', // Scroll within column if needed
-                      background: snapshot.isDraggingOver ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.15)',
-                      backdropFilter: 'blur(5px)',
-                      transition: 'background-color 0.2s ease',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      '&::-webkit-scrollbar': { width: '6px' },
-                      '&::-webkit-scrollbar-track': { background: 'rgba(0,0,0,0.1)' },
-                      '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.2)', borderRadius: '3px' },
-                    }}
+            <Droppable key={column.id} droppableId={column.id}>
+              {(provided, snapshot) => (
+                <Box
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  sx={{
+                    minWidth: { xs: '280px', sm: '300px', md: '320px' }, // Responsive column width
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flexShrink: 0, // Prevent columns from shrinking below minWidth
+                    // Removed redundant bgcolor/border here, handled by KanbanColumn
+                  }}
+                >
+                  <KanbanColumn
+                    title={column.title}
+                    icon={column.icon} // Pass icon to column
+                    tasks={boardState[column.id] || []}
+                    columnId={column.id}
+                    isDraggingOver={snapshot.isDraggingOver}
+                    onTaskClick={onTaskClick}
+                    onEditTask={onEditTask}
+                    onDeleteTask={onDeleteTask}
+                    currentUser={currentUser}
+                    onCreateTask={onCreateTask} // Pass onCreateTask down
                   >
-                    <Typography variant="h6" sx={{ color: '#fff', mb: 1.5, px: 1, fontWeight: 600 }}>
-                      {column.title}
-                    </Typography>
-                    <Box sx={{ flexGrow: 1, minHeight: '50px' /* Ensure droppable area exists even when empty */ }}>
-                      {(boardState[column.id] || []).map((task, index) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          index={index}
-                          onClick={onTaskClick}
-                          currentUser={currentUser}
-                        />
-                      ))}
-                      {provided.placeholder}
-                    </Box>
-                  </Paper>
-                )}
-              </Droppable>
-            </Grid>
+                    {/* Draggable Task Cards are rendered inside KanbanColumn */}
+                  </KanbanColumn>
+                  {provided.placeholder}
+                </Box>
+              )}
+            </Droppable>
           ))}
-        </Grid>
+        </Box>
       </Box>
     </DragDropContext>
   );

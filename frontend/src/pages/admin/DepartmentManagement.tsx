@@ -209,19 +209,31 @@ const DepartmentManagement: React.FC = () => {
 
   const handleSaveDepartment = () => {
     setError(null);
-    const submissionData: any = {
+    const submissionData: CreateDepartmentPayload = {
       name: formData.name,
-      description: formData.description,
-      provinceId: formData.provinceId ? String(formData.provinceId) : null,
-      headId: formData.headId ? String(formData.headId) : null
+      description: formData.description || undefined,
+      provinceId: formData.provinceId || null,
+      head: formData.headId || null
     };
+
+    if (!submissionData.name) {
+      setError("Department Name is required.");
+      return;
+    }
+
     if (editMode.isEdit && editMode.departmentId) {
-      updateDepartmentMutation.mutate({ id: editMode.departmentId, dto: submissionData });
+      const updateDto: Partial<Department> = {
+        name: submissionData.name,
+        description: submissionData.description,
+        provinceId: submissionData.provinceId,
+        headId: submissionData.head
+      };
+      if (updateDto.description === undefined) delete updateDto.description;
+      if (updateDto.provinceId === null) delete updateDto.provinceId;
+      if (updateDto.headId === null) delete updateDto.headId;
+
+      updateDepartmentMutation.mutate({ id: editMode.departmentId, dto: updateDto });
     } else {
-      if (!submissionData.name) {
-        setError("Department Name is required.");
-        return;
-      }
       createDepartmentMutation.mutate(submissionData);
     }
   };
