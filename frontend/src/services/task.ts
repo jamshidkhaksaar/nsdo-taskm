@@ -244,7 +244,7 @@ export const TaskService = {
     deleteTask: async (taskId: string): Promise<void> => {
         const stringTaskId = ensureStringId(taskId);
         try {
-            await apiClient.delete(`/api/tasks/${stringTaskId}`);
+            await apiClient.delete(`/tasks/${stringTaskId}`);
         } catch (error) {
             console.error(`Error deleting task ${stringTaskId}:`, error);
             throw error;
@@ -276,7 +276,7 @@ export const TaskService = {
         const stringTaskId = ensureStringId(taskId);
         try {
             console.log(`Changing task ${stringTaskId} status to ${status}`);
-            const response = await apiClient.patch<Task>(`/api/tasks/${stringTaskId}/status`, { status });
+            const response = await apiClient.patch<Task>(`/tasks/${stringTaskId}/status`, { status });
             return standardizeTask(response.data);
         } catch (error) {
             console.error(`Error changing status for task ${stringTaskId}:`, error);
@@ -289,7 +289,7 @@ export const TaskService = {
         const stringTaskId = ensureStringId(taskId);
         try {
             console.log(`Changing task ${stringTaskId} priority to ${priority}`);
-            const response = await apiClient.patch<Task>(`/api/tasks/${stringTaskId}/priority`, { priority }); // Use plan endpoint
+            const response = await apiClient.patch<Task>(`/tasks/${stringTaskId}/priority`, { priority });
             return standardizeTask(response.data);
         } catch (error) {
             console.error(`Error changing priority for task ${stringTaskId}:`, error);
@@ -407,7 +407,7 @@ export const TaskService = {
     getTaskDetails: async (taskId: string): Promise<Task> => {
         const stringTaskId = ensureStringId(taskId);
         try {
-            const response = await apiClient.get<Task>(`/api/tasks/${stringTaskId}`);
+            const response = await apiClient.get<Task>(`/tasks/${stringTaskId}`);
             return standardizeTask(response.data);
         } catch (error) {
             console.error(`Error fetching details for task ${stringTaskId}:`, error);
@@ -468,7 +468,7 @@ export const TaskService = {
         const stringTaskId = ensureStringId(taskId);
         try {
             console.log(`Cancelling task ${stringTaskId}`);
-            const response = await apiClient.post<Task>(`/api/tasks/${stringTaskId}/cancel`);
+            const response = await apiClient.post<Task>(`/tasks/${stringTaskId}/cancel`);
             return standardizeTask(response.data);
         } catch (error) {
             console.error(`Error cancelling task ${stringTaskId}:`, error);

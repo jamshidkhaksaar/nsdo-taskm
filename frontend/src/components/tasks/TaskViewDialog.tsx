@@ -16,7 +16,9 @@ import {
   Autocomplete,
   Select,
   MenuItem,
-  FormControl
+  FormControl,
+  SelectChangeEvent,
+  Divider
 } from '@mui/material';
 import { Task, User, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType } from '../../types/index';
 import { UserService } from '../../services/user';
@@ -29,6 +31,12 @@ import dayjs from 'dayjs';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { useTaskPermissions } from '@/hooks/useTaskPermissions';
 import { formatDate, DATE_FORMATS, parseDate } from '../../utils/dateUtils';
+import DelegateTaskDialog from './DelegateTaskDialog';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CancelIcon from '@mui/icons-material/Cancel';
+import CloseIcon from '@mui/icons-material/Close';
+import PeopleIcon from '@mui/icons-material/People';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -70,14 +78,19 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
           const taskDetails = await TaskService.getTaskDetails(taskId);
           setTask(taskDetails);
         } catch (err: any) {
-          handleError(`Failed to load task details: ${err.message || 'Unknown error'}`);
+          if (err.response?.status === 404) {
+            handleError(`Task not found (ID: ${taskId}). It might have been deleted.`);
+          } else {
+             handleError(`Failed to load task details: ${err.message || 'Unknown error'}`);
+          }
+          console.error("Error fetching task details:", err);
         } finally {
           setLoading(false);
         }
       };
       fetchDetails();
     }
-    if (!open) {
+    if (!open || !taskId) {
       setDelegateDialogOpen(false);
       setSelectedUsers([]);
       setDelegationComment('');
@@ -126,53 +139,50 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         console.log(`[TaskViewDialog] Delegating task ${taskId} with data:`, delegationData);
         const newTask = await TaskService.delegateTask(taskId, delegationData);
         console.log("[TaskViewDialog] Delegation successful, new task created/returned:", newTask);
+        setTask(newTask);
         setDelegateDialogOpen(false);
     } catch (err: any) {
         console.error("Delegation failed:", err);
-        handleError(`Delegation failed: ${err.message || 'Unknown error'}`);
-        setDelegationError(`Delegation failed: ${err.message || 'Unknown error'}`);
+        const errMsg = `Delegation failed: ${err.response?.data?.message || err.message || 'Unknown error'}`;
+        handleError(errMsg);
+        setDelegationError(errMsg);
     } finally {
         setDelegationLoading(false);
     }
   };
 
-  const handleStatusChange = async (event: React.ChangeEvent<{ value: unknown }>) => {
+  const handleStatusChange = async (event: SelectChangeEvent<TaskStatus>) => {
     const newStatus = event.target.value as TaskStatus;
-    if (task && taskId && permissions.canUpdateStatus) {
-      setIsUpdatingStatus(true);
-      try {
-        let success = true;
-        if (onChangeStatus) {
-            console.log(`[TaskViewDialog] Calling prop onChangeStatus for task ${taskId} to ${newStatus}`);
-            success = await onChangeStatus(taskId, newStatus);
-        } else {
-            console.warn(`[TaskViewDialog] onChangeStatus prop not provided. Falling back to internal service call.`);
-            const updatedTask = await TaskService.changeTaskStatus(taskId, newStatus);
-            setTask(updatedTask);
-        }
-        if (!success) {
-            handleError('Failed to update status via parent component.');
-        }
-      } catch (err: any) {
-        handleError(`Failed to update status: ${err.message || 'Unknown error'}`);
-      } finally {
-        setIsUpdatingStatus(false);
+    if (!task || !taskId || !permissions.canUpdateStatus || newStatus === task.status) return;
+
+    console.log(`Attempting to change status to: ${newStatus}`);
+    setIsUpdatingStatus(true);
+    try {
+      const updatedTask = await TaskService.changeTaskStatus(taskId, newStatus);
+      setTask(updatedTask);
+      if (onChangeStatus) {
+        onChangeStatus(taskId, newStatus);
       }
+    } catch (err: any) {
+      handleError(`Failed to update status: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
-  const handlePriorityChange = async (event: React.ChangeEvent<{ value: unknown }>) => {
+  const handlePriorityChange = async (event: SelectChangeEvent<TaskPriority>) => {
     const newPriority = event.target.value as TaskPriority;
-    if (task && taskId && permissions.canChangePriority) {
-      setIsUpdatingPriority(true);
-      try {
-        const updatedTask = await TaskService.changeTaskPriority(taskId, newPriority);
-        setTask(updatedTask);
-      } catch (err: any) {
-        handleError(`Failed to update priority: ${err.message || 'Unknown error'}`);
-      } finally {
-        setIsUpdatingPriority(false);
-      }
+     if (!task || !taskId || !permissions.canChangePriority || newPriority === task.priority) return;
+
+    console.log(`Attempting to change priority to: ${newPriority}`);
+    setIsUpdatingPriority(true);
+    try {
+      const updatedTask = await TaskService.changeTaskPriority(taskId, newPriority);
+      setTask(updatedTask);
+    } catch (err: any) {
+      handleError(`Failed to update priority: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsUpdatingPriority(false);
     }
   };
 
@@ -192,15 +202,27 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   };
 
   const renderContent = () => {
-    if (loading) {
-      return <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}><CircularProgress /></Box>;
+    if (loading || loadingRefData) {
+      return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4, minHeight: 200 }}><CircularProgress /></Box>;
     }
     if (fetchError) {
-      return <Alert severity="error" sx={{ m: 2 }}>{fetchError}</Alert>;
+      return (
+          <Alert severity="error" sx={{ m: 2 }} action={
+              <Button color="inherit" size="small" onClick={onClose}>
+                  Close
+              </Button>
+          }>
+              {fetchError}
+          </Alert>
+      );
     }
     if (!task) {
-      console.warn("[TaskViewDialog] Render attempted when task state is null.");
-      return <Typography sx={{ p: 2 }}>Task data not available or failed to load.</Typography>;
+      console.warn("[TaskViewDialog] Render attempted when task state is null and no error/loading.");
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4, minHeight: 200 }}>
+            <Typography variant="body1" color="text.secondary">Task data not available.</Typography>
+        </Box>
+      );
     }
 
     let creatorName = 'N/A';
@@ -208,125 +230,166 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         creatorName = getUserName(task.createdById); 
     } catch (e) {
         console.error("[TaskViewDialog] Error accessing creator name:", e);
-        creatorName = 'Error';
+        creatorName = 'Error loading name';
     }
 
-    let assigneesDisplay = 'N/A';
+    let assigneesDisplayNode: React.ReactNode = 'N/A';
     try {
         if (task.type === TaskType.USER && task.assignedToUsers && task.assignedToUsers.length > 0) {
-            assigneesDisplay = task.assignedToUsers.map(u => getUserName(u.id)).join(', ');
+            assigneesDisplayNode = task.assignedToUsers.map(u => (
+                <Chip key={u.id} label={getUserName(u.id)} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+            ));
         } else if ((task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && task.assignedToDepartments && task.assignedToDepartments.length > 0) {
-            assigneesDisplay = task.assignedToDepartments.map(d => getDepartmentName(d.id)).join(', ');
+            assigneesDisplayNode = task.assignedToDepartments.map(d => (
+                 <Chip key={d.id} label={getDepartmentName(d.id)} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+            ));
         } else if (task.type === TaskType.PERSONAL) {
-            assigneesDisplay = `Personal (${creatorName})`;
+            assigneesDisplayNode = `Personal (${creatorName})`;
         }
     } catch (e) {
          console.error("[TaskViewDialog] Error processing assignees:", e);
-         assigneesDisplay = 'Error';
+         assigneesDisplayNode = <Chip label="Error loading assignees" size="small" color="error" />;
     }
 
-    let provinceDisplay = 'N/A';
+    let provinceDisplayNode: React.ReactNode = 'N/A';
     try {
         if (task.assignedToProvinceId) {
-            provinceDisplay = getProvinceName(task.assignedToProvinceId);
+            provinceDisplayNode = getProvinceName(task.assignedToProvinceId);
+        } else if (task.type === TaskType.PROVINCE_DEPARTMENT) {
+             provinceDisplayNode = <Chip label="Province not assigned" size="small" color="warning" />;
         }
     } catch (e) {
          console.error("[TaskViewDialog] Error processing province:", e);
-         provinceDisplay = 'Error';
+         provinceDisplayNode = <Chip label="Error loading province" size="small" color="error" />;
     }
     
-    let delegatedFromDisplay = 'N/A';
+    let delegatedFromDisplay: React.ReactNode = null;
     try {
         if (task.isDelegated && task.delegatedByUserId) {
-            delegatedFromDisplay = `Delegated by ${getUserName(task.delegatedByUserId)}`;
+            delegatedFromDisplay = (
+                <Typography variant="caption" color="text.secondary">
+                    Delegated by {getUserName(task.delegatedByUserId)}
+                </Typography>
+            );
         }
     } catch (e) {
          console.error("[TaskViewDialog] Error processing delegation info:", e);
-         delegatedFromDisplay = 'Error';
+         delegatedFromDisplay = <Typography variant="caption" color="error">Error loading delegator</Typography>;
     }
 
+    const formattedDueDate = task.dueDate ? formatDate(task.dueDate, DATE_FORMATS.DISPLAY_DATE) : 'Not set';
+    const formattedCreatedAt = task.createdAt ? formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATE) : 'N/A';
+    const formattedUpdatedAt = task.updatedAt ? formatDate(task.updatedAt, DATE_FORMATS.DISPLAY_DATE) : 'N/A';
+
     return (
-      <Grid container spacing={2} sx={{ p: 2 }}>
+      <Grid container spacing={2} sx={{ p: 3 }}>
         <Grid item xs={12}>
-          <Typography variant="h5" component="div" gutterBottom>{task.title || '[No Title]'}</Typography>
+          <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            {task.title || '[No Title]'}
+          </Typography>
+           {delegatedFromDisplay && <Box sx={{ mb: 1 }}>{delegatedFromDisplay}</Box>}
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Typography variant="body2" sx={{ mr: 1 }}><strong>Status:</strong></Typography>
-            {permissions.canUpdateStatus ? (
-              <FormControl size="small" sx={{ minWidth: 120 }} disabled={isUpdatingStatus}>
-                <Select
-                  value={task.status}
-                  onChange={handleStatusChange as any}
-                  label="Status"
-                  variant="outlined"
-                  sx={{ '.MuiSelect-select': { py: 0.5, px: 1 } }}
-                >
-                  <MenuItem value={TaskStatus.PENDING}>Pending</MenuItem>
-                  <MenuItem value={TaskStatus.IN_PROGRESS}>In Progress</MenuItem>
-                  <MenuItem value={TaskStatus.COMPLETED}>Completed</MenuItem>
-                  <MenuItem value={TaskStatus.CANCELLED} disabled>{/* Creator cancels via button */}Cancelled</MenuItem>
-                </Select>
-                {isUpdatingStatus && <CircularProgress size={16} sx={{ ml: 1 }} />}
-              </FormControl>
-            ) : (
-              <Chip label={task.status} size="small" color={getStatusColor(task.status)} />
-            )}
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Status</Typography>
+            <Select
+              value={task.status}
+              onChange={handleStatusChange}
+              disabled={!permissions.canUpdateStatus || isUpdatingStatus}
+              size="small"
+              fullWidth
+              displayEmpty
+              renderValue={(selected) => {
+                if (!selected) return <em>N/A</em>;
+                return selected.charAt(0).toUpperCase() + selected.slice(1).replace('_', ' ');
+              }}
+              sx={{ minWidth: 120, ...glassStyles, background: 'transparent' }}
+            >
+              {Object.values(TaskStatus).map((status) => (
+                <MenuItem key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                </MenuItem>
+              ))}
+            </Select>
+             {isUpdatingStatus && <CircularProgress size={16} sx={{ ml: 1 }} />}
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Typography variant="body2" sx={{ mr: 1 }}><strong>Priority:</strong></Typography>
-            {permissions.canChangePriority ? (
-              <FormControl size="small" sx={{ minWidth: 120 }} disabled={isUpdatingPriority}>
-                <Select
-                  value={task.priority}
-                  onChange={handlePriorityChange as any}
-                  label="Priority"
-                  variant="outlined"
-                  sx={{ '.MuiSelect-select': { py: 0.5, px: 1 } }}
-                >
-                  <MenuItem value={TaskPriority.LOW}>Low</MenuItem>
-                  <MenuItem value={TaskPriority.MEDIUM}>Medium</MenuItem>
-                  <MenuItem value={TaskPriority.HIGH}>High</MenuItem>
-                </Select>
-                {isUpdatingPriority && <CircularProgress size={16} sx={{ ml: 1 }} />}
-              </FormControl>
-            ) : (
-              <Chip label={task.priority} size="small" color={getPriorityColor(task.priority)} />
-            )}
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Priority</Typography>
+             <Select
+              value={task.priority}
+              onChange={handlePriorityChange}
+              disabled={!permissions.canChangePriority || isUpdatingPriority}
+              size="small"
+              fullWidth
+              displayEmpty
+              renderValue={(selected) => {
+                if (!selected) return <em>N/A</em>;
+                return selected.charAt(0).toUpperCase() + selected.slice(1);
+              }}
+              sx={{ minWidth: 120, ...glassStyles, background: 'transparent' }}
+            >
+              {Object.values(TaskPriority).map((priority) => (
+                <MenuItem key={priority} value={priority}>
+                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                </MenuItem>
+              ))}
+            </Select>
+             {isUpdatingPriority && <CircularProgress size={16} sx={{ ml: 1 }} />}
           </Box>
 
-          <Typography variant="body2" sx={{ mr: 1 }}><strong>Type:</strong> {task.type}</Typography>
-          <Typography variant="body2"><strong>Due Date:</strong> {task.dueDate ? formatDate(task.dueDate, DATE_FORMATS.DISPLAY_DATE) : 'N/A'}</Typography>
-        </Grid>
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Task Type</Typography>
+            <Typography variant="body1">{task.type ? task.type.charAt(0).toUpperCase() + task.type.slice(1).replace('_', ' ') : 'N/A'}</Typography>
+          </Box>
 
-        <Grid item xs={12} md={6}>
-          <Typography variant="body2"><strong>Created By:</strong> {creatorName}</Typography>
-          <Typography variant="body2"><strong>Created At:</strong> {formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATE)}</Typography>
-          <Typography variant="body2"><strong>Last Updated:</strong> {formatDate(task.updatedAt)}</Typography>
-          {task.type === TaskType.PROVINCE_DEPARTMENT && (
-            <Typography variant="body2"><strong>Province:</strong> {provinceDisplay}</Typography>
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Due Date</Typography>
+            <Typography variant="body1">{formattedDueDate}</Typography>
+          </Box>
+
+           <Box mb={2}>
+              <Typography variant="overline" color="text.secondary" display="block">Assignees</Typography>
+               <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {assigneesDisplayNode}
+              </Box>
+          </Box>
+
+           {task.type === TaskType.PROVINCE_DEPARTMENT || task.assignedToProvinceId && (
+               <Box mb={2}>
+                  <Typography variant="overline" color="text.secondary" display="block">Province</Typography>
+                  {typeof provinceDisplayNode === 'string' ? (
+                      <Typography variant="body1">{provinceDisplayNode}</Typography>
+                  ) : (
+                      provinceDisplayNode
+                  )}
+              </Box>
           )}
         </Grid>
 
-        <Grid item xs={12} sx={{ mr: 1 }}>
-          <Typography variant="body2" sx={{ mr: 1 }}><strong>Assignees:</strong> {assigneesDisplay}</Typography>
-        </Grid>
+        <Grid item xs={12} md={6}>
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Created By</Typography>
+            <Typography variant="body1">{creatorName}</Typography>
+          </Box>
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Created At</Typography>
+            <Typography variant="body1">{formattedCreatedAt}</Typography>
+          </Box>
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Last Updated</Typography>
+            <Typography variant="body1">{formattedUpdatedAt}</Typography>
+          </Box>
 
-        {task.isDelegated && (
-          <Grid item xs={12}>
-            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-              <strong>Delegated From Task:</strong> {task.delegatedFromTaskId || 'N/A'} by {delegatedFromDisplay}
+          <Divider sx={{ my: 2 }} />
+
+          <Box mb={2}>
+            <Typography variant="overline" color="text.secondary" display="block">Description</Typography>
+            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {task.description || <Box component="em" sx={{ color: 'text.secondary' }}>No description provided.</Box>}
             </Typography>
-          </Grid>
-        )}
-
-        <Grid item xs={12} sx={{ mt: 1 }}>
-          <Typography variant="subtitle1"><strong>Description:</strong></Typography>
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-line', mt: 0.5, p: 1, background: theme.palette.action.hover, borderRadius: 1 }}>
-            {task.description || '[No Description]'}
-          </Typography>
+          </Box>
         </Grid>
       </Grid>
     );
@@ -334,82 +397,99 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>Task Details</DialogTitle>
-        <DialogContent dividers sx={{ p: 0 }}>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+            sx: {
+                ...glassStyles,
+                borderRadius: '12px',
+            }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
+            <Typography variant="h6" component="div">Task Details</Typography>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0, borderTop: 'none', borderBottom: 'none' }}>
           {renderContent()}
         </DialogContent>
-        <DialogActions>
-          {permissions.canEdit && task && (
-            <Button onClick={() => onEdit && onEdit(task.id.toString())} color="primary">Edit</Button>
-          )}
-          {permissions.canCancel && task && (
-            <Button onClick={handleCancelTask} color="warning" disabled={loading}>Cancel Task</Button>
-          )}
-          {permissions.canDelete && task && (
-            <Button onClick={() => onDelete && onDelete(task.id.toString())} color="error">Delete</Button>
-          )}
-          {permissions.canDelegate && task && (
-            <Button color="secondary" onClick={() => setDelegateDialogOpen(true)}>Delegate</Button>
-          )}
-          <Button onClick={onClose} color="primary" disabled={loading}>Close</Button>
+        <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, justifyContent: 'space-between' }}>
+            <Box>
+                 {permissions.canEdit && task && (
+                    <Button
+                        onClick={() => onEdit && onEdit(task.id.toString())}
+                        variant="contained"
+                        color="primary"
+                        startIcon={<EditIcon />}
+                        sx={{ mr: 1 }}
+                    >
+                        Edit
+                    </Button>
+                )}
+                 {permissions.canDelegate && task && (
+                    <Button
+                        color="secondary"
+                        variant="contained"
+                        onClick={() => setDelegateDialogOpen(true)}
+                        startIcon={<PeopleIcon />}
+                        sx={{ mr: 1 }}
+                    >
+                        Delegate
+                    </Button>
+                 )}
+                 {permissions.canCancel && task && (
+                    <Button
+                        onClick={handleCancelTask}
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<CancelIcon />}
+                        disabled={loading}
+                        sx={{ mr: 1 }}
+                    >
+                        Cancel Task
+                    </Button>
+                )}
+                 {permissions.canDelete && task && (
+                    <Button
+                        onClick={() => onDelete && onDelete(task.id.toString())}
+                        variant="contained"
+                        color="error"
+                        startIcon={<DeleteIcon />}
+                         sx={{ mr: 1 }}
+                    >
+                        Delete
+                    </Button>
+                )}
+            </Box>
+             <Box>
+                <Button
+                    onClick={onClose}
+                    variant="outlined"
+                    color="inherit"
+                    startIcon={<CloseIcon />}
+                    disabled={loading}
+                >
+                    Close
+                </Button>
+            </Box>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={delegateDialogOpen} onClose={() => setDelegateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Delegate Task</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" gutterBottom>
-            Select users to delegate this task to.
-          </Typography>
-          {delegationError && (
-            <Alert severity="error" sx={{ mb: 2 }}>{delegationError}</Alert>
-          )}
-          <Autocomplete
-            multiple
-            options={users as ReadonlyArray<User>}
-            getOptionLabel={(option) => `${option.first_name || ''} ${option.last_name || ''}`.trim() || option.username || option.id}
-            value={selectedUsers}
-            onChange={(event, newValue) => {
-                setSelectedUsers(newValue as User[]);
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                variant="outlined"
-                label="Select User(s) to Delegate To"
-                placeholder="Users"
-                margin="dense"
-              />
-            )}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
-            disabled={delegationLoading || loadingRefData}
-          />
-          <TextField 
-            margin="dense"
-            label="Delegation Comment (Optional)"
-            type="text"
-            fullWidth
-            multiline
-            rows={2}
-            variant="outlined"
-            value={delegationComment}
-            onChange={(e) => setDelegationComment(e.target.value)}
-            disabled={delegationLoading}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDelegateDialogOpen(false)} disabled={delegationLoading}>Cancel</Button>
-          <Button
-            onClick={handleDelegateSubmit}
-            variant="contained"
-            color="primary"
-            disabled={selectedUsers.length === 0 || delegationLoading}
-          >
-            {delegationLoading ? <CircularProgress size={24} /> : 'Confirm Delegation'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {task && (
+        <DelegateTaskDialog
+          open={delegateDialogOpen}
+          onClose={() => setDelegateDialogOpen(false)}
+          taskId={taskId!}
+          taskTitle={task.title}
+          currentAssignees={task.assignedToUsers || []}
+          users={users}
+          onSubmit={handleDelegateSubmit}
+          loading={delegationLoading}
+          error={delegationError}
+        />
+      )}
     </>
   );
 };
