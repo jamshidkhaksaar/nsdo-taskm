@@ -14,8 +14,6 @@ interface TaskListProps {
 
 const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
   const currentUser = useSelector(selectAuthUser); // Get current user from store
-  console.log('TaskList.tsx: Received tasks prop:', tasks);
-  console.log('TaskList.tsx: Current user:', currentUser);
 
   const handleDelete = async (id: string) => { // Changed id type to string based on Task type
     if (window.confirm('Are you sure you want to delete this task?')) {
@@ -51,21 +49,40 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
             </tr>
           ) : (
             tasks.map((task) => {
-              console.log('TaskList.tsx: Processing task:', task);
-              console.log('TaskList.tsx: Task createdBy:', task.createdBy);
-              console.log('TaskList.tsx: Task assignedToUsers:', task.assignedToUsers);
-              console.log('TaskList.tsx: Task assignedToUserIds:', task.assignedToUserIds);
+              // --- UNCOMMENT ORIGINAL RENDER LOGIC ---
+              // Log data for each task being processed
+              // console.log(`[TaskList] Processing Task ID: ${task.id}`, task);
+              // console.log(`[TaskList] Task ${task.id} - assignedToUsers:`, task.assignedToUsers);
+              // console.log(`[TaskList] Task ${task.id} - createdBy:`, task.createdBy);
+              // console.log(`[TaskList] Task ${task.id} - assignedToUserIds:`, task.assignedToUserIds);
+              
               // Use new Date() to parse ISO string, check if dueDate exists
               const dueDateObj = task.dueDate ? new Date(task.dueDate) : null;
               const isOverdue = dueDateObj && isPast(dueDateObj) && task.status !== TaskStatus.COMPLETED && task.status !== TaskStatus.CANCELLED;
-              const assigneeDisplay = task.assignedToUserIds?.includes(currentUser?.id ?? '')
-                                        ? 'My Task'
-                                        : task.assignedToUsers && task.assignedToUsers.length > 0
-                                          ? task.assignedToUsers.map(u => u.username).join(', ') // Display usernames if available
-                                          : task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0
-                                            ? 'Department Task' // Placeholder, ideally show department name
-                                            : 'Unassigned';
-              // TODO: Fetch and display department names if assignedToDepartmentIds is used.
+              
+              // --- REVISED ASSIGNEE LOGIC ---
+              const isCreatedByCurrentUser = task.createdById === currentUser?.id;
+              const isAssignedToCurrentUser = task.assignedToUsers?.some(user => user.id === currentUser?.id);
+              const hasOtherAssignees = task.assignedToUsers && task.assignedToUsers.length > 0;
+              const isAssignedToDepartment = task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0;
+              const isUnassigned = !hasOtherAssignees && !isAssignedToDepartment;
+
+              let assigneeDisplay = 'Unassigned'; // Default
+
+              if (isAssignedToCurrentUser) {
+                  // If assigned to current user, show their name
+                  assigneeDisplay = currentUser?.username || 'MY TASKS'; 
+              } else if (isCreatedByCurrentUser && isUnassigned) {
+                  // If created by current user AND unassigned to anyone
+                  assigneeDisplay = 'MY TASKS';
+              } else if (hasOtherAssignees) {
+                  // If assigned to other users (but not current user)
+                  assigneeDisplay = task.assignedToUsers?.map(u => u.username).join(', ') || 'Error Assignee';
+              } else if (isAssignedToDepartment) {
+                  // If assigned to a department (and not specific users)
+                  assigneeDisplay = 'Department Task';
+              }
+              // --------------------------------
 
               const creatorName = task.createdBy?.username || task.createdBy?.first_name || `User ${task.createdById.substring(0, 6)}...`; // Fallback to truncated ID
 
@@ -82,7 +99,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
                       task.status === TaskStatus.CANCELLED ? 'bg-gray-200 text-gray-800' : // Added cancelled style
                       'bg-red-200 text-red-800' // Default/fallback
                     }`}>
-                      {task.status.replace('_', ' ').toUpperCase()} {/* Format status */}
+                      {task.status.replace('_', ' ').toUpperCase()} 
                     </span>
                   </td>
                   <td className="text-left py-3 px-4">
@@ -97,7 +114,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
                   <td className="text-left py-3 px-4">{assigneeDisplay}</td>
                   <td className="text-left py-3 px-4">{creatorName}</td>
                   <td className={`text-left py-3 px-4 ${isOverdue ? 'text-red-500 font-semibold' : ''}`}>
-                    {/* Format the date object if it exists */}
+                   
                     {dueDateObj ? format(dueDateObj, 'dd-MMM-yyyy') : 'N/A'}
                   </td>
                   <td className="text-left py-3 px-4">
@@ -116,6 +133,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
                   </td>
                 </tr>
               );
+             // --- END ORIGINAL RENDER LOGIC --- 
             })
           )}
         </tbody>

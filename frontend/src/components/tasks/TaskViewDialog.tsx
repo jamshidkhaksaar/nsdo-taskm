@@ -199,22 +199,56 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
       return <Alert severity="error" sx={{ m: 2 }}>{fetchError}</Alert>;
     }
     if (!task) {
-      return <Typography sx={{ p: 2 }}>Task data not available.</Typography>;
+      console.warn("[TaskViewDialog] Render attempted when task state is null.");
+      return <Typography sx={{ p: 2 }}>Task data not available or failed to load.</Typography>;
+    }
+
+    let creatorName = 'N/A';
+    try {
+        creatorName = getUserName(task.createdById); 
+    } catch (e) {
+        console.error("[TaskViewDialog] Error accessing creator name:", e);
+        creatorName = 'Error';
     }
 
     let assigneesDisplay = 'N/A';
-    if (task.type === TaskType.USER && task.assignedToUsers && task.assignedToUsers.length > 0) {
-      assigneesDisplay = task.assignedToUsers.map(u => getUserName(u.id)).join(', ');
-    } else if ((task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0) {
-      assigneesDisplay = task.assignedToDepartmentIds.map(getDepartmentName).join(', ');
-    } else if (task.type === TaskType.PERSONAL) {
-      assigneesDisplay = `Personal (${getUserName(task.createdById)})`;
+    try {
+        if (task.type === TaskType.USER && task.assignedToUsers && task.assignedToUsers.length > 0) {
+            assigneesDisplay = task.assignedToUsers.map(u => getUserName(u.id)).join(', ');
+        } else if ((task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+            assigneesDisplay = task.assignedToDepartments.map(d => getDepartmentName(d.id)).join(', ');
+        } else if (task.type === TaskType.PERSONAL) {
+            assigneesDisplay = `Personal (${creatorName})`;
+        }
+    } catch (e) {
+         console.error("[TaskViewDialog] Error processing assignees:", e);
+         assigneesDisplay = 'Error';
+    }
+
+    let provinceDisplay = 'N/A';
+    try {
+        if (task.assignedToProvinceId) {
+            provinceDisplay = getProvinceName(task.assignedToProvinceId);
+        }
+    } catch (e) {
+         console.error("[TaskViewDialog] Error processing province:", e);
+         provinceDisplay = 'Error';
+    }
+    
+    let delegatedFromDisplay = 'N/A';
+    try {
+        if (task.isDelegated && task.delegatedByUserId) {
+            delegatedFromDisplay = `Delegated by ${getUserName(task.delegatedByUserId)}`;
+        }
+    } catch (e) {
+         console.error("[TaskViewDialog] Error processing delegation info:", e);
+         delegatedFromDisplay = 'Error';
     }
 
     return (
       <Grid container spacing={2} sx={{ p: 2 }}>
         <Grid item xs={12}>
-          <Typography variant="h5" component="div" gutterBottom>{task.title}</Typography>
+          <Typography variant="h5" component="div" gutterBottom>{task.title || '[No Title]'}</Typography>
         </Grid>
 
         <Grid item xs={12} md={6}>
@@ -264,15 +298,15 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
           </Box>
 
           <Typography variant="body2" sx={{ mr: 1 }}><strong>Type:</strong> {task.type}</Typography>
-          <Typography variant="body2"><strong>Due Date:</strong> {formatDate(task.dueDate)}</Typography>
+          <Typography variant="body2"><strong>Due Date:</strong> {task.dueDate ? formatDate(task.dueDate, DATE_FORMATS.DISPLAY_DATE) : 'N/A'}</Typography>
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Typography variant="body2"><strong>Created By:</strong> {getUserName(task.createdById)}</Typography>
-          <Typography variant="body2"><strong>Created At:</strong> {formatDate(task.createdAt)}</Typography>
+          <Typography variant="body2"><strong>Created By:</strong> {creatorName}</Typography>
+          <Typography variant="body2"><strong>Created At:</strong> {formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATE)}</Typography>
           <Typography variant="body2"><strong>Last Updated:</strong> {formatDate(task.updatedAt)}</Typography>
           {task.type === TaskType.PROVINCE_DEPARTMENT && (
-            <Typography variant="body2"><strong>Province:</strong> {getProvinceName(task.assignedToProvinceId)}</Typography>
+            <Typography variant="body2"><strong>Province:</strong> {provinceDisplay}</Typography>
           )}
         </Grid>
 
@@ -283,7 +317,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         {task.isDelegated && (
           <Grid item xs={12}>
             <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-              <strong>Delegated From Task:</strong> {task.delegatedFromTaskId || 'N/A'} by {getUserName(task.delegatedByUserId)}
+              <strong>Delegated From Task:</strong> {task.delegatedFromTaskId || 'N/A'} by {delegatedFromDisplay}
             </Typography>
           </Grid>
         )}
@@ -291,7 +325,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         <Grid item xs={12} sx={{ mt: 1 }}>
           <Typography variant="subtitle1"><strong>Description:</strong></Typography>
           <Typography variant="body2" sx={{ whiteSpace: 'pre-line', mt: 0.5, p: 1, background: theme.palette.action.hover, borderRadius: 1 }}>
-            {task.description || 'No description provided'}
+            {task.description || '[No Description]'}
           </Typography>
         </Grid>
       </Grid>
@@ -333,19 +367,23 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
           )}
           <Autocomplete
             multiple
-            options={users || []}
-            getOptionLabel={(option: User) => `${option.first_name || ''} ${option.last_name || ''} (${option.email})`}
-            onChange={(_, newValue: User[]) => setSelectedUsers(newValue || [])}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
+            options={users as ReadonlyArray<User>}
+            getOptionLabel={(option) => `${option.first_name || ''} ${option.last_name || ''}`.trim() || option.username || option.id}
+            value={selectedUsers}
+            onChange={(event, newValue) => {
+                setSelectedUsers(newValue as User[]);
+            }}
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Select Users"
                 variant="outlined"
-                fullWidth
-                sx={{ mt: 2, mb: 1 }}
+                label="Select User(s) to Delegate To"
+                placeholder="Users"
+                margin="dense"
               />
             )}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            disabled={delegationLoading || loadingRefData}
           />
           <TextField 
             margin="dense"

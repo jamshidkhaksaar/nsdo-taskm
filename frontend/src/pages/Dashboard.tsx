@@ -8,6 +8,13 @@ import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+// Icon Imports for Task Sections
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd'; 
+import CreateIcon from '@mui/icons-material/Create';             
+import PersonIcon from '@mui/icons-material/Person';             
+import BusinessIcon from '@mui/icons-material/Business';         
+import ForwardIcon from '@mui/icons-material/Forward';           
+import SendIcon from '@mui/icons-material/Send';                 
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 // Custom Components
@@ -87,12 +94,13 @@ const initialDashboardData: DashboardTasksResponse = {
   myPersonalTasks: [],
   tasksICreatedForOthers: [],
   tasksAssignedToMe: [],
+  tasksAssignedToMyDepartments: [],
   tasksDelegatedByMe: [],
   tasksDelegatedToMe: [],
 };
 
 // Define identifiers for task sections
-type TaskSectionId = 'assigned' | 'created' | 'personal' | 'delegatedTo' | 'delegatedBy';
+type TaskSectionId = 'assigned' | 'created' | 'personal' | 'myDepartments' | 'delegatedTo' | 'delegatedBy';
 
 // Define structure for section configuration
 interface TaskSectionConfig {
@@ -102,7 +110,7 @@ interface TaskSectionConfig {
   color: string; // Subtle background color
   showAddButton?: boolean;
   addTaskType?: TaskType;
-  viewMode: 'assigned' | 'user'; // Simplified viewMode for TasksSection
+  departmentName?: string; // Optional: For dynamic title
 }
 
 // Define subtle colors for sections
@@ -110,12 +118,13 @@ const SECTION_COLORS: Record<TaskSectionId, string> = {
   assigned: 'rgba(100, 181, 246, 0.08)', // Light Blue tint
   created: 'rgba(229, 115, 115, 0.08)', // Light Red tint
   personal: 'rgba(129, 199, 132, 0.08)', // Light Green tint
+  myDepartments: 'rgba(255, 215, 64, 0.08)', // Example: Light Gold tint
   delegatedTo: 'rgba(255, 171, 145, 0.08)', // Light Orange tint
   delegatedBy: 'rgba(149, 117, 205, 0.08)', // Light Purple tint
 };
 
 // Define the initial order array directly for reference
-const initialSectionOrder: TaskSectionId[] = ['assigned', 'created', 'personal', 'delegatedTo', 'delegatedBy'];
+const initialSectionOrder: TaskSectionId[] = ['assigned', 'myDepartments', 'created', 'personal', 'delegatedTo', 'delegatedBy'];
 
 // --- Persistence Logic --- START ---
 
@@ -123,55 +132,74 @@ const initialSectionOrder: TaskSectionId[] = ['assigned', 'created', 'personal',
 const getInitialSectionOrder = (): TaskSectionId[] => {
   console.log('[Dashboard] Calculating initial section order...');
   const savedOrder = localStorage.getItem('dashboardSectionOrder');
+  const currentDefaultOrder = [...initialSectionOrder]; // Use the updated default
+
   if (savedOrder) {
     try {
-      const parsed = JSON.parse(savedOrder);
-      // Stronger validation: check length and content against the known initial order
-      if (Array.isArray(parsed) && parsed.length === initialSectionOrder.length && parsed.every(id => initialSectionOrder.includes(id))) {
+      const parsed = JSON.parse(savedOrder) as TaskSectionId[];
+      // Validate saved order against the *current* default set
+      if (Array.isArray(parsed) && parsed.length === currentDefaultOrder.length && parsed.every(id => currentDefaultOrder.includes(id)) && currentDefaultOrder.every(id => parsed.includes(id))) {
         console.log('[Dashboard] Initializing section order FROM STORAGE:', parsed);
         return parsed;
       } else {
-         console.warn('[Dashboard] Invalid saved order found during init, using defaults.');
-         localStorage.removeItem('dashboardSectionOrder');
+         console.warn('[Dashboard] Saved order mismatch or invalid, resetting to defaults.');
+         localStorage.setItem('dashboardSectionOrder', JSON.stringify(currentDefaultOrder)); // Save the correct default
       }
     } catch (e) {
       console.error('[Dashboard] Error parsing saved order for initial value:', e);
       localStorage.removeItem('dashboardSectionOrder');
     }
   }
-  console.log('[Dashboard] Initializing section order TO DEFAULTS:', initialSectionOrder);
-  return [...initialSectionOrder]; // Return a copy of the default order
+  console.log('[Dashboard] Initializing section order TO DEFAULTS:', currentDefaultOrder);
+  return currentDefaultOrder;
 };
 
-// Function to load initial collapsed state
+// Function to load initial collapsed state (Final Attempt at Robustness)
 const getInitialCollapsedState = (): Record<TaskSectionId, boolean> => {
   console.log('[Dashboard] Calculating initial collapsed state...');
-  const defaults = initialSectionOrder.reduce((acc, id) => { acc[id] = false; return acc; }, {} as Record<TaskSectionId, boolean>);
-  const savedCollapsed = localStorage.getItem('dashboardCollapsedSections');
+  let currentOrder: TaskSectionId[] = [];
+  try {
+      // Attempt to get the potentially saved order
+      currentOrder = getInitialSectionOrder();
+      // Ensure it's valid, otherwise use the hardcoded default
+      if (!Array.isArray(currentOrder) || currentOrder.length === 0 || !currentOrder.every(id => initialSectionOrder.includes(id))) {
+          console.warn('[Dashboard] getInitialSectionOrder returned invalid/empty, using hardcoded order for collapse state default.');
+          currentOrder = [...initialSectionOrder];
+      }
+  } catch (e) {
+       console.error('[Dashboard] Error in getInitialSectionOrder within getInitialCollapsedState, using hardcoded order:', e);
+       currentOrder = [...initialSectionOrder];
+  }
 
+  // Create default state based on the determined order (guaranteed to be valid array)
+  const defaults = currentOrder.reduce((acc, id) => {
+    acc[id] = false; // Default to expanded
+    return acc;
+  }, {} as Record<TaskSectionId, boolean>);
+
+  // Try to merge with saved state
+  const savedCollapsed = localStorage.getItem('dashboardCollapsedSections');
   if (savedCollapsed) {
     try {
       const parsed = JSON.parse(savedCollapsed);
       if (typeof parsed === 'object' && parsed !== null) {
-        const mergedState = { ...defaults }; // Start with defaults
-        for (const id of initialSectionOrder) { // Iterate through expected keys
+        const mergedState = { ...defaults };
+        for (const id of currentOrder) {
           if (parsed.hasOwnProperty(id) && typeof parsed[id] === 'boolean') {
-            mergedState[id] = parsed[id]; // Apply saved boolean if valid
+            mergedState[id] = parsed[id];
           }
         }
-        console.log('[Dashboard] Initializing collapsed state FROM STORAGE:', mergedState);
+        console.log('[Dashboard] Initializing collapsed state FROM STORAGE (merged):', mergedState);
         return mergedState;
-      } else {
-        console.warn('[Dashboard] Invalid saved collapsed state found during init, using defaults.');
-        localStorage.removeItem('dashboardCollapsedSections');
       }
     } catch (e) {
-      console.error('[Dashboard] Error parsing saved collapsed state for initial value:', e);
+      console.error('[Dashboard] Error parsing saved collapsed state:', e);
       localStorage.removeItem('dashboardCollapsedSections');
     }
   }
+
   console.log('[Dashboard] Initializing collapsed state TO DEFAULTS.', defaults);
-  return defaults;
+  return defaults; // Return the guaranteed default structure
 };
 
 // --- Persistence Logic --- END ---
@@ -228,9 +256,24 @@ const Dashboard: React.FC = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState<AlertColor>('success');
 
   // --- State for Collapsible/Reorderable Sections ---
-  // Initialize state lazily using the functions defined above
   const [sectionOrder, setSectionOrder] = useState<TaskSectionId[]>(getInitialSectionOrder);
   const [collapsedSections, setCollapsedSections] = useState<Record<TaskSectionId, boolean>>(getInitialCollapsedState);
+  
+  // Initialize allCollapsed simply
+  const [allCollapsed, setAllCollapsed] = useState<boolean>(false); // Default to false (expanded)
+
+  // Update allCollapsed state based on collapsedSections whenever it changes
+  useEffect(() => {
+    if (Object.keys(collapsedSections).length > 0) {
+        const allNowCollapsed = Object.values(collapsedSections).every(v => v === true);
+        const allNowExpanded = Object.values(collapsedSections).every(v => v === false);
+        if (allNowCollapsed) {
+            setAllCollapsed(true);
+        } else if (allNowExpanded) {
+            setAllCollapsed(false);
+        } // If mixed, state remains as is until fully collapsed/expanded
+    }
+  }, [collapsedSections]);
 
   // --- REMOVED OLD useEffect FOR LOADING STATE ---
 
@@ -266,12 +309,26 @@ const Dashboard: React.FC = () => {
     setShowQuickNotes(prev => !prev);
   };
 
-  // Handler to toggle section collapse
+  // Update handleToggleCollapse to just update individual section
   const handleToggleCollapse = (sectionId: TaskSectionId) => {
     setCollapsedSections(prev => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
+        ...prev,
+        [sectionId]: !prev[sectionId],
     }));
+    // The useEffect above will handle updating allCollapsed state
+  };
+
+  // Handler for the Collapse/Expand All button
+  const handleToggleAllCollapse = () => {
+      const nextAllCollapsed = !allCollapsed;
+      setAllCollapsed(nextAllCollapsed);
+      const newCollapsedState: Record<TaskSectionId, boolean> = {};
+      sectionOrder.forEach(id => {
+          newCollapsedState[id] = nextAllCollapsed;
+      });
+      setCollapsedSections(newCollapsedState);
+      // Also save this potentially new state to localStorage
+      localStorage.setItem('dashboardCollapsedSections', JSON.stringify(newCollapsedState));
   };
 
   // Handler for Drag and Drop end
@@ -597,10 +654,11 @@ const Dashboard: React.FC = () => {
     setEditTaskDialogOpen(false); // Ensure edit dialog is closed
   };
 
-  const handleOpenCreateTaskDialog = (type: TaskType = TaskType.USER, status?: TaskStatus) => {
-    console.log(`Opening create task dialog with type: ${type} and status: ${status}`);
-    setInitialTaskType(type);
-    setInitialTaskStatus(status || TaskStatus.PENDING);
+  // Update handler to always force PERSONAL type and remove status param
+  const handleOpenCreateTaskDialog = () => {
+    console.log(`Opening create task dialog with type: PERSONAL`);
+    setInitialTaskType(TaskType.PERSONAL); // Force PERSONAL type
+    setInitialTaskStatus(TaskStatus.PENDING); // Default to PENDING
     setCreateTaskDialogOpen(true);
   };
 
@@ -610,51 +668,67 @@ const Dashboard: React.FC = () => {
   };
   // --- End Dialog Open Handlers ---
 
-  // --- Prepare Section Data Structure ---
-  const allSections: TaskSectionConfig[] = useMemo(() => [
-    {
-      id: 'assigned',
-      title: 'Tasks Assigned To Me',
-      tasks: dashboardData.tasksAssignedToMe,
-      color: SECTION_COLORS.assigned,
-      viewMode: 'assigned'
-    },
-    {
-      id: 'created',
-      title: 'Tasks I Created/Assigned',
-      tasks: dashboardData.tasksICreatedForOthers,
-      color: SECTION_COLORS.created,
-      viewMode: 'user'
-    },
-    {
-      id: 'personal',
-      title: 'My Tasks (Personal)',
-      tasks: dashboardData.myPersonalTasks,
-      color: SECTION_COLORS.personal,
-      showAddButton: true,
-      addTaskType: TaskType.PERSONAL,
-      viewMode: 'user'
-    },
-    {
-      id: 'delegatedTo',
-      title: 'Tasks Delegated To Me',
-      tasks: dashboardData.tasksDelegatedToMe,
-      color: SECTION_COLORS.delegatedTo,
-      viewMode: 'assigned'
-    },
-    {
-      id: 'delegatedBy',
-      title: 'Tasks Delegated By Me',
-      tasks: dashboardData.tasksDelegatedByMe,
-      color: SECTION_COLORS.delegatedBy,
-      viewMode: 'user'
-    },
-  ], [dashboardData]);
+  // --- Section Configurations (useMemo) ---
+  const sectionConfigs = useMemo((): TaskSectionConfig[] => {
+    console.log("[Dashboard] Recalculating sectionConfigs, dashboardData:", dashboardData);
+
+    // Use a generic title for now to avoid lint errors
+    const departmentTitle = "Tasks For My Department(s)";
+    // if (user?.departments && user.departments.length === 1) { // Revert this logic
+    //     departmentTitle = `Tasks For ${user.departments[0].name} Department`;
+    // } else if (user?.departments && user.departments.length > 1) {
+    //     // Could list names or keep generic
+    // }
+
+    const configs: TaskSectionConfig[] = [
+      {
+        id: 'assigned',
+        title: 'Tasks Assigned To Me',
+        tasks: dashboardData.tasksAssignedToMe || [],
+        color: SECTION_COLORS.assigned,
+      },
+      {
+        id: 'myDepartments',
+        title: departmentTitle, // Use generic title
+        tasks: dashboardData.tasksAssignedToMyDepartments || [],
+        color: SECTION_COLORS.myDepartments,
+      },
+      {
+        id: 'created',
+        title: 'Tasks I Created/Assigned',
+        tasks: dashboardData.tasksICreatedForOthers || [],
+        color: SECTION_COLORS.created,
+      },
+      {
+        id: 'personal',
+        title: 'My Tasks (Personal)',
+        tasks: dashboardData.myPersonalTasks || [],
+        color: SECTION_COLORS.personal,
+        showAddButton: true,
+        addTaskType: TaskType.PERSONAL,
+      },
+      {
+        id: 'delegatedTo',
+        title: 'Tasks Delegated To Me',
+        tasks: dashboardData.tasksDelegatedToMe || [],
+        color: SECTION_COLORS.delegatedTo,
+      },
+      {
+        id: 'delegatedBy',
+        title: 'Tasks Delegated By Me',
+        tasks: dashboardData.tasksDelegatedByMe || [],
+        color: SECTION_COLORS.delegatedBy,
+      },
+    ];
+
+    return configs;
+
+  }, [dashboardData]); // Removed user.departments dependency
 
   // Map section data based on the current order
   const orderedSections = useMemo(() => {
-      return sectionOrder.map(id => allSections.find(section => section.id === id)).filter(Boolean) as TaskSectionConfig[];
-  }, [sectionOrder, allSections]);
+      return sectionOrder.map(id => sectionConfigs.find(section => section.id === id)).filter(Boolean) as TaskSectionConfig[];
+  }, [sectionOrder, sectionConfigs]);
 
   // --- Define Layout Elements ---
   const sidebarElement = (
@@ -725,13 +799,13 @@ const Dashboard: React.FC = () => {
           <Tab label="Task List" {...a11yProps(0)} />
           <Tab label="Board View" {...a11yProps(1)} />
         </Tabs>
-        {/* Add Task Button */} 
+        {/* Add Task Button (Corrected onClick) */}
         {activeSubTab === 1 && (
           <Button
             variant="contained"
             size="small"
             startIcon={<AddIcon />}
-            onClick={() => handleOpenCreateTaskDialog(TaskType.PERSONAL)}
+            onClick={() => handleOpenCreateTaskDialog()}
             sx={{
               ml: 2,
               borderRadius: '8px',
@@ -795,36 +869,44 @@ const Dashboard: React.FC = () => {
                               >
                                 <DragIndicatorIcon fontSize='small' />
                               </Box>
-                              {/* Title */}
-                              <Typography variant="h6" sx={{ color: '#fff', flexGrow: 1, fontSize: '1rem' }}>
+                              {/* Icon + Title */}
+                              <Typography variant="h6" sx={{ color: '#fff', flexGrow: 1, fontSize: '1rem', display: 'flex', alignItems: 'center' }}>
+                                {section.id === 'assigned' && <AssignmentIndIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                {section.id === 'myDepartments' && <BusinessIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                {section.id === 'created' && <CreateIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                {section.id === 'personal' && <PersonIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                {section.id === 'delegatedTo' && <ForwardIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                {section.id === 'delegatedBy' && <SendIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
                                 {section.title}
                               </Typography>
-                              {/* Add Task Button (Personal Section Only) */}
-                              {section.showAddButton && (
-                                <Tooltip title="Add Personal Task">
-                                  <IconButton 
-                                     size="small"
-                                     onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        handleOpenCreateTaskDialog(TaskType.PERSONAL);
-                                     }}
-                                     sx={{ color: '#fff', mr: 1 }}
-                                  >
-                                    <AddIcon fontSize='small'/>
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              {/* Collapse Toggle Icon */}
-                              <IconButton 
-                                size="small" 
-                                onClick={(e) => { 
-                                  e.stopPropagation();
-                                  handleToggleCollapse(section.id);
-                                }}
-                                sx={{ color: '#fff' }}
-                              >
-                                {collapsedSections[section.id] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
-                              </IconButton>
+                              {/* Action Buttons Container (Corrected Closing Tag) */}
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                {section.id === 'personal' && section.showAddButton && (
+                                  <Tooltip title="Add Personal Task">
+                                    <IconButton 
+                                       size="small"
+                                       onClick={(e) => { 
+                                          e.stopPropagation(); 
+                                          handleOpenCreateTaskDialog();
+                                       }}
+                                       sx={{ color: '#fff', mr: 1 }}
+                                    >
+                                      <AddIcon fontSize='small'/>
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                                {/* Collapse Toggle Icon */}
+                                <IconButton 
+                                  size="small" 
+                                  onClick={(e) => { 
+                                    e.stopPropagation();
+                                    handleToggleCollapse(section.id);
+                                  }}
+                                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                                >
+                                  {collapsedSections[section.id] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                                </IconButton>
+                              </Box>
                             </Box>
 
                             {/* Collapsible Content */}
@@ -834,7 +916,7 @@ const Dashboard: React.FC = () => {
                                   tasks={section.tasks}
                                   currentUserId={user?.id ? Number(user.id) : 0}
                                   currentDepartmentId={0}
-                                  viewMode={section.viewMode}
+                                  viewMode="user"
                                   onTaskClick={handleViewTask}
                                   onTaskUpdated={handleTaskUpdated}
                                 />
@@ -896,7 +978,7 @@ const Dashboard: React.FC = () => {
         onTaskCreated={handleTaskCreated}
         initialStatus={initialTaskStatus}
         initialType={initialTaskType}
-        dialogType='assign'
+        dialogType="create"
       />
       <EditTaskDialog
         open={editTaskDialogOpen}

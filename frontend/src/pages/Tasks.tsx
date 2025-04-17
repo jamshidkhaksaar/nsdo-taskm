@@ -11,16 +11,19 @@ const Tasks: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 
+  useEffect(() => {
+    console.log('[Tasks.tsx] Component Mounted'); 
+  }, []);
+
   const fetchTasks = async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await getTasks(); // Fetch tasks from the API
-      console.log('Tasks.tsx: Data received from getTasks:', data);
       setTasks(data);
     } catch (err) {
       setError('Failed to fetch tasks');
-      console.error(err);
+      console.error('[Tasks.tsx] Error caught in fetchTasks:', err);
     } finally {
       setLoading(false);
     }
@@ -67,6 +70,7 @@ const Tasks: React.FC = () => {
           >
             Add New Task
           </button>
+          
           <TaskList
             tasks={tasks}
             onEdit={handleEdit}

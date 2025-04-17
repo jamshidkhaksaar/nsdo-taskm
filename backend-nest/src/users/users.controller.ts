@@ -24,13 +24,22 @@ export class UsersController {
   async getAllUsers(@Request() req) {
     this.logger.log('Getting all users');
     
-    // Log the activity
-    await this.activityLogService.logFromRequest(
-      req,
-      'view',
-      'users',
-      'User viewed all users',
-    );
+    // --- TEMPORARILY COMMENT OUT ACTIVITY LOGGING ---
+    /*
+    try {
+      await this.activityLogService.logFromRequest(
+        req,
+        'view',
+        'users',
+        'User viewed all users',
+      );
+    } catch (logError) {
+        this.logger.error(`Failed to log view all users activity: ${logError.message}`, logError.stack);
+        // Decide if the main request should fail if logging fails.
+        // For now, let's allow it to proceed even if logging fails.
+    }
+    */
+    // -----------------------------------------------
     
     const users = await this.usersService.findAll();
     // Map to only send necessary data without sensitive information

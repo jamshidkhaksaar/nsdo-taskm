@@ -188,15 +188,12 @@ export interface DashboardTaskCounts {
 
 // Define response type for fetching dashboard tasks
 export interface DashboardTasksResponse {
-  // tasks: Task[]; // Remove or comment out the old structure
-  // counts: DashboardTaskCounts;
   myPersonalTasks: Task[];
   tasksICreatedForOthers: Task[];
   tasksAssignedToMe: Task[];
+  tasksAssignedToMyDepartments?: Task[];
   tasksDelegatedByMe: Task[];
   tasksDelegatedToMe: Task[];
-  // Optionally keep counts if the backend still provides them
-  // counts?: DashboardTaskCounts;
 }
 
 // END: Add Task and Dashboard Types

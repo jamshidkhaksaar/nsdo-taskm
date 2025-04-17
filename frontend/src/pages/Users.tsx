@@ -31,7 +31,7 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import Sidebar from '../components/Sidebar';
 import UserList from '../components/users/UserList';
 import TasksSection from '../components/departments/TasksSection';
-import { Task, TaskStatus } from '../types/index';
+import { Task, TaskStatus, TaskType } from '../types/index';
 import { User } from '../types/user';
 import { UserService } from '../services/user';
 import { TaskService } from '../services/task';
@@ -150,7 +150,12 @@ const Users: React.FC = () => {
   };
   
   const handleTaskCreated = () => {
+    // Invalidate the query fetching all tasks for this page
     queryClient.invalidateQueries('allTasksForUsersPage'); 
+    
+    // ALSO invalidate the query used by the Dashboard
+    queryClient.invalidateQueries('dashboardTasks'); // Assuming this is the key used in Dashboard.tsx
+    
     setSelectedUserIdsForTask([]); // Reset selection
     setCreateTaskDialogOpen(false); // Close dialog
   };
@@ -355,24 +360,6 @@ const Users: React.FC = () => {
                             </Box>
                           </Box>
                         </Box>
-                        
-                        <Button
-                          variant="contained"
-                          startIcon={<AddIcon />}
-                          onClick={handleCreateTask}
-                          sx={{
-                            backgroundColor: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.dark',
-                            },
-                            textTransform: 'none',
-                            borderRadius: 8,
-                            px: 3,
-                            py: 1,
-                          }}
-                        >
-                          Assign Task
-                        </Button>
                       </Box>
                       
                       <Divider sx={{ my: 3, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
@@ -567,6 +554,8 @@ const Users: React.FC = () => {
             onClose={() => setCreateTaskDialogOpen(false)}
             onTaskCreated={handleTaskCreated}
             dialogType="assign"
+            initialAssignedUserIds={selectedUserIdsForTask}
+            initialType={TaskType.USER}
           />
         </>
       )}

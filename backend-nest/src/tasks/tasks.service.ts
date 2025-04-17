@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Task, TaskStatus, TaskPriority, TaskType } from './entities/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -384,32 +384,57 @@ export class TasksService {
   async updateStatus(id: string, updateTaskStatusDto: UpdateTaskStatusDto, reqUser: any): Promise<Task> {
     const task = await this.findOne(id); // Fetch task with relations
 
-    // --- Permission Check: Assignee Only ---
-    const canUpdate = await this.checkAssigneePermission(id, reqUser.userId);
+    // --- Permission Check: Admin OR Creator OR Assignee (Direct/Department) ---
+    let canUpdate = false;
+    // 1. Check Admin role
+    if (reqUser.role && reqUser.role === UserRole.ADMIN) {
+      console.log(`Status Update permission granted: User ${reqUser.userId} is an Admin.`);
+      canUpdate = true;
+    }
+
+    // 2. Check if user is the creator
+    if (!canUpdate && task.createdById === reqUser.userId) {
+      console.log(`Status Update permission granted: User ${reqUser.userId} is the creator.`);
+      canUpdate = true;
+    }
+
+    // 3. Check if user is an assignee (direct user or via department)
     if (!canUpdate) {
-      console.error(`Status Update failed: User ${reqUser.userId} is not an assignee for task ${id}.`);
+      const isAssignee = await this.checkAssigneePermission(id, reqUser.userId);
+      if (isAssignee) {
+        console.log(`Status Update permission granted: User ${reqUser.userId} is an assignee (direct or department).`);
+        canUpdate = true;
+      } else {
+        // Log only if none of the above conditions were met
+         console.log(`Status Update permission check failed: User ${reqUser.userId} is not Admin, Creator, or Assignee for task ${id}.`);
+      }
+    }
+
+    // Throw error if none of the checks passed
+    if (!canUpdate) {
+      console.error(`Status Update failed: User ${reqUser.userId} lacks permission for task ${id}.`);
       throw new ForbiddenException('You do not have permission to update the status of this task.');
     }
-     console.log(`Status Update permission granted for user ${reqUser.userId} on task ${id}.`);
     // --- End Permission Check ---
 
-    // Validate allowed status transitions for Assignee
+    // --- Revised Status Transition Logic ---
     const currentStatus = task.status;
     const newStatus = updateTaskStatusDto.status;
+
+    // Prevent changing status if already Completed or Cancelled
+    if (currentStatus === TaskStatus.COMPLETED || currentStatus === TaskStatus.CANCELLED) {
+        throw new BadRequestException(`Task is already ${currentStatus} and its status cannot be changed.`);
+    }
+
+    // Validate the target status itself is a valid enum value
+    if (!Object.values(TaskStatus).includes(newStatus)) {
+        throw new BadRequestException(`Invalid target status provided: ${newStatus}`);
+    }
     
-    if (currentStatus === TaskStatus.PENDING && newStatus !== TaskStatus.IN_PROGRESS) {
-         throw new BadRequestException('Assignee can only change status from Pending to In Progress.');
-    }
-     if (currentStatus === TaskStatus.IN_PROGRESS && newStatus !== TaskStatus.COMPLETED) {
-         throw new BadRequestException('Assignee can only change status from In Progress to Completed.');
-    }
-     if (currentStatus === TaskStatus.COMPLETED || currentStatus === TaskStatus.CANCELLED) {
-          throw new BadRequestException(`Task is already ${currentStatus} and cannot be changed by assignee.`);
-     }
-     // Ensure the target status is valid for assignee actions
-     if (newStatus !== TaskStatus.IN_PROGRESS && newStatus !== TaskStatus.COMPLETED) {
-          throw new BadRequestException(`Invalid target status for assignee action: ${newStatus}`);
-     }
+    // Allow setting to Pending, In Progress, or Completed if not already in a final state
+    // (Removed the strict step-by-step validation)
+    console.log(`Attempting to move task ${id} from ${currentStatus} to ${newStatus}`);
+    // --- End Revised Logic ---
 
     task.status = newStatus;
     console.log(`Saving updated status (${newStatus}) for task ${id}...`);
@@ -607,82 +632,115 @@ export class TasksService {
   // START: Implement Dashboard Task Fetching
   async getDashboardTasks(user: any): Promise<any> {
     const userId = user.userId;
-    console.log(`Fetching dashboard tasks for user ${userId}`);
+    console.log(`[TasksService] Fetching dashboard tasks for user ID: ${userId}`);
 
     try {
-      // Fetch tasks created by the user
-      const createdByMe = await this.tasksRepository.find({
-        where: { createdById: userId, isDelegated: false }, // Exclude tasks created *as* delegation
-        relations: ['assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'createdBy'],
-        order: { createdAt: 'DESC' }
+      // Fetch the current user with their department memberships
+      const userWithDepartments = await this.usersRepository.findOne({
+          where: { id: userId },
+          relations: ['departments'] // Load the departments relation
       });
 
-      // Fetch tasks assigned directly to the user (not via delegation)
-      const assignedToMeDirectly = await this.tasksRepository.find({
-        where: {
-            assignedToUsers: { id: userId },
-            isDelegated: false, // Exclude delegated tasks assigned to me
-            createdById: In(userId ? [] : [userId]) // Exclude tasks I created for myself (already in createdByMe)
-        },
-        relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy'],
-        order: { createdAt: 'DESC' }
-      });
-
-      // Fetch tasks delegated *by* the user (find the original tasks they delegated)
-      // Note: This fetches the *delegated* tasks, frontend might need original task details
-      const delegatedByMe = await this.tasksRepository.find({
-        where: { delegatedByUserId: userId, isDelegated: true },
-        relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'delegatedFromTask'],
-        order: { createdAt: 'DESC' }
-      });
-
-      // Fetch tasks delegated *to* the user
-      const delegatedToMe = await this.tasksRepository.find({
-        where: {
-            assignedToUsers: { id: userId },
-            isDelegated: true // Only include delegated tasks
-        },
-        relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'delegatedFromTask'],
-        order: { createdAt: 'DESC' }
-      });
-
-      // Separate Personal tasks from CreatedByMe
-      const myPersonalTasks = createdByMe.filter(task => 
-        task.type === TaskType.PERSONAL && task.assignedToUsers?.some(u => u.id === userId)
-      );
-      const tasksICreatedForOthers = createdByMe.filter(task => task.type !== TaskType.PERSONAL);
-      
-      console.log(`Dashboard tasks for user ${userId}: Personal=${myPersonalTasks.length}, Created=${tasksICreatedForOthers.length}, Assigned=${assignedToMeDirectly.length}, DelegatedBy=${delegatedByMe.length}, DelegatedTo=${delegatedToMe.length}`);
-
-      // Log activity
-      try {
-        const userObj = await this.usersRepository.findOneBy({ id: userId });
-        await this.activityLogService.createLog({
-            user_id: userId,
-            action: 'view',
-            target: 'dashboard_tasks',
-            details: `User viewed their task dashboard.`,
-            status: 'success',
-            ip_address: 'unknown' // IP typically not available in service layer
-        });
-      } catch (logError) {
-        console.error(`Failed to log dashboard view activity: ${logError.message}`);
+      let departmentIds: string[] = [];
+      if (userWithDepartments && userWithDepartments.departments && userWithDepartments.departments.length > 0) {
+          departmentIds = userWithDepartments.departments.map(dept => dept.id);
+          console.log(`[TasksService] User ${userId} belongs to departments: ${departmentIds.join(', ')}`);
+      } else {
+          console.log(`[TasksService] User ${userId} does not belong to any departments.`);
       }
 
-      return {
-        myPersonalTasks,         // Personal tasks created by the user for themselves
-        tasksICreatedForOthers, // Tasks created by the user assigned to others/departments/provinces
-        tasksAssignedToMe: assignedToMeDirectly, // Tasks directly assigned to the user (non-delegated)
-        tasksDelegatedByMe: delegatedByMe,       // Tasks the user has delegated to others
-        tasksDelegatedToMe: delegatedToMe         // Tasks delegated to the user
+      // --- Fetch different task categories ---
+
+      // 1. Tasks directly assigned to the user
+      const directlyAssignedTasks = await this.getTasksAssignedToUser(userId);
+
+      // 2. Tasks created by the user
+      const createdTasks = await this.getTasksCreatedByUser(userId);
+
+      // 3. Tasks delegated BY the user
+      const delegatedByTasks = await this.getTasksDelegatedByUser(userId);
+
+      // 4. Tasks delegated TO the user
+      const delegatedToTasks = await this.getTasksDelegatedToUser(userId);
+
+      // 5. Tasks assigned to the user's departments (if any)
+      let departmentTasks: Task[] = [];
+      if (departmentIds.length > 0) {
+        departmentTasks = await this.getTasksForDepartments(departmentIds);
+      }
+
+      // --- Categorize tasks --- 
+
+      // Helper to check if a task is in a list by ID
+      const isInList = (task: Task, list: Task[]) => list.some(item => item.id === task.id);
+
+      // Start with broad categories and refine
+      const myPersonalTasks = createdTasks.filter(task =>
+          task.type === TaskType.PERSONAL ||
+          (task.type === TaskType.USER && isInList(task, directlyAssignedTasks) && task.assignedToUsers?.length === 1) // Only assigned to self
+      );
+
+      const tasksICreatedForOthers = createdTasks.filter(task =>
+          !isInList(task, myPersonalTasks) // Exclude personal tasks already categorized
+      );
+
+      // Tasks purely assigned to me (not created by me, not personal)
+      const tasksAssignedToMe = directlyAssignedTasks.filter(task =>
+          task.createdById !== userId &&
+          !isInList(task, myPersonalTasks) // Exclude personal tasks
+      );
+
+      // Tasks assigned to my departments (ensure they aren't already counted elsewhere)
+      const tasksAssignedToMyDepartments = departmentTasks.filter(task =>
+          task.createdById !== userId && // Not created by me
+          !isInList(task, directlyAssignedTasks) // Not directly assigned to me
+          // Consider if department tasks assigned *by* me should be excluded? Depends on requirements.
+      );
+
+      const tasksDelegatedByMe = delegatedByTasks;
+      const tasksDelegatedToMe = delegatedToTasks;
+
+      const response = {
+        myPersonalTasks,
+        tasksICreatedForOthers,
+        tasksAssignedToMe,
+        tasksAssignedToMyDepartments, // Added new category
+        tasksDelegatedByMe,
+        tasksDelegatedToMe,
       };
 
+      console.log(`[TasksService] Dashboard data lengths: Personal=${response.myPersonalTasks.length}, Created=${response.tasksICreatedForOthers.length}, Assigned=${response.tasksAssignedToMe.length}, DeptTasks=${response.tasksAssignedToMyDepartments.length}, DelegatedBy=${response.tasksDelegatedByMe.length}, DelegatedTo=${response.tasksDelegatedToMe.length}`);
+
+      return response;
+
     } catch (error) {
-      console.error(`Error fetching dashboard tasks for user ${userId}:`, error);
-      throw new Error(`Failed to fetch dashboard tasks: ${error.message}`);
+      console.error(`[TasksService] Error fetching dashboard tasks for user ${userId}:`, error);
+      throw new Error(`Failed to retrieve dashboard tasks: ${error.message}`);
     }
   }
-  // END: Implement Dashboard Task Fetching
+
+  // --- Helper methods used by getDashboardTasks --- (Existing ones: getTasksAssignedToUser, getTasksCreatedByUser, etc.)
+
+  // NEW Helper method to get tasks for multiple department IDs
+  async getTasksForDepartments(departmentIds: string[]): Promise<Task[]> {
+    if (!departmentIds || departmentIds.length === 0) {
+        return [];
+    }
+    console.log(`[TasksService] Fetching tasks for departments: ${departmentIds.join(', ')}`);
+    try {
+        return await this.tasksRepository.createQueryBuilder('task')
+            .innerJoin('task.assignedToDepartments', 'department')
+            .where('department.id IN (:...departmentIds)', { departmentIds })
+            .leftJoinAndSelect('task.createdBy', 'createdBy')
+            .leftJoinAndSelect('task.assignedToUsers', 'assignedToUsers')
+            .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments_rel') // Re-select for full data
+            .orderBy('task.createdAt', 'DESC')
+            .getMany();
+    } catch (error) {
+        console.error(`[TasksService] Error fetching tasks for departments ${departmentIds.join(', ')}:`, error);
+        return []; // Return empty array on error
+    }
+  }
 
   // START: Implement Specific Task Fetch Methods
   async getTasksAssignedToUser(userId: string): Promise<Task[]> {

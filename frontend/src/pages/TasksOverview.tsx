@@ -35,18 +35,20 @@ import {
   ErrorOutline as ErrorOutlineIcon,
 } from '@mui/icons-material';
 import Sidebar from '../components/Sidebar';
-import { Task, DepartmentRef } from '../types/task';
+import { Task, Department as DepartmentType, TaskStatus, TaskPriority, TaskType, User } from '../types';
 import { TaskService } from '../services/task';
+import { getTasks as getTaskListTasks, deleteTask } from '../services/tasks.service';
 import { DepartmentService } from '../services/department';
 import DepartmentStats from '../components/tasks-overview/DepartmentStats';
 import { UserService } from '../services/user';
 import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
-import { CreateTaskDialog } from '../components/tasks/CreateTaskDialog';
-import { TaskStatus } from '../types/task';
+import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title, TooltipItem } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
+import TaskList from '../components/tasks/TaskList';
+import TaskForm from '../components/tasks/TaskForm';
 
 const DRAWER_WIDTH = 240;
 
@@ -98,8 +100,6 @@ const TasksOverview: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
-
-  // Task statistics
   const [taskStats, setTaskStats] = useState({
     total: 0,
     pending: 0,
@@ -110,6 +110,14 @@ const TasksOverview: React.FC = () => {
     completionRate: 0,
   });
 
+  // --- State for Task List View & Form ---
+  const [taskListTasks, setTaskListTasks] = useState<Task[]>([]);
+  const [taskListLoading, setTaskListLoading] = useState<boolean>(true);
+  const [taskListError, setTaskListError] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  // -------------------------------------
+
   useEffect(() => {
     // Check if user is manager, general manager or admin
     if (user?.role !== 'manager' && user?.role !== 'general_manager' && user?.role !== 'admin') {
@@ -117,6 +125,7 @@ const TasksOverview: React.FC = () => {
     }
     
     fetchData();
+    fetchTaskListData();
   }, [navigate, user?.role]);
 
   const fetchData = async () => {
@@ -134,14 +143,9 @@ const TasksOverview: React.FC = () => {
       setTasks(tasksResponse);
       
       // Process department data
-      const departmentData = departmentsResponse.map((dept: any) => {
+      const departmentData = departmentsResponse.map((dept: DepartmentType) => {
         const deptTasks = tasksResponse.filter((task: Task) => {
-          if (typeof task.department === 'string') {
-            return task.department === dept.id;
-          } else if (task.department && typeof task.department === 'object') {
-            return (task.department as DepartmentRef).id === dept.id;
-          }
-          return false;
+          return task.assignedToDepartmentIds?.includes(dept.id);
         });
         
         const completedTasks = deptTasks.filter((task: Task) => task.status === 'completed').length;
@@ -158,21 +162,31 @@ const TasksOverview: React.FC = () => {
       setDepartmentData(departmentData);
       
       // Process user data
-      const userData = usersResponse.map((u: any) => {
+      const userData = usersResponse.map((u: User) => {
         const userTasks = tasksResponse.filter((task: Task) =>
-          (task.assigned_to && task.assigned_to.includes(u.id.toString())) ||
-          task.created_by === u.id.toString()
+          (task.assignedToUserIds && task.assignedToUserIds.includes(u.id)) || 
+          task.createdById === u.id
         );
         
-        const completedTasks = userTasks.filter((task: Task) => task.status === 'completed').length;
+        const completedTasks = userTasks.filter(task => task.status === TaskStatus.COMPLETED).length;
+        const pendingTasks = userTasks.filter(task => task.status === TaskStatus.PENDING).length;
+        const inProgressTasks = userTasks.filter(task => task.status === TaskStatus.IN_PROGRESS).length;
+        const overdueTasks = userTasks.filter(task => 
+          task.status !== TaskStatus.COMPLETED && 
+          task.dueDate && new Date(task.dueDate) < new Date()
+        ).length;
         
         return {
           id: u.id,
-          name: u.name,
+          name: `${u.first_name} ${u.last_name}`,
           avatar: u.avatar,
           role: u.role || 'user',
           taskCount: userTasks.length,
           completedTasks,
+          pendingTasks,
+          inProgressTasks,
+          overdueTasks,
+          department: u.department?.name || 'N/A',
           completionRate: userTasks.length > 0 ? (completedTasks / userTasks.length) * 100 : 0,
         };
       });
@@ -187,10 +201,11 @@ const TasksOverview: React.FC = () => {
       
       // Calculate overdue tasks
       const now = new Date();
-      const overdue = tasksResponse.filter((task: Task) =>
-        (task.status === 'pending' || task.status === 'in_progress') &&
-        new Date(task.due_date) < now
-      ).length;
+      const overdue = tasksResponse.filter((task: Task) => {
+        const isPendingOrInProgress = task.status === 'pending' || task.status === 'in_progress';
+        const isOverdue = task.dueDate && new Date(task.dueDate) < now;
+        return isPendingOrInProgress && isOverdue;
+      }).length;
       
       setTaskStats({
         total: tasksResponse.length,
@@ -212,6 +227,24 @@ const TasksOverview: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // --- Function to fetch data for TaskList ---
+  const fetchTaskListData = async () => {
+    setTaskListLoading(true);
+    setTaskListError(null);
+    try {
+      // Use the TaskService to get tasks for the list view
+      const data = await TaskService.getTasks();
+      setTaskListTasks(data);
+    } catch (err) {
+      console.error('Error fetching task list data:', err);
+      setTaskListError('Failed to fetch task list');
+      setTaskListTasks([]);
+    } finally {
+      setTaskListLoading(false);
+    }
+  };
+  // -----------------------------------------
 
   const handleLogout = () => {
     navigate('/login');
@@ -247,6 +280,7 @@ const TasksOverview: React.FC = () => {
   
   const handleTaskCreated = async () => {
     await fetchData();
+    await fetchTaskListData();
   };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -309,6 +343,32 @@ const TasksOverview: React.FC = () => {
       ]
     };
   };
+
+  // --- Handlers from Tasks.tsx (adapted) ---
+  const handleEdit = (task: Task) => {
+    setSelectedTask(task);
+    setIsFormOpen(true);
+  };
+
+  const handleAdd = () => {
+    setSelectedTask(null);
+    setIsFormOpen(true);
+  };
+
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setSelectedTask(null);
+  };
+
+  const handleFormSuccess = () => {
+    fetchTaskListData();
+    handleCloseForm();
+  };
+
+  const handleDeletionSuccess = () => {
+    fetchTaskListData();
+  };
+  // ---------------------------------------
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -786,9 +846,6 @@ const TasksOverview: React.FC = () => {
             onClose={() => setCreateTaskDialogOpen(false)}
             onTaskCreated={handleTaskCreated}
             dialogType="assign"
-            initialStatus={TaskStatus.PENDING}
-            dialogMode={selectedDepartment ? 'department' : (selectedUser ? 'user' : undefined)}
-            preSelectedDepartment={selectedDepartment || undefined}
           />
           
           {/* Floating Action Button */}
