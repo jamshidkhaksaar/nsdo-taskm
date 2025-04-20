@@ -109,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
 
   const isManagerOrAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');
-    return role === 'admin' || role === 'general_manager' || role === 'manager';
+    return role === 'admin' || role === 'general_manager' || role === 'manager' || role === 'leadership';
   }, [user?.role]);
 
   const getMenuItemStyles = (isActive: boolean) => ({

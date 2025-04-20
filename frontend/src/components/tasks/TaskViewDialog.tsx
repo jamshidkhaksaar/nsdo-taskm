@@ -217,10 +217,11 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
       );
     }
     if (!task) {
-      console.warn("[TaskViewDialog] Render attempted when task state is null and no error/loading.");
       return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4, minHeight: 200 }}>
-            <Typography variant="body1" color="text.secondary">Task data not available.</Typography>
+            <Typography variant="body1" color="text.secondary">
+                {taskId ? "Task data could not be loaded." : "No task selected."}
+            </Typography>
         </Box>
       );
     }

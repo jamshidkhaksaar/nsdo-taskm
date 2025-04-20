@@ -120,7 +120,7 @@ const TasksOverview: React.FC = () => {
 
   useEffect(() => {
     // Check if user is manager, general manager or admin
-    if (user?.role !== 'manager' && user?.role !== 'general_manager' && user?.role !== 'admin') {
+    if (user?.role !== 'manager' && user?.role !== 'general_manager' && user?.role !== 'admin' && user?.role !== 'leadership') {
       navigate('/dashboard');
     }
     

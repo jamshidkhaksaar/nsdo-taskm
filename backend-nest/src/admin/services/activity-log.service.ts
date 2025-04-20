@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Like, Repository } from 'typeorm';
 import { ActivityLog } from '../entities/activity-log.entity';
-import { User } from '../../users/entities/user.entity';
+import { User, UserRole } from '../../users/entities/user.entity';
 import { Request } from 'express';
 import { Logger } from '@nestjs/common';
 
@@ -87,17 +87,20 @@ export class ActivityLogService {
   /**
    * Get activity logs with filtering and pagination
    */
-  async getLogs(filters: {
-    startDate?: Date;
-    endDate?: Date;
-    action?: string;
-    target?: string;
-    user_id?: string;
-    status?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<{ logs: ActivityLog[]; total: number; page: number; limit: number; totalPages: number }> {
+  async getLogs(
+    filters: {
+      startDate?: Date;
+      endDate?: Date;
+      action?: string;
+      target?: string;
+      user_id?: string;
+      status?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    },
+    requestingUser: User
+  ): Promise<{ logs: ActivityLog[]; total: number; page: number; limit: number; totalPages: number }> {
     const {
       startDate,
       endDate,
@@ -113,35 +116,33 @@ export class ActivityLogService {
     // Build where conditions
     let whereConditions: any = {};
 
-    // Date range filter
-    if (startDate && endDate) {
-      whereConditions.timestamp = Between(startDate, endDate);
-    }
+    // --- Role-Based Access Control ---
+    // Admins and Leadership can see all logs based on filters
+    if (requestingUser.role === UserRole.ADMIN || requestingUser.role === UserRole.LEADERSHIP) {
+        this.logger.log(`[getLogs] User ${requestingUser.id} (${requestingUser.role}) accessing logs with full permissions.`);
+        // Apply filters as requested if they are admin/leadership
+        if (startDate && endDate) whereConditions.timestamp = Between(startDate, endDate);
+        if (action) whereConditions.action = action;
+        if (target) whereConditions.target = target;
+        if (user_id) whereConditions.user_id = user_id; // Allow filtering by specific user
+        if (status) whereConditions.status = status;
+        if (search) whereConditions.details = Like(`%${search}%`);
 
-    // Action filter
-    if (action) {
-      whereConditions.action = action;
-    }
+    } else {
+        // Non-admin/leadership roles can only see their own logs by default
+        this.logger.log(`[getLogs] User ${requestingUser.id} (${requestingUser.role}) accessing logs. Restricting to own logs.`);
+        whereConditions.user_id = requestingUser.id;
 
-    // Target filter
-    if (target) {
-      whereConditions.target = target;
+        // Optionally apply other filters *in addition* to the user restriction
+        if (startDate && endDate) whereConditions.timestamp = Between(startDate, endDate);
+        if (action) whereConditions.action = action;
+        if (target) whereConditions.target = target;
+        // Do NOT allow filtering by a different user_id
+        // if (user_id && user_id !== requestingUser.id) { /* Maybe throw error? */ }
+        if (status) whereConditions.status = status;
+        if (search) whereConditions.details = Like(`%${search}%`);
     }
-
-    // User filter
-    if (user_id) {
-      whereConditions.user_id = user_id;
-    }
-
-    // Status filter
-    if (status) {
-      whereConditions.status = status;
-    }
-
-    // Search filter (search in details)
-    if (search) {
-      whereConditions.details = Like(`%${search}%`);
-    }
+    // --- End Role-Based Access Control ---
 
     // Query with conditions and pagination
     const [logs, total] = await this.activityLogRepository.findAndCount({

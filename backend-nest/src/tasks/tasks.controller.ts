@@ -9,6 +9,8 @@ import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
 import { DelegateTaskDto } from './dto/delegate-task.dto';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -22,6 +24,7 @@ export class TasksController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   findAll(@Query() query, @Request() req) {
     return this.tasksService.findAll(query, req.user);
   }

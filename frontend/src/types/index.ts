@@ -17,6 +17,8 @@ export interface User {
   position?: string;
   date_joined?: string;
   last_login?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface APIError {

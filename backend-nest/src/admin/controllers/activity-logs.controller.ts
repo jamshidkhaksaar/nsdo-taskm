@@ -35,7 +35,7 @@ export class ActivityLogsController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.LEADERSHIP)
   async getLogs(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -77,7 +77,7 @@ export class ActivityLogsController {
 
   @Get('user/:userId')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.LEADERSHIP)
   async getUserLogs(
     @Param('userId') userId: string,
     @Query('page') page?: string,

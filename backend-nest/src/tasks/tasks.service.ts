@@ -157,47 +157,77 @@ export class TasksService {
         .leftJoinAndSelect('task.assignedToUsers', 'assignedToUsers')
         .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments');
 
+      // Apply explicit filters from query string
       if (query.departmentId) {
-        queryBuilder = queryBuilder.andWhere('task.departmentId = :departmentId', { departmentId: query.departmentId });
+        // Ensure correct alias if task is joined with department
+        // Assuming assignedToDepartments relation is correctly joined
+        queryBuilder = queryBuilder.andWhere('assignedToDepartments.id = :departmentId', { departmentId: query.departmentId });
       }
 
       if (query.status) {
         queryBuilder = queryBuilder.andWhere('task.status = :status', { status: query.status });
       }
 
-      if (query.context) {
-        queryBuilder = queryBuilder.andWhere('task.context = :context', { context: query.context });
-      }
+      // Removed context filter as it's not part of Task entity currently
+      // if (query.context) {
+      //   queryBuilder = queryBuilder.andWhere('task.context = :context', { context: query.context });
+      // }
 
       const includeAll = query.include_all === 'true' || query.include_all === true;
 
-      if (user.role === UserRole.MANAGER || user.role === UserRole.GENERAL_MANAGER) {
+      // --- Role-Based Filtering Logic ---
+      if (user.role === UserRole.LEADERSHIP) {
+        // Leadership sees all tasks, respecting only query filters applied above
+        console.log(`User role is LEADERSHIP. Fetching all tasks respecting query filters.`);
+      } else if (user.role === UserRole.ADMIN) {
+        // Admins also see all tasks, respecting only query filters applied above
+        console.log(`User role is ADMIN. Fetching all tasks respecting query filters.`);
+      } else if (user.role === UserRole.MANAGER || user.role === UserRole.GENERAL_MANAGER) {
+        // Manager/GM specific logic (seems complex, verify if still needed/correct)
+        // This part might need review based on actual requirements for managers
         if (query.task_type === 'my_tasks' && !includeAll) {
           queryBuilder = queryBuilder.andWhere('task.createdById = :userId', { userId: user.userId });
         } else if (query.task_type === 'assigned' && !includeAll) {
-          queryBuilder = queryBuilder.andWhere('task.id IN (SELECT task_id FROM task_assignees WHERE user_id = :userId)', { userId: user.userId });
+           // Check both direct user assignment and department assignment
+           queryBuilder = queryBuilder.andWhere(
+               '(assignedToUsers.id = :userId OR assignedToDepartments.id IN (SELECT department_id FROM user_departments WHERE user_id = :userId))',
+               { userId: user.userId }
+           );
+        } else {
+           // If include_all or no specific type, show all they can manage?
+           // This needs clarification - for now, let's assume they see tasks created by them,
+           // assigned to them, or assigned to their departments.
+           queryBuilder = queryBuilder.andWhere(
+               '(task.createdById = :userId OR assignedToUsers.id = :userId OR assignedToDepartments.id IN (SELECT department_id FROM user_departments WHERE user_id = :userId))',
+               { userId: user.userId }
+           );
         }
-      } else if (user.role === UserRole.ADMIN) {
-        // Admins can see everything but typically use admin panel
-        // No additional filters needed
+        console.log(`User role is ${user.role}. Applying manager filters.`);
       } else {
+        // Default User Role
         if (query.task_type === 'my_tasks') {
           queryBuilder = queryBuilder.andWhere('task.createdById = :userId', { userId: user.userId });
         } else if (query.task_type === 'assigned') {
-          queryBuilder = queryBuilder.andWhere('task.id IN (SELECT task_id FROM task_assignees WHERE user_id = :userId)', { userId: user.userId });
+          // User sees tasks directly assigned to them
+          queryBuilder = queryBuilder.andWhere('assignedToUsers.id = :userId', { userId: user.userId });
         } else {
+          // Default: User sees tasks created by them OR assigned to them
           queryBuilder = queryBuilder.andWhere(
-            '(task.createdById = :userId OR task.id IN (SELECT task_id FROM task_assignees WHERE user_id = :userId))',
+            '(task.createdById = :userId OR assignedToUsers.id = :userId)',
             { userId: user.userId }
           );
         }
+         console.log(`User role is USER. Applying standard user filters.`);
       }
+      // --- End Role-Based Filtering ---
 
       const tasks = await queryBuilder.getMany();
-      console.log(`Found ${tasks.length} tasks with relations loaded`);
+      console.log(`Found ${tasks.length} tasks with relations loaded for user ${user.userId} (${user.role})`);
       return tasks;
     } catch (error) {
       console.error('Error finding tasks:', error);
+      // Consider throwing an error instead of returning empty array
+      // throw new InternalServerErrorException('Failed to fetch tasks.');
       return [];
     }
   }

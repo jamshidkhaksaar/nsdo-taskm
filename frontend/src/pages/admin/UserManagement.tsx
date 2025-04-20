@@ -97,7 +97,7 @@ interface AdminUser {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'admin' | 'manager' | 'user';
+  role: 'admin' | 'manager' | 'user' | 'leadership';
   status: 'active' | 'inactive';
   position: string;
   department?: {
@@ -267,7 +267,7 @@ const UserManagement: React.FC = () => {
           first_name: formData.first_name,
           last_name: formData.last_name,
           position: formData.position,
-          role: formData.role as 'admin' | 'manager' | 'user'
+          role: formData.role as 'admin' | 'manager' | 'user' | 'leadership'
         };
         
         // Only include department if one is selected
@@ -290,7 +290,7 @@ const UserManagement: React.FC = () => {
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          role: formData.role as 'admin' | 'manager' | 'user',
+          role: formData.role as 'admin' | 'manager' | 'user' | 'leadership',
           position: formData.position,
           department: formData.department ? { id: formData.department, name: '' } : null,
           status: 'active' as const // Specify status as a literal type
@@ -698,16 +698,15 @@ const UserManagement: React.FC = () => {
               <FormControl fullWidth required>
                 <InputLabel sx={glassStyles.inputLabel}>Role</InputLabel>
                 <Select
+                  labelId="role-select-label"
+                  id="role-select"
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   label="Role"
-                  sx={{
-                    '& .MuiOutlinedInput-root': glassStyles.input,
-                    ...glassStyles.input
-                  }}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 >
-                  <MenuItem value="user">User</MenuItem>
                   <MenuItem value="admin">Admin</MenuItem>
+                  <MenuItem value="user">User</MenuItem>
+                  <MenuItem value="leadership">Leadership</MenuItem>
                 </Select>
               </FormControl>
               <FormControl fullWidth>
