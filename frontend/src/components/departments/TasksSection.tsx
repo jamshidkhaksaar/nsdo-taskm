@@ -48,7 +48,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
 }) => {
   const [userCache, setUserCache] = useState<Record<string, string>>({});
   
-  // Use provided grouped tasks or filter from main tasks array
+  // Use provided grouped tasks or filter directly from the main tasks prop
   const upcomingTasks = propsUpcomingTasks || 
     (tasks ? tasks.filter(task => 
       task.status === 'pending' && 

@@ -36,8 +36,8 @@ const ensureStringId = (id: string | number): string => {
 
 // Standardize task data received from API
 const standardizeTask = (data: any): Task => {
-    if (!data) {
-        console.error("standardizeTask received null or undefined data");
+    if (!data || !data.id) { // Also check for id to ensure it's somewhat valid data
+        console.error("standardizeTask received invalid data (null, undefined, or missing id):", data);
         // Return a valid Task object with default/placeholder values
         return {
             id: 'invalid-' + Date.now(),
@@ -45,13 +45,12 @@ const standardizeTask = (data: any): Task => {
             description: '',
             status: TaskStatus.PENDING,
             priority: TaskPriority.MEDIUM,
-            type: TaskType.PERSONAL, // Default type
+            type: TaskType.PERSONAL,
             dueDate: null,
-            createdAt: new Date().toISOString(), // Default timestamp
-            updatedAt: new Date().toISOString(), // Default timestamp
-            createdById: 'unknown_user', // Default creator
-            isDelegated: false, // Default delegation status
-            // Optional fields can be omitted or set to null/empty arrays
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            createdById: 'unknown_user',
+            isDelegated: false,
             assignedToUserIds: [],
             assignedToUsers: [],
             assignedToDepartmentIds: [],
@@ -65,29 +64,69 @@ const standardizeTask = (data: any): Task => {
          };
     }
 
+    const taskIdForLog = data.id || 'unknown';
+    console.log(`[standardizeTask ${taskIdForLog}] Raw data:`, data); // Log raw input
+
     // Robustly map all possible field names for dashboard columns
     const rawCreatedById = data.createdById || data.created_by || data.created_by_id || null;
     const createdById = rawCreatedById ? ensureStringId(rawCreatedById) : 'unknown_user'; // Ensure string, default if null
-    
-    // Prefer department object if available, fallback to string or null
-    // Removed department logic as it's not directly part of the Task interface
-    // It's handled via assignedToDepartments or other relations
-    
-    const assignedToDepartmentIds = data.assignedToDepartmentIds || data.assigned_to_departments || null;
+
     const assignedToProvinceId = data.assignedToProvinceId || data.assigned_to_province_id || null;
     const assignedToUsersData = data.assignedToUsers || data.assigned_to_users || [];
     // Accept both array of user objects or array of user IDs for assignedToUsers
     const assignedToUsersNormalized = Array.isArray(assignedToUsersData)
-        ? assignedToUsersData.map(u => typeof u === 'object' ? u : { id: ensureStringId(u) }) // Ensure user object structure with string ID
+        ? assignedToUsersData.map(u => typeof u === 'object' && u !== null && u.id ? { ...u, id: ensureStringId(u.id) } : { id: ensureStringId(u) }) // Ensure user object structure with string ID
         : [];
     const assignedToUserIds = assignedToUsersNormalized.map(u => u.id);
 
-    // Similarly handle assigned departments if provided as objects or IDs
-    const assignedToDepartmentsData = data.assignedToDepartments || data.assigned_to_departments || [];
-    const assignedToDepartmentsNormalized = Array.isArray(assignedToDepartmentsData)
-        ? assignedToDepartmentsData.map(d => typeof d === 'object' ? d : { id: ensureStringId(d) })
-        : [];
-    // assignedToDepartmentIds already derived above, ensure consistency or use this
+
+    // --- Improved Department ID Handling ---
+    let finalAssignedToDepartmentIds: string[] = [];
+    let finalAssignedToDepartments: Department[] = []; // Store department objects if available
+
+    const rawDeptIds = data.assignedToDepartmentIds;
+    const rawDeptObjs = data.assignedToDepartments || data.assigned_to_departments;
+
+    console.log(`[standardizeTask ${taskIdForLog}] Raw Dept IDs:`, rawDeptIds);
+    console.log(`[standardizeTask ${taskIdForLog}] Raw Dept Objs:`, rawDeptObjs);
+
+    if (Array.isArray(rawDeptIds) && rawDeptIds.length > 0 && rawDeptIds.every(id => typeof id === 'string' || typeof id === 'number')) {
+        // Priority 1: Use assignedToDepartmentIds if it's a valid array of IDs
+        finalAssignedToDepartmentIds = rawDeptIds.map(ensureStringId);
+        console.log(`[standardizeTask ${taskIdForLog}] Using assignedToDepartmentIds directly.`);
+        // Attempt to populate finalAssignedToDepartments if rawDeptObjs exists and matches IDs
+        if (Array.isArray(rawDeptObjs)) {
+             finalAssignedToDepartments = rawDeptObjs
+                .filter(d => typeof d === 'object' && d !== null && d.id && finalAssignedToDepartmentIds.includes(ensureStringId(d.id)))
+                .map(d => ({ ...d, id: ensureStringId(d.id) })); // Ensure IDs are strings
+        }
+
+    } else if (Array.isArray(rawDeptObjs) && rawDeptObjs.length > 0) {
+        // Priority 2: Use assignedToDepartments (array of objects or IDs)
+        console.log(`[standardizeTask ${taskIdForLog}] Using assignedToDepartments/assigned_to_departments.`);
+         finalAssignedToDepartments = rawDeptObjs
+            .map(d => {
+                if (typeof d === 'object' && d !== null && d.id) {
+                    return { ...d, id: ensureStringId(d.id) }; // It's an object with an ID
+                } else if (typeof d === 'string' || typeof d === 'number') {
+                    return { id: ensureStringId(d) }; // It's just an ID, create a basic object
+                }
+                return null; // Invalid department data
+            })
+            .filter((d): d is Department => d !== null); // Filter out nulls and assert type
+
+        finalAssignedToDepartmentIds = finalAssignedToDepartments.map(d => d.id);
+
+    } else {
+        // Fallback: No valid department assignments found
+        console.warn(`[standardizeTask ${taskIdForLog}] No valid department assignments found in assignedToDepartmentIds or assignedToDepartments.`);
+        finalAssignedToDepartmentIds = [];
+        finalAssignedToDepartments = [];
+    }
+     console.log(`[standardizeTask ${taskIdForLog}] Final Dept IDs:`, finalAssignedToDepartmentIds);
+     console.log(`[standardizeTask ${taskIdForLog}] Final Dept Objs:`, finalAssignedToDepartments);
+    // --- End Improved Department ID Handling ---
+
 
     const task: Task = {
         id: ensureStringId(data.id),
@@ -99,27 +138,21 @@ const standardizeTask = (data: any): Task => {
         dueDate: data.dueDate || data.due_date || null,
         createdAt: data.createdAt || data.created_at || new Date().toISOString(), // Default if missing
         updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(), // Default if missing
-        createdById: createdById, // Now guaranteed to be string
+        createdById: createdById,
         isDelegated: data.isDelegated !== undefined ? data.isDelegated : false, // Default if missing
-        // Assign normalized arrays/IDs
-        assignedToUserIds: assignedToUserIds, // Array of IDs
-        assignedToUsers: assignedToUsersNormalized, // Array of User stubs/objects
-        assignedToDepartmentIds: assignedToDepartmentsNormalized.map(d => d.id), // Array of IDs
-        assignedToDepartments: assignedToDepartmentsNormalized, // Array of Dept stubs/objects
-        assignedToProvinceId: assignedToProvinceId, // string | null
-        assignedToProvince: data.assignedToProvince || null, // Province | null
+
+        // Assign final derived arrays/IDs
+        assignedToUserIds: assignedToUserIds,
+        assignedToUsers: assignedToUsersNormalized,
+        assignedToDepartmentIds: finalAssignedToDepartmentIds, // Use the robustly derived IDs
+        assignedToDepartments: finalAssignedToDepartments,     // Use the derived objects
+        assignedToProvinceId: assignedToProvinceId,
+        assignedToProvince: data.assignedToProvince || null,
         delegatedFromTaskId: data.delegatedFromTaskId || null,
         delegatedFromTask: data.delegatedFromTask || null,
         delegatedByUserId: data.delegatedByUserId ? ensureStringId(data.delegatedByUserId) : null,
         delegatedBy: data.delegatedBy || null,
-        // Remove legacy fields if they existed
-        // departmentId: data.departmentId || data.department_id || null, // Removed as it's not in Task type
-        // context: data.context, // Removed unless added back to Task type
-        // created_by: data.created_by ? ensureStringId(data.created_by) : undefined, // Removed, use createdById
     };
-
-    // Clean up potential undefined issues (optional)
-    // Object.keys(task).forEach(key => task[key] === undefined && delete task[key]);
 
     return task;
 };
@@ -132,14 +165,31 @@ export const TaskService = {
     // Get all tasks with enhanced filtering for different user roles
     getTasks: async (params: GetTasksParams = {}): Promise<Task[]> => {
         try {
-            // Add support for role-based filtering
-            const response = await apiClient.get<any[]>('/tasks/', { params });
-            console.log('Tasks fetched from API:', response);
+            const response = await apiClient.get<any>('/tasks/', { params }); // Expect 'any' initially
+            console.log('[TaskService.getTasks] API Response:', response);
+
+            // --- Check if response.data is an array ---
+            let tasksData: any[] = [];
+            if (Array.isArray(response.data)) {
+                tasksData = response.data;
+            } else if (response.data && typeof response.data === 'object') {
+                 // Attempt to find tasks if response is an object (e.g., { tasks: [...] } or paginated)
+                 if (Array.isArray(response.data.tasks)) {
+                     tasksData = response.data.tasks;
+                 } else if (Array.isArray(response.data.results)) { // Common pagination pattern
+                     tasksData = response.data.results;
+                 } else {
+                     console.warn('[TaskService.getTasks] API response data is an object but does not contain a known tasks array (e.g., .tasks, .results). Treating as empty.');
+                 }
+            } else {
+                 console.warn('[TaskService.getTasks] API response data is not an array or a recognized object structure. Treating as empty.');
+            }
+             console.log('[TaskService.getTasks] Extracted tasks data for mapping:', tasksData);
 
             // Map backend data to standardized frontend Task objects
-            const mappedTasks = response.data.map(standardizeTask);
+            const mappedTasks = tasksData.map(standardizeTask);
 
-            console.log('Mapped tasks in TaskService:', mappedTasks);
+            console.log('[TaskService.getTasks] Mapped tasks:', mappedTasks);
             return mappedTasks;
         } catch (error) {
             console.error('Error fetching tasks:', error);
@@ -152,7 +202,7 @@ export const TaskService = {
         try {
             // Convert departmentId to string for consistent handling
             const stringDepartmentId = ensureStringId(departmentId);
-            const response = await apiClient.get<Task[]>(`/tasks/?department=${stringDepartmentId}`);
+            const response = await apiClient.get<any[]>(`/tasks/`, { params: { department_id: stringDepartmentId } });
             return response.data.map(standardizeTask);
         } catch (error) {
             console.error('Error fetching tasks by department:', error);

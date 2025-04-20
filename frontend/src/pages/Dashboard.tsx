@@ -15,6 +15,8 @@ import PersonIcon from '@mui/icons-material/Person';
 import BusinessIcon from '@mui/icons-material/Business';         
 import ForwardIcon from '@mui/icons-material/Forward';           
 import SendIcon from '@mui/icons-material/Send';                 
+import Chip from '@mui/material/Chip'; // Import Chip
+import Stack from '@mui/material/Stack'; // Import Stack for layout
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 // Custom Components
@@ -837,95 +839,119 @@ const Dashboard: React.FC = () => {
                     </>
                   ) : (
                     // Map over ordered sections
-                    orderedSections.map((section, index) => (
-                      <Draggable key={section.id} draggableId={section.id} index={index}>
-                        {(providedDraggable) => (
-                          <Paper
-                            ref={providedDraggable.innerRef as React.RefObject<HTMLDivElement>}
-                            {...providedDraggable.draggableProps}
-                            elevation={0}
-                            sx={{ 
-                              background: section.color, 
-                              borderRadius: 2,
-                              border: '1px solid rgba(255, 255, 255, 0.1)',
-                            }}
-                          >
-                            {/* Section Header */}
-                            <Box 
-                              sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                p: 1, 
-                                cursor: 'pointer',
-                                borderBottom: collapsedSections[section.id] ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'
-                              }}
-                              onClick={() => handleToggleCollapse(section.id)}
-                            >
-                              {/* Drag Handle */}
-                              <Box 
-                                {...providedDraggable.dragHandleProps} 
-                                sx={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.4)', mr: 1, cursor: 'grab' }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <DragIndicatorIcon fontSize='small' />
-                              </Box>
-                              {/* Icon + Title */}
-                              <Typography variant="h6" sx={{ color: '#fff', flexGrow: 1, fontSize: '1rem', display: 'flex', alignItems: 'center' }}>
-                                {section.id === 'assigned' && <AssignmentIndIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
-                                {section.id === 'myDepartments' && <BusinessIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
-                                {section.id === 'created' && <CreateIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
-                                {section.id === 'personal' && <PersonIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
-                                {section.id === 'delegatedTo' && <ForwardIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
-                                {section.id === 'delegatedBy' && <SendIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
-                                {section.title}
-                              </Typography>
-                              {/* Action Buttons Container (Corrected Closing Tag) */}
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                {section.id === 'personal' && section.showAddButton && (
-                                  <Tooltip title="Add Personal Task">
-                                    <IconButton 
-                                       size="small"
-                                       onClick={(e) => { 
-                                          e.stopPropagation(); 
-                                          handleOpenCreateTaskDialog();
-                                       }}
-                                       sx={{ color: '#fff', mr: 1 }}
-                                    >
-                                      <AddIcon fontSize='small'/>
-                                    </IconButton>
-                                  </Tooltip>
-                                )}
-                                {/* Collapse Toggle Icon */}
-                                <IconButton 
-                                  size="small" 
-                                  onClick={(e) => { 
-                                    e.stopPropagation();
-                                    handleToggleCollapse(section.id);
-                                  }}
-                                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                                >
-                                  {collapsedSections[section.id] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
-                                </IconButton>
-                              </Box>
-                            </Box>
+                    orderedSections.map((section, index) => {
+                      // --- Calculate Status Counts ---
+                      const counts = section.tasks.reduce((acc, task) => {
+                        acc[task.status] = (acc[task.status] || 0) + 1;
+                        return acc;
+                      }, {} as Record<TaskStatus, number>);
+                      // --- End Calculate Status Counts ---
 
-                            {/* Collapsible Content */}
-                            <Collapse in={!collapsedSections[section.id]} timeout="auto" unmountOnExit>
-                              <Box sx={{ p: 1 }}>
-                                <TasksSection
-                                  tasks={section.tasks}
-                                  currentUserId={user?.id ? Number(user.id) : 0}
-                                  currentDepartmentId={0}
-                                  viewMode="user"
-                                  onTaskClick={handleViewTask}
-                                  onTaskUpdated={handleTaskUpdated}
-                                />
+                      return (
+                        <Draggable key={section.id} draggableId={section.id} index={index}>
+                          {(providedDraggable) => (
+                            <Paper
+                              ref={providedDraggable.innerRef as React.RefObject<HTMLDivElement>}
+                              {...providedDraggable.draggableProps}
+                              elevation={0}
+                              sx={{
+                                background: section.color,
+                                borderRadius: 2,
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                              }}
+                            >
+                              {/* Section Header */}
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  p: 1,
+                                  cursor: 'pointer',
+                                  borderBottom: collapsedSections[section.id] ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'
+                                }}
+                                onClick={() => handleToggleCollapse(section.id)}
+                              >
+                                {/* Drag Handle */}
+                                <Box
+                                  {...providedDraggable.dragHandleProps}
+                                  sx={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.4)', mr: 1, cursor: 'grab' }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <DragIndicatorIcon fontSize='small' />
+                                </Box>
+                                {/* Icon + Title */}
+                                <Typography variant="h6" sx={{ color: '#fff', flexGrow: 1, fontSize: '1rem', display: 'flex', alignItems: 'center' }}>
+                                  {section.id === 'assigned' && <AssignmentIndIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                  {section.id === 'myDepartments' && <BusinessIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                  {section.id === 'created' && <CreateIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                  {section.id === 'personal' && <PersonIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                  {section.id === 'delegatedTo' && <ForwardIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                  {section.id === 'delegatedBy' && <SendIcon sx={{ mr: 1, verticalAlign: 'bottom', fontSize: '1.1rem' }} />}
+                                  {section.title}
+                                </Typography>
+                                {/* Status Counts Chips */}
+                                <Stack direction="row" spacing={0.5} sx={{ mr: 1, ml: 1 }}>
+                                  {counts[TaskStatus.PENDING] > 0 && (
+                                    <Chip label={counts[TaskStatus.PENDING]} color="warning" size="small" sx={{ height: '20px', fontSize: '0.7rem' }} title="Pending"/>
+                                  )}
+                                  {counts[TaskStatus.IN_PROGRESS] > 0 && (
+                                    <Chip label={counts[TaskStatus.IN_PROGRESS]} color="info" size="small" sx={{ height: '20px', fontSize: '0.7rem' }} title="In Progress"/>
+                                  )}
+                                  {counts[TaskStatus.COMPLETED] > 0 && (
+                                    <Chip label={counts[TaskStatus.COMPLETED]} color="success" size="small" sx={{ height: '20px', fontSize: '0.7rem' }} title="Completed"/>
+                                  )}
+                                  {counts[TaskStatus.CANCELLED] > 0 && (
+                                     <Chip label={counts[TaskStatus.CANCELLED]} color="default" size="small" sx={{ height: '20px', fontSize: '0.7rem', bgcolor: 'grey.600', color: '#fff' }} title="Cancelled"/>
+                                  )}
+                                </Stack>
+                                {/* Action Buttons Container (Corrected Closing Tag) */}
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  {section.id === 'personal' && section.showAddButton && (
+                                    <Tooltip title="Add Personal Task">
+                                      <IconButton 
+                                         size="small"
+                                         onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            handleOpenCreateTaskDialog();
+                                         }}
+                                         sx={{ color: '#fff', mr: 1 }}
+                                      >
+                                        <AddIcon fontSize='small'/>
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                  {/* Collapse Toggle Icon */}
+                                  <IconButton 
+                                    size="small" 
+                                    onClick={(e) => { 
+                                      e.stopPropagation();
+                                      handleToggleCollapse(section.id);
+                                    }}
+                                    sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                                  >
+                                    {collapsedSections[section.id] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                                  </IconButton>
+                                </Box>
                               </Box>
-                            </Collapse>
-                          </Paper>
-                        )}
-                      </Draggable>
-                    ))
+
+                              {/* Collapsible Content */}
+                              <Collapse in={!collapsedSections[section.id]} timeout="auto" unmountOnExit>
+                                <Box sx={{ p: 1 }}>
+                                  <TasksSection
+                                    tasks={section.tasks}
+                                    currentUserId={user?.id ? Number(user.id) : 0}
+                                    currentDepartmentId={0}
+                                    viewMode="user"
+                                    onTaskClick={handleViewTask}
+                                    onTaskUpdated={handleTaskUpdated}
+                                  />
+                                </Box>
+                              </Collapse>
+                            </Paper>
+                          )}
+                        </Draggable>
+                      );
+                    })
                   )}
                   {provided.placeholder}
                 </Box>
