@@ -157,6 +157,16 @@ const standardizeTask = (data: any): Task => {
     return task;
 };
 
+// Explicitly define the structure for counts response
+export interface TaskStatusCountsResponse {
+  pending: number;
+  in_progress: number;
+  completed: number;
+  cancelled: number;
+  // We use string keys here because TaskStatus enum values aren't literal types for indexing
+  // The backend should return keys matching these strings (or TaskStatus enum values)
+}
+
 export const TaskService = {
     // Add helper functions to the TaskService object for compatibility
     standardizeTask,
@@ -285,7 +295,7 @@ export const TaskService = {
             const response = await apiClient.patch(`/tasks/${taskId}/`, apiUpdates);
             return standardizeTask(response.data);
         } catch (error) {
-            console.error('Error in updateTask:', error);
+            console.error(`Error updating task ${taskId}:`, error);
             throw error;
         }
     },
@@ -311,12 +321,11 @@ export const TaskService = {
                 user_id: stringUserId
             });
 
-            console.log('Task assignment response:', response);
-
             // Standardize the task object
             return standardizeTask(response);
         } catch (error) {
-            console.error('Error assigning task:', error);
+            // Retain essential error logging
+            console.error(`Error assigning task ${taskId} to user ${userId}:`, error);
             throw error;
         }
     },
@@ -403,16 +412,11 @@ export const TaskService = {
     // Example: Ensure fetchTasks uses it
     async fetchTasks(): Promise<Task[]> {
         try {
-            console.log('Fetching tasks from API...');
             const response: AxiosResponse<any[]> = await apiClient.get('/tasks');
-            console.log('API response for tasks:', response.data);
-            console.log('Response status:', response.status);
 
             if (response.status === 200) {
                 const tasks = response.data;
-                console.log(`Received ${tasks.length} tasks from API`);
                 const mappedTasks = tasks.map(standardizeTask);
-                console.log('Mapped tasks:', mappedTasks);
                 return mappedTasks;
             }
             return [];
@@ -523,6 +527,53 @@ export const TaskService = {
         } catch (error) {
             console.error(`Error cancelling task ${stringTaskId}:`, error);
             throw error;
+        }
+    },
+
+    // NEW method to fetch task counts by status for a department
+    getTaskCountsByStatusForDepartment: async (departmentId: string): Promise<{ [key in TaskStatus]?: number }> => {
+        if (!departmentId) {
+            console.warn('[TaskService] getTaskCountsByStatusForDepartment called without departmentId');
+            // Return default counts with string keys
+            return {
+                pending: 0,
+                in_progress: 0,
+                completed: 0,
+                cancelled: 0,
+            };
+        }
+        try {
+            const response = await apiClient.get<{ [key in TaskStatus]?: number }>(`/tasks/counts/by-status/department/${departmentId}`);
+            console.log(`[TaskService] Received task counts for department ${departmentId}:`, response.data);
+            // Ensure the response matches the expected structure
+            return response.data;
+        } catch (error: any) {
+            console.error(`[TaskService] Error fetching task counts for department ${departmentId}:`, error);
+            throw new Error(`Failed to fetch task counts: ${error.response?.data?.message || error.message}`);
+        }
+    },
+
+    // NEW method to fetch task counts by status for a user
+    getTaskCountsByStatusForUser: async (userId: string): Promise<TaskStatusCountsResponse> => {
+        if (!userId) {
+            console.warn('[TaskService] getTaskCountsByStatusForUser called without userId');
+            // Return default counts with string keys
+            return {
+                pending: 0,
+                in_progress: 0,
+                completed: 0,
+                cancelled: 0,
+            };
+        }
+        try {
+            console.log(`[TaskService] Fetching task counts for user ID: ${userId}`);
+            const response = await apiClient.get<TaskStatusCountsResponse>(`/tasks/counts/by-status/user/${userId}`);
+            console.log(`[TaskService] Received task counts for user ${userId}:`, response.data);
+            // Ensure the response matches the expected structure
+            return response.data;
+        } catch (error: any) {
+            console.error(`[TaskService] Error fetching task counts for user ${userId}:`, error);
+            throw new Error(`Failed to fetch user task counts: ${error.response?.data?.message || error.message}`);
         }
     },
 };

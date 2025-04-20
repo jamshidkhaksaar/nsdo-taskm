@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { VitePWA } from 'vite-plugin-pwa';
+import tailwindcssPostcss from '@tailwindcss/postcss';
+import autoprefixer from 'autoprefixer';
 
 export default defineConfig({
   plugins: [
@@ -37,6 +39,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+    },
+  },
+  css: {
+    postcss: {
+      plugins: [
+        tailwindcssPostcss(),
+        autoprefixer(),
+      ],
     },
   },
   server: {

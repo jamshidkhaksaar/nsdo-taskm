@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, ManyToMany, JoinTable, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Department } from '../../departments/entities/department.entity';
 import { Province } from '../../provinces/entities/province.entity';
@@ -8,7 +8,8 @@ export enum TaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
+  DELEGATED = 'delegated'
 }
 
 export enum TaskPriority {
@@ -113,6 +114,16 @@ export class Task {
   @ManyToOne(() => Task, { nullable: true, eager: false, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'delegatedFromTaskId' })
   delegatedFromTask: Task | null;
+
+  @OneToOne(() => Task, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'delegatedToTaskId' })
+  delegatedToTask?: Task;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  delegatedToTaskId: string | null;
 }
 
 

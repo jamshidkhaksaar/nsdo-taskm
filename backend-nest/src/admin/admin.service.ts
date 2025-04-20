@@ -29,7 +29,7 @@ export class AdminService {
     private activityLogService: ActivityLogService,
   ) {}
 
-  async getDashboardStats() {
+  async getDashboardStats(requestingUser: User) {
     try {
       // Basic entity counts
       const [
@@ -89,7 +89,7 @@ export class AdminService {
       }));
 
       // Get recent activity logs
-      const recentActivities = await this.getRecentActivities();
+      const recentActivities = await this.getRecentActivities(requestingUser);
 
       // Calculate system health metrics
       const systemHealth = await this.getBasicSystemHealth();
@@ -149,13 +149,10 @@ export class AdminService {
   }
 
   // Get recent activity logs
-  private async getRecentActivities() {
+  private async getRecentActivities(requestingUser: User) {
     try {
-      // Get recent activities (last 20)
-      const logs = await this.activityLogService.getLogs({
-        limit: 10,
-        page: 0
-      });
+      // Get recent activities (last 10)
+      const logs = await this.activityLogService.getLogs({ limit: 10, page: 0 }, requestingUser);
       
       // Transform the logs to ensure user objects are properly serialized
       return logs.logs.map(log => ({
@@ -436,8 +433,8 @@ export class AdminService {
     });
   }
 
-  async getActivityLogs(filters: any) {
-    return this.activityLogService.getLogs(filters);
+  async getActivityLogs(filters: any, requestingUser: User) {
+    return this.activityLogService.getLogs(filters, requestingUser);
   }
 
   async clearAllLogs() {
@@ -535,7 +532,7 @@ export class AdminService {
     return { success: true, message: 'Backup deleted successfully' };
   }
 
-  async getSystemHealth() {
+  async getSystemHealth(requestingUser: User) {
     try {
       // Get database status with tables count
       const dbStatus = {
@@ -544,7 +541,7 @@ export class AdminService {
           users: await this.usersRepository.count(),
           departments: await this.departmentsRepository.count(),
           tasks: await this.tasksRepository.count(),
-          logs: await this.activityLogService.getLogs({}).then(logs => logs.total)
+          logs: await this.activityLogService.getLogs({}, requestingUser).then(logs => logs.total)
         }
       };
 
@@ -576,12 +573,18 @@ export class AdminService {
         }
       };
 
-      // Get recent errors from activity logs (last 10 errors)
+      // Fetch recent logs (assuming this method now requires the user)
       const recentErrors = await this.activityLogService.getLogs({
+        limit: 5,
+        page: 0,
         status: 'error',
-        limit: 10
-      }).then(logs => logs.logs);
+      }, requestingUser);
       
+      // Fetch total log count (assuming this method now requires the user)
+      const logStats = {
+          total: await this.activityLogService.getLogs({}, requestingUser).then(logs => logs.total),
+      };
+
       // Generate endpoint statuses by checking database connectivity
       const apiEndpoints = [
         { name: 'Authentication', path: '/api/auth', status: 'operational' },
@@ -625,7 +628,9 @@ export class AdminService {
           port: process.env.PORT || 3001,
           dbType: process.env.DB_TYPE || 'mysql',
           appVersion: process.env.APP_VERSION || '1.0.0'
-        }
+        },
+        logStats,
+        recentErrors
       };
     } catch (error) {
       console.error('Error getting system health:', error);

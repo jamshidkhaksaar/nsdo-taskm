@@ -17,6 +17,7 @@ import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { useNavigate } from 'react-router-dom';
 import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
+import { MagicCard } from "@/components/magicui/magic-card";
 
 const DRAWER_WIDTH = 240;
 
@@ -116,33 +117,35 @@ const ProvincesPage: React.FC = () => {
                             <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Select Province</Typography>
                             <List component="nav" dense>
                                 {provinces.map((province) => (
-                                    <ListItem
-                                        button
+                                    <MagicCard
                                         key={province.id}
-                                        selected={selectedProvince?.id === province.id}
-                                        onClick={() => handleProvinceSelect(province)}
-                                        sx={{
-                                            borderRadius: 1,
-                                            mb: 1,
-                                            '&.Mui-selected': {
-                                                backgroundColor: 'rgba(255, 255, 255, 0.16)',
-                                                '&:hover': {
-                                                    backgroundColor: 'rgba(255, 255, 255, 0.24)',
-                                                }
-                                            },
-                                            '&:hover': {
-                                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                            }
-                                        }}
+                                        className="mb-1 rounded-lg"
+                                        gradientSize={100}
                                     >
-                                        <ListItemText 
-                                            primary={province.name} 
+                                        <ListItem
+                                            button
+                                            selected={selectedProvince?.id === province.id}
+                                            onClick={() => handleProvinceSelect(province)}
                                             sx={{
-                                                '.MuiListItemText-primary': { color: '#fff' },
-                                                '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
+                                                borderRadius: 1,
+                                                backgroundColor: 'transparent !important',
+                                                '&.Mui-selected': {
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.16) !important',
+                                                },
+                                                '&:hover': {
+                                                    backgroundColor: 'transparent !important',
+                                                }
                                             }}
-                                        />
-                                    </ListItem>
+                                        >
+                                            <ListItemText
+                                                primary={province.name}
+                                                sx={{
+                                                    '.MuiListItemText-primary': { color: '#fff' },
+                                                    '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
+                                                }}
+                                            />
+                                        </ListItem>
+                                    </MagicCard>
                                 ))}
                                 {provinces.length === 0 && (
                                     <ListItem>

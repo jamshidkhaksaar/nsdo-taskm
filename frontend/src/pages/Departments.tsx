@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useQuery } from 'react-query';
+import { useQuery, useQueries } from 'react-query';
 import {
   Box,
   Container,
@@ -29,7 +29,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import Sidebar from '../components/Sidebar';
 import DepartmentList from '../components/departments/DepartmentList';
 import TasksSection from '../components/departments/TasksSection';
-import { Task, TaskStatus, Department } from '@/types/index';
+import { Task, TaskStatus, Department, TaskStatusCountsResponse } from '@/types/index';
 import { DepartmentService } from '../services/department';
 import { TaskService } from '../services/task';
 import { RootState } from '../store';
@@ -51,11 +51,7 @@ const Departments: React.FC = () => {
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   // State for data
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [topPerformers, setTopPerformers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   
   // State for task dialog
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
@@ -72,10 +68,8 @@ const Departments: React.FC = () => {
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       onError: (err) => {
         console.error('Failed to load departments:', err);
-        // Potentially set a local error state if needed beyond the query error
       },
       onSuccess: (data) => {
-        // Select first department by default if none is selected and data is available
         if (!selectedDepartment && data && data.length > 0) {
           setSelectedDepartment(data[0].id);
         }
@@ -83,81 +77,56 @@ const Departments: React.FC = () => {
     }
   );
 
-  // Combined loading state and error handling (adjust if other queries are added)
-  const isLoading = isLoadingDepartments;
+  // --- React Query Hook for Department Task Counts ---
+  const departmentCountQueries = useQueries(
+    departmentsData.map(dept => ({
+      queryKey: ['departmentTaskCounts', dept.id],
+      queryFn: () => TaskService.getTaskCountsByStatusForDepartment(dept.id),
+      staleTime: 5 * 60 * 1000, // Cache counts for 5 minutes
+      enabled: !!dept.id, // Only run query if department ID exists
+      onError: (err: any) => {
+        console.error(`Failed to load task counts for department ${dept.id}:`, err);
+      },
+    }))
+  );
+
+  // Check if any count query is still loading
+  const isLoadingCounts = departmentCountQueries.some(query => query.isLoading);
+
+  // Combine department data with task counts
+  const departmentsWithCounts = departmentsData.map((dept, index) => {
+    const countQuery = departmentCountQueries[index];
+    const counts = countQuery.data;
+    // Sum up counts for all statuses (or default to 0)
+    const totalTasks = counts 
+      ? (counts.pending || 0) + (counts.in_progress || 0) + (counts.completed || 0) + (counts.cancelled || 0)
+      : 0; // Default to 0 if counts are loading or failed
+    return {
+      ...dept,
+      tasksCount: totalTasks, // Add the calculated total count
+      statusCounts: counts // Keep individual status counts if needed later
+    };
+  });
+
+  // Combined loading state (departments OR counts)
+  const isLoading = isLoadingDepartments || isLoadingCounts;
+  // Prioritize department fetch error
   const combinedError = fetchDepartmentsError;
 
-  // Fetch departments and ALL tasks initially and when selectedDepartment changes (for performers)
-  const fetchData = useCallback(async () => {
-    // console.log(`Fetching data. Selected Department: ${selectedDepartment}`); // Debug log
-    setLoading(true); // Indicate loading starts
-    try {
-      // Fetch departments and all visible tasks concurrently
-      const [departmentsResponse, tasksResponse] = await Promise.all([
-        DepartmentService.getDepartments(),
-        TaskService.getVisibleTasks('all', { include_all: true }) // Fetch all visible tasks
-      ]);
-
-      // Set tasks state with all fetched tasks
-      setTasks(tasksResponse || []);
-
-      // Process departments (task count will be updated in useEffect below)
-      const processedDepartments = departmentsResponse.map((dept: any) => ({
-        ...dept,
-        tasksCount: 0, // Initialize count, will be calculated later
-      }));
-      setDepartments(processedDepartments);
-
-      // If a department is selected, fetch its top performers
-      if (selectedDepartment) {
-        // console.log(`Fetching performers for ${selectedDepartment}`); // Debug log
-        const performersResponse = await DepartmentService.getDepartmentPerformers(selectedDepartment);
-        setTopPerformers(performersResponse || []);
-      } else {
-        setTopPerformers([]); // Clear performers if no department selected
-      }
-
-      setError(null); // Clear any previous error
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load data. Please try again later.');
-      setTasks([]); // Clear data on error
-      setDepartments([]);
-      setTopPerformers([]);
-    } finally {
-      setLoading(false); // Indicate loading finished
-      // console.log("Fetching data finished."); // Debug log
+  // Fetch top performers when selected department changes
+  const { 
+    data: performersData, 
+    isLoading: isLoadingPerformers 
+  } = useQuery(
+    ['departmentPerformers', selectedDepartment],
+    () => DepartmentService.getDepartmentPerformers(selectedDepartment!),
+    {
+      enabled: !!selectedDepartment, // Only run when selectedDepartment is truthy
+      staleTime: 5 * 60 * 1000,
+      onError: (err) => console.error(`Error fetching performers for ${selectedDepartment}:`, err),
+      onSuccess: (data) => setTopPerformers(data || []) // Update local state on success
     }
-  }, [selectedDepartment]); // Dependency on selectedDepartment for fetching performers
-
-  // Initial data fetch on component mount
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]); // Use fetchData in dependency array
-
-  // Recalculate department task counts whenever tasks or initial departments list changes
-  useEffect(() => {
-    if (tasks.length > 0 && departments.length > 0) {
-      console.log("Recalculating department task counts...");
-      console.log("Tasks data:", tasks.map(t => ({ id: t.id, title: t.title, assignedToDepartmentIds: t.assignedToDepartmentIds })) );
-      
-      const departmentsWithCount = departments.map(dept => {
-        const count = tasks.filter(task => 
-          task.assignedToDepartmentIds && task.assignedToDepartmentIds.includes(dept.id)
-        ).length;
-        
-        console.log(`Department ${dept.name} (${dept.id}) count: ${count}`);
-        return { ...dept, tasksCount: count };
-      });
-
-      // Only update state if counts actually changed to prevent infinite loops
-      if (JSON.stringify(departments.map(d => d.tasksCount)) !== JSON.stringify(departmentsWithCount.map(d => d.tasksCount))) {
-        console.log("Updating department counts state.");
-        setDepartments(departmentsWithCount);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks]); // Rerun when tasks list updates, ignore departments in deps to avoid loop based on its own update
+  );
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -202,29 +171,6 @@ const Departments: React.FC = () => {
     // queryClient.invalidateQueries(['departmentTasks', selectedDepartment]);
   };
 
-  // Filter tasks based on selected department (CLIENT-SIDE FILTERING)
-  const departmentTasks = tasks.filter(task => {
-    if (!selectedDepartment) { 
-      return false;
-    }
-    return task.assignedToDepartmentIds && task.assignedToDepartmentIds.includes(selectedDepartment);
-  });
-  console.log(`Selected Dept: ${selectedDepartment}, Filtered Tasks Count: ${departmentTasks.length}`); // Debug log
-
-  // Calculate upcoming, ongoing, completed based on the correctly filtered departmentTasks
-  const upcomingTasks = departmentTasks.filter(task => 
-    task.status === 'pending' && task.dueDate && new Date(task.dueDate) > new Date()
-  );
-  
-  const ongoingTasks = departmentTasks.filter(task => 
-    task.status === 'in_progress' || 
-    (task.status === 'pending' && task.dueDate && new Date(task.dueDate) <= new Date())
-  );
-  
-  const completedTasks = departmentTasks.filter(task => 
-    task.status === 'completed'
-  );
-
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       {/* Header Section */}
@@ -255,7 +201,7 @@ const Departments: React.FC = () => {
           {/* Left Column - Department List */}
           <Grid item xs={12} md={4} lg={3}>
             <DepartmentList
-              departments={departments}
+              departments={departmentsWithCounts}
               selectedDepartment={selectedDepartment}
               onSelectDepartment={setSelectedDepartment}
             />

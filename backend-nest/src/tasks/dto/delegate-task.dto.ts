@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsUUID, ArrayMinSize } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID, ArrayMinSize, IsDateString } from 'class-validator';
 
 export class DelegateTaskDto {
   @IsArray()
@@ -9,4 +9,30 @@ export class DelegateTaskDto {
   @IsOptional()
   @IsString()
   delegationReason?: string;
+
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsDateString()
+  @IsOptional()
+  dueDate?: string;
+
+  @IsArray()
+  @IsUUID('all', { each: true })
+  @IsOptional()
+  assignedToUserIds?: string[];
+
+  @IsArray()
+  @IsUUID('all', { each: true })
+  @IsOptional()
+  assignedToDepartmentIds?: string[];
+
+  @IsUUID()
+  @IsOptional()
+  assignedToProvinceId?: string;
 } 

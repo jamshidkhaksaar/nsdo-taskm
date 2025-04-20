@@ -37,6 +37,7 @@ export class ActivityLogsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.LEADERSHIP)
   async getLogs(
+    @Request() req,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('action') action?: string,
@@ -59,7 +60,7 @@ export class ActivityLogsController {
     if (page) filters.page = parseInt(page, 10);
     if (limit) filters.limit = parseInt(limit, 10);
 
-    const result = await this.activityLogService.getLogs(filters);
+    const result = await this.activityLogService.getLogs(filters, req.user);
     
     // Format the logs to ensure user is a string
     const formattedLogs = result.logs.map(log => {
@@ -79,6 +80,7 @@ export class ActivityLogsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.LEADERSHIP)
   async getUserLogs(
+    @Request() req,
     @Param('userId') userId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -87,7 +89,7 @@ export class ActivityLogsController {
       user_id: userId,
       page: page ? parseInt(page, 10) : 0,
       limit: limit ? parseInt(limit, 10) : 10,
-    });
+    }, req.user);
     
     // Format the logs to ensure user is a string
     const formattedLogs = result.logs.map(log => {

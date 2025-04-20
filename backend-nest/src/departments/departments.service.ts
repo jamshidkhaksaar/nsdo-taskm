@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, Inject, forwardRef, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, FindOneOptions, DeepPartial } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Department } from './entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
@@ -8,6 +8,10 @@ import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { ProvinceService } from '../provinces/province.service';
+import { TasksService } from '../tasks/tasks.service';
+import { TaskStatus } from '../tasks/entities/task.entity';
+import { ActivityLogService } from '../admin/services/activity-log.service';
+import { Province } from '../provinces/entities/province.entity';
 
 @Injectable()
 export class DepartmentsService {
@@ -17,21 +21,32 @@ export class DepartmentsService {
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
     private provinceService: ProvinceService,
+    @Inject(forwardRef(() => TasksService))
+    private tasksService: TasksService,
+    private activityLogService: ActivityLogService,
   ) {}
 
-  async findAll(): Promise<Department[]> {
+  async findAll(provinceId?: string): Promise<Department[]> {
     try {
+      const options: FindOneOptions<Department> = {
+        relations: ['members', 'head', 'province', 'assignedTasks'],
+      };
+      let whereClause = {};
+
+      if (provinceId) {
+        console.log(`[DepartmentsService] Filtering departments by provinceId: ${provinceId}`);
+        whereClause = { ...whereClause, provinceId: provinceId };
+      }
+
       return await this.departmentsRepository.find({
-        relations: {
-          members: true,
-          head: true,
-          assignedTasks: true,
-          province: true
-        }
+        where: whereClause,
+        relations: options.relations,
+        order: { name: 'ASC' }
       });
     } catch (error) {
-      console.error('Error fetching departments:', error);
-      throw error;
+      console.error('Error finding departments:', error);
+      // Throw a more specific NestJS exception
+      throw new InternalServerErrorException(`Could not retrieve departments: ${error.message}`);
     }
   }
 
@@ -343,15 +358,51 @@ export class DepartmentsService {
   }
 
   async remove(id: string): Promise<void> {
-    try {
-      const result = await this.departmentsRepository.delete(id);
+    const result = await this.departmentsRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Department with ID "${id}" not found`);
+    }
+  }
 
-      if (result.affected === 0) {
-        throw new NotFoundException(`Department with ID "${id}" not found`);
-      }
+  /**
+   * Calculates the task summary for a specific department.
+   * @param departmentId The ID of the department.
+   * @returns An object containing counts of tasks by status.
+   */
+  async getTaskSummary(departmentId: string): Promise<{ [key in TaskStatus]?: number } & { total: number }> {
+    try {
+        console.log(`[DepartmentsService] Getting task summary for department ${departmentId}`);
+        // Ensure department exists (optional, findOne throws NotFoundException if needed)
+        // await this.findOne(departmentId);
+
+        const tasks = await this.tasksService.getTasksForDepartment(departmentId);
+        console.log(`[DepartmentsService] Found ${tasks.length} tasks for department ${departmentId}`);
+
+        const summary: { [key in TaskStatus]?: number } & { total: number } = {
+            total: tasks.length,
+            [TaskStatus.PENDING]: 0,
+            [TaskStatus.IN_PROGRESS]: 0,
+            [TaskStatus.COMPLETED]: 0,
+            [TaskStatus.CANCELLED]: 0,
+            [TaskStatus.DELEGATED]: 0, // Include delegated count if needed
+        };
+
+        for (const task of tasks) {
+            if (summary[task.status] !== undefined) {
+                summary[task.status]!++;
+            }
+        }
+        
+        console.log(`[DepartmentsService] Task summary for ${departmentId}:`, summary);
+        return summary;
+
     } catch (error) {
-      console.error(`Error removing department ${id}:`, error);
-      throw error;
+        console.error(`[DepartmentsService] Error calculating task summary for department ${departmentId}:`, error);
+        // Rethrow specific errors or a generic one
+        if (error instanceof NotFoundException) {
+            throw error;
+        }
+        throw new InternalServerErrorException(`Failed to get task summary for department ${departmentId}`);
     }
   }
 

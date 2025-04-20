@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Task, TaskStatus, TaskPriority, TaskType } from './entities/task.entity';
@@ -15,6 +15,25 @@ import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
 import { UsersService } from '../users/users.service';
 import { ActivityLog } from '../admin/entities/activity-log.entity';
 import { DelegateTaskDto } from './dto/delegate-task.dto';
+
+// Define the missing Response Type
+export interface DashboardTasksResponse {
+  myPersonalTasks: Task[];
+  tasksICreatedForOthers: Task[];
+  tasksAssignedToMe: Task[];
+  tasksAssignedToMyDepartments: Task[];
+  tasksDelegatedByMe: Task[];
+  tasksDelegatedToMe: Task[];
+}
+
+// Define structure for status counts
+export interface TaskStatusCounts {
+  [TaskStatus.PENDING]: number;
+  [TaskStatus.IN_PROGRESS]: number;
+  [TaskStatus.COMPLETED]: number;
+  [TaskStatus.CANCELLED]: number;
+  [TaskStatus.DELEGATED]?: number; // Optional, as maybe not always needed
+}
 
 @Injectable()
 export class TasksService {
@@ -257,475 +276,404 @@ export class TasksService {
     }
   }
 
-  // Helper function for assignee permission checks
-  private async checkAssigneePermission(taskId: string, userId: string): Promise<boolean> {
-    console.log(`Checking assignee permission for task ${taskId} and user ${userId}`);
-    // 1. Fetch the task with assignees (users and departments)
-    const task = await this.findOne(taskId); // findOne already throws NotFoundException
-
-    // 2. Check direct user assignment (including delegated tasks assigned to user)
-    if (task.assignedToUsers?.some(assignedUser => assignedUser.id === userId)) {
-        console.log(`Permission granted: User ${userId} is directly assigned.`);
-        return true;
+  // Helper to check if a user is considered an assignee (direct, via department, or via province/department)
+  private async checkAssigneePermission(task: Task, userId: string): Promise<boolean> {
+    // Check direct user assignment
+    if (task.assignedToUsers && task.assignedToUsers.some(user => user.id === userId)) {
+      return true;
     }
 
-    // 3. Check department assignment
-    if (task.assignedToDepartments?.length > 0) {
-        // Fetch the user with their department relations
-        const user = await this.usersRepository.findOne({ 
+    // Check department-only assignment (TaskType.DEPARTMENT)
+    if (task.type === TaskType.DEPARTMENT && task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+        const userWithDepartments = await this.usersRepository.findOne({
             where: { id: userId },
-            relations: ['departments'] // Load the departments relation
+            relations: ['departments']
         });
-        
-        if (!user || !user.departments || user.departments.length === 0) {
-            console.log(`Permission check: User ${userId} not found or has no departments.`);
-            return false; // User not found or has no departments
-        }
-        
-        // Get IDs of departments the user belongs to
-        const userDepartmentIds = user.departments.map(dept => dept.id);
-        // Get IDs of departments the task is assigned to
+        if (!userWithDepartments || !userWithDepartments.departments) return false;
+
+        const userDepartmentIds = userWithDepartments.departments.map(dept => dept.id);
         const taskDepartmentIds = task.assignedToDepartments.map(dept => dept.id);
-
-        // Check for intersection
-        const hasCommonDepartment = userDepartmentIds.some(userDeptId => 
-            taskDepartmentIds.includes(userDeptId)
-        );
-
-        if (hasCommonDepartment) {
-            console.log(`Permission granted: User ${userId} belongs to an assigned department.`);
+        if (taskDepartmentIds.some(taskDeptId => userDepartmentIds.includes(taskDeptId))) {
             return true;
         }
-         console.log(`Permission check: User ${userId}'s departments do not overlap with assigned departments.`);
-    } else {
-         console.log(`Permission check: Task ${taskId} has no assigned departments.`);
     }
 
-    // 4. If neither direct user nor department match, deny permission
-    console.log(`Permission denied for user ${userId} on task ${taskId}.`);
-    return false;
+    // Check province/department assignment (TaskType.PROVINCE_DEPARTMENT)
+    if (task.type === TaskType.PROVINCE_DEPARTMENT && task.assignedToProvinceId && task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+        const userWithDepartments = await this.usersRepository.findOne({
+            where: { id: userId },
+            relations: ['departments'] // We need department provinceId
+        });
+        if (!userWithDepartments || !userWithDepartments.departments) return false;
+
+        // Filter user's departments to only those belonging to the task's province
+        const userDepartmentIdsInProvince = userWithDepartments.departments
+            .filter(dept => dept.provinceId === task.assignedToProvinceId)
+            .map(dept => dept.id);
+
+        if (userDepartmentIdsInProvince.length === 0) return false; // User has no departments in the target province
+
+        const taskDepartmentIds = task.assignedToDepartments.map(dept => dept.id);
+
+        // Check if user belongs to any of the *specific* departments assigned within that province
+        if (taskDepartmentIds.some(taskDeptId => userDepartmentIdsInProvince.includes(taskDeptId))) {
+             return true;
+        }
+    }
+
+    return false; // Not an assignee by any relevant mechanism
   }
 
   async update(id: string, updateTaskDto: UpdateTaskDto, reqUser: any): Promise<Task> {
-    const task = await this.findOne(id); // Fetch task with relations
+    const task = await this.findOne(id); // findOne already loads relations
 
-    // --- Permission Check: Creator Only ---
-    if (task.createdById !== reqUser.userId) {
-      console.error(`Update failed: User ${reqUser.userId} is not the creator of task ${id}.`);
-      throw new ForbiddenException('You do not have permission to update this task.');
+    // --- Permission Check: Only creator or Admin/Leadership can edit general details ---
+    const isCreator = task.createdById === reqUser.userId;
+    const isAdminOrLeadership = [UserRole.ADMIN, UserRole.LEADERSHIP].includes(reqUser.role);
+    if (!isCreator && !isAdminOrLeadership) {
+        throw new ForbiddenException('Only the task creator, admin, or leadership can edit the task details.');
     }
-    console.log(`Update permission granted for user ${reqUser.userId} on task ${id}.`);
     // --- End Permission Check ---
 
-    // Prevent updating fields that shouldn't be changed here (status, priority, type)
-    const { status, priority, type, ...allowedUpdates } = updateTaskDto;
-    if (status !== undefined || priority !== undefined || type !== undefined) {
-        console.warn(`Update request for task ${id} contained restricted fields (status, priority, type) which were ignored.`);
+    // Store original state for logging
+    const originalTaskJson = JSON.stringify(task); // Simple way to capture original state
+
+    // Update allowed fields from DTO
+    // IMPORTANT: Do not allow changing priority, status, or assignments via this general update endpoint.
+    let changed = false;
+    if (updateTaskDto.title !== undefined && task.title !== updateTaskDto.title) {
+        task.title = updateTaskDto.title;
+        changed = true;
+    }
+    if (updateTaskDto.description !== undefined && task.description !== updateTaskDto.description) {
+        task.description = updateTaskDto.description;
+        changed = true;
+    }
+    const newDueDate = updateTaskDto.dueDate ? new Date(updateTaskDto.dueDate) : null;
+    const currentDueDate = task.dueDate;
+    // Compare dates carefully
+    if ( (newDueDate === null && currentDueDate !== null) ||
+         (newDueDate !== null && currentDueDate === null) ||
+         (newDueDate && currentDueDate && newDueDate.getTime() !== currentDueDate.getTime()) )
+    {
+        task.dueDate = newDueDate;
+        changed = true;
     }
 
-    // Handle assignee updates - Creator is allowed to change these
-    let updatedUsers: User[] | undefined = undefined;
-    if (allowedUpdates.assignedToUserIds) {
-        if (task.type !== TaskType.USER && task.type !== TaskType.PERSONAL) {
-             throw new BadRequestException(`Cannot assign users directly to a task of type ${task.type}.`);
-        }
-        updatedUsers = await this.usersRepository.findBy({ id: In(allowedUpdates.assignedToUserIds) });
-        if (updatedUsers.length !== allowedUpdates.assignedToUserIds.length) {
-            throw new BadRequestException('One or more assigned users not found.');
-        }
+
+    // Log changes if any occurred
+    if (changed) {
+        await this.activityLogService.createLog({
+            action: `Task Details Updated`,
+            target: 'Task',
+            target_id: task.id,
+            user_id: reqUser.userId,
+            details: `Details for task "${task.title}" (ID: ${task.id}) were updated.`,
+            status: 'success'
+        });
+        const updatedTask = await this.tasksRepository.save(task);
+         return this.findOne(updatedTask.id); // Return task with relations
+    } else {
+      console.log(`No changes detected for task ${id}. Skipping save.`);
+      return task; // Return original task if no changes
     }
-
-    let updatedDepartments: Department[] | undefined = undefined;
-    if (allowedUpdates.assignedToDepartmentIds) {
-         if (task.type !== TaskType.DEPARTMENT && task.type !== TaskType.PROVINCE_DEPARTMENT) {
-             throw new BadRequestException(`Cannot assign departments directly to a task of type ${task.type}.`);
-         }
-        updatedDepartments = await this.departmentsRepository.findBy({ id: In(allowedUpdates.assignedToDepartmentIds) });
-        if (updatedDepartments.length !== allowedUpdates.assignedToDepartmentIds.length) {
-            throw new BadRequestException('One or more assigned departments not found.');
-        }
-        // Additional validation if province is involved
-        if (task.type === TaskType.PROVINCE_DEPARTMENT || allowedUpdates.assignedToProvinceId) {
-            const provinceId = allowedUpdates.assignedToProvinceId ?? task.assignedToProvinceId;
-            if (!provinceId) throw new BadRequestException('Province ID is required for province-department tasks.');
-            // Fetch province to ensure it exists
-            const province = await this.provincesRepository.findOneBy({ id: provinceId });
-            if (!province) throw new BadRequestException(`Province with ID ${provinceId} not found.`);
-            // Validate departments belong to province
-            const invalidDepts = updatedDepartments.filter(dept => dept.provinceId !== provinceId);
-             if (invalidDepts.length > 0) {
-                 throw new BadRequestException(`Departments [${invalidDepts.map(d => d.id).join(', ')}] do not belong to province ${provinceId}.`);
-             }
-        }
-    }
-
-     // Validate province ID update
-     if (allowedUpdates.assignedToProvinceId !== undefined) {
-         if (task.type !== TaskType.PROVINCE_DEPARTMENT) {
-             throw new BadRequestException(`Cannot assign a province ID directly to a task of type ${task.type}.`);
-         }
-         if (allowedUpdates.assignedToProvinceId === null) {
-             // Clear province is allowed
-         } else {
-             // Ensure province exists
-             const province = await this.provincesRepository.findOneBy({ id: allowedUpdates.assignedToProvinceId });
-             if (!province) {
-                 throw new BadRequestException(`Province with ID ${allowedUpdates.assignedToProvinceId} not found.`);
-             }
-             // Validate assigned departments belong to the new province (if departments are also being updated)
-             const deptsToCheck = updatedDepartments ?? task.assignedToDepartments;
-             const invalidDepts = deptsToCheck.filter(dept => dept.provinceId !== allowedUpdates.assignedToProvinceId);
-             if (invalidDepts.length > 0) {
-                 throw new BadRequestException(`Departments [${invalidDepts.map(d => d.id).join(', ')}] do not belong to the new province ${allowedUpdates.assignedToProvinceId}.`);
-             }
-         }
-     }
-
-
-    // Update allowed fields (excluding status, priority, type)
-    Object.assign(task, allowedUpdates);
-
-    // Apply validated relations if they were provided
-    if (updatedUsers !== undefined) task.assignedToUsers = updatedUsers;
-    if (updatedDepartments !== undefined) task.assignedToDepartments = updatedDepartments;
-    // Province ID is handled by Object.assign if included in allowedUpdates
-
-    console.log(`Saving updated task ${id}...`);
-    const updatedTask = await this.tasksRepository.save(task);
-
-    // Log activity using createLog (requires fetching user object)
-    try {
-      const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
-      await this.activityLogService.createLog({
-        user_id: reqUser.userId,
-        action: 'update', 
-        target: 'task', 
-        details: `Updated task: ${updatedTask.title}`, 
-        target_id: updatedTask.id,
-        // ip_address: reqUser.ip // Pass IP if available
-      });
-    } catch (logError) {
-      console.error(`Failed to log task update activity: ${logError.message}`);
-    }
-
-    return this.findOne(updatedTask.id); // Return reloaded task
   }
 
   async updateStatus(id: string, updateTaskStatusDto: UpdateTaskStatusDto, reqUser: any): Promise<Task> {
-    const task = await this.findOne(id); // Fetch task with relations
+    const task = await this.findOne(id); // Ensure relations are loaded
+    const { status } = updateTaskStatusDto;
+    const originalStatus = task.status;
 
-    // --- Permission Check: Admin OR Creator OR Assignee (Direct/Department) ---
-    let canUpdate = false;
-    // 1. Check Admin role
-    if (reqUser.role && reqUser.role === UserRole.ADMIN) {
-      console.log(`Status Update permission granted: User ${reqUser.userId} is an Admin.`);
-      canUpdate = true;
+    if (originalStatus === status) {
+        console.warn(`Task ${id} is already in status ${status}. No update performed.`);
+        return task; // Return task unchanged
     }
 
-    // 2. Check if user is the creator
-    if (!canUpdate && task.createdById === reqUser.userId) {
-      console.log(`Status Update permission granted: User ${reqUser.userId} is the creator.`);
-      canUpdate = true;
+    // --- Permission Check ---
+    const isCreator = task.createdById === reqUser.userId;
+    const isAssignee = await this.checkAssigneePermission(task, reqUser.userId);
+    const isAdminOrLeadership = [UserRole.ADMIN, UserRole.LEADERSHIP].includes(reqUser.role);
+
+    let canChangeStatus = false;
+
+    // Rule: Only creator or admin/leadership can cancel
+    if (status === TaskStatus.CANCELLED) {
+        if (isCreator || isAdminOrLeadership) {
+            canChangeStatus = true;
+        } else {
+            throw new ForbiddenException('Only the task creator, admin, or leadership can cancel the task.');
+        }
+         if (task.status === TaskStatus.COMPLETED) {
+              throw new BadRequestException(`Cannot cancel a task that is already completed.`);
+         }
+    }
+    // Rule: Assignee or creator (or admin/leadership) can move between PENDING, IN_PROGRESS, COMPLETED
+    else if ([TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED].includes(status)) {
+        // Anyone involved (creator, assignee) or with override power (admin/leadership) can manage the active lifecycle.
+        if (isCreator || isAssignee || isAdminOrLeadership) {
+            // Prevent moving *from* CANCELLED unless creator/admin/leadership
+            if (originalStatus === TaskStatus.CANCELLED && !isCreator && !isAdminOrLeadership) {
+                throw new ForbiddenException('Only the creator, admin, or leadership can move a task from Cancelled status.');
+            }
+            // Prevent moving *from* DELEGATED manually (should happen via delegation logic)
+             if (originalStatus === TaskStatus.DELEGATED) {
+                 throw new BadRequestException('Cannot manually change status from DELEGATED.');
+             }
+            canChangeStatus = true;
+        } else {
+            throw new ForbiddenException('You do not have permission to change the status of this task.');
+        }
+    }
+    // Rule: Only delegation logic should set DELEGATED status
+    else if (status === TaskStatus.DELEGATED) {
+         throw new BadRequestException('Task status cannot be manually set to DELEGATED.');
+    }
+     else {
+         throw new BadRequestException(`Invalid target status: ${status}`);
     }
 
-    // 3. Check if user is an assignee (direct user or via department)
-    if (!canUpdate) {
-      const isAssignee = await this.checkAssigneePermission(id, reqUser.userId);
-      if (isAssignee) {
-        console.log(`Status Update permission granted: User ${reqUser.userId} is an assignee (direct or department).`);
-        canUpdate = true;
-      } else {
-        // Log only if none of the above conditions were met
-         console.log(`Status Update permission check failed: User ${reqUser.userId} is not Admin, Creator, or Assignee for task ${id}.`);
-      }
-    }
-
-    // Throw error if none of the checks passed
-    if (!canUpdate) {
-      console.error(`Status Update failed: User ${reqUser.userId} lacks permission for task ${id}.`);
-      throw new ForbiddenException('You do not have permission to update the status of this task.');
+    if (!canChangeStatus) {
+         // This case should ideally be caught by specific throws above, but acts as a safeguard.
+         throw new ForbiddenException('Status update not permitted by rules.');
     }
     // --- End Permission Check ---
 
-    // --- Revised Status Transition Logic ---
-    const currentStatus = task.status;
-    const newStatus = updateTaskStatusDto.status;
+    task.status = status;
 
-    // Prevent changing status if already Completed or Cancelled
-    if (currentStatus === TaskStatus.COMPLETED || currentStatus === TaskStatus.CANCELLED) {
-        throw new BadRequestException(`Task is already ${currentStatus} and its status cannot be changed.`);
-    }
+    // Add activity log entry
+    await this.activityLogService.createLog({
+        action: `Task Status Changed`,
+        target: 'Task',
+        target_id: task.id,
+        user_id: reqUser.userId,
+        details: `Status of task "${task.title}" (ID: ${task.id}) changed from ${originalStatus} to ${status}.`,
+        status: 'success'
+    });
 
-    // Validate the target status itself is a valid enum value
-    if (!Object.values(TaskStatus).includes(newStatus)) {
-        throw new BadRequestException(`Invalid target status provided: ${newStatus}`);
-    }
-    
-    // Allow setting to Pending, In Progress, or Completed if not already in a final state
-    // (Removed the strict step-by-step validation)
-    console.log(`Attempting to move task ${id} from ${currentStatus} to ${newStatus}`);
-    // --- End Revised Logic ---
-
-    task.status = newStatus;
-    console.log(`Saving updated status (${newStatus}) for task ${id}...`);
     const updatedTask = await this.tasksRepository.save(task);
-
-    // Log activity
-    try {
-        const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
-        await this.activityLogService.createLog({
-            user_id: reqUser.userId,
-            action: 'update_status',
-            target: 'task',
-            details: `Updated status of task "${updatedTask.title}" to ${newStatus}`,
-            target_id: updatedTask.id
-        });
-    } catch (logError) {
-      console.error(`Failed to log task status update activity: ${logError.message}`);
-    }
-
-    return updatedTask;
+    return this.findOne(updatedTask.id); // Return with relations
   }
 
   async updatePriority(id: string, updateTaskPriorityDto: UpdateTaskPriorityDto, reqUser: any): Promise<Task> {
-    const task = await this.findOne(id); // Fetch task with relations
+    const task = await this.findOne(id);
+    const { priority } = updateTaskPriorityDto;
+    const originalPriority = task.priority;
 
-    // --- Permission Check: Assignee Only ---
-    const canUpdate = await this.checkAssigneePermission(id, reqUser.userId);
-    if (!canUpdate) {
-      console.error(`Priority Update failed: User ${reqUser.userId} is not an assignee for task ${id}.`);
-      throw new ForbiddenException('You do not have permission to update the priority of this task.');
+    if (originalPriority === priority) {
+        console.warn(`Task ${id} already has priority ${priority}. No update performed.`);
+        return task;
     }
-    console.log(`Priority Update permission granted for user ${reqUser.userId} on task ${id}.`);
+
+    // --- Permission Check: Only creator or admin/leadership can change priority ---
+    const isCreator = task.createdById === reqUser.userId;
+    const isAdminOrLeadership = [UserRole.ADMIN, UserRole.LEADERSHIP].includes(reqUser.role);
+
+    if (!isCreator && !isAdminOrLeadership) {
+        throw new ForbiddenException('Only the task creator, admin, or leadership can change the priority.');
+    }
     // --- End Permission Check ---
 
-    task.priority = updateTaskPriorityDto.priority;
-    console.log(`Saving updated priority (${task.priority}) for task ${id}...`);
+    task.priority = priority;
+
+     // Add activity log entry
+    await this.activityLogService.createLog({
+        action: `Task Priority Changed`,
+        target: 'Task',
+        target_id: task.id,
+        user_id: reqUser.userId,
+        details: `Priority of task "${task.title}" (ID: ${task.id}) changed from ${originalPriority} to ${priority}.`,
+        status: 'success'
+    });
+
     const updatedTask = await this.tasksRepository.save(task);
-
-    // Log activity
-    try {
-        const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
-        await this.activityLogService.createLog({
-            user_id: reqUser.userId,
-            action: 'update_priority',
-            target: 'task',
-            details: `Updated priority of task "${updatedTask.title}" to ${task.priority}`,
-            target_id: updatedTask.id
-        });
-    } catch (logError) {
-      console.error(`Failed to log task priority update activity: ${logError.message}`);
-    }
-
-    return updatedTask;
+    return this.findOne(updatedTask.id); // Return with relations
   }
 
   async remove(id: string, reqUser: any): Promise<void> {
-    const task = await this.findOne(id); // Fetch task to check creator and for logging
+    const task = await this.findOne(id); // Ensures task exists and loads createdById
 
-    // --- Permission Check: Creator Only ---
-    if (task.createdById !== reqUser.userId) {
-      console.error(`Delete failed: User ${reqUser.userId} is not the creator of task ${id}.`);
-      throw new ForbiddenException('You do not have permission to delete this task.');
+    // --- Permission Check: Only creator or admin/leadership can delete ---
+    const isCreator = task.createdById === reqUser.userId;
+    const isAdminOrLeadership = [UserRole.ADMIN, UserRole.LEADERSHIP].includes(reqUser.role);
+
+    if (!isCreator && !isAdminOrLeadership) {
+        throw new ForbiddenException('Only the task creator, admin, or leadership can delete this task.');
     }
-    console.log(`Delete permission granted for user ${reqUser.userId} on task ${id}.`);
     // --- End Permission Check ---
 
-    // Log activity before deletion
-     try {
-        const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
-        await this.activityLogService.createLog({
-            user_id: reqUser.userId,
-            action: 'delete',
-            target: 'task',
-            details: `Deleted task: ${task.title}`,
-            target_id: task.id // Use task.id before it's deleted
-        });
-     } catch (logError) {
-       console.error(`Failed to log task deletion activity: ${logError.message}`);
-       // Decide if deletion should proceed if logging fails (likely yes)
-     }
+    // Add activity log entry BEFORE deleting
+    await this.activityLogService.createLog({
+        action: `Task Deletion Attempted`,
+        target: 'Task',
+        target_id: id,
+        user_id: reqUser.userId,
+        details: `Attempting to delete task "${task.title}" (ID: ${id}).`,
+        status: 'warning' // Use warning for attempt
+    });
 
-    console.log(`Attempting to delete task ${id}...`);
     const result = await this.tasksRepository.delete(id);
 
     if (result.affected === 0) {
-      console.error(`Delete failed: Task with ID ${id} not found during delete operation.`);
-      throw new NotFoundException(`Task with ID "${id}" could not be deleted (possibly already removed).`);
+      // Log failure? Or rely on findOne exception?
+      throw new NotFoundException(`Task with ID ${id} could not be deleted (possibly already deleted).`);
+    } else {
+        // Log successful deletion confirmation
+         await this.activityLogService.createLog({
+             action: `Task Deleted Successfully`,
+             target: 'Task',
+             target_id: id, // ID still available here
+             user_id: reqUser.userId,
+             details: `Task "${task.title}" (ID: ${id}) was successfully deleted.`,
+             status: 'success'
+         });
     }
-     console.log(`Task ${id} deleted successfully.`);
-  }
-
-  async cancelTask(id: string, reqUser: any): Promise<Task> {
-    const task = await this.findOne(id); // Fetch task with relations
-
-    // --- Permission Check: Creator Only ---
-    if (task.createdById !== reqUser.userId) {
-        console.error(`Cancel failed: User ${reqUser.userId} is not the creator of task ${id}.`);
-        throw new ForbiddenException('You do not have permission to cancel this task.');
-    }
-    console.log(`Cancel permission granted for user ${reqUser.userId} on task ${id}.`);
-    // --- End Permission Check ---
-
-    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
-      throw new BadRequestException(`Cannot cancel a task that is already ${task.status}.`);
-    }
-
-    task.status = TaskStatus.CANCELLED;
-    console.log(`Saving cancelled status for task ${id}...`);
-    const updatedTask = await this.tasksRepository.save(task);
-
-     // Log activity
-     try {
-        const userObj = await this.usersRepository.findOneBy({ id: reqUser.userId });
-        await this.activityLogService.createLog({
-            user_id: reqUser.userId,
-            action: 'cancel',
-            target: 'task',
-            details: `Cancelled task: ${updatedTask.title}`,
-            target_id: updatedTask.id
-        });
-     } catch (logError) {
-       console.error(`Failed to log task cancellation activity: ${logError.message}`);
-     }
-
-    return updatedTask;
   }
 
   async delegateTask(id: string, dto: DelegateTaskDto, delegatorInfo: any): Promise<Task[]> {
-    // 1. Find the original task
-    const originalTask = await this.tasksRepository.findOne({ where: { id }, relations: ['assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'createdBy'] });
-    if (!originalTask) {
-      throw new NotFoundException(`Task with ID ${id} not found.`);
+    const originalTask = await this.findOne(id); // Load original task with relations
+
+    // --- Permission Check: Only current assignee or creator/admin/leadership can delegate ---
+     const isCreator = originalTask.createdById === delegatorInfo.userId;
+     const isAssignee = await this.checkAssigneePermission(originalTask, delegatorInfo.userId);
+     const isAdminOrLeadership = [UserRole.ADMIN, UserRole.LEADERSHIP].includes(delegatorInfo.role);
+
+     if (!isCreator && !isAssignee && !isAdminOrLeadership) {
+          throw new ForbiddenException('Only the creator, an assignee, admin, or leadership can delegate this task.');
+     }
+    // --- End Permission Check ---
+
+    // Validate that task is in a state that can be delegated
+    if ([TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.DELEGATED].includes(originalTask.status)) {
+        throw new BadRequestException(`Cannot delegate a task that is already ${originalTask.status}.`);
     }
 
-    // 2. Permission check: Only the creator, assignee, or department head can delegate
-    const isCreator = originalTask.createdById === delegatorInfo.userId;
-    const isAssignee = originalTask.assignedToUsers?.some(u => u.id === delegatorInfo.userId);
-    // TODO: Add department head check if needed
-    if (!isCreator && !isAssignee) {
-      throw new ForbiddenException('You do not have permission to delegate this task.');
+    // Validate new assignees/departments/province exist (reuse logic similar to 'create')
+    const hasUsers = dto.assignedToUserIds && dto.assignedToUserIds.length > 0;
+    const hasDepartments = dto.assignedToDepartmentIds && dto.assignedToDepartmentIds.length > 0;
+    const hasProvince = dto.assignedToProvinceId;
+
+    if (!hasUsers && !hasDepartments) {
+        throw new BadRequestException('Delegation requires specifying target users or departments (with optional province).');
+    }
+    if (hasUsers && hasDepartments) throw new BadRequestException('Cannot delegate to users and departments simultaneously.');
+    if (hasUsers && hasProvince) throw new BadRequestException('Cannot delegate to users and specify a province.');
+    if (!hasDepartments && hasProvince) throw new BadRequestException('Province delegation requires at least one department assignment.');
+
+    let newAssigneesUsers: User[] = [];
+    let newAssigneesDepartments: Department[] = [];
+    let newAssigneeProvince: Province | null = null;
+    let newDelegatedTaskType: TaskType;
+
+    try {
+        if (hasUsers) {
+            newDelegatedTaskType = TaskType.USER;
+            newAssigneesUsers = await this.usersRepository.findBy({ id: In(dto.assignedToUserIds!) });
+            if (newAssigneesUsers.length !== dto.assignedToUserIds!.length) throw new BadRequestException('One or more delegation target users not found.');
+        } else if (hasDepartments && hasProvince) {
+            newDelegatedTaskType = TaskType.PROVINCE_DEPARTMENT;
+            newAssigneeProvince = await this.provincesRepository.findOneBy({ id: dto.assignedToProvinceId });
+            if (!newAssigneeProvince) throw new BadRequestException(`Delegation target province ${dto.assignedToProvinceId} not found.`);
+            const departments = await this.departmentsRepository.find({ where: { id: In(dto.assignedToDepartmentIds!) }, relations: ['province'] });
+            if (departments.length !== dto.assignedToDepartmentIds!.length) throw new BadRequestException('One or more delegation target departments not found.');
+            const invalidDepartments = departments.filter(d => d.provinceId !== newAssigneeProvince!.id);
+            if (invalidDepartments.length > 0) throw new BadRequestException(`Target Departments [${invalidDepartments.map(d => d.id).join(', ')}] do not belong to target province ${newAssigneeProvince!.id}.`);
+            newAssigneesDepartments = departments;
+        } else if (hasDepartments) {
+            newDelegatedTaskType = TaskType.DEPARTMENT;
+            newAssigneesDepartments = await this.departmentsRepository.findBy({ id: In(dto.assignedToDepartmentIds!) });
+            if (newAssigneesDepartments.length !== dto.assignedToDepartmentIds!.length) throw new BadRequestException('One or more delegation target departments not found.');
+        }
+    } catch (error) {
+         console.error("Error validating delegation assignees:", error);
+         if (error instanceof BadRequestException) throw error;
+         throw new BadRequestException('Failed to validate delegation assignees.');
     }
 
-    // 3. For each new assignee, create a delegated task
-    const delegatedTasks: Task[] = [];
-    for (const userId of dto.newAssigneeUserIds) {
-      // Find the user
-      const user = await this.usersRepository.findOneBy({ id: userId });
+    // Create the new delegated task
+    const newTask = new Task();
+    newTask.title = dto.title || originalTask.title; // Use original title if not provided
+    newTask.description = dto.description || originalTask.description; // Use original description if not provided
+    newTask.priority = originalTask.priority; // Keep original priority
+    newTask.dueDate = dto.dueDate ? new Date(dto.dueDate) : originalTask.dueDate; // Allow overriding due date
+    newTask.status = TaskStatus.PENDING; // Delegated task starts as Pending
+    newTask.createdById = delegatorInfo.userId; // Delegator becomes creator of new task
+    newTask.delegatedFromTaskId = originalTask.id; // Link back to the original task
+    newTask.delegatedByUserId = delegatorInfo.userId; // Explicitly set who delegated
+    newTask.isDelegated = true; // Mark this task as a result of delegation
+
+    // Assign based on validated DTO data
+    newTask.type = newDelegatedTaskType!;
+    newTask.assignedToUsers = newAssigneesUsers;
+    newTask.assignedToDepartments = newAssigneesDepartments;
+    newTask.assignedToProvinceId = newAssigneeProvince ? newAssigneeProvince.id : null;
+
+    // Link original task to the new one (assuming delegatedToTaskId exists on Task entity)
+    originalTask.status = TaskStatus.DELEGATED;
+    // originalTask.delegatedToTaskId = savedNewTask.id; // This link needs to be set AFTER saving newTask
+
+    // --- Database Transaction (Recommended) ---
+    // Inject QueryRunner via constructor if not already done
+    // const queryRunner = this.tasksRepository.manager.connection.createQueryRunner();
+    // await queryRunner.connect();
+    // await queryRunner.startTransaction();
+    try {
+        // Save the new task first to get its ID
+        const savedNewTask = await this.tasksRepository.save(newTask);
+        // const savedNewTask = await queryRunner.manager.save(newTask);
+
+        // Now link the original task to the new task ID and save it
+        originalTask.delegatedToTaskId = savedNewTask.id;
+        const savedOriginalTask = await this.tasksRepository.save(originalTask);
+        // const savedOriginalTask = await queryRunner.manager.save(originalTask);
+
+        // await queryRunner.commitTransaction();
+
+        // Log activity AFTER successful transaction/saves
+        await this.activityLogService.createLog({
+            action: `Task Delegated`,
+            target: 'Task',
+            target_id: originalTask.id, // Log against original task
+            user_id: delegatorInfo.userId,
+            details: `Task "${originalTask.title}" (ID: ${originalTask.id}) was delegated. New task "${savedNewTask.title}" (ID: ${savedNewTask.id}) created.`,
+            status: 'success'
+        });
+
+        // Reload tasks using the main repository to ensure relations are correct
+        const reloadedOriginal = await this.findOne(savedOriginalTask.id);
+        const reloadedNew = await this.findOne(savedNewTask.id);
+        return [reloadedOriginal, reloadedNew];
+
+    } catch (err) {
+        // await queryRunner.rollbackTransaction();
+        console.error("Delegation save failed:", err);
+        // Improve error handling: Check if it's a known DB constraint error etc.
+        throw new BadRequestException(`Failed to delegate task: ${err.message || 'Database error'}`);
+    } finally {
+        // await queryRunner.release();
+    }
+    // --- End Transaction ---
+  }
+
+  async getDashboardTasks(userId: string): Promise<DashboardTasksResponse> {
+    try {
+      const user = await this.usersRepository.findOne({
+        where: { id: userId },
+        relations: ['departments']
+      });
+
       if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found.`);
       }
-      // Create the delegated task
-      const delegatedTask = this.tasksRepository.create({
-        title: originalTask.title,
-        description: originalTask.description,
-        priority: originalTask.priority,
-        dueDate: originalTask.dueDate,
-        type: originalTask.type,
-        status: TaskStatus.PENDING,
-        createdById: delegatorInfo.userId,
-        assignedToUsers: [user],
-        assignedToDepartments: originalTask.assignedToDepartments,
-        assignedToProvinceId: originalTask.assignedToProvinceId,
-        isDelegated: true,
-        delegatedByUserId: delegatorInfo.userId,
-        delegatedFromTaskId: originalTask.id,
-        // Optionally, store delegationReason in a custom field or activity log
-      });
-      await this.tasksRepository.save(delegatedTask);
-      delegatedTasks.push(delegatedTask);
-    }
-    // Optionally, log the delegation reason/activity
-    // await this.activityLogService.logDelegation(...)
-    return delegatedTasks;
-  }
 
-  async assignTask(id: string, userId: string, user: any): Promise<Task> {
-    const task = await this.findOne(id);
-    
-    // Permissions Check: Only creator can assign/reassign?
-    if (task.createdById !== user.userId) {
-       throw new ForbiddenException('Only the task creator can assign users.');
-    }
+      // Ensure user.departments is loaded before mapping
+      const departmentIds = user.departments ? user.departments.map(d => d.id) : [];
 
-    const userToAssign = await this.usersRepository.findOne({where: {id: userId}});
-    if (!userToAssign) throw new NotFoundException('User to assign not found');
-    
-    if (!task.assignedToUsers) task.assignedToUsers = [];
-    if (!task.assignedToUsers.some(u => u.id === userId)) {
-        task.assignedToUsers.push(userToAssign);
-        return this.tasksRepository.save(task);
-    }
-    return task; // Return task if user already assigned
-  }
-
-  // START: Implement Dashboard Task Fetching
-  async getDashboardTasks(user: any): Promise<any> {
-    const userId = user.userId;
-    console.log(`[TasksService] Fetching dashboard tasks for user ID: ${userId}`);
-
-    try {
-      // Fetch the current user with their department memberships
-      const userWithDepartments = await this.usersRepository.findOne({
-          where: { id: userId },
-          relations: ['departments'] // Load the departments relation
-      });
-
-      let departmentIds: string[] = [];
-      if (userWithDepartments && userWithDepartments.departments && userWithDepartments.departments.length > 0) {
-          departmentIds = userWithDepartments.departments.map(dept => dept.id);
-          console.log(`[TasksService] User ${userId} belongs to departments: ${departmentIds.join(', ')}`);
-      } else {
-          console.log(`[TasksService] User ${userId} does not belong to any departments.`);
-      }
-
-      // --- Fetch different task categories ---
-
-      // 1. Tasks directly assigned to the user
-      const directlyAssignedTasks = await this.getTasksAssignedToUser(userId);
-
-      // 2. Tasks created by the user
-      const createdTasks = await this.getTasksCreatedByUser(userId);
-
-      // 3. Tasks delegated BY the user
+      const myPersonalTasks = await this.getTasksAssignedToUser(userId);
+      const tasksICreatedForOthers = await this.getTasksCreatedByUser(userId);
+      const tasksAssignedToMe = await this.getTasksAssignedToUser(userId); // Consider reusing myPersonalTasks if logic is identical
+      const tasksAssignedToMyDepartments = await this.getTasksForDepartments(departmentIds);
       const delegatedByTasks = await this.getTasksDelegatedByUser(userId);
-
-      // 4. Tasks delegated TO the user
       const delegatedToTasks = await this.getTasksDelegatedToUser(userId);
-
-      // 5. Tasks assigned to the user's departments (if any)
-      let departmentTasks: Task[] = [];
-      if (departmentIds.length > 0) {
-        departmentTasks = await this.getTasksForDepartments(departmentIds);
-      }
-
-      // --- Categorize tasks --- 
-
-      // Helper to check if a task is in a list by ID
-      const isInList = (task: Task, list: Task[]) => list.some(item => item.id === task.id);
-
-      // Start with broad categories and refine
-      const myPersonalTasks = createdTasks.filter(task =>
-          task.type === TaskType.PERSONAL ||
-          (task.type === TaskType.USER && isInList(task, directlyAssignedTasks) && task.assignedToUsers?.length === 1) // Only assigned to self
-      );
-
-      const tasksICreatedForOthers = createdTasks.filter(task =>
-          !isInList(task, myPersonalTasks) // Exclude personal tasks already categorized
-      );
-
-      // Tasks purely assigned to me (not created by me, not personal)
-      const tasksAssignedToMe = directlyAssignedTasks.filter(task =>
-          task.createdById !== userId &&
-          !isInList(task, myPersonalTasks) // Exclude personal tasks
-      );
-
-      // Tasks assigned to my departments (ensure they aren't already counted elsewhere)
-      const tasksAssignedToMyDepartments = departmentTasks.filter(task =>
-          task.createdById !== userId && // Not created by me
-          !isInList(task, directlyAssignedTasks) // Not directly assigned to me
-          // Consider if department tasks assigned *by* me should be excluded? Depends on requirements.
-      );
 
       const tasksDelegatedByMe = delegatedByTasks;
       const tasksDelegatedToMe = delegatedToTasks;
@@ -745,7 +693,11 @@ export class TasksService {
 
     } catch (error) {
       console.error(`[TasksService] Error fetching dashboard tasks for user ${userId}:`, error);
-      throw new Error(`Failed to retrieve dashboard tasks: ${error.message}`);
+      // Use NestJS specific exception for better HTTP response
+      if (error instanceof NotFoundException) {
+        throw error; // Re-throw NotFoundException specifically
+      }
+      throw new InternalServerErrorException(`Failed to retrieve dashboard tasks: ${error.message}`);
     }
   }
 
@@ -776,14 +728,17 @@ export class TasksService {
   async getTasksAssignedToUser(userId: string): Promise<Task[]> {
     console.log(`Fetching tasks assigned directly to user ${userId}`);
     try {
-      return await this.tasksRepository.find({
-        where: {
-            assignedToUsers: { id: userId },
-            isDelegated: false // Only non-delegated tasks assigned directly
-        },
-        relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy'],
-        order: { createdAt: 'DESC' }
-      });
+      // Use query builder for explicit alias
+      return await this.tasksRepository.createQueryBuilder('task')
+        .innerJoin('task.assignedToUsers', 'user') // Alias the joined user table as 'user'
+        .where('user.id = :userId', { userId }) // Use alias in where clause
+        .andWhere('task.isDelegated = :isDelegated', { isDelegated: false })
+        .leftJoinAndSelect('task.createdBy', 'createdBy')
+        .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments')
+        .leftJoinAndSelect('task.assignedToProvince', 'assignedToProvince')
+        .leftJoinAndSelect('task.delegatedBy', 'delegatedBy')
+        .orderBy('task.createdAt', 'DESC')
+        .getMany();
     } catch (error) {
       console.error(`Error fetching tasks assigned to user ${userId}:`, error);
       throw new Error(`Failed to fetch assigned tasks: ${error.message}`);
@@ -793,8 +748,9 @@ export class TasksService {
   async getTasksCreatedByUser(userId: string): Promise<Task[]> {
     console.log(`Fetching tasks created by user ${userId}`);
     try {
+      // This one seems okay as it uses a direct column ID
       return await this.tasksRepository.find({
-        where: { createdById: userId, isDelegated: false }, // Exclude delegated tasks technically 'created' by original user
+        where: { createdById: userId, isDelegated: false },
         relations: ['assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'createdBy'],
         order: { createdAt: 'DESC' }
       });
@@ -807,7 +763,7 @@ export class TasksService {
   async getTasksDelegatedByUser(userId: string): Promise<Task[]> {
     console.log(`Fetching tasks delegated by user ${userId}`);
     try {
-      // This returns the *new* delegated tasks created by this user's delegation action
+      // This one seems okay as it uses a direct column ID
       return await this.tasksRepository.find({
         where: { delegatedByUserId: userId, isDelegated: true },
         relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'delegatedFromTask'],
@@ -822,14 +778,18 @@ export class TasksService {
   async getTasksDelegatedToUser(userId: string): Promise<Task[]> {
     console.log(`Fetching tasks delegated to user ${userId}`);
     try {
-      return await this.tasksRepository.find({
-        where: {
-            assignedToUsers: { id: userId },
-            isDelegated: true // Only include delegated tasks
-        },
-        relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'delegatedFromTask'],
-        order: { createdAt: 'DESC' }
-      });
+      // Use query builder for explicit alias
+      return await this.tasksRepository.createQueryBuilder('task')
+        .innerJoin('task.assignedToUsers', 'user') // Alias the joined user table as 'user'
+        .where('user.id = :userId', { userId }) // Use alias in where clause
+        .andWhere('task.isDelegated = :isDelegated', { isDelegated: true })
+        .leftJoinAndSelect('task.createdBy', 'createdBy')
+        .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments')
+        .leftJoinAndSelect('task.assignedToProvince', 'assignedToProvince')
+        .leftJoinAndSelect('task.delegatedBy', 'delegatedBy')
+        .leftJoinAndSelect('task.delegatedFromTask', 'delegatedFromTask')
+        .orderBy('task.createdAt', 'DESC')
+        .getMany();
     } catch (error) {
       console.error(`Error fetching tasks delegated to user ${userId}:`, error);
       throw new Error(`Failed to fetch tasks delegated to user: ${error.message}`);
@@ -901,4 +861,79 @@ export class TasksService {
     }
   }
   // END: Implement Department/User/Province Task Fetch Methods
+
+  // START: NEW Methods for Aggregated Status Counts
+
+  async getTaskCountsByStatusForDepartment(departmentId: string): Promise<TaskStatusCounts> {
+    console.log(`[TasksService] Calculating task counts by status for department ${departmentId}`);
+    try {
+        const counts = await this.tasksRepository.createQueryBuilder('task')
+            .select('task.status', 'status')
+            .addSelect('COUNT(task.id)', 'count')
+            .innerJoin('task.assignedToDepartments', 'department')
+            .where('department.id = :departmentId', { departmentId })
+            .groupBy('task.status')
+            .getRawMany(); // [{ status: 'PENDING', count: '5' }, ...]
+
+        // Initialize counts object
+        const statusCounts: TaskStatusCounts = {
+            [TaskStatus.PENDING]: 0,
+            [TaskStatus.IN_PROGRESS]: 0,
+            [TaskStatus.COMPLETED]: 0,
+            [TaskStatus.CANCELLED]: 0,
+            [TaskStatus.DELEGATED]: 0,
+        };
+
+        counts.forEach(row => {
+            if (statusCounts.hasOwnProperty(row.status)) {
+                statusCounts[row.status as TaskStatus] = parseInt(row.count, 10);
+            }
+        });
+
+        console.log(`[TasksService] Counts for department ${departmentId}:`, statusCounts);
+        return statusCounts;
+
+    } catch (error) {
+        console.error(`[TasksService] Error calculating task counts for department ${departmentId}:`, error);
+        throw new Error(`Failed to calculate task counts for department: ${error.message}`);
+    }
+  }
+
+
+  async getTaskCountsByStatusForUser(userId: string): Promise<TaskStatusCounts> {
+      console.log(`[TasksService] Calculating task counts by status for user ${userId}`);
+      try {
+          const counts = await this.tasksRepository.createQueryBuilder('task')
+              .select('task.status', 'status')
+              .addSelect('COUNT(task.id)', 'count')
+              .innerJoin('task.assignedToUsers', 'user')
+              .where('user.id = :userId', { userId })
+              .groupBy('task.status')
+              .getRawMany(); // [{ status: 'PENDING', count: '3' }, ...]
+
+          // Initialize counts object
+          const statusCounts: TaskStatusCounts = {
+              [TaskStatus.PENDING]: 0,
+              [TaskStatus.IN_PROGRESS]: 0,
+              [TaskStatus.COMPLETED]: 0,
+              [TaskStatus.CANCELLED]: 0,
+              [TaskStatus.DELEGATED]: 0,
+          };
+
+          counts.forEach(row => {
+              if (statusCounts.hasOwnProperty(row.status)) {
+                  statusCounts[row.status as TaskStatus] = parseInt(row.count, 10);
+              }
+          });
+
+          console.log(`[TasksService] Counts for user ${userId}:`, statusCounts);
+          return statusCounts;
+
+      } catch (error) {
+          console.error(`[TasksService] Error calculating task counts for user ${userId}:`, error);
+          throw new Error(`Failed to calculate task counts for user: ${error.message}`);
+      }
+  }
+
+  // END: NEW Methods for Aggregated Status Counts
 }

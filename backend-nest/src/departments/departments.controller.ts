@@ -12,6 +12,7 @@ import {
   forwardRef,
   ForbiddenException,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
@@ -37,15 +38,18 @@ export class DepartmentsController {
   ) {}
 
   @Get()
-  async getAllDepartments(@Request() req) {
-    const departments = await this.departmentsService.findAll();
+  async getAllDepartments(@Request() req, @Query('provinceId') provinceId?: string) {
+    const departments = await this.departmentsService.findAll(provinceId);
     
     // Log the activity
+    const logMessage = provinceId 
+      ? `Viewed departments filtered by province ID: ${provinceId}`
+      : 'Viewed all departments';
     await this.activityLogService.logFromRequest(
       req,
       'view',
       'departments',
-      'Viewed all departments',
+      logMessage,
     );
     
     const formattedDepartments = await Promise.all(

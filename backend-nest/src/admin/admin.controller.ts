@@ -8,7 +8,8 @@ import {
   Post,
   Query,
   UseGuards,
-  Inject
+  Inject,
+  Request
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,15 +29,15 @@ export class AdminController {
   @Get('dashboard')
   @ApiOperation({ summary: 'Get admin dashboard statistics' })
   @ApiResponse({ status: 200, description: 'Dashboard statistics retrieved successfully' })
-  getDashboardStats() {
-    return this.adminService.getDashboardStats();
+  getDashboardStats(@Request() req) {
+    return this.adminService.getDashboardStats(req.user);
   }
 
   @Get('health')
   @ApiOperation({ summary: 'Get system health information' })
   @ApiResponse({ status: 200, description: 'System health retrieved successfully' })
-  async getSystemHealth() {
-    return this.adminService.getSystemHealth();
+  async getSystemHealth(@Request() req) {
+    return this.adminService.getSystemHealth(req.user);
   }
 
   @Get('metrics')
@@ -86,6 +87,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Get activity logs' })
   @ApiResponse({ status: 200, description: 'Activity logs retrieved successfully' })
   getActivityLogs(
+    @Request() req,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('action') action?: string,
@@ -98,7 +100,7 @@ export class AdminController {
       action,
       status,
       search,
-    });
+    }, req.user);
   }
 
   @UseGuards(RolesGuard)

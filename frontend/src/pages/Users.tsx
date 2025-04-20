@@ -39,6 +39,7 @@ import { RootState } from '../store';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
+import UserStatusStats from '../components/users/UserStatusStats'; // Import the new component
 
 
 const DRAWER_WIDTH = 240;
@@ -344,6 +345,7 @@ const Users: React.FC = () => {
                             />
                             
                             <Box display="flex" flexDirection="column" gap={1}>
+                              {/* Email */}
                               <Box display="flex" alignItems="center" gap={1}>
                                 <EmailIcon fontSize="small" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                                 <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
@@ -351,6 +353,7 @@ const Users: React.FC = () => {
                                 </Typography>
                               </Box>
                               
+                              {/* Total Tasks Assigned (old way) */}
                               <Box display="flex" alignItems="center" gap={1}>
                                 <AssignmentIcon fontSize="small" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                                 <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
@@ -358,6 +361,13 @@ const Users: React.FC = () => {
                                 </Typography>
                               </Box>
                             </Box>
+
+                            {/* Render User Status Stats Here */}
+                            {selectedUserData && 
+                              <Box mt={1}>
+                                <UserStatusStats userId={selectedUserData.id} />
+                              </Box>
+                            }
                           </Box>
                         </Box>
                       </Box>

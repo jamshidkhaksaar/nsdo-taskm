@@ -199,3 +199,13 @@ export interface DashboardTasksResponse {
 }
 
 // END: Add Task and Dashboard Types
+
+// Export types/interfaces from other files within the types directory
+// Add specific files as needed, e.g.:
+// export * from './auth'; 
+// export * from './userTypes'; // If user types were in a separate file
+
+// Selectively re-export types from service files if needed
+export type { TaskStatusCountsResponse } from '../services/task';
+
+// Remove the previous incorrect export blocks entirely

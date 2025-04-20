@@ -18,7 +18,10 @@ import {
   MenuItem,
   FormControl,
   SelectChangeEvent,
-  Divider
+  Divider,
+  Avatar,
+  AvatarGroup,
+  Tooltip
 } from '@mui/material';
 import { Task, User, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType } from '../../types/index';
 import { UserService } from '../../services/user';
@@ -37,6 +40,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CancelIcon from '@mui/icons-material/Cancel';
 import CloseIcon from '@mui/icons-material/Close';
 import PeopleIcon from '@mui/icons-material/People';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import BusinessIcon from '@mui/icons-material/Business';
+import LocationCityIcon from '@mui/icons-material/LocationCity';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -234,22 +240,80 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         creatorName = 'Error loading name';
     }
 
-    let assigneesDisplayNode: React.ReactNode = 'N/A';
+    let assignmentDetailsNode: React.ReactNode = 'N/A';
     try {
-        if (task.type === TaskType.USER && task.assignedToUsers && task.assignedToUsers.length > 0) {
-            assigneesDisplayNode = task.assignedToUsers.map(u => (
-                <Chip key={u.id} label={getUserName(u.id)} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
-            ));
-        } else if ((task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && task.assignedToDepartments && task.assignedToDepartments.length > 0) {
-            assigneesDisplayNode = task.assignedToDepartments.map(d => (
-                 <Chip key={d.id} label={getDepartmentName(d.id)} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
-            ));
-        } else if (task.type === TaskType.PERSONAL) {
-            assigneesDisplayNode = `Personal (${creatorName})`;
+        switch (task.type) {
+            case TaskType.USER:
+                if (task.assignedToUsers && task.assignedToUsers.length > 0) {
+                    assignmentDetailsNode = (
+                        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Typography variant="body2" sx={{ mr: 1 }}>Assigned To:</Typography>
+                            <AvatarGroup max={4} sx={{ mr: 1 }}>
+                                {task.assignedToUsers.map(user => (
+                                    <Tooltip key={user.id} title={getUserName(user.id)} arrow>
+                                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem' }}>
+                                            {getUserName(user.id)?.charAt(0)?.toUpperCase() || '?'}
+                                        </Avatar>
+                                    </Tooltip>
+                                ))}
+                            </AvatarGroup>
+                        </Box>
+                    );
+                } else {
+                     assignmentDetailsNode = 'User assignment error';
+                }
+                break;
+
+            case TaskType.DEPARTMENT:
+                if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+                    assignmentDetailsNode = (
+                         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <BusinessIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
+                            <Typography variant="body2" sx={{ mr: 1 }}>Assigned To Dept(s):</Typography>
+                            {task.assignedToDepartments.map(dept => (
+                                <Chip key={dept.id} label={getDepartmentName(dept.id)} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                            ))}
+                        </Box>
+                    );
+                } else {
+                     assignmentDetailsNode = 'Department assignment error';
+                }
+                break;
+
+            case TaskType.PROVINCE_DEPARTMENT:
+                if (task.assignedToProvinceId && task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+                    const provinceName = getProvinceName(task.assignedToProvinceId);
+                    assignmentDetailsNode = (
+                        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                             <LocationCityIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
+                             <Typography variant="body2" sx={{ mr: 1 }}>Assigned To Province/Dept(s):</Typography>
+                             <Chip label={provinceName} size="small" color="primary" sx={{ mr: 1, mb: 0.5 }} />
+                            {task.assignedToDepartments.map(dept => (
+                                <Chip key={dept.id} label={getDepartmentName(dept.id)} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                            ))}
+                        </Box>
+                    );
+                } else {
+                    assignmentDetailsNode = 'Province/Department assignment error';
+                }
+                break;
+
+            case TaskType.PERSONAL:
+                assignmentDetailsNode = (
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AccountCircleIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
+                        <Typography variant="body2">Personal Task for {creatorName}</Typography>
+                    </Box>
+                );
+                break;
+
+            default:
+                assignmentDetailsNode = `Unknown Task Type: ${task.type}`;
+                break;
         }
     } catch (e) {
          console.error("[TaskViewDialog] Error processing assignees:", e);
-         assigneesDisplayNode = <Chip label="Error loading assignees" size="small" color="error" />;
+         assignmentDetailsNode = <Chip label="Error loading assignees" size="small" color="error" />;
     }
 
     let provinceDisplayNode: React.ReactNode = 'N/A';
@@ -353,7 +417,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
            <Box mb={2}>
               <Typography variant="overline" color="text.secondary" display="block">Assignees</Typography>
                <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-                  {assigneesDisplayNode}
+                  {assignmentDetailsNode}
               </Box>
           </Box>
 

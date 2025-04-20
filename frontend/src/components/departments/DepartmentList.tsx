@@ -11,10 +11,15 @@ import {
   InputAdornment
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { Department } from '../../types/department';
+import { Department } from '@/types/index';
+
+// Define the shape of the department object expected, including the count
+interface DepartmentWithCount extends Department {
+  tasksCount: number;
+}
 
 interface DepartmentListProps {
-  departments: Department[];
+  departments: DepartmentWithCount[];
   selectedDepartment: string | null;
   onSelectDepartment: (departmentId: string) => void;
 }
@@ -72,7 +77,11 @@ const DepartmentList: React.FC<DepartmentListProps> = ({
             >
               <ListItemText 
                 primary={dept.name}
-                sx={{ '& .MuiListItemText-primary': { color: '#fff' } }}
+                secondary={`Tasks: ${dept.tasksCount}`}
+                sx={{ 
+                  '& .MuiListItemText-primary': { color: '#fff' },
+                  '& .MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.6)' } 
+                }}
               />
             </ListItem>
           ))

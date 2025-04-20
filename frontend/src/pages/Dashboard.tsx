@@ -132,7 +132,6 @@ const initialSectionOrder: TaskSectionId[] = ['assigned', 'myDepartments', 'crea
 
 // Function to load initial section order
 const getInitialSectionOrder = (): TaskSectionId[] => {
-  console.log('[Dashboard] Calculating initial section order...');
   const savedOrder = localStorage.getItem('dashboardSectionOrder');
   const currentDefaultOrder = [...initialSectionOrder]; // Use the updated default
 
@@ -141,7 +140,6 @@ const getInitialSectionOrder = (): TaskSectionId[] => {
       const parsed = JSON.parse(savedOrder) as TaskSectionId[];
       // Validate saved order against the *current* default set
       if (Array.isArray(parsed) && parsed.length === currentDefaultOrder.length && parsed.every(id => currentDefaultOrder.includes(id)) && currentDefaultOrder.every(id => parsed.includes(id))) {
-        console.log('[Dashboard] Initializing section order FROM STORAGE:', parsed);
         return parsed;
       } else {
          console.warn('[Dashboard] Saved order mismatch or invalid, resetting to defaults.');
@@ -152,13 +150,11 @@ const getInitialSectionOrder = (): TaskSectionId[] => {
       localStorage.removeItem('dashboardSectionOrder');
     }
   }
-  console.log('[Dashboard] Initializing section order TO DEFAULTS:', currentDefaultOrder);
   return currentDefaultOrder;
 };
 
 // Function to load initial collapsed state (Final Attempt at Robustness)
 const getInitialCollapsedState = (): Record<TaskSectionId, boolean> => {
-  console.log('[Dashboard] Calculating initial collapsed state...');
   let currentOrder: TaskSectionId[] = [];
   try {
       // Attempt to get the potentially saved order
@@ -191,7 +187,6 @@ const getInitialCollapsedState = (): Record<TaskSectionId, boolean> => {
             mergedState[id] = parsed[id];
           }
         }
-        console.log('[Dashboard] Initializing collapsed state FROM STORAGE (merged):', mergedState);
         return mergedState;
       }
     } catch (e) {
@@ -200,7 +195,6 @@ const getInitialCollapsedState = (): Record<TaskSectionId, boolean> => {
     }
   }
 
-  console.log('[Dashboard] Initializing collapsed state TO DEFAULTS.', defaults);
   return defaults; // Return the guaranteed default structure
 };
 
@@ -233,7 +227,7 @@ const Dashboard: React.FC = () => {
   const [viewTaskDialogOpen, setViewTaskDialogOpen] = useState(false);
   const [showQuickNotes, setShowQuickNotes] = useState<boolean>(() => {
     const saved = localStorage.getItem('quickNotesVisibleState');
-    return saved !== null ? JSON.parse(saved) : false; 
+    return saved !== null ? JSON.parse(saved) : false;
   });
   const [activeSubTab, setActiveSubTab] = useState(0);
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
@@ -247,7 +241,7 @@ const Dashboard: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('sidebarOpenState');
-    return saved !== null ? JSON.parse(saved) : true; 
+    return saved !== null ? JSON.parse(saved) : true;
   });
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   const [rightSidebarVisible, setRightSidebarVisible] = useState(!isTablet);
@@ -307,30 +301,32 @@ const Dashboard: React.FC = () => {
   // --- Handlers ---
 
   const handleToggleQuickNotes = () => {
-    console.log('[Dashboard] Toggling Quick Notes. Current state:', showQuickNotes);
-    setShowQuickNotes(prev => !prev);
+    setShowQuickNotes(prev => {
+      const newState = !prev;
+      localStorage.setItem('quickNotesVisibleState', JSON.stringify(newState));
+      return newState;
+    });
   };
 
   // Update handleToggleCollapse to just update individual section
   const handleToggleCollapse = (sectionId: TaskSectionId) => {
-    setCollapsedSections(prev => ({
-        ...prev,
-        [sectionId]: !prev[sectionId],
-    }));
-    // The useEffect above will handle updating allCollapsed state
+    setCollapsedSections(prev => {
+      const newState = { ...prev, [sectionId]: !prev[sectionId] };
+      localStorage.setItem('dashboardCollapsedSections', JSON.stringify(newState));
+      return newState;
+    });
   };
 
   // Handler for the Collapse/Expand All button
   const handleToggleAllCollapse = () => {
-      const nextAllCollapsed = !allCollapsed;
-      setAllCollapsed(nextAllCollapsed);
-      const newCollapsedState: Record<TaskSectionId, boolean> = {};
-      sectionOrder.forEach(id => {
-          newCollapsedState[id] = nextAllCollapsed;
-      });
-      setCollapsedSections(newCollapsedState);
-      // Also save this potentially new state to localStorage
-      localStorage.setItem('dashboardCollapsedSections', JSON.stringify(newCollapsedState));
+    const targetState = !allCollapsed; // If all are collapsed, expand all; otherwise, collapse all
+    const newState = initialSectionOrder.reduce((acc, id) => {
+        acc[id] = targetState;
+        return acc;
+    }, {} as Record<TaskSectionId, boolean>);
+
+    setCollapsedSections(newState);
+    localStorage.setItem('dashboardCollapsedSections', JSON.stringify(newState));
   };
 
   // Handler for Drag and Drop end
@@ -480,7 +476,11 @@ const Dashboard: React.FC = () => {
 
   // --- Sidebar and Widget Toggle Handlers ---
   const handleToggleSidebar = useCallback(() => {
-    setSidebarOpen(prev => !prev);
+    setSidebarOpen(prev => {
+      const newState = !prev;
+      localStorage.setItem('sidebarOpenState', JSON.stringify(newState));
+      return newState;
+    });
   }, []);
 
   const handleToggleTopWidgets = useCallback(() => {

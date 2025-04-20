@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request, HttpCode, HttpStatus, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request, HttpCode, HttpStatus, Put, ForbiddenException } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { Task } from './entities/task.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -11,6 +11,7 @@ import { DelegateTaskDto } from './dto/delegate-task.dto';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { DashboardTasksResponse, TaskStatusCounts } from './tasks.service';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -87,11 +88,6 @@ export class TasksController {
     return this.tasksService.updatePriority(id, updateTaskPriorityDto, req.user);
   }
 
-  @Post(':id/assign')
-  assignTask(@Param('id') id: string, @Body('user_id') userId: string, @Request() req) {
-    return this.tasksService.assignTask(id, userId, req.user);
-  }
-
   @Post(':id/delegate')
   @ApiOperation({ summary: 'Delegate a task to one or more users' })
   @ApiBody({ type: DelegateTaskDto })
@@ -107,7 +103,33 @@ export class TasksController {
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a task (requires creator, admin, or leadership role)' })
+  @ApiResponse({ status: 200, description: 'Task cancelled successfully.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions to cancel.' })
+  @ApiResponse({ status: 404, description: 'Task not found.' })
+  @ApiResponse({ status: 400, description: 'Bad Request (e.g., trying to cancel a completed task).' })
   cancelTask(@Param('id') id: string, @Request() req) {
-    return this.tasksService.cancelTask(id, req.user);
+    const updateStatusDto: UpdateTaskStatusDto = { status: TaskStatus.CANCELLED };
+    return this.tasksService.updateStatus(id, updateStatusDto, req.user);
+  }
+
+  @Get('counts/by-status/department/:departmentId')
+  @ApiOperation({ summary: 'Get task counts grouped by status for a specific department' })
+  @ApiResponse({ status: 200, description: 'Returns counts of tasks for each status.', type: 'object' })
+  @ApiResponse({ status: 404, description: 'Department not found.' })
+  async getTaskCountsByStatusForDepartment(@Param('departmentId') departmentId: string): Promise<TaskStatusCounts> {
+    return this.tasksService.getTaskCountsByStatusForDepartment(departmentId);
+  }
+
+  @Get('counts/by-status/user/:userId')
+  @ApiOperation({ summary: 'Get task counts grouped by status for a specific user' })
+  @ApiResponse({ status: 200, description: 'Returns counts of tasks for each status.', type: 'object' })
+  @ApiResponse({ status: 404, description: 'User not found.' })
+  async getTaskCountsByStatusForUser(@Param('userId') userId: string, @Request() req): Promise<TaskStatusCounts> {
+    const requestingUser = req.user;
+    if (requestingUser.role !== UserRole.ADMIN && requestingUser.role !== UserRole.LEADERSHIP && requestingUser.userId !== userId) {
+        throw new ForbiddenException('You do not have permission to view task counts for this user.');
+    }
+    return this.tasksService.getTaskCountsByStatusForUser(userId);
   }
 }

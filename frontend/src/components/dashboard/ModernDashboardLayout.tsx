@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { Box, useTheme, useMediaQuery, Typography } from '@mui/material';
 import { standardBackgroundStyle } from '../../utils/backgroundStyles';
 
@@ -31,11 +31,9 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
 
-  // Log received prop value
-  console.log('[ModernDashboardLayout] Received quickNotesVisible:', quickNotesVisible);
-
   // Calculate the correct left margin based on sidebar state
   const sidebarWidth = sidebarOpen ? drawerWidth : (isMobile ? 0 : 65);
+  const marginLeft = sidebarOpen ? (isMobile ? 0 : `${sidebarWidth}px`) : (isMobile ? 0 : '64px'); // Adjusted for collapsed state
 
   return (
     <Box
@@ -159,10 +157,10 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
           {quickNotesVisible && quickNotesPanel && (
             <Box
               sx={{
-                width: { md: '280px', lg: '300px' },
-                flexBasis: { md: '280px', lg: '300px' },
+                width: '280px', // Fixed width for the notes panel
                 flexShrink: 0,
-                height: '100%',
+                backgroundColor: 'rgba(10, 25, 41, 0.7)', // Slightly different background
+                backdropFilter: 'blur(5px)',
                 overflowY: 'auto',
                 display: { xs: 'none', md: 'block' },
                 borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
@@ -186,8 +184,8 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
                 },
               }}
             >
-              {/* Render the actual quick notes panel passed as a prop */} 
-              {quickNotesPanel} 
+              {/* Render the actual quick notes panel passed as a prop */}
+              {/* {quickNotesPanel} */}
             </Box>
           )}
         </Box>
