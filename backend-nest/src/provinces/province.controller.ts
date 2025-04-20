@@ -15,11 +15,10 @@ import { Roles } from '../auth/decorators/roles.decorator'; // Import Roles deco
 import { UserRole } from '../users/entities/user.entity'; // Import UserRole enum
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 
-@ApiTags('Admin - Provinces')
+@ApiTags('Provinces')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard) // Apply Auth and Roles guards
-@Roles(UserRole.ADMIN) // Specify that only ADMIN role is allowed
-@Controller('admin/provinces')
+@UseGuards(JwtAuthGuard)
+@Controller('provinces')
 export class ProvinceController {
   constructor(
     private readonly provinceService: ProvinceService,
@@ -28,108 +27,129 @@ export class ProvinceController {
     private readonly activityLogService: ActivityLogService,
   ) {}
 
-  @Post()
+  @Get()
+  @ApiOperation({ summary: 'Get accessible provinces (All Authenticated Users)' })
+  @ApiResponse({ status: 200, description: 'List of accessible provinces.', type: [Province] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async findAccessibleProvinces(): Promise<Province[]> {
+    return this.provinceService.findAll();
+  }
+
+  @Post('admin')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new province (Admin Only)' })
   @ApiResponse({ status: 201, description: 'Province created successfully.', type: Province })
   @ApiResponse({ status: 400, description: 'Invalid input data.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden (Admin role required).' })
   async create(@Body() createProvinceDto: CreateProvinceDto): Promise<Province> {
     return this.provinceService.create(createProvinceDto);
   }
 
-  @Get()
+  @Get('admin')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get all provinces (Admin Only)' })
   @ApiResponse({ status: 200, description: 'List of all provinces.', type: [Province] })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden (Admin role required).' })
-  async findAll(): Promise<Province[]> {
+  async findAllAdmin(): Promise<Province[]> {
     return this.provinceService.findAll();
   }
 
-  @Get(':id')
+  @Get('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get a specific province by ID (Admin Only)' })
   @ApiParam({ name: 'id', description: 'Province UUID', type: String })
   @ApiResponse({ status: 200, description: 'Province details.', type: Province })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden (Admin role required).' })
   @ApiResponse({ status: 404, description: 'Province not found.' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Province> {
+  async findOneAdmin(@Param('id', ParseUUIDPipe) id: string): Promise<Province> {
     return this.provinceService.findOne(id);
   }
 
-  @Put(':id')
+  @Put('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update a province by ID (Admin Only)' })
   @ApiParam({ name: 'id', description: 'Province UUID', type: String })
   @ApiResponse({ status: 200, description: 'Province updated successfully.', type: Province })
   @ApiResponse({ status: 400, description: 'Invalid input data.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden (Admin role required).' })
   @ApiResponse({ status: 404, description: 'Province not found.' })
-  async update(
+  async updateAdmin(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProvinceDto: UpdateProvinceDto
   ): Promise<Province> {
     return this.provinceService.update(id, updateProvinceDto);
   }
 
-  @Delete(':id')
+  @Delete('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Delete a province by ID (Admin Only)' })
   @ApiParam({ name: 'id', description: 'Province UUID', type: String })
   @ApiResponse({ status: 204, description: 'Province deleted successfully.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden (Admin role required).' })
   @ApiResponse({ status: 404, description: 'Province not found.' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+  async removeAdmin(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.provinceService.remove(id);
   }
 
-  @Get(':provinceId/departments')
+  @Get('admin/:provinceId/departments')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get departments assigned to a province (Admin Only)' })
   @ApiParam({ name: 'provinceId', description: 'Province UUID', type: String })
   @ApiResponse({ status: 200, description: 'List of departments in the province.', type: [Department] })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Province not found.' })
-  async getProvinceDepartments(@Param('provinceId', ParseUUIDPipe) provinceId: string): Promise<Department[]> {
+  async getProvinceDepartmentsAdmin(@Param('provinceId', ParseUUIDPipe) provinceId: string): Promise<Department[]> {
     const province = await this.provinceService.findOne(provinceId);
     return province.departments;
   }
 
-  @Post(':provinceId/departments')
+  @Post('admin/:provinceId/departments')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Assign department(s) to a province (Admin Only)' })
   @ApiParam({ name: 'provinceId', description: 'Province UUID', type: String })
   @ApiResponse({ status: 200, description: 'Departments assigned successfully.', type: Province })
   @ApiResponse({ status: 400, description: 'Invalid input data (e.g., bad department IDs).' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Province or one/more Departments not found.' })
-  async assignDepartmentsToProvince(
+  async assignDepartmentsToProvinceAdmin(
     @Param('provinceId', ParseUUIDPipe) provinceId: string,
     @Body() assignDepartmentsDto: AssignDepartmentsDto
   ): Promise<Province> {
     return this.departmentsService.assignDepartmentsToProvince(provinceId, assignDepartmentsDto.departmentIds);
   }
 
-  @Delete(':provinceId/departments/:departmentId')
+  @Delete('admin/:provinceId/departments/:departmentId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Remove a department from a province (Admin Only)' })
   @ApiParam({ name: 'provinceId', description: 'Province UUID', type: String })
   @ApiParam({ name: 'departmentId', description: 'Department UUID to remove', type: String })
   @ApiResponse({ status: 204, description: 'Department removed successfully.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Province or Department not found.' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async removeDepartmentFromProvince(
+  async removeDepartmentFromProvinceAdmin(
     @Param('provinceId', ParseUUIDPipe) provinceId: string,
     @Param('departmentId', ParseUUIDPipe) departmentId: string
   ): Promise<void> {
     await this.departmentsService.removeDepartmentFromProvince(provinceId, departmentId);
   }
 
-  @Get('/:id/tasks')
-  async getProvinceTasks(@Param('id') id: string, @Request() req) {
+  @Get(':id/tasks')
+  @ApiOperation({ summary: 'Get tasks for a specific province' })
+  @ApiParam({ name: 'id', description: 'Province UUID', type: String })
+  @ApiResponse({ status: 200, description: 'List of tasks for the province.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Province not found.' })
+  async getProvinceTasks(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     const tasks = await this.tasksService.getTasksForProvince(id);
     
     try {

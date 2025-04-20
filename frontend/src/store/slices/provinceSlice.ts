@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { getAdminProvinces } from '@/services/provinceService/index'; // Corrected import name and path
+import { getAdminProvinces, getPublicProvinces } from '@/services/provinceService/index';
+import { RootState } from '..';
 
 // Basic Province interface (refine if shared type exists)
 interface Province {
@@ -20,23 +21,36 @@ const initialState: ProvincesState = {
   error: null,
 };
 
-// Async thunk for fetching provinces
+// Async thunk for fetching provinces (Role-aware)
 export const fetchProvinces = createAsyncThunk<
   Province[],
   void,
-  { rejectValue: string }
+  { rejectValue: string; state: RootState }
 >(
   'provinces/fetchProvinces',
-  async (_, { rejectWithValue }) => {
-    console.log("[fetchProvinces] Thunk started"); // Debug log
+  async (_, { rejectWithValue, getState }) => {
+    console.log("[fetchProvinces] Thunk started");
     try {
-      console.log("[fetchProvinces] Calling getAdminProvinces service function..."); // Debug log
-      const provinces = await getAdminProvinces(); // Corrected function call
-      console.log("[fetchProvinces] Service function returned:", provinces); // Debug log
+      const state = getState();
+      const userRole = state.auth.user?.role;
+
+      let provinces: Province[];
+      if (userRole?.toLowerCase() === 'admin') {
+        console.log("[fetchProvinces] User is ADMIN, calling getAdminProvinces...");
+        provinces = await getAdminProvinces();
+      } else {
+        console.log("[fetchProvinces] User is not ADMIN, calling getPublicProvinces...");
+        provinces = await getPublicProvinces();
+      }
+
+      console.log("[fetchProvinces] Service function returned:", provinces);
       return provinces || [];
     } catch (error: any) {
-      console.error("[fetchProvinces] Error caught in thunk:", error); // Debug log
-      return rejectWithValue(error.message || 'Failed to fetch provinces');
+      console.error("[fetchProvinces] Error caught in thunk:", error);
+      const errorMessage = error.response?.status === 403 
+          ? 'You do not have permission to access province data.' 
+          : error.message || 'Failed to fetch provinces';
+      return rejectWithValue(errorMessage);
     }
   }
 );
