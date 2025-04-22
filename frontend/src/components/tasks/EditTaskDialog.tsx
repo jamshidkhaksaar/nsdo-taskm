@@ -84,9 +84,9 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
         // ... reset other fields
     }
   }, [open, taskId, clearFormError]);
-
-   // Update available departments when province changes (same as Create dialog)
-   useEffect(() => {
+  
+  // Update available departments when province changes (same as Create dialog)
+  useEffect(() => {
     if (task?.type === TaskType.PROVINCE_DEPARTMENT && assignedToProvinceId) {
         const filtered = departments.filter(d => d.provinceId === assignedToProvinceId);
         setAvailableDepartments(filtered);
@@ -112,7 +112,12 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
       title: title !== task.title ? title : undefined,
       description: description !== task.description ? description : undefined,
       priority: priority !== task.priority ? priority : undefined,
-      dueDate: (dueDate ? dayjs(dueDate).toISOString() : null) !== task.dueDate ? (dueDate ? dayjs(dueDate).toISOString() : null) : undefined,
+      dueDate: 
+        // Convert both values to ISO string or null for comparison
+        (dueDate ? dayjs(dueDate).format('YYYY-MM-DD') : null) !== 
+        (task.dueDate ? dayjs(task.dueDate).format('YYYY-MM-DD') : null) 
+          ? (dueDate ? dayjs(dueDate).toISOString() : null) 
+          : undefined,
       // Include assignee updates if they differ from the original task
       assignedToUserIds: task.type === TaskType.USER && JSON.stringify(assignedToUserIds) !== JSON.stringify(task.assignedToUsers?.map(u=>u.id) ?? task.assignedToUserIds ?? []) ? assignedToUserIds : undefined,
       assignedToDepartmentIds: (task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && JSON.stringify(assignedToDepartmentIds) !== JSON.stringify(task.assignedToDepartmentIds ?? []) ? assignedToDepartmentIds : undefined,
@@ -143,111 +148,152 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
     }
   };
 
-  const renderFormContent = () => {
-      if (loadingFetch) return <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}><CircularProgress /></Box>;
-      if (fetchError) return <Alert severity="error" sx={{ mt: 2 }}>{fetchError}</Alert>;
-      if (!task) return <Typography sx={{ mt: 2 }}>Loading task data...</Typography>; // Should be brief
-
-      return (
-          <>
-            <TextField
-                autoFocus
-                margin="dense"
-                label="Task Title"
-                type="text"
-                fullWidth
-                variant="outlined"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                disabled={loadingUpdate}
-            />
-            <TextField
-                margin="dense"
-                label="Description"
-                type="text"
-                fullWidth
-                multiline
-                rows={4}
-                variant="outlined"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={loadingUpdate}
-            />
-
-            {/* Assume Task Type is not editable */}
-            <TextField
-                margin="dense"
-                label="Task Type"
-                type="text"
-                fullWidth
-                variant="outlined"
-                value={task.type || 'N/A'}
-                disabled
-                InputLabelProps={{ shrink: true }}
-            />
-
-            {/* Conditional Assignment Fields (similar to Create Dialog) */}
-             {loadingRefData ? <CircularProgress size={20} sx={{ display: 'block', margin: '10px auto' }} /> : <>
-                {task.type === TaskType.PROVINCE_DEPARTMENT && (
-                    <FormControl fullWidth margin="dense" disabled={loadingUpdate}> 
-                        <InputLabel>Province</InputLabel>
-                        <Select /* ... options ... */ value={assignedToProvinceId || ''} onChange={(e) => setAssignedToProvinceId(e.target.value as string)} />
-                    </FormControl>
-                )}
-                {(task.type === TaskType.DEPARTMENT || task.type === TaskType.PROVINCE_DEPARTMENT) && (
-                    <FormControl fullWidth margin="dense" disabled={loadingUpdate || (task.type === TaskType.PROVINCE_DEPARTMENT && !assignedToProvinceId)}>
-                        <InputLabel>Department(s)</InputLabel>
-                        <Select multiple /* ... options ... */ value={assignedToDepartmentIds} onChange={(e) => setAssignedToDepartmentIds(e.target.value as string[])} />
-                    </FormControl>
-                )}
-                {task.type === TaskType.USER && (
-                    <FormControl fullWidth margin="dense" disabled={loadingUpdate}>
-                        <InputLabel>Assign to User(s)</InputLabel>
-                        <Select multiple /* ... options ... */ value={assignedToUserIds} onChange={(e) => setAssignedToUserIds(e.target.value as string[])} />
-                    </FormControl>
-                )}
-            </>}
-
-            <FormControl fullWidth margin="dense" disabled={loadingUpdate}>
-                <InputLabel>Priority</InputLabel>
-                <Select value={priority} label="Priority" onChange={(e) => setPriority(e.target.value as TaskPriority)}>
-                    <MenuItem value={TaskPriority.LOW}>Low</MenuItem>
-                    <MenuItem value={TaskPriority.MEDIUM}>Medium</MenuItem>
-                    <MenuItem value={TaskPriority.HIGH}>High</MenuItem>
-                </Select>
-            </FormControl>
-
-            <DatePicker
-                label="Due Date"
-                value={dueDate}
-                onChange={(newValue) => setDueDate(newValue)}
-                sx={{ width: '100%', mt: 1 }}
-                disabled={loadingUpdate}
-            />
-
-            {formError && (
-                <Alert severity="error" sx={{ mt: 2 }}>{formError}</Alert>
-            )}
-        </>
-      );
-  };
-
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle>Edit Task {taskId ? `(ID: ${taskId})` : ''}</DialogTitle>
-            <DialogContent>
-                {renderFormContent()}
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} disabled={loadingUpdate}>Cancel</Button>
-                <Button onClick={handleSave} variant="contained" disabled={loadingUpdate || loadingFetch || !task}>
-                    {loadingUpdate ? <CircularProgress size={24} /> : 'Save Changes'}
-                </Button>
-            </DialogActions>
-        </Dialog>
-    </LocalizationProvider>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      disableEscapeKeyDown={false}
+      keepMounted
+    >
+        <DialogTitle>Edit Task {taskId ? `(ID: ${taskId})` : ''}</DialogTitle>
+        <DialogContent>
+          {loadingFetch ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}><CircularProgress /></Box>
+          ) : fetchError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>{fetchError}</Alert>
+          ) : !task ? (
+            <Typography sx={{ mt: 2 }}>Loading task data...</Typography>
+          ) : (
+            <div className="task-edit-form" style={{ padding: '10px 0' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="task-title" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                  Task Title *
+                </label>
+                <input
+                  id="task-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                    color: '#fff'
+                  }}
+                  disabled={loadingUpdate}
+                  required
+                />
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="task-description" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                  Description
+                </label>
+                <textarea
+                  id="task-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                    color: '#fff'
+                  }}
+                  disabled={loadingUpdate}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="task-type" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                  Task Type
+                </label>
+                <input
+                  id="task-type"
+                  type="text"
+                  value={task.type || 'N/A'}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    color: '#ccc'
+                  }}
+                  disabled
+                  readOnly
+                />
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="task-priority" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                  Priority
+                </label>
+                <select
+                  id="task-priority"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                    color: '#fff'
+                  }}
+                  disabled={loadingUpdate}
+                >
+                  <option value={TaskPriority.LOW}>Low</option>
+                  <option value={TaskPriority.MEDIUM}>Medium</option>
+                  <option value={TaskPriority.HIGH}>High</option>
+                </select>
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="task-due-date" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                  Due Date
+                </label>
+                <input
+                  id="task-due-date"
+                  type="date"
+                  value={dueDate ? dueDate.format('YYYY-MM-DD') : ''}
+                  onChange={(e) => {
+                    const newValue = e.target.value ? dayjs(e.target.value) : null;
+                    setDueDate(newValue);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                    color: '#fff'
+                  }}
+                  disabled={loadingUpdate}
+                />
+              </div>
+              
+              {formError && (
+                <div style={{ marginTop: '16px', padding: '10px', backgroundColor: 'rgba(211, 47, 47, 0.2)', color: '#f44336', borderRadius: '4px' }}>
+                  {formError}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions>
+            <Button onClick={onClose} disabled={loadingUpdate}>Cancel</Button>
+            <Button onClick={handleSave} variant="contained" disabled={loadingUpdate || loadingFetch || !task}>
+                {loadingUpdate ? <CircularProgress size={24} /> : 'Save Changes'}
+            </Button>
+        </DialogActions>
+    </Dialog>
   );
 };
 

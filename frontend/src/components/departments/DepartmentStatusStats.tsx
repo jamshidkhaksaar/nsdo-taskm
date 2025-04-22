@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from 'react-query';
+import { useQuery } from "@tanstack/react-query";
 import { Box, Typography, Chip, Skeleton, Alert, Tooltip } from '@mui/material';
 import { TaskService } from '../../services/task';
 import { TaskStatus } from '../../types';
@@ -42,14 +42,12 @@ const DepartmentStatusStats: React.FC<DepartmentStatusStatsProps> = ({ departmen
     data: statusCounts,
     isLoading,
     error
-  } = useQuery<TaskStatusCountsResponse, Error>(
-    ['departmentTaskStatusCounts', departmentId], 
-    () => TaskService.getTaskCountsByStatusForDepartment(departmentId),
-    {
-      enabled: !!departmentId, // Only run query if departmentId is provided
-      staleTime: 1 * 60 * 1000, // Cache for 1 minute
-    }
-  );
+  } = useQuery<TaskStatusCountsResponse, Error>({
+    queryKey: ['departmentTaskStatusCounts', departmentId], 
+    queryFn: () => TaskService.getTaskCountsByStatusForDepartment(departmentId),
+    enabled: !!departmentId, // Only run query if departmentId is provided
+    staleTime: 1 * 60 * 1000, // Cache for 1 minute
+  });
 
   if (isLoading) {
     return (

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useQuery, useQueries } from 'react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import {
   Box,
   Container,
@@ -21,6 +21,7 @@ import {
   AvatarGroup,
   Skeleton,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import WorkIcon from '@mui/icons-material/Work';
@@ -56,77 +57,94 @@ const Departments: React.FC = () => {
   // State for task dialog
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
 
-  // --- React Query Hook for Departments ---
-  const { 
-    data: departmentsData = [], 
-    isLoading: isLoadingDepartments, 
-    error: fetchDepartmentsError 
-  } = useQuery<Department[], Error>(
-    'departments', 
-    DepartmentService.getDepartments, 
-    {
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      onError: (err) => {
-        console.error('Failed to load departments:', err);
-      },
-      onSuccess: (data) => {
-        if (!selectedDepartment && data && data.length > 0) {
-          setSelectedDepartment(data[0].id);
-        }
-      }
-    }
-  );
-
-  // --- React Query Hook for Department Task Counts ---
-  const departmentCountQueries = useQueries(
-    departmentsData.map(dept => ({
-      queryKey: ['departmentTaskCounts', dept.id],
-      queryFn: () => TaskService.getTaskCountsByStatusForDepartment(dept.id),
-      staleTime: 5 * 60 * 1000, // Cache counts for 5 minutes
-      enabled: !!dept.id, // Only run query if department ID exists
-      onError: (err: any) => {
-        console.error(`Failed to load task counts for department ${dept.id}:`, err);
-      },
-    }))
-  );
-
-  // Check if any count query is still loading
-  const isLoadingCounts = departmentCountQueries.some(query => query.isLoading);
-
-  // Combine department data with task counts
-  const departmentsWithCounts = departmentsData.map((dept, index) => {
-    const countQuery = departmentCountQueries[index];
-    const counts = countQuery.data;
-    // Sum up counts for all statuses (or default to 0)
-    const totalTasks = counts 
-      ? (counts.pending || 0) + (counts.in_progress || 0) + (counts.completed || 0) + (counts.cancelled || 0)
-      : 0; // Default to 0 if counts are loading or failed
-    return {
-      ...dept,
-      tasksCount: totalTasks, // Add the calculated total count
-      statusCounts: counts // Keep individual status counts if needed later
-    };
+  // Fetch departments
+  const departmentsQuery = useQuery<Department[]>({
+    queryKey: ['departments'],
+    queryFn: DepartmentService.getDepartments,
   });
 
-  // Combined loading state (departments OR counts)
-  const isLoading = isLoadingDepartments || isLoadingCounts;
-  // Prioritize department fetch error
-  const combinedError = fetchDepartmentsError;
+  // Dynamically create queries for tasks for each department
+  const departmentTaskQueries = useQueries<Array<{ data: Task[] }>>({
+    queries: (departmentsQuery.data ?? []).map(department => ({
+      queryKey: ['departmentTasks', department.id],
+      queryFn: () => TaskService.getTasksByDepartment(department.id),
+      enabled: !!departmentsQuery.data, // Only run if departments are loaded
+    })),
+  });
+
+  // --- Loading and Error Handling --- 
+  const isLoadingDepartments = departmentsQuery.isLoading;
+  const departmentsError = departmentsQuery.error;
+  // Check if any department task query is loading or has errored
+  const isLoadingTasks = departmentTaskQueries.some(query => query.isLoading);
+  const tasksError = departmentTaskQueries.find(query => query.isError)?.error;
+
+  const isLoading = isLoadingDepartments || isLoadingTasks;
+  const error = departmentsError || tasksError;
+
+  // --- Data Processing (Memoized) ---
+  const departmentsData = departmentsQuery.data || [];
+  
+  // Combine tasks from all successful queries
+  const allTasks: Task[] = useMemo(() => 
+    departmentTaskQueries
+      .filter(query => query.isSuccess && Array.isArray(query.data)) // Filter successful queries with array data
+      .flatMap(query => query.data as Task[]) // Flatten the arrays of tasks
+  , [departmentTaskQueries]);
+
+  // Calculate task counts per department (Memoized)
+  const taskCountsByDepartment: { [key: string]: number } = useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    (departmentsQuery.data ?? []).forEach((dept, index) => {
+      const queryResult = departmentTaskQueries[index];
+      counts[dept.id] = (queryResult?.isSuccess && Array.isArray(queryResult.data)) ? queryResult.data.length : 0;
+    });
+    return counts;
+  }, [departmentsQuery.data, departmentTaskQueries]);
+
+  // Calculate task status counts per department (Memoized)
+  const taskStatusCountsByDepartment: { [key: string]: { [key in TaskStatus]: number } } = useMemo(() => {
+    const counts: { [key: string]: { [key in TaskStatus]: number } } = {};
+    (departmentsQuery.data ?? []).forEach((dept, index) => {
+      const queryResult = departmentTaskQueries[index];
+      counts[dept.id] = { // Initialize counts for the department
+        [TaskStatus.PENDING]: 0,
+        [TaskStatus.IN_PROGRESS]: 0,
+        [TaskStatus.COMPLETED]: 0,
+        [TaskStatus.CANCELLED]: 0,
+      };
+      if (queryResult?.isSuccess && Array.isArray(queryResult.data)) {
+        (queryResult.data as Task[]).forEach(task => {
+          if (counts[dept.id][task.status] !== undefined) {
+            counts[dept.id][task.status]++;
+          }
+        });
+      }
+    });
+    return counts;
+  }, [departmentsQuery.data, departmentTaskQueries]);
 
   // Fetch top performers when selected department changes
-  const { 
-    data: performersData, 
-    isLoading: isLoadingPerformers 
-  } = useQuery(
-    ['departmentPerformers', selectedDepartment],
-    () => DepartmentService.getDepartmentPerformers(selectedDepartment!),
-    {
-      enabled: !!selectedDepartment, // Only run when selectedDepartment is truthy
-      staleTime: 5 * 60 * 1000,
-      onError: (err) => console.error(`Error fetching performers for ${selectedDepartment}:`, err),
-      onSuccess: (data) => setTopPerformers(data || []) // Update local state on success
-    }
-  );
+  const topPerformersQuery = useQuery<any[]>({
+    queryKey: ['topPerformers', selectedDepartment],
+    queryFn: () => selectedDepartment ? DepartmentService.getDepartmentPerformers(selectedDepartment) : Promise.resolve([]),
+    enabled: !!selectedDepartment, // Only run if a department is selected
+  });
+
+  // Fetch details for the selected department
+  const selectedDepartmentDetailsQuery = useQuery<Department>({
+    queryKey: ['departmentDetails', selectedDepartment],
+    queryFn: () => DepartmentService.getDepartment(selectedDepartment!),
+    enabled: !!selectedDepartment,
+  });
+
+  // Combine department data with task counts (Memoized)
+  const departmentsWithCounts = useMemo(() => {
+    return departmentsData.map(dept => ({
+      ...dept,
+      tasksCount: taskCountsByDepartment[dept.id] || 0,
+    }));
+  }, [departmentsData, taskCountsByDepartment]);
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -192,9 +210,9 @@ const Departments: React.FC = () => {
             <Skeleton variant="rectangular" height={600} sx={{ borderRadius: 2, bgcolor: 'grey.800' }} />
           </Grid>
         </Grid>
-      ) : combinedError ? (
+      ) : error ? (
         <Alert severity="error" sx={{ m: 3 }}>
-          {combinedError.message || 'An unknown error occurred loading departments.'}
+          {error.message || 'An unknown error occurred loading departments.'}
         </Alert>
       ) : (
         <Grid container spacing={3}>

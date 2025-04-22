@@ -205,6 +205,9 @@ export interface DashboardTasksResponse {
 // export * from './auth'; 
 // export * from './userTypes'; // If user types were in a separate file
 
+// Export types from .d.ts files if necessary
+export type { CreateDepartmentPayload } from './index.d'; // Export the missing type
+
 // Selectively re-export types from service files if needed
 export type { TaskStatusCountsResponse } from '../services/task';
 

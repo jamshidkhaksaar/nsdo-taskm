@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Grid,
   Card,
@@ -55,8 +55,7 @@ import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { DepartmentService } from '../../services/department';
-import { Department } from '@/types/index';
-import { Province } from '../../types/province';
+import { Department, CreateDepartmentPayload, Province, User } from '@/types/index';
 import * as provinceService from '../../services/provinceService';
 import { UserService } from '../../services/user';
 
@@ -139,19 +138,29 @@ const DepartmentManagement: React.FC = () => {
   };
 
   const { data: departments = [], isLoading: isLoadingDepartments, error: fetchDepartmentsError } = 
-    useQuery<Department[], Error>('departments', DepartmentService.getDepartments, {
+    useQuery<Department[], Error>({
+      queryKey: ['departments'],
+      queryFn: DepartmentService.getDepartments,
       staleTime: 5 * 60 * 1000,
     });
 
   const { data: provincesData = [], isLoading: isLoadingProvinces } = 
-    useQuery<Province[], Error>('adminProvincesForSelect', provinceService.getAdminProvinces, {
+    useQuery<Province[], Error>({
+      queryKey: ['adminProvincesForSelect'],
+      queryFn: provinceService.getAdminProvinces,
       staleTime: 10 * 60 * 1000,
-      onSuccess: (data) => setAvailableProvinces(data)
     });
 
-  const createDepartmentMutation = useMutation(DepartmentService.createDepartment, {
+  useEffect(() => {
+    if (provincesData) {
+      setAvailableProvinces(provincesData);
+    }
+  }, [provincesData]);
+
+  const createDepartmentMutation = useMutation({
+    mutationFn: DepartmentService.createDepartment,
     onSuccess: () => {
-      queryClient.invalidateQueries('departments');
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
       handleCloseDialog();
       alert('Department created successfully!');
     },
@@ -161,24 +170,24 @@ const DepartmentManagement: React.FC = () => {
     }
   });
 
-  const updateDepartmentMutation = useMutation(
-    (data: { id: string, dto: Partial<Department> }) => DepartmentService.updateDepartment(data.id, data.dto),
-    {
-      onSuccess: (updatedDept) => {
-        queryClient.invalidateQueries('departments');
-        handleCloseDialog();
-        alert('Department updated successfully!');
-      },
-      onError: (err: any) => {
-        console.error("Error updating department:", err);
-        setError(err.response?.data?.message || err.message || 'Failed to update department');
-      }
+  const updateDepartmentMutation = useMutation({
+    mutationFn: (data: { id: string, dto: Partial<Department> }) => 
+      DepartmentService.updateDepartment(data.id, data.dto),
+    onSuccess: (updatedDept) => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      handleCloseDialog();
+      alert('Department updated successfully!');
+    },
+    onError: (err: any) => {
+      console.error("Error updating department:", err);
+      setError(err.response?.data?.message || err.message || 'Failed to update department');
     }
-  );
+  });
 
-  const deleteDepartmentMutation = useMutation(DepartmentService.deleteDepartment, {
+  const deleteDepartmentMutation = useMutation({
+    mutationFn: DepartmentService.deleteDepartment,
     onSuccess: () => {
-      queryClient.invalidateQueries('departments');
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
       alert('Department deleted successfully!');
     },
     onError: (err: any) => {
@@ -314,7 +323,7 @@ const DepartmentManagement: React.FC = () => {
       setOpenAddMemberDialog(false);
       setSelectedMember('');
       
-      await queryClient.invalidateQueries('departments');
+      await queryClient.invalidateQueries({ queryKey: ['departments'] });
       
       if (selectedDepartment && selectedDepartment.id) {
         try {
@@ -342,7 +351,7 @@ const DepartmentManagement: React.FC = () => {
       await DepartmentService.removeMemberFromDepartment(selectedDepartment.id, String(userId));
       alert('Member removed successfully!');
       
-      await queryClient.invalidateQueries('departments');
+      await queryClient.invalidateQueries({ queryKey: ['departments'] });
       
       const updatedDept = await DepartmentService.getDepartment(selectedDepartment.id);
       setSelectedDepartment(updatedDept);

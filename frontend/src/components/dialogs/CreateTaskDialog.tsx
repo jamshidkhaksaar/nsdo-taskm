@@ -65,7 +65,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setError(null);
       setLoading(false);
     }
-  }, [open, initialStatus, initialType, departments]);
+  }, [open, initialStatus, initialType]);
 
   useEffect(() => {
     if (taskType === TaskType.PROVINCE_DEPARTMENT && assignedToProvinceId) {
@@ -149,7 +149,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             onChange={(e) => setTitle(e.target.value)}
             required
             disabled={loading}
-            sx={{ input: { color: 'white' } }}
           />
           <TextField
             margin="dense"
@@ -162,7 +161,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={loading}
-            sx={{ textarea: { color: 'white' } }}
           />
 
           <FormControl fullWidth margin="dense" disabled={loading || dialogType === 'assign'}>
@@ -171,7 +169,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               value={taskType}
               label="Task Type"
               onChange={(e) => setTaskType(e.target.value as TaskType)}
-              sx={{ '& .MuiSelect-select': { color: 'white' } }}
             >
               <MenuItem value={TaskType.PERSONAL}>Personal Task</MenuItem>
               <MenuItem value={TaskType.USER}>Assign to User(s)</MenuItem>
@@ -188,7 +185,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                   value={assignedToProvinceId || ''}
                   label="Province"
                   onChange={(e) => setAssignedToProvinceId(e.target.value as string)}
-                  sx={{ '& .MuiSelect-select': { color: 'white' } }}
                 >
                   <MenuItem value=""><em>None</em></MenuItem>
                   {provinces.map((province) => (
@@ -207,7 +203,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                   onChange={(e) => setAssignedToDepartmentIds(e.target.value as string[])}
                   label="Department(s)"
                   renderValue={(selected) => selected.map(id => departments.find(d => d.id === id)?.name || id).join(', ')}
-                  sx={{ '& .MuiSelect-select': { color: 'white' } }}
                 >
                   {availableDepartments.map((dept) => (
                     <MenuItem key={dept.id} value={dept.id}>
@@ -230,7 +225,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                     const user = users.find(u => u.id === id);
                     return user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username : id;
                   }).join(', ')}
-                  sx={{ '& .MuiSelect-select': { color: 'white' } }}
                 >
                   {users.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
@@ -248,7 +242,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               value={priority}
               label="Priority"
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              sx={{ '& .MuiSelect-select': { color: 'white' } }}
             >
               <MenuItem value={TaskPriority.LOW}>Low</MenuItem>
               <MenuItem value={TaskPriority.MEDIUM}>Medium</MenuItem>
@@ -261,7 +254,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               value={status}
               label="Status"
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              sx={{ '& .MuiSelect-select': { color: 'white' } }}
             >
               <MenuItem value={TaskStatus.PENDING}>Pending</MenuItem>
             </Select>
@@ -270,7 +262,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             label="Due Date"
             value={dueDate}
             onChange={(newValue, context) => setDueDate(newValue)}
-            sx={{ width: '100%', mt: 1, '& .MuiInputBase-input': { color: 'white' } }}
             disabled={loading}
           />
 

@@ -117,35 +117,31 @@ const ProvincesPage: React.FC = () => {
                             <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Select Province</Typography>
                             <List component="nav" dense>
                                 {provinces.map((province) => (
-                                    <MagicCard
+                                    <ListItem
                                         key={province.id}
-                                        className="mb-1 rounded-lg"
-                                        gradientSize={100}
+                                        button
+                                        selected={selectedProvince?.id === province.id}
+                                        onClick={() => handleProvinceSelect(province)}
+                                        sx={{
+                                            ...getGlassmorphismStyles().card,
+                                            mb: 1,
+                                            borderRadius: 1,
+                                            '&.Mui-selected': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.25) !important',
+                                            },
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.1) !important',
+                                            }
+                                        }}
                                     >
-                                        <ListItem
-                                            button
-                                            selected={selectedProvince?.id === province.id}
-                                            onClick={() => handleProvinceSelect(province)}
+                                        <ListItemText
+                                            primary={province.name}
                                             sx={{
-                                                borderRadius: 1,
-                                                backgroundColor: 'transparent !important',
-                                                '&.Mui-selected': {
-                                                    backgroundColor: 'rgba(255, 255, 255, 0.16) !important',
-                                                },
-                                                '&:hover': {
-                                                    backgroundColor: 'transparent !important',
-                                                }
+                                                '.MuiListItemText-primary': { color: '#fff' },
+                                                '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
                                             }}
-                                        >
-                                            <ListItemText
-                                                primary={province.name}
-                                                sx={{
-                                                    '.MuiListItemText-primary': { color: '#fff' },
-                                                    '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
-                                                }}
-                                            />
-                                        </ListItem>
-                                    </MagicCard>
+                                        />
+                                    </ListItem>
                                 ))}
                                 {provinces.length === 0 && (
                                     <ListItem>

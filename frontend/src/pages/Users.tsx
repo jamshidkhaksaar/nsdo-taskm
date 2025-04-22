@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useQuery, useQueryClient } from 'react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Container,
@@ -40,6 +40,7 @@ import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import CreateTaskDialog from '../components/tasks/CreateTaskDialog';
 import UserStatusStats from '../components/users/UserStatusStats'; // Import the new component
+import TaskBoard from '../components/tasks/TaskBoard'; // Changed from KanbanBoard
 
 
 const DRAWER_WIDTH = 240;
@@ -71,38 +72,23 @@ const Users: React.FC = () => {
   // END: Handler
 
   // --- React Query Hooks ---
-  const { data: users = [], isLoading: isLoadingUsers, error: fetchUsersError } = 
-    useQuery<User[], Error>('users', UserService.getUsers, {
-        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-        onError: (err) => {
-            console.error('Failed to load users:', err);
-            setError(`Failed to load users: ${err.message}`); // Set local error state
-        },
-        onSuccess: (data) => {
-            // Select first user by default if none is selected and data is available
-            if (!selectedUser && data && data.length > 0) {
-                setSelectedUser(data[0].id);
-            }
-        }
-    });
+  const usersQuery = useQuery<User[]>({
+    queryKey: ['allUsersForUsersPage'], 
+    queryFn: () => UserService.getUsers(),
+  });
 
-  // Fetch all tasks - adjust if only specific user tasks are needed
-  const { data: tasks = [], isLoading: isLoadingTasks, error: fetchTasksError } = 
-    useQuery<Task[], Error>(
-      'allTasksForUsersPage', 
-      () => TaskService.getTasks(), // Wrap service call in arrow function
-      { 
-        staleTime: 2 * 60 * 1000, 
-        onError: (err) => {
-            console.error('Failed to load tasks:', err);
-            setError(`Failed to load tasks: ${err.message}`);
-        },
-    });
+  const tasksQuery = useQuery<Task[]>({
+    queryKey: ['allTasksForUsersPage'],
+    queryFn: () => TaskService.getTasks(),
+  });
 
   // Combined loading state and error handling
-  const isLoading = isLoadingUsers || isLoadingTasks;
+  const isLoading = usersQuery.isLoading || tasksQuery.isLoading;
   // Ensure combinedError is always an Error object or null/undefined for consistent access
-  const combinedError = fetchUsersError || fetchTasksError || (error ? new Error(error) : null);
+  const combinedError = usersQuery.error || tasksQuery.error;
+  if (combinedError) {
+    console.error('Data fetching error:', combinedError);
+  }
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -152,59 +138,66 @@ const Users: React.FC = () => {
   
   const handleTaskCreated = () => {
     // Invalidate the query fetching all tasks for this page
-    queryClient.invalidateQueries('allTasksForUsersPage'); 
+    queryClient.invalidateQueries({ queryKey: ['allTasksForUsersPage'] }); 
     
     // ALSO invalidate the query used by the Dashboard
-    queryClient.invalidateQueries('dashboardTasks'); // Assuming this is the key used in Dashboard.tsx
+    queryClient.invalidateQueries({ queryKey: ['dashboardTasks'] }); // Assuming this is the key used in Dashboard.tsx
     
     setSelectedUserIdsForTask([]); // Reset selection
     setCreateTaskDialogOpen(false); // Close dialog
   };
 
-  // Update calculations to use data from useQuery
-  const selectedUserData = selectedUser 
+  const handleUserDeleted = () => {
+    // Invalidate queries to refetch data
+    queryClient.invalidateQueries({ queryKey: ['allUsersForUsersPage'] });
+    queryClient.invalidateQueries({ queryKey: ['allTasksForUsersPage'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboardTasks'] });
+    // Optionally, show success message or navigate away
+  };
+
+  const users = usersQuery.data || [];
+  const tasks = tasksQuery.data || [];
+
+  const getUserById = (id: string): User | undefined => {
+    return Array.isArray(users) ? users.find(user => user.id === id) : undefined;
+  };
+
+  const tasksCount = Array.isArray(tasks) ? tasks.length : 0;
+  const usersCount = Array.isArray(users) ? users.length : 0;
+
+  const activeUsers = Array.isArray(users) ? users.filter(user => user.status === 'active').length : 0;
+  const inactiveUsers = Array.isArray(users) ? users.filter(user => user.status === 'inactive').length : 0;
+
+  // Filter tasks for the selected user
+  const assignedTasksArray = Array.isArray(tasks) && selectedUser !== null
+    ? tasks.filter(task => task.assignedToUserIds?.includes(selectedUser))
+    : [];
+  const completedTasksArray = Array.isArray(tasks) && selectedUser !== null
+    ? tasks.filter(task => task.assignedToUserIds?.includes(selectedUser) && task.status === TaskStatus.COMPLETED)
+    : [];
+  const pendingTasksArray = Array.isArray(tasks) && selectedUser !== null
+    ? tasks.filter(task => task.assignedToUserIds?.includes(selectedUser) && task.status === TaskStatus.PENDING)
+    : [];
+
+  const assignedTasksCount = assignedTasksArray.length;
+  const completedTasksCount = completedTasksArray.length;
+  const pendingTasksCount = pendingTasksArray.length;
+  const selectedUserTotalTasks = assignedTasksCount + completedTasksCount + pendingTasksCount; // Recalculate total based on filtered arrays
+
+  // Create user summary data
+  const userSummaryData = selectedUser 
     ? users.find((u: User) => u.id === selectedUser) // Use 'users' from useQuery
     : users.length > 0 
       ? users[0] 
       : null;
 
-  // Update task filtering logic based on central Task type
-  const userTasks = selectedUser 
-    ? tasks.filter(task => // Use 'tasks' from useQuery
-        // Check assignedToUsers relation (array of User objects)
-        task.assignedToUsers?.some(assignee => String(assignee.id) === String(selectedUser)) || 
-        // Check createdById
-        String(task.createdById) === String(selectedUser)
-      ) 
-    : [];
-
-  const userCompletedTasks = userTasks.filter(task => task.status === 'completed');
-  const userOngoingTasks = userTasks.filter(task => task.status === 'in_progress');
-  const userPendingTasks = userTasks.filter(task => task.status === 'pending');
-
-  // Create user summary data
-  const userSummaryData = selectedUserData ? {
-    username: (selectedUserData as any).username,
-    first_name: (selectedUserData as any).first_name,
-    last_name: (selectedUserData as any).last_name,
-    email: (selectedUserData as any).email,
-    role: (selectedUserData as any).role || 'User',
-    avatar: (selectedUserData as any).avatar,
-    totalTasks: userTasks.length,
-    completedTasks: userCompletedTasks.length,
-    ongoingTasks: userOngoingTasks.length,
-    completionRate: userTasks.length > 0 
-      ? Math.round((userCompletedTasks.length / userTasks.length) * 100) 
-      : 0
-  } : null;
-
   // Filter users based on search query (client-side example)
-  const filteredUsers = users.filter(u => // Use 'users' from useQuery
+  const filteredUsers = Array.isArray(users) ? users.filter(u => // Use 'users' from useQuery
       (u.first_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (u.last_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
       u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) : [];
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -291,7 +284,7 @@ const Users: React.FC = () => {
             
             {/* Right Column - User Details and Tasks */}
             <Grid item xs={12} md={8} lg={9}>
-              {selectedUserData ? (
+              {selectedUser ? (
                 <>
                   {/* User Profile Card */}
                   <Paper 
@@ -357,15 +350,15 @@ const Users: React.FC = () => {
                               <Box display="flex" alignItems="center" gap={1}>
                                 <AssignmentIcon fontSize="small" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                                 <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                                  {userSummaryData?.totalTasks} Tasks assigned
+                                  {selectedUserTotalTasks} Tasks assigned
                                 </Typography>
                               </Box>
                             </Box>
 
                             {/* Render User Status Stats Here */}
-                            {selectedUserData && 
+                            {selectedUser && 
                               <Box mt={1}>
-                                <UserStatusStats userId={selectedUserData.id} />
+                                <UserStatusStats userId={selectedUser} />
                               </Box>
                             }
                           </Box>
@@ -392,7 +385,7 @@ const Users: React.FC = () => {
                                   <Box display="flex" alignItems="center" gap={1} mt={1}>
                                     <AssignmentIcon sx={{ color: '#90caf9', fontSize: 36 }} />
                                     <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                      {userSummaryData?.totalTasks || 0}
+                                      {selectedUserTotalTasks}
                                     </Typography>
                                   </Box>
                                 </CardContent>
@@ -412,7 +405,7 @@ const Users: React.FC = () => {
                                   <Box display="flex" alignItems="center" gap={1} mt={1}>
                                     <WorkIcon sx={{ color: '#ffcc80', fontSize: 36 }} />
                                     <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                      {userSummaryData?.ongoingTasks || 0}
+                                      {assignedTasksCount}
                                     </Typography>
                                   </Box>
                                 </CardContent>
@@ -432,7 +425,7 @@ const Users: React.FC = () => {
                                   <Box display="flex" alignItems="center" gap={1} mt={1}>
                                     <WorkIcon sx={{ color: '#a5d6a7', fontSize: 36 }} />
                                     <Typography variant="h4" sx={{ color: '#fff', fontWeight: 'bold' }}>
-                                      {userSummaryData?.completedTasks || 0}
+                                      {completedTasksCount}
                                     </Typography>
                                   </Box>
                                 </CardContent>
@@ -455,19 +448,16 @@ const Users: React.FC = () => {
                               </Typography>
                               <Box display="flex" alignItems="center" justifyContent="center" flexDirection="column" mt={1}>
                                 <Typography variant="h3" sx={{ color: '#fff', fontWeight: 'bold', mb: 1 }}>
-                                  {userSummaryData?.completionRate || 0}%
+                                  {selectedUserTotalTasks > 0 ? Math.round((completedTasksCount / selectedUserTotalTasks) * 100) : 0}%
                                 </Typography>
                                 <Box width="100%" mt={1}>
                                   <LinearProgress
                                     variant="determinate"
-                                    value={userSummaryData?.completionRate || 0}
+                                    value={selectedUserTotalTasks > 0 ? (completedTasksCount / selectedUserTotalTasks) * 100 : 0}
                                     sx={{
                                       height: 10,
                                       borderRadius: 5,
-                                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                      '& .MuiLinearProgress-bar': {
-                                        backgroundColor: getCompletionRateColor(userSummaryData?.completionRate || 0),
-                                      },
+                                      backgroundColor: getCompletionRateColor(selectedUserTotalTasks > 0 ? (completedTasksCount / selectedUserTotalTasks) * 100 : 0),
                                     }}
                                   />
                                 </Box>
@@ -514,15 +504,9 @@ const Users: React.FC = () => {
                         </Button>
                       </Box>
                       
-                      <TasksSection 
-                        currentUserId={selectedUser ? parseInt(selectedUser) : 0}
-                        currentDepartmentId={0}
-                        viewMode="user"
-                        upcomingTasks={userPendingTasks}
-                        ongoingTasks={userOngoingTasks}
-                        completedTasks={userCompletedTasks}
-                        onAddTask={handleCreateTask}
-                        showAddButton={true}
+                      {/* Pass the filtered arrays to TaskBoard */}
+                      <TaskBoard
+                        tasks={assignedTasksArray} // Pass the filtered array of assigned tasks
                       />
                     </Box>
                   </Paper>

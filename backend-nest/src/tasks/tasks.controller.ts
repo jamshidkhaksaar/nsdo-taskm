@@ -32,7 +32,7 @@ export class TasksController {
 
   @Get('dashboard')
   getDashboardTasks(@Request() req) {
-    return this.tasksService.getDashboardTasks(req.user);
+    return this.tasksService.getDashboardTasks(req.user.userId);
   }
 
   @Get('assigned-to-me')

@@ -1,4 +1,9 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Node modules
+node_modules/
+
+# Build directories
+dist/
+build/
 
 # Environment files
 .env
@@ -7,62 +12,21 @@
 .env.test.local
 .env.production.local
 .env.production
+!.env.example
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-/cypress/videos
-/cypress/screenshots
-/cypress/downloads
-
-# production
-/build
-/dist
-/storybook-static
-
-# misc
-.DS_Store
-.idea
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-*.pem
+# Logs
 *.log
-
-# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-
-# local netlify folder
-.netlify
 
 # TypeScript cache
 *.tsbuildinfo
-next-env.d.ts
 
-# Temporary files
-.temp
-.tmp
-.cache
+# IDE
+.vscode/
+.idea/
 
-# Editor directories and files
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Bundle analyzer
-stats.html
-bundle-stats.json
-
-*storybook.log
+# OS files
+.DS_Store
+Thumbs.db

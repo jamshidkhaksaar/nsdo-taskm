@@ -212,6 +212,9 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     }
   };
 
+  // Dummy getUserName function
+  const getUserName = async (userId: string) => '';
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', p: 3 }}>
@@ -224,7 +227,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     <DragDropContext onDragEnd={onDragEnd}>
       <Box sx={{
         width: '100%',
-        height: '100%', // Ensure board takes full height of its container
+        minHeight: '400px', // Minimum height for board, but let content dictate actual height
         flexGrow: 1,
         display: 'flex',
         flexDirection: 'column',
@@ -234,7 +237,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
         borderColor: theme.palette.divider, // Use theme divider color
         boxShadow: theme.shadows[2], // Use theme shadow
         p: 1.5,
-        overflow: 'hidden', // Hide main container overflow, scrolling handled below
+        overflow: 'visible', // Let content overflow naturally
         position: 'relative',
       }}>
         {/* Board Header (Optional Title/Actions) */}
@@ -246,7 +249,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
           px: 1, // Add horizontal padding for header content
           flexShrink: 0, // Prevent header from shrinking
         }}>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 'medium' }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 'medium', color: '#fff' }}>
             Task Board
           </Typography>
           {/* Potential Add Task Button for board-level? */}
@@ -263,30 +266,35 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
         )}
 
         {/* Kanban Columns Container - THIS is the scrollable area */}
-        <Box sx={{
-          display: 'flex',
-          flexDirection: 'row', // Columns side-by-side
-          gap: 2, // Space between columns
-          flexGrow: 1, // Allow this area to take remaining space
-          overflowX: 'auto', // Enable horizontal scrolling ONLY when needed
-          overflowY: 'hidden', // Prevent vertical scrolling here (columns handle their own)
-          pb: 1, // Padding at the bottom for scrollbar clearance
-          // Custom Scrollbar Styles
-          '&::-webkit-scrollbar': {
-            height: '8px', // Slimmer scrollbar
-          },
-          '&::-webkit-scrollbar-track': {
-            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)', // Subtle track
-            borderRadius: '4px',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)', // Subtle thumb
-            borderRadius: '4px',
-            '&:hover': {
-              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)', // Darken on hover
+        <Box
+          sx={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' }, // Stack on mobile, row on desktop
+            justifyContent: 'center', // Center columns horizontally
+            alignItems: 'flex-start',
+            gap: 2,
+            flexWrap: { xs: 'wrap', md: 'nowrap' }, // Allow wrapping on small screens
+            overflowX: { xs: 'visible', md: 'auto' }, // Only scroll horizontally on desktop
+            overflowY: 'visible',
+            pb: 1,
+            px: { xs: 0, md: 2 }, // Padding for left/right on desktop
+            // Custom Scrollbar Styles
+            '&::-webkit-scrollbar': {
+              height: '8px',
             },
-          },
-        }}>
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+              borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '4px',
+              '&:hover': {
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              },
+            },
+          }}>
           {columns.map((column) => (
             <Droppable key={column.id} droppableId={column.id}>
               {(provided, snapshot) => (
@@ -303,7 +311,7 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
                 >
                   <KanbanColumn
                     title={column.title}
-                    icon={column.icon} // Pass icon to column
+                    icon={column.icon}
                     tasks={boardState[column.id] || []}
                     columnId={column.id}
                     isDraggingOver={snapshot.isDraggingOver}
@@ -311,7 +319,8 @@ const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
                     onEditTask={onEditTask}
                     onDeleteTask={onDeleteTask}
                     currentUser={currentUser}
-                    onCreateTask={onCreateTask} // Pass onCreateTask down
+                    onCreateTask={onCreateTask}
+                    getUserName={getUserName} // Pass dummy function
                   >
                     {/* Draggable Task Cards are rendered inside KanbanColumn */}
                   </KanbanColumn>

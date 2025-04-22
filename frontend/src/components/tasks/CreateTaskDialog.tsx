@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import {
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button,
@@ -53,12 +53,13 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [assignedToDepartmentIds, setAssignedToDepartmentIds] = useState<string[]>([]);
   const [assignedToProvinceId, setAssignedToProvinceId] = useState<string | null>(null);
   const [availableDepartments, setAvailableDepartments] = useState<Department[]>(departments);
+  const [isFormInitialized, setIsFormInitialized] = useState(false);
 
   const isAssignmentFixed = dialogType === 'assign' && initialAssignedUserIds.length > 0;
   const isPersonalOnly = initialType === TaskType.PERSONAL && !isAssignmentFixed;
 
-  useEffect(() => {
-    if (open) {
+  const resetForm = useCallback(() => {
+    if (!isFormInitialized && open) {
       setTitle('');
       setDescription('');
       setDueDate(null);
@@ -80,9 +81,19 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           setAssignedToDepartmentIds([]);
           setAssignedToProvinceId(null);
       }
-
+      
+      setIsFormInitialized(true);
     }
-  }, [open, initialStatus, initialType, departments, clearFormError, dialogType, initialAssignedUserIds, isAssignmentFixed]);
+  }, [open, initialStatus, initialType, departments, clearFormError, dialogType, initialAssignedUserIds, isAssignmentFixed, isFormInitialized]);
+
+  useEffect(() => {
+    resetForm();
+    
+    // Reset the initialization flag when dialog closes
+    if (!open) {
+      setIsFormInitialized(false);
+    }
+  }, [open, resetForm]);
 
   useEffect(() => {
     if (taskType === TaskType.PROVINCE_DEPARTMENT && assignedToProvinceId) {
@@ -155,8 +166,32 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
   const renderFormContent = () => (
         <>
-          <TextField autoFocus margin="dense" label="Task Title" type="text" fullWidth variant="outlined" value={title} onChange={(e) => setTitle(e.target.value)} required disabled={loading} sx={{ input: { color: 'text.primary' }, label: { color: 'text.secondary' } }} InputLabelProps={{ shrink: true }} />
-          <TextField margin="dense" label="Description" type="text" fullWidth multiline rows={4} variant="outlined" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} sx={{ textarea: { color: 'text.primary' }, label: { color: 'text.secondary' } }} InputLabelProps={{ shrink: true }} />
+          <TextField 
+            autoFocus 
+            margin="dense" 
+            label="Task Title" 
+            type="text" 
+            fullWidth 
+            variant="outlined" 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            required 
+            disabled={loading} 
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField 
+            margin="dense" 
+            label="Description" 
+            type="text" 
+            fullWidth 
+            multiline 
+            rows={4} 
+            variant="outlined" 
+            value={description} 
+            onChange={(e) => setDescription(e.target.value)} 
+            disabled={loading} 
+            InputLabelProps={{ shrink: true }}
+          />
 
           {/* Task Type: Hide if assignment is fixed OR if forced personal */}
           {!isAssignmentFixed && !isPersonalOnly && (
@@ -233,18 +268,29 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 <MenuItem value={TaskStatus.PENDING}>Pending</MenuItem>
             </Select>
           </FormControl>
-          <DatePicker
-              label="Due Date"
-              value={dueDate}
-              onChange={(newValue) => setDueDate(newValue)}
-              sx={{
-                width: '100%', mt: 1, mb: 1,
-                '& .MuiInputBase-root': { color: 'text.primary' },
-                '& .MuiInputBase-input': { color: 'text.primary' },
-                '& .MuiInputLabel-root': { color: 'text.secondary' },
-                 '& .MuiSvgIcon-root': { color: 'text.secondary' }
-            }}
-          />
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <DatePicker
+                label="Due Date"
+                value={dueDate}
+                onChange={(newValue) => setDueDate(newValue)}
+                slotProps={{
+                  textField: { 
+                    fullWidth: true, 
+                    margin: "dense",
+                    variant: "outlined",
+                    InputLabelProps: { shrink: true }
+                  },
+                  popper: {
+                    style: { zIndex: 9999 }
+                  }
+                }}
+                sx={{
+                  width: '100%', 
+                  mt: 1, 
+                  mb: 1
+                }}
+            />
+          </LocalizationProvider>
           {formError && (
               <Alert severity="error" sx={{ mt: 2 }}>{formError}</Alert>
           )}
@@ -252,38 +298,128 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   );
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <Dialog 
-            open={open} 
-            onClose={onClose} 
-            maxWidth="sm" 
-            fullWidth
-            PaperProps={{
-                sx: {
-                    ...glassmorphismCardStyle,
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    color: '#fff',
-                }
-            }}
-        >
-            <DialogTitle sx={{ color: '#fff' }}>
-               {isPersonalOnly ? 'Create Personal Task' :
-                isAssignmentFixed ? `Assign Task to ${getUserDisplayName(initialAssignedUserIds[0])}${initialAssignedUserIds.length > 1 ? '...' : ''}` :
-                'Create New Task'}
-            </DialogTitle>
-            <DialogContent>
-                {renderFormContent()}
-            </DialogContent>
-            <DialogActions sx={{ padding: '16px 24px'}}>
-                <Button onClick={onClose} disabled={loading} sx={{ color: '#ccc' }}>Cancel</Button>
-                <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-                    {loading ? <CircularProgress size={24} /> : 
-                     isPersonalOnly ? 'Create Task' : 
-                     isAssignmentFixed ? 'Assign Task' : 'Create Task'}
-                </Button>
-            </DialogActions>
-        </Dialog>
-    </LocalizationProvider>
+    <Dialog 
+        open={open} 
+        onClose={onClose} 
+        maxWidth="sm" 
+        fullWidth
+        disableEscapeKeyDown={false}
+        keepMounted
+    >
+        <DialogTitle sx={{ color: '#fff' }}>
+           {isPersonalOnly ? 'Create Personal Task' :
+            isAssignmentFixed ? `Assign Task to ${getUserDisplayName(initialAssignedUserIds[0])}${initialAssignedUserIds.length > 1 ? '...' : ''}` :
+            'Create New Task'}
+        </DialogTitle>
+        <DialogContent>
+          <div className="task-create-form" style={{ padding: '10px 0' }}>
+            <div style={{ marginBottom: '16px' }}>
+              <label htmlFor="task-title" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                Task Title *
+              </label>
+              <input
+                id="task-title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff'
+                }}
+                disabled={loading}
+                required
+              />
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label htmlFor="task-description" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                Description
+              </label>
+              <textarea
+                id="task-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff'
+                }}
+                disabled={loading}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label htmlFor="task-priority" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                Priority
+              </label>
+              <select
+                id="task-priority"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff'
+                }}
+                disabled={loading}
+              >
+                <option value={TaskPriority.LOW}>Low</option>
+                <option value={TaskPriority.MEDIUM}>Medium</option>
+                <option value={TaskPriority.HIGH}>High</option>
+              </select>
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label htmlFor="task-due-date" style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>
+                Due Date
+              </label>
+              <input
+                id="task-due-date"
+                type="date"
+                value={dueDate ? dueDate.format('YYYY-MM-DD') : ''}
+                onChange={(e) => {
+                  const newValue = e.target.value ? dayjs(e.target.value) : null;
+                  setDueDate(newValue);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff'
+                }}
+                disabled={loading}
+              />
+            </div>
+            
+            {formError && (
+              <div style={{ marginTop: '16px', padding: '10px', backgroundColor: 'rgba(211, 47, 47, 0.2)', color: '#f44336', borderRadius: '4px' }}>
+                {formError}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+        <DialogActions sx={{ padding: '16px 24px'}}>
+            <Button onClick={onClose} disabled={loading} sx={{ color: '#ccc' }}>Cancel</Button>
+            <Button onClick={handleSubmit} variant="contained" disabled={loading}>
+                {loading ? <CircularProgress size={24} /> : 
+                 isPersonalOnly ? 'Create Task' : 
+                 isAssignmentFixed ? 'Assign Task' : 'Create Task'}
+            </Button>
+        </DialogActions>
+    </Dialog>
   );
 };
 

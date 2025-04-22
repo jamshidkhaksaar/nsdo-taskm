@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from 'react-query';
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogTitle,
@@ -45,23 +45,22 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   const [addError, setAddError] = useState<string | null>(null);
 
   // Fetch all users
-  const { 
-    data: allUsers = [], 
-    isLoading: isLoadingUsers, 
-    error: fetchUsersError 
-  } = useQuery<User[], Error>(
-    'allUsersForAddMember', 
-    UserService.getUsers, 
-    {
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      enabled: open, // Only fetch when the dialog is open
-    }
-  );
+  const {
+    data: allUsers,
+    isLoading: isLoadingUsers,
+    error: fetchUsersError
+  } = useQuery<User[], Error>({
+    queryKey: ['allUsersForAddMember'],
+    queryFn: UserService.getUsers,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    enabled: open, // Only fetch when the dialog is open
+    initialData: [], // Provide initialData to ensure it's always an array
+  });
 
   // Filter out current members and apply search query
   const availableUsers = useMemo(() => {
     const currentMemberIds = new Set(currentMembers.map(m => m.id));
-    const filtered = allUsers.filter(user => !currentMemberIds.has(user.id));
+    const filtered = (allUsers ?? []).filter(user => !currentMemberIds.has(user.id));
     if (!searchQuery) {
       return filtered;
     }
@@ -142,7 +141,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
           </Box>
         ) : availableUsers.length === 0 ? (
           <Typography sx={{ textAlign: 'center', color: 'text.secondary', mt: 2 }}>
-            {allUsers.length > 0 ? 'No matching users found.' : 'No users available to add.'}
+            {(allUsers ?? []).length > 0 ? 'No matching users found.' : 'No users available to add.'}
           </Typography>
         ) : (
           <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>

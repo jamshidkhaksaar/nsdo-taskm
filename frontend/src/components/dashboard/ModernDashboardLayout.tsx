@@ -185,7 +185,7 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
               }}
             >
               {/* Render the actual quick notes panel passed as a prop */}
-              {/* {quickNotesPanel} */}
+              {quickNotesPanel}
             </Box>
           )}
         </Box>

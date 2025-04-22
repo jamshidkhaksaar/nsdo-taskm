@@ -11,16 +11,20 @@ import {
   Menu,
   MenuItem,
   Divider,
+  Chip,
+  useTheme,
+  Stack,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import PersonIcon from '@mui/icons-material/Person';
-import { Task, TaskStatus } from '../../types';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { Task, TaskStatus, TaskPriority } from '../../types';
 import TaskStatusBadge from './TaskStatusBadge';
+import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 
 // Define the props interface
 interface TaskCardProps {
@@ -50,22 +54,6 @@ const getStatusLabel = (status: string): string => {
   }
 };
 
-// Function to get status color
-const getStatusColor = (status: string): string => {
-  switch(status) {
-    case TaskStatus.PENDING:
-      return '#3498db';
-    case TaskStatus.IN_PROGRESS:
-      return '#f39c12';
-    case TaskStatus.COMPLETED:
-      return '#2ecc71';
-    case TaskStatus.CANCELLED:
-      return '#e74c3c';
-    default:
-      return '#3498db';
-  }
-};
-
 // Function to generate consistent colors from strings (userId)
 function stringToColor(string: string) {
   let hash = 0;
@@ -87,6 +75,20 @@ function stringToColor(string: string) {
   return color;
 }
 
+// Helper for Priority
+const getPriorityChipProps = (priority?: TaskPriority) => {
+  switch (priority) {
+    case TaskPriority.HIGH:
+      return { label: 'High', color: 'error' as const, icon: <ErrorOutlineIcon fontSize="small" /> };
+    case TaskPriority.MEDIUM:
+      return { label: 'Medium', color: 'warning' as const, icon: <ErrorOutlineIcon fontSize="small" /> };
+    case TaskPriority.LOW:
+      return { label: 'Low', color: 'info' as const, icon: <ErrorOutlineIcon fontSize="small" /> };
+    default:
+      return null;
+  }
+};
+
 const TaskCard: React.FC<TaskCardProps> = ({
   task,
   statusColor,
@@ -94,20 +96,23 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onDelete,
   onChangeStatus,
   getUserName,
-  formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString(),
+  formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
   theme,
 }) => {
   const [assigneeNames, setAssigneeNames] = useState<{ [key: string]: string }>({});
   const [creatorName, setCreatorName] = useState<string>('');
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
+  const [actionAnchorEl, setActionAnchorEl] = useState<null | HTMLElement>(null);
+
+  const glassmorphismStyles = getGlassmorphismStyles(theme);
 
   useEffect(() => {
     const loadUserDetails = async () => {
-      // Load assignee names
-      if (task.assigned_to && task.assigned_to.length > 0) {
+      // Load assignee names using task.assignedToUserIds
+      if (task.assignedToUserIds && task.assignedToUserIds.length > 0) {
         const names: { [key: string]: string } = {};
-        for (const userId of task.assigned_to) {
+        for (const userId of task.assignedToUserIds) {
           if (userId) {
             names[userId] = await getUserName(userId);
           }
@@ -115,10 +120,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
         setAssigneeNames(names);
       }
       
-      // Load creator name
-      if (task.created_by) {
+      // Load creator name using task.createdById
+      if (task.createdById) { 
         try {
-          const name = await getUserName(task.created_by);
+          const name = await getUserName(task.createdById);
           setCreatorName(name);
         } catch (error) {
           console.error('Error fetching creator name:', error);
@@ -128,23 +133,21 @@ const TaskCard: React.FC<TaskCardProps> = ({
     };
 
     loadUserDetails();
-  }, [task.assigned_to, task.created_by, getUserName]);
+  }, [task.assignedToUserIds, task.createdById, getUserName]);
 
   // Check if a due date is overdue
-  const isOverdue = (dateString: string): boolean => {
-    const dueDate = new Date(dateString);
-    if (!dueDate) return false;
-    
-    return dueDate < new Date() && dueDate.getDate() !== new Date().getDate();
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+
+  // Handle status change menu
+  const handleStatusMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setStatusAnchorEl(event.currentTarget);
   };
-
-  // Generate a darker shade of the status color for card border
-  const borderColor = alpha(statusColor, 0.8);
-
-  // Handle status change from dropdown
+  const handleStatusMenuClose = () => {
+    setStatusAnchorEl(null);
+  };
   const handleStatusChange = async (newStatus: TaskStatus) => {
+    handleStatusMenuClose();
     if (onChangeStatus && !isChangingStatus) {
-      setStatusAnchorEl(null);
       setIsChangingStatus(true);
       try {
         await onChangeStatus(String(task.id), newStatus);
@@ -154,88 +157,68 @@ const TaskCard: React.FC<TaskCardProps> = ({
     }
   };
 
-  // Get previous and next status
-  const getPreviousStatus = (currentStatus: TaskStatus): TaskStatus | null => {
-    switch (currentStatus) {
-      case TaskStatus.IN_PROGRESS:
-        return TaskStatus.PENDING;
-      case TaskStatus.COMPLETED:
-        return TaskStatus.IN_PROGRESS;
-      default:
-        return null;
-    }
+  // Handle actions menu (Edit/Delete)
+  const handleActionMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setActionAnchorEl(event.currentTarget);
+  };
+  const handleActionMenuClose = () => {
+    setActionAnchorEl(null);
+  };
+  const handleEdit = () => {
+    handleActionMenuClose();
+    onEdit && onEdit(String(task.id));
+  };
+  const handleDelete = () => {
+    handleActionMenuClose();
+    onDelete && onDelete(String(task.id));
   };
 
-  const getNextStatus = (currentStatus: TaskStatus): TaskStatus | null => {
-    switch (currentStatus) {
-      case TaskStatus.PENDING:
-        return TaskStatus.IN_PROGRESS;
-      case TaskStatus.IN_PROGRESS:
-        return TaskStatus.COMPLETED;
-      default:
-        return null;
-    }
-  };
-
-  const previousStatus = getPreviousStatus(task.status as TaskStatus);
-  const nextStatus = getNextStatus(task.status as TaskStatus);
+  const priorityProps = getPriorityChipProps(task.priority);
+  const assignees = task.assignedToUserIds || [];
 
   return (
     <Card
       sx={{
         position: 'relative',
+        backgroundColor: alpha(theme.palette.background.paper, 0.7),
+        backdropFilter: 'blur(5px)',
+        borderRadius: '12px',
+        border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+        boxShadow: theme.shadows[1],
         mb: 1.5,
-        borderLeft: `4px solid ${borderColor}`,
-        backgroundColor: 'background.paper',
-        borderRadius: 1,
-        boxShadow: 1,
         overflow: 'visible',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
-          boxShadow: 2,
+          boxShadow: theme.shadows[4],
+          border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
         },
       }}
     >
       <Box sx={{ p: 2 }}>
-        {/* Task title with edit button */}
+        {/* Header: Title and Actions Menu */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Typography variant="subtitle1" component="div" sx={{ fontWeight: 'medium', color: 'text.primary' }}>
+          <Typography variant="subtitle1" component="div" sx={{ fontWeight: 'medium', color: 'text.primary', mr: 1 }}>
             {task.title}
           </Typography>
-          <Box>
-            <Tooltip title="Edit Task">
-              <IconButton
-                size="small"
-                onClick={() => onEdit && onEdit(String(task.id))}
-                sx={{ ml: 1, color: 'text.secondary' }}
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete Task">
-              <IconButton
-                size="small"
-                onClick={() => onDelete && onDelete(String(task.id))}
-                sx={{ color: 'error.light' }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+          <IconButton
+            size="small"
+            onClick={handleActionMenuClick}
+            sx={{ color: 'text.secondary', p: 0.25 }}
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
+          <Menu
+            anchorEl={actionAnchorEl}
+            open={Boolean(actionAnchorEl)}
+            onClose={handleActionMenuClose}
+          >
+            {onEdit && <MenuItem onClick={handleEdit}><EditIcon fontSize="small" sx={{ mr: 1 }}/> Edit</MenuItem>}
+            {onDelete && <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}><DeleteIcon fontSize="small" sx={{ mr: 1 }}/> Delete</MenuItem>}
+          </Menu>
         </Box>
 
-        {/* Created by info */}
-        {task.created_by && (
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <PersonIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5, fontSize: '0.875rem' }} />
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Created by: {creatorName || 'Loading...'}
-            </Typography>
-          </Box>
-        )}
-        
-        {/* Task description */}
+        {/* Description */}
         {task.description && (
           <Typography
             variant="body2"
@@ -253,148 +236,103 @@ const TaskCard: React.FC<TaskCardProps> = ({
           </Typography>
         )}
 
-        {/* Task metadata */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box 
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                cursor: 'pointer', 
-                bgcolor: getStatusColor(task.status),
-                color: '#fff',
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                fontSize: '0.75rem',
-                fontWeight: 'medium',
-                '&:hover': {
-                  opacity: 0.9
-                }
-              }}
-              onClick={(e) => setStatusAnchorEl(e.currentTarget)}
-            >
-              {getStatusLabel(task.status)}
-              <KeyboardArrowDownIcon fontSize="small" sx={{ ml: 0.5 }} />
-            </Box>
-            
+        {/* Meta Info Row: Priority & Due Date */}
+        <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
+          {priorityProps && (
+            <Chip
+              icon={priorityProps.icon}
+              label={priorityProps.label}
+              color={priorityProps.color}
+              size="small"
+              sx={{ height: '22px', fontSize: '0.75rem' }}
+            />
+          )}
+          {task.dueDate && (
+            <Tooltip title={`Due: ${formatDate ? formatDate(task.dueDate) : task.dueDate}`}>
+              <Chip
+                icon={<AccessTimeIcon sx={{ fontSize: '1rem', ml: '2px' }} />}
+                label={formatDate ? formatDate(task.dueDate) : task.dueDate}
+                size="small"
+                sx={{
+                  height: '22px',
+                  fontSize: '0.75rem',
+                  color: isOverdue ? theme.palette.error.main : theme.palette.text.secondary,
+                  bgcolor: alpha(theme.palette.grey[500], 0.1),
+                  border: isOverdue ? `1px solid ${theme.palette.error.main}` : 'none',
+                  '& .MuiChip-icon': { color: isOverdue ? theme.palette.error.main : theme.palette.text.secondary },
+                }}
+              />
+            </Tooltip>
+          )}
+        </Stack>
+
+        {/* Footer Row: Assignees & Status */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Assignees Avatars */}
+          <AvatarGroup 
+            max={4} 
+            total={assignees.length}
+            sx={{ 
+              '& .MuiAvatar-root': { 
+                width: 28, 
+                height: 28, 
+                fontSize: '0.75rem', 
+                border: `2px solid ${theme.palette.background.paper}`
+              }, 
+            }}
+          >
+            {assignees.map(userId => (
+              <Tooltip key={userId} title={assigneeNames[userId] || 'Loading...'}>
+                <Avatar sx={{ bgcolor: stringToColor(userId || 'default') }}>
+                  {(assigneeNames[userId] || '?').charAt(0).toUpperCase()}
+                </Avatar>
+              </Tooltip>
+            ))}
+          </AvatarGroup>
+
+          {/* Status Badge/Button */}
+          <Box>
+            <Tooltip title="Change Status">
+              <Chip
+                label={getStatusLabel(task.status as TaskStatus)}
+                onClick={handleStatusMenuClick}
+                onDelete={handleStatusMenuClick}
+                deleteIcon={<KeyboardArrowDownIcon />}
+                size="small"
+                disabled={isChangingStatus}
+                sx={{
+                  bgcolor: alpha(statusColor, 0.15),
+                  color: statusColor,
+                  fontWeight: 'medium',
+                  cursor: 'pointer',
+                  '& .MuiChip-label': { pr: 0.5 },
+                  '& .MuiChip-deleteIcon': { 
+                    color: alpha(statusColor, 0.7),
+                    '&:hover': {
+                      color: statusColor,
+                    }
+                  }
+                }}
+              />
+            </Tooltip>
             <Menu
               anchorEl={statusAnchorEl}
               open={Boolean(statusAnchorEl)}
-              onClose={() => setStatusAnchorEl(null)}
+              onClose={handleStatusMenuClose}
             >
               {Object.values(TaskStatus).map((status) => (
-                <MenuItem
+                <MenuItem 
                   key={status}
                   onClick={() => handleStatusChange(status)}
-                  sx={{
-                    minWidth: 120,
-                    backgroundColor: task.status === status ? 'rgba(0, 0, 0, 0.04)' : 'transparent'
-                  }}
+                  selected={task.status === status}
+                  disabled={task.status === status}
                 >
-                  <Box 
-                    sx={{ 
-                      width: 8, 
-                      height: 8, 
-                      borderRadius: '50%', 
-                      backgroundColor: getStatusColor(status),
-                      mr: 1
-                    }} 
-                  />
                   {getStatusLabel(status)}
                 </MenuItem>
               ))}
             </Menu>
-            
-            {/* Show overdue warning if applicable */}
-            {isOverdue(task.dueDate || '') && (
-              <Tooltip title="Overdue">
-                <ErrorOutlineIcon 
-                  color="error" 
-                  fontSize="small" 
-                  sx={{ ml: 1 }} 
-                />
-              </Tooltip>
-            )}
           </Box>
-
-          <Typography variant="caption" color="text.secondary">
-            {formatDate(task.dueDate || '')}
-          </Typography>
         </Box>
-
-        {/* Assigned users */}
-        {task.assigned_to && task.assigned_to.length > 0 ? (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Assigned to:
-            </Typography>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
-                {Object.entries(assigneeNames).length > 0 ? (
-                  <AvatarGroup
-                    max={3}
-                    sx={{
-                      '& .MuiAvatar-root': {
-                        width: 24,
-                        height: 24,
-                        fontSize: '0.75rem',
-                        border: `1px solid ${theme.palette.background.paper}`,
-                      },
-                    }}
-                  >
-                    {Object.entries(assigneeNames).map(([userId, name]) => (
-                      <Tooltip key={userId} title={name || 'User'}>
-                        <Avatar sx={{ bgcolor: stringToColor(userId) }}>
-                          {(name || 'U').charAt(0)}
-                        </Avatar>
-                      </Tooltip>
-                    ))}
-                  </AvatarGroup>
-                ) : (
-                  <Typography variant="caption" color="text.secondary">
-                    Loading assignees...
-                  </Typography>
-                )}
-              </Box>
-
-              {/* Status change buttons (optional, in addition to dropdown) */}
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                {previousStatus && (
-                  <Tooltip title={`Move to ${getStatusLabel(previousStatus)}`}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleStatusChange(previousStatus)}
-                      disabled={isChangingStatus}
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <ArrowBackIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                
-                {nextStatus && (
-                  <Tooltip title={`Move to ${getStatusLabel(nextStatus)}`}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleStatusChange(nextStatus)}
-                      disabled={isChangingStatus}
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <ArrowForwardIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Box>
-            </Box>
-          </Box>
-        ) : (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary">
-              No assignees
-            </Typography>
-          </Box>
-        )}
       </Box>
     </Card>
   );

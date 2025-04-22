@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
     Box, 
     Button, 
@@ -54,32 +54,36 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
 
     // Fetch all departments
     const { data: allDepartments, isLoading: isLoadingAllDepts, error: errorAllDepts } = 
-        useQuery<Department[], Error>('allAdminDepartments', DepartmentService.getDepartments, {
-            enabled: open, // Only fetch when dialog is open
+        useQuery<Department[], Error>({
+            queryKey: ['allAdminDepartments'],
+            queryFn: DepartmentService.getDepartments,
+            enabled: open,
             staleTime: 5 * 60 * 1000,
         });
 
     // Fetch departments currently assigned to the selected province
     const { data: assignedDepartments, isLoading: isLoadingAssignedDepts, error: errorAssignedDepts } = 
-        useQuery<Department[], Error>(['assignedDepartments', province?.id], 
-            () => province ? provinceService.getAdminDepartmentsForProvince(province.id) : Promise.resolve([]),
-            {
-                enabled: open && !!province,
-                staleTime: 1 * 60 * 1000, // Shorter stale time for potentially frequent updates
-                onSuccess: (data) => {
-                    // Set initial checkbox state based on currently assigned departments
-                    setSelectedDepartmentIds(data.map(dept => String(dept.id)));
-                }
-            }
-        );
+        useQuery<Department[], Error>({
+            queryKey: ['assignedDepartments', province?.id],
+            queryFn: () => province ? provinceService.getAdminDepartmentsForProvince(province.id) : Promise.resolve([]),
+            enabled: open && !!province,
+            staleTime: 1 * 60 * 1000, // Shorter stale time for potentially frequent updates
+        });
+
+    // Effect to update checkboxes when assignedDepartments data changes
+    useEffect(() => {
+        if (assignedDepartments) {
+            setSelectedDepartmentIds(assignedDepartments.map(dept => String(dept.id)));
+        }
+    }, [assignedDepartments]);
 
     // Mutation for assigning departments
-    const assignMutation = useMutation((data: { provinceId: string; departmentIds: string[] }) => 
-        provinceService.assignDepartmentsToProvince(data.provinceId, { departmentIds: data.departmentIds }), 
-    {
+    const assignMutation = useMutation({
+        mutationFn: (data: { provinceId: string; departmentIds: string[] }) => 
+            provinceService.assignDepartmentsToProvince(data.provinceId, { departmentIds: data.departmentIds }), 
         onSuccess: () => {
-            queryClient.invalidateQueries(['assignedDepartments', province?.id]);
-            queryClient.invalidateQueries('adminProvinces'); // Invalidate main list if needed
+            queryClient.invalidateQueries({ queryKey: ['assignedDepartments', province?.id] });
+            queryClient.invalidateQueries({ queryKey: ['adminProvinces'] }); // Invalidate main list if needed
             onClose(); // Close dialog on success
         },
         onError: (err: any) => {
@@ -104,11 +108,13 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
     const handleSaveAssignments = () => {
         if (province) {
             setAssignmentError(null);
+            // Pass data directly to mutate
             assignMutation.mutate({ provinceId: province.id, departmentIds: selectedDepartmentIds });
         }
     };
 
-    const isLoading = isLoadingAllDepts || isLoadingAssignedDepts || assignMutation.isLoading;
+    // Use isPending instead of isLoading for mutations in v5
+    const isLoading = isLoadingAllDepts || isLoadingAssignedDepts || assignMutation.isPending;
     const errorMsg = errorAllDepts?.message || errorAssignedDepts?.message || assignmentError;
 
     return (
@@ -154,7 +160,8 @@ const DepartmentAssignmentDialog: React.FC<DepartmentAssignmentDialogProps> = ({
                     disabled={isLoading}
                     variant="contained"
                 >
-                    {assignMutation.isLoading ? <CircularProgress size={24} /> : 'Save Assignments'}
+                    {/* Use isPending for mutation loading state */}
+                    {assignMutation.isPending ? <CircularProgress size={24} /> : 'Save Assignments'}
                 </Button>
             </DialogActions>
         </Dialog>
@@ -182,14 +189,17 @@ const ProvinceManagement: React.FC = () => {
     const [provinceForAssignment, setProvinceForAssignment] = useState<Province | null>(null);
 
     // Fetch Provinces using React Query
-    const { data: provinces, isLoading, error, refetch } = useQuery<Province[], Error>('adminProvinces', provinceService.getAdminProvinces, {
+    const { data: provinces, isLoading, error, refetch } = useQuery<Province[], Error>({
+        queryKey: ['adminProvinces'],
+        queryFn: provinceService.getAdminProvinces,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     });
 
     // Mutations for CRUD operations
-    const createMutation = useMutation(provinceService.createAdminProvince, {
+    const createMutation = useMutation({
+        mutationFn: provinceService.createAdminProvince,
         onSuccess: () => {
-            queryClient.invalidateQueries('adminProvinces');
+            queryClient.invalidateQueries({ queryKey: ['adminProvinces'] });
             handleCloseDialog();
         },
         onError: (err: any) => {
@@ -198,9 +208,10 @@ const ProvinceManagement: React.FC = () => {
         }
     });
 
-    const updateMutation = useMutation((data: { id: string, dto: UpdateProvinceDto }) => provinceService.updateAdminProvince(data.id, data.dto), {
+    const updateMutation = useMutation({
+        mutationFn: (data: { id: string, dto: UpdateProvinceDto }) => provinceService.updateAdminProvince(data.id, data.dto),
         onSuccess: () => {
-            queryClient.invalidateQueries('adminProvinces');
+            queryClient.invalidateQueries({ queryKey: ['adminProvinces'] });
             handleCloseDialog();
         },
          onError: (err: any) => {
@@ -209,9 +220,10 @@ const ProvinceManagement: React.FC = () => {
         }
     });
 
-    const deleteMutation = useMutation(provinceService.deleteAdminProvince, {
+    const deleteMutation = useMutation({
+        mutationFn: provinceService.deleteAdminProvince,
         onSuccess: () => {
-            queryClient.invalidateQueries('adminProvinces');
+            queryClient.invalidateQueries({ queryKey: ['adminProvinces'] });
             // Optionally show a success notification
         },
          onError: (err: any) => {
@@ -386,9 +398,9 @@ const ProvinceManagement: React.FC = () => {
                     <Button onClick={handleCloseDialog}>Cancel</Button>
                     <Button 
                         onClick={handleSubmit} 
-                        disabled={createMutation.isLoading || updateMutation.isLoading}
+                        disabled={createMutation.isPending || updateMutation.isPending}
                     >
-                        {createMutation.isLoading || updateMutation.isLoading ? <CircularProgress size={24} /> : (isEditMode ? 'Save Changes' : 'Create')}
+                        {createMutation.isPending || updateMutation.isPending ? <CircularProgress size={24} /> : (isEditMode ? 'Save Changes' : 'Create')}
                     </Button>
                 </DialogActions>
             </Dialog>

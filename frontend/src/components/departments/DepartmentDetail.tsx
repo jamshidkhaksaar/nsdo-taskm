@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import {
   Box,
@@ -49,32 +49,29 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
     data: department, 
     isLoading: isLoadingDepartment, 
     error: fetchDepartmentError 
-  } = useQuery<Department, Error>(
-    ['departmentDetails', departmentId], 
-    () => DepartmentService.getDepartment(departmentId),
-    {
-      enabled: !!departmentId,
-    }
-  );
+  } = useQuery<Department, Error>({
+    queryKey: ['departmentDetails', departmentId], 
+    queryFn: () => DepartmentService.getDepartment(departmentId),
+    enabled: !!departmentId,
+  });
   
   const { 
-    data: tasks = [], 
+    data: tasks,
     isLoading: isLoadingTasks, 
     error: fetchTasksError 
-  } = useQuery<Task[], Error>(
-    ['departmentTasks', departmentId], 
-    () => TaskService.getTasksByDepartment(departmentId),
-    {
-      enabled: !!departmentId && tabValue === 1,
-    }
-  );
+  } = useQuery<Task[], Error>({
+    queryKey: ['departmentTasks', departmentId], 
+    queryFn: () => TaskService.getTasksByDepartment(departmentId),
+    enabled: !!departmentId && tabValue === 1,
+    initialData: [],
+  });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
   const handleMemberAdded = () => {
-    queryClient.invalidateQueries(['departmentDetails', departmentId]);
+    queryClient.invalidateQueries({ queryKey: ['departmentDetails', departmentId] });
   };
 
   if (isLoadingDepartment) {
@@ -96,9 +93,9 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
     <Paper elevation={3} sx={{ p: 3, borderRadius: 2, background: 'rgba(255, 255, 255, 0.08)' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
         <Box>
-          <Typography variant="h5" gutterBottom>{department.name}</Typography>
+          <Typography variant="h5" gutterBottom>{department?.name}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {department.description || 'No description provided.'}
+            {department?.description || 'No description provided.'}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -136,7 +133,7 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
       {tabValue === 0 && (
           <Box>
             <Typography variant="h6" sx={{ mb: 1 }}>Members</Typography>
-            {department.members && department.members.length > 0 ? (
+            {department?.members && department.members.length > 0 ? (
                  <ul>
                    {department.members.map(member => (
                      <li key={member.id}>{member.username} ({member.email})</li>
@@ -160,7 +157,7 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
         open={isAddMemberOpen} 
         onClose={() => setIsAddMemberOpen(false)} 
         departmentId={departmentId}
-        currentMembers={department.members || []}
+        currentMembers={department?.members || []}
         onMemberAdded={handleMemberAdded}
       />
     </Paper>

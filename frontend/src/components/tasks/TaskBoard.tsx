@@ -24,9 +24,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DoneIcon from '@mui/icons-material/Done';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import { format } from 'date-fns';
-import { Task, TaskStatus } from '../../types/task';
+import { KeyboardArrowDown as KeyboardArrowDownIcon } from "@mui/icons-material";
+import { format } from "date-fns";
+import { Task, TaskStatus } from "../../types";
 import { User } from '../../types/user';
 import { CollaboratorAvatars } from './CollaboratorAvatars';
 import { TaskService } from '../../services/task';
@@ -85,21 +85,24 @@ const TaskCard: React.FC<{
 
   useEffect(() => {
     const fetchCollaborators = async () => {
-      if (task.assigned_to && task.assigned_to.length > 0) {
+      if (task.assignedToUserIds && task.assignedToUserIds.length > 0) {
         try {
-          const users = await TaskService.getUsers();
-          const taskCollaborators = users.filter(user => 
-            task.assigned_to?.includes(user.id.toString())
+          const allUsers = await TaskService.getUsers();
+          const taskCollaborators = allUsers.filter(user => 
+            task.assignedToUserIds?.includes(user.id)
           );
           setCollaborators(taskCollaborators);
         } catch (error) {
           console.error('Error fetching collaborators:', error);
+          setCollaborators([]);
         }
+      } else {
+        setCollaborators([]);
       }
     };
 
     fetchCollaborators();
-  }, [task.assigned_to]);
+  }, [task.assignedToUserIds]);
 
   // Handle status change from dropdown
   const handleStatusChange = (newStatus: TaskStatus) => {
@@ -219,7 +222,7 @@ const TaskCard: React.FC<{
               fontSize: '0.75rem'
             }}>
               <AccessTimeIcon sx={{ fontSize: '0.875rem' }} />
-              {format(new Date(task.due_date), 'MMM d, h:mm a')}
+              {task.dueDate && format(new Date(task.dueDate), 'MMM d, h:mm a')}
             </Box>
           </Box>
         </Box>
@@ -309,9 +312,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   // Use this function to update task status instead of drag and drop
   const handleChangeTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
     try {
-      const updatedTask = await TaskService.updateTask(taskId, {
+      const updatedTask = await TaskService.updateTask(taskId, { 
         status: newStatus,
-        updated_at: new Date().toISOString()
       });
 
       setLocalTasks(prevTasks =>

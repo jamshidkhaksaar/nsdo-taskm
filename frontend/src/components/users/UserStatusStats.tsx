@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from 'react-query';
+import { useQuery } from "@tanstack/react-query";
 import { Box, Typography, Chip, Skeleton, Alert, Tooltip } from '@mui/material';
 import { TaskService, TaskStatusCountsResponse } from '../../services/task'; // Import response type
 import { TaskStatus } from '../../types';
@@ -38,14 +38,12 @@ const UserStatusStats: React.FC<UserStatusStatsProps> = ({ userId }) => {
     data: statusCounts,
     isLoading,
     error
-  } = useQuery<TaskStatusCountsResponse, Error>(
-    ['userTaskStatusCounts', userId], 
-    () => TaskService.getTaskCountsByStatusForUser(userId),
-    {
-      enabled: !!userId, // Only run query if userId is provided
-      staleTime: 1 * 60 * 1000, // Cache for 1 minute
-    }
-  );
+  } = useQuery<TaskStatusCountsResponse, Error>({
+    queryKey: ['userTaskStatusCounts', userId], 
+    queryFn: () => TaskService.getTaskCountsByStatusForUser(userId),
+    enabled: !!userId, // Only run query if userId is provided
+    staleTime: 1 * 60 * 1000, // Cache for 1 minute
+  });
 
   if (isLoading) {
     return (

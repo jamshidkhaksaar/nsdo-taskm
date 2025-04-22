@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, Length } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateProvinceDto {
@@ -9,7 +9,7 @@ export class CreateProvinceDto {
   })
   @IsNotEmpty({ message: 'Province name cannot be empty.' })
   @IsString()
-  @MaxLength(255)
+  @Length(1, 100)
   name: string;
 
   @ApiProperty({
@@ -19,5 +19,6 @@ export class CreateProvinceDto {
   })
   @IsOptional()
   @IsString()
+  @Length(0, 255)
   description?: string;
 } 

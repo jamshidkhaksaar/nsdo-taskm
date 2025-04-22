@@ -2,8 +2,9 @@ import React from 'react';
 import { Box, Typography, Chip, alpha, useTheme, IconButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { Task, TaskStatus } from '../../types';
-import TaskCard from '../dashboard/TaskCard';
+import TaskCard from './TaskCard';
 import { Draggable } from '@hello-pangea/dnd';
+import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 
 // Define the props interface
 interface KanbanColumnProps {
@@ -38,6 +39,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onCreateTask,
 }) => {
   const theme = useTheme();
+  const glassmorphismStyles = getGlassmorphismStyles(theme);
 
   // Get color for status
   const getStatusColor = (status: TaskStatus, theme: any): string => {
@@ -57,54 +59,68 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   };
 
   const statusColor = getStatusColor(columnId, theme);
+  const columnBgColorBase = alpha(theme.palette.grey[800], 0.4);
+  const columnBgColorDragging = alpha(theme.palette.grey[700], 0.6);
 
   return (
     <Box
       sx={{
         height: '100%',
-        bgcolor: isDraggingOver 
-            ? '#2A3142'
-            : '#222834',
-        borderRadius: '10px',
-        p: 1.5,
+        minWidth: '300px',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'background-color 0.2s ease',
-        boxShadow: isDraggingOver ? theme.shadows[4] : theme.shadows[1],
+        backgroundColor: isDraggingOver ? columnBgColorDragging : columnBgColorBase,
+        backdropFilter: 'blur(12px)',
+        borderRadius: '16px',
+        border: `1px solid ${alpha(theme.palette.common.white, 0.18)}`,
+        boxShadow: isDraggingOver
+          ? `0 8px 32px ${alpha(theme.palette.common.black, 0.3)}`
+          : `0 4px 15px ${alpha(theme.palette.common.black, 0.2)}`,
+        p: 1.5,
+        transition: 'background-color 0.2s ease, box-shadow 0.3s ease',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, px: 0.5 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, px: 0.5, flexShrink: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconComponent sx={{ fontSize: '1.1rem', color: statusColor }} />
-          <Typography 
-            variant="subtitle1"
-            sx={{ 
+          <IconComponent sx={{ fontSize: '1.2rem', color: statusColor }} />
+          <Typography
+            variant="h6"
+            sx={{
               color: theme.palette.text.primary,
               fontWeight: 600,
+              lineHeight: 1.2,
             }}
           >
             {title}
           </Typography>
-          <Chip 
-            label={tasks.length} 
-            size="small" 
-            sx={{ 
-              bgcolor: alpha(statusColor, 0.15),
+          <Chip
+            label={tasks.length}
+            size="small"
+            sx={{
+              bgcolor: alpha(statusColor, 0.2),
               color: statusColor,
-              fontWeight: 'medium',
-              height: '20px',
-              fontSize: '0.7rem',
+              fontWeight: 'bold',
+              height: '22px',
+              fontSize: '0.75rem',
+              borderRadius: '6px',
+              ml: 0.5,
               '& .MuiChip-label': {
-                padding: '0 5px'
-              }
-            }} 
+                padding: '0 6px',
+              },
+            }}
           />
         </Box>
         {onCreateTask && (columnId === TaskStatus.PENDING || columnId === TaskStatus.IN_PROGRESS) && (
-            <IconButton 
-                size="small" 
-                onClick={() => onCreateTask(columnId)} 
-                sx={{ color: theme.palette.text.secondary }}
+            <IconButton
+                size="small"
+                onClick={() => onCreateTask(columnId)}
+                sx={{
+                  color: theme.palette.text.secondary,
+                  bgcolor: alpha(theme.palette.common.white, 0.1),
+                  '&:hover': { bgcolor: alpha(theme.palette.common.white, 0.2) }
+                }}
                 title={`Add Task to ${title}`}
             >
                 <AddIcon fontSize="small" />
@@ -112,67 +128,78 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         )}
       </Box>
 
-      <Box sx={{ 
-        flexGrow: 1, 
+      <Box sx={{
+        flexGrow: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
-        minHeight: '50px',
         pr: 0.5,
-        mx: -1.5,
-        px: 1.5,
+        pl: 0.5,
+        mx: -0.5,
         '&::-webkit-scrollbar': {
-          width: '6px'
+          width: '8px'
         },
         '&::-webkit-scrollbar-track': {
-          background: 'transparent'
+          background: 'transparent',
+          borderRadius: '4px',
         },
         '&::-webkit-scrollbar-thumb': {
-          background: alpha(theme.palette.text.secondary, 0.2),
-          borderRadius: '3px',
+          background: alpha(theme.palette.common.white, 0.2),
+          borderRadius: '4px',
+          border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
           '&:hover': {
-            background: alpha(theme.palette.text.secondary, 0.4),
+            background: alpha(theme.palette.common.white, 0.4),
           }
         }
       }}>
         {tasks.map((task, index) => (
-          <Draggable key={task.id} draggableId={task.id} index={index}>
+          <Draggable key={task.id} draggableId={String(task.id)} index={index}>
               {(provided, snapshot) => (
                   <Box
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      sx={{ 
-                          mb: 1.5, 
+                      onClick={() => onTaskClick(task)}
+                      sx={{
+                          mb: 1.5,
                           userSelect: 'none',
-                          opacity: snapshot.isDragging ? 0.8 : 1,
-                          transform: snapshot.isDragging ? 'rotate(1deg)' : 'rotate(0deg)',
-                          transition: 'opacity 0.2s ease, transform 0.2s ease', 
+                          opacity: snapshot.isDragging ? 0.9 : 1,
+                          transform: snapshot.isDragging ? 'scale(1.03) rotate(1deg)' : 'none',
+                          boxShadow: snapshot.isDragging ? theme.shadows[8] : 'none',
+                          transition: 'opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
+                          position: 'relative',
+                          zIndex: snapshot.isDragging ? 100 : 1,
+                          cursor: 'pointer',
                       }}
                   >
                       <TaskCard
                           task={task}
-                          index={index}
-                          onClick={() => onTaskClick(task)}
-                          currentUser={currentUser}
+                          statusColor={getStatusColor(task.status as TaskStatus, theme)}
+                          onEdit={onEditTask}
+                          onDelete={onDeleteTask}
+                          onChangeStatus={onChangeTaskStatus}
+                          getUserName={getUserName}
+                          formatDate={formatDate}
+                          theme={theme}
                       />
                   </Box>
               )}
           </Draggable>
         ))}
         {tasks.length === 0 && (
-          <Box 
-            sx={{ 
-              minHeight: '60px',
-              display: 'flex', 
-              alignItems: 'center', 
+          <Box
+            sx={{
+              minHeight: '80px',
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'center',
               p: 2,
               color: theme.palette.text.disabled,
               fontSize: '0.875rem',
               textAlign: 'center',
-              border: `1px dashed ${theme.palette.divider}`,
-              borderRadius: '8px',
-              mt: 1
+              border: `2px dashed ${alpha(theme.palette.common.white, 0.2)}`,
+              borderRadius: '12px',
+              mt: 1,
+              bgcolor: alpha(theme.palette.common.black, 0.1),
             }}
           >
             No tasks in {title}

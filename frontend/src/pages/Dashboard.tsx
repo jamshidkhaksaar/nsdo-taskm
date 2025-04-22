@@ -38,7 +38,7 @@ import ModernDashboardLayout from '@/components/dashboard/ModernDashboardLayout'
 
 // Custom Hooks
 import { useErrorHandler } from '@/hooks/useErrorHandler';
-import { useQuery, useQueryClient } from 'react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Redux and Services
 import { AppDispatch, RootState } from '../store';
@@ -225,10 +225,6 @@ const Dashboard: React.FC = () => {
   const [notifications, setNotifications] = useState(3);
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [viewTaskDialogOpen, setViewTaskDialogOpen] = useState(false);
-  const [showQuickNotes, setShowQuickNotes] = useState<boolean>(() => {
-    const saved = localStorage.getItem('quickNotesVisibleState');
-    return saved !== null ? JSON.parse(saved) : false;
-  });
   const [activeSubTab, setActiveSubTab] = useState(0);
   const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
@@ -244,7 +240,11 @@ const Dashboard: React.FC = () => {
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
-  const [rightSidebarVisible, setRightSidebarVisible] = useState(!isTablet);
+  const [isQuickNotesVisible, setIsQuickNotesVisible] = useState<boolean>(() => {
+    const saved = localStorage.getItem('quickNotesVisibleState');
+    // Default based on screen size if nothing is saved
+    return saved !== null ? JSON.parse(saved) : !isTablet;
+  });
 
   // --- Snackbar State ---
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -291,19 +291,18 @@ const Dashboard: React.FC = () => {
     localStorage.setItem('sidebarOpenState', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
-  // Save QuickNotes state to localStorage
+  // Save QuickNotes state to localStorage (use the correct state variable)
   useEffect(() => {
-    // Log state change before saving
-    console.log('[Dashboard] Saving quickNotesVisible to localStorage:', showQuickNotes);
-    localStorage.setItem('quickNotesVisibleState', JSON.stringify(showQuickNotes));
-  }, [showQuickNotes]);
+    console.log('[Dashboard] Saving isQuickNotesVisible to localStorage:', isQuickNotesVisible);
+    localStorage.setItem('quickNotesVisibleState', JSON.stringify(isQuickNotesVisible));
+  }, [isQuickNotesVisible]);
 
   // --- Handlers ---
 
   const handleToggleQuickNotes = () => {
-    setShowQuickNotes(prev => {
+    setIsQuickNotesVisible(prev => {
       const newState = !prev;
-      localStorage.setItem('quickNotesVisibleState', JSON.stringify(newState));
+      // No need to explicitly save here, the useEffect above handles it.
       return newState;
     });
   };
@@ -448,33 +447,28 @@ const Dashboard: React.FC = () => {
   ], [dashboardData.tasksAssignedToMe, dashboardData.tasksDelegatedToMe]);
 
   const tasksManagedByMe = useMemo(() => [
-    ...(dashboardData.tasksICreatedForOthers || []),
-    ...(dashboardData.tasksDelegatedByMe || [])
+    ...(dashboardData?.tasksICreatedForOthers || []),
+    ...(dashboardData?.tasksDelegatedByMe || [])
   ], [dashboardData.tasksICreatedForOthers, dashboardData.tasksDelegatedByMe]);
 
   // Filter and combine tasks for the Kanban board view
   const boardTasks = useMemo(() => {
     const allRelevantTasks: Task[] = [
-      ...(dashboardData.myPersonalTasks || []),
-      ...(dashboardData.tasksAssignedToMe || []),
-      ...(dashboardData.tasksDelegatedToMe || []),
-      // Potentially add tasks assigned to user's department here if not included above
-      // Example: ...(allTasks.filter(t => t.assignedToDepartmentIds?.includes(user.department.id)))
+      ...(dashboardData?.myPersonalTasks || []),
+      ...(dashboardData?.tasksAssignedToMe || []),
+      ...(dashboardData?.tasksDelegatedToMe || []),
     ];
 
     // Remove duplicates based on task ID
-    const uniqueTasks = Array.from(new Map(allRelevantTasks.map(task => [task.id, task])).values());
+    return Array.from(new Map(allRelevantTasks.map(task => [task.id, task])).values());
+  }, [dashboardData.myPersonalTasks, dashboardData.tasksAssignedToMe, dashboardData.tasksDelegatedToMe]);
 
-    return uniqueTasks;
-  }, [dashboardData]);
-
-  // Event handlers
-  const handleLogout = () => {
+  // Move all useCallback hooks outside of conditionals to ensure consistent hook order
+  const handleLogout = useCallback(() => {
     dispatch(logout());
     navigate('/login');
-  };
+  }, [dispatch, navigate]);
 
-  // --- Sidebar and Widget Toggle Handlers ---
   const handleToggleSidebar = useCallback(() => {
     setSidebarOpen(prev => {
       const newState = !prev;
@@ -487,73 +481,67 @@ const Dashboard: React.FC = () => {
     setTopWidgetsVisible(prev => !prev);
   }, []);
 
-  // Placeholder handlers for TasksSection props
-  // Moved to the main handlers section to avoid duplication
-
-  // Ensure signature matches () => void for EditTaskDialog prop
-  const handleTaskUpdated = async (): Promise<void> => {
-    console.log('[Dashboard] Task updated, refreshing dashboard data...');
-    // Refetch ALL dashboard data after update for consistency
-    await fetchDashboardTasks();
-  };
-
-  // Moved to the main handlers section to avoid duplication
   const handleToggleRightSidebar = useCallback(() => {
-    setRightSidebarVisible(prev => !prev);
+    setIsQuickNotesVisible(prev => !prev);
   }, []);
 
-  // Placeholder for notification click
   const handleNotificationClick = useCallback(() => {
     console.log("Notification icon clicked");
     // TODO: Implement notification panel logic
   }, []);
-  // --- End Sidebar and Widget Toggle Handlers ---
 
-  const handleEditTask = (taskId: string) => {
-    // Search all dashboardData lists for the task
-    const taskToEdit =
-      [
-        ...dashboardData.myPersonalTasks,
-        ...dashboardData.tasksICreatedForOthers,
-        ...dashboardData.tasksAssignedToMe,
-        ...dashboardData.tasksDelegatedByMe,
-        ...dashboardData.tasksDelegatedToMe,
-      ].find(t => String(t.id) === taskId) || null;
-    setSelectedTask(taskToEdit);
-    setEditTaskDialogOpen(true);
-  };
+  const handleTaskCreated = useCallback(async () => {
+    setCreateTaskDialogOpen(false);
+    await fetchDashboardTasks();
+    showSnackbar('Task created successfully.');
+  }, [fetchDashboardTasks]);
 
-  // Delete task handler
-  const deleteTask = async (taskId: string) => {
-    try {
-      console.log('Deleting task with ID:', taskId);
-      await TaskService.deleteTask(taskId); // Use TaskService for deletion
-      fetchDashboardTasks(); // Refresh ALL dashboard data after deletion
-      setDeleteDialogOpen(false);
-    } catch (err) {
-      console.error('Error deleting task:', err);
-      handleError('Failed to delete task. Please try again later.');
-      // Keep delete dialog open on error? Maybe not.
-      // setDeleteDialogOpen(false);
-    }
-  };
+  const handleCloseCreateTaskDialog = useCallback(() => {
+    setCreateTaskDialogOpen(false);
+  }, []);
+
+  const handleCloseEditTaskDialog = useCallback(() => {
+    setEditTaskDialogOpen(false);
+    setSelectedTask(null);
+  }, []);
+
+  const handleCloseDeleteDialog = useCallback(() => {
+    setDeleteDialogOpen(false);
+    setSelectedTaskId('');
+  }, []);
+
+  const handleProfileClick = useCallback(() => {
+    navigate('/profile');
+  }, [navigate]);
+
+  const handleSettingsClick = useCallback(() => {
+    navigate('/settings');
+  }, [navigate]);
+
+  const handleHelpClick = useCallback(() => {
+    console.log('Help clicked');
+  }, []);
+
+  const handleTabChange = useCallback((event: React.SyntheticEvent, newValue: number) => {
+    setCurrentTab(newValue);
+  }, []);
 
   // --- Snackbar Helper ---
-  const showSnackbar = (message: string, severity: AlertColor = 'success') => {
+  const showSnackbar = useCallback((message: string, severity: AlertColor = 'success') => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
-  };
+  }, []);
 
-  const handleCloseSnackbar = (event?: React.SyntheticEvent | Event, reason?: string) => {
+  const handleCloseSnackbar = useCallback((event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
     }
     setSnackbarOpen(false);
-  };
+  }, []);
 
   // --- Update Handlers to Show Snackbar ---
-  const changeTaskStatus = async (taskId: string, status: TaskStatus): Promise<boolean> => {
+  const changeTaskStatus = useCallback(async (taskId: string, status: TaskStatus): Promise<boolean> => {
     try {
       console.log(`Dashboard: Changing task ${taskId} status to ${status}`);
       await TaskService.changeTaskStatus(taskId, status);
@@ -568,32 +556,9 @@ const Dashboard: React.FC = () => {
       showSnackbar('Failed to update task status', 'error');
       return false;
     }
-  };
+  }, [fetchDashboardTasks, handleError, showSnackbar]);
 
-  const handleTaskCreated = () => {
-    fetchDashboardTasks();
-    // Show success notification
-    showSnackbar('Task created successfully!', 'success');
-  };
-
-  const handleProfileClick = () => {
-    navigate('/profile');
-  };
-
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleHelpClick = () => {
-    console.log('Help clicked');
-  };
-
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setCurrentTab(newValue);
-  };
-
-  // Corrected handleTaskDrop signature
-  const handleTaskDrop = async (taskId: string, newStatus: TaskStatus) => {
+  const handleTaskDrop = useCallback(async (taskId: string, newStatus: TaskStatus) => {
     console.log(`[Dashboard] Task ${taskId} dropped onto ${newStatus}`);
     setLoadingDashboard(true); // Show loading indicator
     try {
@@ -641,48 +606,67 @@ const Dashboard: React.FC = () => {
       handleError(`Error updating task status: ${err.message || 'Unknown error'}`);
       setLoadingDashboard(false);
     }
-  };
+  }, [changeTaskStatus, dashboardData, fetchDashboardTasks, handleError]);
 
-  // --- Dialog Close Handlers ---
-  const handleCloseCreateTaskDialog = () => setCreateTaskDialogOpen(false);
-  const handleCloseEditTaskDialog = () => setEditTaskDialogOpen(false);
-  const handleCloseDeleteDialog = () => setDeleteDialogOpen(false);
-  // --- End Dialog Close Handlers ---
-
-  // --- Dialog Open Handlers ---
-  const handleViewTask = (task: Task) => {
+  const handleViewTask = useCallback((task: Task) => {
     setSelectedTask(task);
     setViewTaskDialogOpen(true);
-    setEditTaskDialogOpen(false); // Ensure edit dialog is closed
-  };
+  }, []);
 
-  // Update handler to always force PERSONAL type and remove status param
-  const handleOpenCreateTaskDialog = () => {
-    console.log(`Opening create task dialog with type: PERSONAL`);
-    setInitialTaskType(TaskType.PERSONAL); // Force PERSONAL type
-    setInitialTaskStatus(TaskStatus.PENDING); // Default to PENDING
+  const handleEditTask = useCallback((taskId: string) => {
+    // Search all dashboardData lists for the task
+    const taskToEdit =
+      [
+        ...(dashboardData.myPersonalTasks || []),
+        ...(dashboardData.tasksICreatedForOthers || []),
+        ...(dashboardData.tasksAssignedToMe || []),
+        ...(dashboardData.tasksDelegatedByMe || []),
+        ...(dashboardData.tasksDelegatedToMe || []),
+      ].find(t => String(t.id) === taskId) || null;
+    setSelectedTask(taskToEdit);
+    setEditTaskDialogOpen(true);
+  }, [dashboardData]);
+
+  // Delete task handler
+  const deleteTask = useCallback(async (taskId: string) => {
+    try {
+      console.log('Deleting task with ID:', taskId);
+      await TaskService.deleteTask(taskId); // Use TaskService for deletion
+      fetchDashboardTasks(); // Refresh ALL dashboard data after deletion
+      setDeleteDialogOpen(false);
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      handleError('Failed to delete task. Please try again later.');
+    }
+  }, [fetchDashboardTasks, handleError]);
+
+  // Ensure this handler always uses PERSONAL type and removes status param
+  const handleOpenCreateTaskDialog = useCallback((type: TaskType, departmentId?: string) => {
+    setInitialTaskType(type);
+    // Removed setting initial status here, let the dialog default
     setCreateTaskDialogOpen(true);
-  };
+  }, []);
 
-  const handleOpenDeleteDialog = (taskId: string) => {
+  const handleOpenDeleteDialog = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
     setDeleteDialogOpen(true);
-  };
-  // --- End Dialog Open Handlers ---
+  }, []);
 
-  // --- Section Configurations (useMemo) ---
+  // Ensure signature matches () => void for EditTaskDialog prop
+  const handleTaskUpdated = useCallback(async (): Promise<void> => {
+    console.log('[Dashboard] Task updated, refreshing dashboard data...');
+    // Refetch ALL dashboard data after update for consistency
+    await fetchDashboardTasks();
+  }, [fetchDashboardTasks]);
+
+  // Ensure consistent dependencies for sectionConfigs useMemo
   const sectionConfigs = useMemo((): TaskSectionConfig[] => {
     console.log("[Dashboard] Recalculating sectionConfigs, dashboardData:", dashboardData);
 
-    // Use a generic title for now to avoid lint errors
+    // Use a generic title for now
     const departmentTitle = "Tasks For My Department(s)";
-    // if (user?.departments && user.departments.length === 1) { // Revert this logic
-    //     departmentTitle = `Tasks For ${user.departments[0].name} Department`;
-    // } else if (user?.departments && user.departments.length > 1) {
-    //     // Could list names or keep generic
-    // }
 
-    const configs: TaskSectionConfig[] = [
+    return [
       {
         id: 'assigned',
         title: 'Tasks Assigned To Me',
@@ -691,7 +675,7 @@ const Dashboard: React.FC = () => {
       },
       {
         id: 'myDepartments',
-        title: departmentTitle, // Use generic title
+        title: departmentTitle,
         tasks: dashboardData.tasksAssignedToMyDepartments || [],
         color: SECTION_COLORS.myDepartments,
       },
@@ -722,14 +706,11 @@ const Dashboard: React.FC = () => {
         color: SECTION_COLORS.delegatedBy,
       },
     ];
-
-    return configs;
-
-  }, [dashboardData]); // Removed user.departments dependency
+  }, [dashboardData]);
 
   // Map section data based on the current order
   const orderedSections = useMemo(() => {
-      return sectionOrder.map(id => sectionConfigs.find(section => section.id === id)).filter(Boolean) as TaskSectionConfig[];
+    return sectionOrder.map(id => sectionConfigs.find(section => section.id === id)).filter(Boolean) as TaskSectionConfig[];
   }, [sectionOrder, sectionConfigs]);
 
   // --- Define Layout Elements ---
@@ -754,10 +735,8 @@ const Dashboard: React.FC = () => {
       onHelpClick={handleHelpClick}
       onToggleTopWidgets={handleToggleTopWidgets}
       topWidgetsVisible={topWidgetsVisible}
-      rightSidebarVisible={rightSidebarVisible}
-      onToggleRightSidebar={() => setRightSidebarVisible(p => !p)}
       onToggleQuickNotes={handleToggleQuickNotes}
-      showQuickNotes={showQuickNotes}
+      showQuickNotes={isQuickNotesVisible}
       showQuickNotesButton={true}
     />
   );
@@ -807,7 +786,7 @@ const Dashboard: React.FC = () => {
             variant="contained"
             size="small"
             startIcon={<AddIcon />}
-            onClick={() => handleOpenCreateTaskDialog()}
+            onClick={() => handleOpenCreateTaskDialog(TaskType.PERSONAL)}
             sx={{
               ml: 2,
               borderRadius: '8px',
@@ -820,7 +799,7 @@ const Dashboard: React.FC = () => {
       </Box>
 
       {/* Tab Panels Container */}
-      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: isMobile ? 1 : 3, height: '100%' }}> {/* Ensure this box takes full height */} 
         <TabPanel value={activeSubTab} index={0}>
           <DragDropContext onDragEnd={onSectionDragEnd}>
             <Droppable droppableId="taskListSections">
@@ -912,7 +891,7 @@ const Dashboard: React.FC = () => {
                                          size="small"
                                          onClick={(e) => { 
                                             e.stopPropagation(); 
-                                            handleOpenCreateTaskDialog();
+                                            handleOpenCreateTaskDialog(TaskType.PERSONAL);
                                          }}
                                          sx={{ color: '#fff', mr: 1 }}
                                       >
@@ -962,7 +941,13 @@ const Dashboard: React.FC = () => {
 
         <TabPanel value={activeSubTab} index={1}>
           {/* Board View Content */}
-          <Box sx={{ pt: 2, height: '100%', overflow: 'hidden' }}> 
+          <Box sx={{ 
+            pt: 2, 
+            display: 'flex', 
+            flexDirection: 'column',
+            width: '100%',
+            minHeight: 'calc(100% - 16px)',
+          }}> 
             <TaskKanbanBoard
               tasks={boardTasks}
               onTaskStatusChange={changeTaskStatus}
@@ -983,7 +968,7 @@ const Dashboard: React.FC = () => {
   }
 
   // Log state just before rendering the layout
-  console.log('[Dashboard] Rendering layout, showQuickNotes:', showQuickNotes);
+  console.log('[Dashboard] Rendering layout, showQuickNotes:', isQuickNotesVisible);
 
   // Restore the main return statement for the Dashboard component
   return (
@@ -995,7 +980,7 @@ const Dashboard: React.FC = () => {
         sidebarOpen={sidebarOpen}
         drawerWidth={DRAWER_WIDTH}
         quickNotesPanel={<NotesWidget />}
-        quickNotesVisible={showQuickNotes}
+        quickNotesVisible={isQuickNotesVisible}
       />
       {/* Render Dialogs OUTSIDE/SIBLING to the ModernDashboardLayout */}
       <CreateTaskDialog
