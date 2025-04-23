@@ -124,6 +124,9 @@ export class Task {
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   delegatedToTaskId: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  completedAt: Date | null;
 }
 
 

@@ -7,11 +7,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 export enum UserRole {
   USER = 'user',
-  MANAGER = 'manager',
-  GENERAL_MANAGER = 'general_manager',
-  ADMIN = 'admin',
   LEADERSHIP = 'leadership',
+  ADMIN = 'admin',
 }
+
+// Old role mapping (for reference in comments only)
+// USER = 'user'
+// MANAGER = 'manager' -> now mapped to 'user'
+// GENERAL_MANAGER = 'general_manager' -> now mapped to 'leadership'
+// LEADERSHIP = 'leadership'
+// ADMIN = 'admin'
 
 @Entity('user')
 export class User {

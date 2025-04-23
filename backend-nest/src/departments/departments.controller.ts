@@ -77,7 +77,7 @@ export class DepartmentsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   async createDepartment(
     @Body() createDepartmentDto: CreateDepartmentDto,
     @Request() req,
@@ -98,7 +98,7 @@ export class DepartmentsController {
 
   @Put('/:id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   async updateDepartment(
     @Param('id') id: string,
     @Body() updateDepartmentDto: UpdateDepartmentDto,
@@ -120,7 +120,7 @@ export class DepartmentsController {
 
   @Delete('/:id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   async deleteDepartment(@Param('id') id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
     
@@ -139,7 +139,7 @@ export class DepartmentsController {
 
   @Post('/:id/members/:userId/')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   async addMember(
     @Param('id') id: string,
     @Param('userId') userId: string,
@@ -161,7 +161,7 @@ export class DepartmentsController {
 
   @Delete('/:id/members/:userId/')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   async removeMember(
     @Param('id') id: string,
     @Param('userId') userId: string,

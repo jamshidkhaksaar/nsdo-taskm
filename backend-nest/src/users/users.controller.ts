@@ -243,7 +243,7 @@ export class UsersController {
 
   @Get('/:id/performance')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.GENERAL_MANAGER, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   async getPerformance(@Param('id') id: string, @Request() req) {
     // TODO: Implement performance fetching logic in usersService
     console.log(`Fetching performance for user ${id}`);

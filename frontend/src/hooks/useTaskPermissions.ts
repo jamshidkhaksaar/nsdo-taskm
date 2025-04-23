@@ -62,8 +62,8 @@ export const useTaskPermissions = (task: Task | null | undefined): TaskPermissio
 
   // --- Define Permissions Based on Roles and Relationship ---
 
-  // Admin / General Manager have full permissions
-  if (userRole === 'admin' || userRole === 'general_manager') {
+  // Admin / Leadership have full permissions
+  if (userRole === 'admin' || userRole === 'leadership') {
     return {
       canView: true,
       canEdit: true,

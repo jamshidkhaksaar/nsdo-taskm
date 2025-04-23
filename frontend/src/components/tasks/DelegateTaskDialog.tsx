@@ -10,7 +10,7 @@ import { User as IndexUser } from '@/types/index';
 const convertUser = (user: UserType): IndexUser => {
   return {
     ...user,
-    role: (user.role || 'user') as 'user' | 'admin' | 'manager',
+    role: (user.role || 'user') as 'user' | 'admin' | 'leadership',
   };
 };
 

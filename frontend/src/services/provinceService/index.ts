@@ -80,3 +80,28 @@ export const removeDepartmentFromProvince = async (provinceId: string, departmen
 export const getPublicProvinces = async (): Promise<Province[]> => {
   return apiClient.get<Province[]>('/provinces'); // Assuming /provinces is the public endpoint
 };
+
+/**
+ * Gets performance statistics for a province
+ */
+export const getProvincePerformance = async (provinceId: string): Promise<any> => {
+  try {
+    return apiClient.get(`/provinces/${provinceId}/performance`);
+  } catch (error) {
+    console.error('Error fetching province performance:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets performance statistics for multiple provinces
+ */
+export const getMultiProvincePerformance = async (provinceIds: string[]): Promise<any> => {
+  try {
+    const idsParam = provinceIds.join(',');
+    return apiClient.get(`/provinces/performance?ids=${idsParam}`);
+  } catch (error) {
+    console.error('Error fetching multi-province performance:', error);
+    throw error;
+  }
+};

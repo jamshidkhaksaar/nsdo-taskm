@@ -6,7 +6,7 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'user' | 'admin' | 'manager';
+  role: 'user' | 'leadership' | 'admin';
   isActive?: boolean;
   status?: string;
   avatar?: string;
@@ -59,7 +59,7 @@ export interface UserDetail {
   id: number;
   username: string;
   email: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'leadership' | 'admin';
   avatar?: string;
 }
 
@@ -106,7 +106,8 @@ export enum TaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
+  DELEGATED = 'delegated'
 }
 
 export enum TaskPriority {

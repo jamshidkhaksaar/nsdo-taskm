@@ -19,7 +19,7 @@ const UserCard: React.FC<UserCardProps> = ({
     switch (role) {
       case 'admin':
         return '#f44336'; // Red
-      case 'manager':
+      case 'leadership':
         return '#ff9800'; // Orange
       case 'team_lead':
         return '#2196f3'; // Blue

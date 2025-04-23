@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, ParseUUIDPipe, HttpCode, HttpStatus, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, ParseUUIDPipe, HttpCode, HttpStatus, Request, NotFoundException, Query } from '@nestjs/common';
 import { ProvinceService } from './province.service';
 import { Province } from './entities/province.entity';
 import { CreateProvinceDto } from './dto/create-province.dto';
@@ -166,5 +166,61 @@ export class ProvinceController {
     }
     
     return tasks;
+  }
+
+  @Get(':id/performance')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Get performance statistics for a province (Admin/Leadership Only)' })
+  @ApiParam({ name: 'id', description: 'Province UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Performance statistics for the province.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Province not found.' })
+  async getProvincePerformance(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+    const performanceStats = await this.provinceService.getPerformanceStatistics(id);
+    
+    // Log the activity
+    try {
+      await this.activityLogService.logFromRequest(
+        req,
+        'view',
+        'province_performance',
+        `Viewed performance statistics for province: ${performanceStats.provinceName}`,
+        id,
+      );
+    } catch (logError) {
+      console.error(`Failed to log province performance view activity: ${logError.message}`);
+    }
+    
+    return performanceStats;
+  }
+
+  @Get('performance')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Get performance statistics for multiple provinces (Admin/Leadership Only)' })
+  @ApiResponse({ status: 200, description: 'Performance statistics for the provinces.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async getMultiProvincePerformance(@Query('ids') provinceIds: string, @Request() req) {
+    if (!provinceIds) {
+      throw new NotFoundException('Province IDs must be provided as a comma-separated list');
+    }
+    
+    const ids = provinceIds.split(',');
+    const performanceStats = await this.provinceService.getMultiProvincePerformance(ids);
+    
+    // Log the activity
+    try {
+      await this.activityLogService.logFromRequest(
+        req,
+        'view',
+        'provinces_performance',
+        `Viewed performance statistics for multiple provinces: ${ids.length} provinces`,
+      );
+    } catch (logError) {
+      console.error(`Failed to log multi-province performance view activity: ${logError.message}`);
+    }
+    
+    return performanceStats;
   }
 }

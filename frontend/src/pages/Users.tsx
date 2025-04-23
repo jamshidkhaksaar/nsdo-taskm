@@ -165,8 +165,8 @@ const Users: React.FC = () => {
   const tasksCount = Array.isArray(tasks) ? tasks.length : 0;
   const usersCount = Array.isArray(users) ? users.length : 0;
 
-  const activeUsers = Array.isArray(users) ? users.filter(user => user.status === 'active').length : 0;
-  const inactiveUsers = Array.isArray(users) ? users.filter(user => user.status === 'inactive').length : 0;
+  const activeUsers = Array.isArray(users) ? users.filter(user => user.isActive === true).length : 0;
+  const inactiveUsers = Array.isArray(users) ? users.filter(user => user.isActive === false).length : 0;
 
   // Filter tasks for the selected user
   const assignedTasksArray = Array.isArray(tasks) && selectedUser !== null
@@ -561,10 +561,8 @@ const Users: React.FC = () => {
     switch (role?.toLowerCase()) {
       case 'admin':
         return 'rgba(156, 39, 176, 0.8)'; // Purple
-      case 'general_manager':
+      case 'leadership':
         return 'rgba(3, 169, 244, 0.8)'; // Light Blue
-      case 'manager':
-        return 'rgba(0, 150, 136, 0.8)'; // Teal
       default:
         return 'rgba(33, 150, 243, 0.8)'; // Blue
     }

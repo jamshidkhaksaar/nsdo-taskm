@@ -10,7 +10,7 @@ interface GetTasksParams {
     task_type?: 'my_tasks' | 'assigned' | 'created' | 'all';
     department_id?: string;
     user_id?: string;
-    include_all?: boolean; // For general managers and admins to see all tasks
+    include_all?: boolean; // For leadership and admins to see all tasks
 }
 
 // Status mapping between frontend and backend

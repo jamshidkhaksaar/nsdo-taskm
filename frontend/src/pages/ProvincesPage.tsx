@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-    Box, Typography, Paper, List, ListItem, ListItemText, Button,
-    CircularProgress, Alert, Grid, Divider, Checkbox
+    Box, Typography, Paper, Button, CircularProgress, Alert, Grid, Tabs, Tab
 } from '@mui/material';
-import AddTaskIcon from '@mui/icons-material/AddTask';
 import { AppDispatch, RootState } from '../store';
-import { Province, Department } from '@/types/index';
-import { fetchProvinces } from '../store/slices/provinceSlice';
-import { fetchDepartments } from '../store/slices/departmentSlice';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import CreateTaskDialog from '@/components/dialogs/CreateTaskDialog';
 import { TaskType } from '@/types/index';
@@ -17,46 +12,75 @@ import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { useNavigate } from 'react-router-dom';
 import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
-import { MagicCard } from "@/components/magicui/magic-card";
+import ProvinceSelector from '@/components/provinces/ProvinceSelector';
+import DepartmentSelector from '@/components/provinces/DepartmentSelector';
+import ProvincePerformance from '@/components/provinces/ProvincePerformance';
 
 const DRAWER_WIDTH = 240;
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+const TabPanel: React.FC<TabPanelProps> = (props) => {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`province-tabpanel-${index}`}
+      aria-labelledby={`province-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+};
+
+const a11yProps = (index: number) => {
+  return {
+    id: `province-tab-${index}`,
+    'aria-controls': `province-tabpanel-${index}`,
+  };
+};
 
 const ProvincesPage: React.FC = () => {
     const dispatch = useDispatch<AppDispatch>();
     const navigate = useNavigate();
     const { user } = useSelector((state: RootState) => state.auth);
-    const { provinces, loading: loadingProvinces, error: errorProvinces } = useSelector((state: RootState) => state.provinces);
-    const { departments, loading: loadingDepartments, error: errorDepartments } = useSelector((state: RootState) => state.departments);
     const { error: generalError, handleError, clearError } = useErrorHandler();
 
-    const [selectedProvince, setSelectedProvince] = useState<Province | null>(null);
+    const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
     const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
     const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [notifications, setNotifications] = useState(0);
     const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
+    const [tabValue, setTabValue] = useState(0);
 
-    useEffect(() => {
-        dispatch(fetchProvinces());
-        dispatch(fetchDepartments());
-    }, [dispatch]);
+    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+      setTabValue(newValue);
+    };
 
-    const handleProvinceSelect = (province: Province) => {
-        setSelectedProvince(province);
+    const handleProvinceSelect = (provinceIds: string[] | string) => {
+        setSelectedProvinces(Array.isArray(provinceIds) ? provinceIds : [provinceIds]);
         setSelectedDepartments([]); // Clear department selection when province changes
     };
 
-    const handleDepartmentToggle = (departmentId: string) => {
-        setSelectedDepartments(prev =>
-            prev.includes(departmentId)
-                ? prev.filter(id => id !== departmentId)
-                : [...prev, departmentId]
-        );
+    const handleDepartmentSelect = (departmentIds: string[]) => {
+        setSelectedDepartments(departmentIds);
     };
 
     const handleOpenCreateTaskDialog = () => {
-        if (!selectedProvince || selectedDepartments.length === 0) {
-            handleError('Please select a province and at least one department to assign a task.');
+        if (selectedProvinces.length === 0 || selectedDepartments.length === 0) {
+            handleError('Please select at least one province and one department to assign a task.');
             return;
         }
         clearError();
@@ -84,127 +108,64 @@ const ProvincesPage: React.FC = () => {
         setTopWidgetsVisible(prev => !prev);
     }, []);
 
-    // Filter departments for the selected province
-    const departmentsInSelectedProvince = React.useMemo(() => {
-        if (!selectedProvince) return [];
-        return (departments as Department[]).filter(dept => dept.provinceId && dept.provinceId === selectedProvince.id);
-    }, [selectedProvince, departments]);
-
-    const isLoading = loadingProvinces || loadingDepartments;
-    const combinedError = errorProvinces || errorDepartments || generalError;
+    const showPerformanceTab = user?.role === 'ADMIN' || user?.role === 'LEADERSHIP';
 
     const mainContent = (
-        <Box sx={{ p: 3 }}>
-            <Typography variant="h4" gutterBottom sx={{ color: '#fff' }}>Provinces</Typography>
+        <Box>
+            <Typography variant="h4" gutterBottom sx={{ color: '#fff', px: 3, pt: 3 }}>Provinces</Typography>
 
-            {combinedError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {combinedError}
+            {generalError && (
+                <Alert severity="error" sx={{ mx: 3, mb: 2 }}>
+                    {generalError}
                 </Alert>
             )}
 
-            {isLoading && !combinedError && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                    <CircularProgress />
-                </Box>
-            )}
+            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tabs 
+                    value={tabValue} 
+                    onChange={handleTabChange} 
+                    textColor="inherit"
+                    sx={{ 
+                        '& .MuiTab-root': { color: 'rgba(255,255,255,0.7)' },
+                        '& .Mui-selected': { color: '#fff' },
+                        '& .MuiTabs-indicator': { backgroundColor: '#fff' }
+                    }}
+                >
+                    <Tab label="Task Assignment" {...a11yProps(0)} />
+                    {showPerformanceTab && <Tab label="Performance Statistics" {...a11yProps(1)} />}
+                </Tabs>
+            </Box>
 
-            {!isLoading && !combinedError && (
+            <TabPanel value={tabValue} index={0}>
                 <Grid container spacing={3}>
-                    {/* Province List */}
+                    {/* Province Selection */}
                     <Grid item xs={12} md={4}>
-                        <Paper elevation={0} sx={{ ...getGlassmorphismStyles().card, p: 2, color: '#fff' }}>
-                            <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>Select Province</Typography>
-                            <List component="nav" dense>
-                                {provinces.map((province) => (
-                                    <ListItem
-                                        key={province.id}
-                                        button
-                                        selected={selectedProvince?.id === province.id}
-                                        onClick={() => handleProvinceSelect(province)}
-                                        sx={{
-                                            ...getGlassmorphismStyles().card,
-                                            mb: 1,
-                                            borderRadius: 1,
-                                            '&.Mui-selected': {
-                                                backgroundColor: 'rgba(255, 255, 255, 0.25) !important',
-                                            },
-                                            '&:hover': {
-                                                backgroundColor: 'rgba(255, 255, 255, 0.1) !important',
-                                            }
-                                        }}
-                                    >
-                                        <ListItemText
-                                            primary={province.name}
-                                            sx={{
-                                                '.MuiListItemText-primary': { color: '#fff' },
-                                                '.MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.7)' }
-                                            }}
-                                        />
-                                    </ListItem>
-                                ))}
-                                {provinces.length === 0 && (
-                                    <ListItem>
-                                        <ListItemText primary="No provinces found." sx={{ '.MuiListItemText-primary': { color: '#fff' } }} />
-                                    </ListItem>
-                                )}
-                            </List>
-                        </Paper>
+                        <ProvinceSelector
+                            multiple={true}
+                            onChange={handleProvinceSelect}
+                            selectedProvinces={selectedProvinces}
+                            title="Select Provinces"
+                        />
                     </Grid>
 
-                    {/* Department List for Selected Province */}
+                    {/* Department Selection */}
                     <Grid item xs={12} md={8}>
-                        <Paper elevation={0} sx={{ ...getGlassmorphismStyles().card, p: 2, minHeight: '300px', color: '#fff' }}>
-                            <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>
-                                {selectedProvince ? `Departments in ${selectedProvince.name}` : 'Select a Province'}
-                            </Typography>
-                            {selectedProvince && (
-                                <>
-                                    <List dense>
-                                        {departmentsInSelectedProvince.length > 0 ? (
-                                            departmentsInSelectedProvince.map((dept) => (
-                                                <ListItem
-                                                    key={dept.id}
-                                                    secondaryAction={
-                                                        <Checkbox
-                                                            edge="end"
-                                                            onChange={() => handleDepartmentToggle(dept.id)}
-                                                            checked={selectedDepartments.includes(dept.id)}
-                                                            inputProps={{ 'aria-labelledby': `checkbox-list-label-${dept.id}` }}
-                                                            sx={{ color: '#fff' }}
-                                                        />
-                                                    }
-                                                    disablePadding
-                                                >
-                                                    <ListItemText id={`checkbox-list-label-${dept.id}`} primary={dept.name} sx={{ '.MuiListItemText-primary': { color: '#fff' } }} />
-                                                </ListItem>
-                                            ))
-                                        ) : (
-                                            <ListItem>
-                                                <ListItemText primary={`No departments found associated with ${selectedProvince.name}.`} sx={{ '.MuiListItemText-primary': { color: '#fff' } }} />
-                                            </ListItem>
-                                        )}
-                                    </List>
-                                    <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.2)' }} />
-                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<AddTaskIcon />}
-                                            onClick={handleOpenCreateTaskDialog}
-                                            disabled={selectedDepartments.length === 0}
-                                            sx={{ color: '#fff' }}
-                                        >
-                                            Assign Task to Selected Department(s)
-                                        </Button>
-                                    </Box>
-                                </>)
-                            }
-                            {!selectedProvince && (
-                                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>Please select a province from the list to view its departments.</Typography>
-                            )}
-                        </Paper>
+                        <DepartmentSelector
+                            provinceIds={selectedProvinces}
+                            onChange={handleDepartmentSelect}
+                            selectedDepartments={selectedDepartments}
+                            title="Select Departments"
+                            showAssignButton={true}
+                            onAssignClick={handleOpenCreateTaskDialog}
+                        />
                     </Grid>
                 </Grid>
+            </TabPanel>
+
+            {showPerformanceTab && (
+                <TabPanel value={tabValue} index={1}>
+                    <ProvincePerformance />
+                </TabPanel>
             )}
 
             <CreateTaskDialog

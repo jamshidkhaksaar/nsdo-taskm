@@ -97,7 +97,7 @@ interface AdminUser {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'admin' | 'manager' | 'user' | 'leadership';
+  role: 'admin' | 'user' | 'leadership';
   status: 'active' | 'inactive';
   position: string;
   department?: {
@@ -267,7 +267,7 @@ const UserManagement: React.FC = () => {
           first_name: formData.first_name,
           last_name: formData.last_name,
           position: formData.position,
-          role: formData.role as 'admin' | 'manager' | 'user' | 'leadership'
+          role: formData.role as 'admin' | 'user' | 'leadership'
         };
         
         // Only include department if one is selected
@@ -290,7 +290,7 @@ const UserManagement: React.FC = () => {
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          role: formData.role as 'admin' | 'manager' | 'user' | 'leadership',
+          role: formData.role as 'admin' | 'user' | 'leadership',
           position: formData.position,
           department: formData.department ? { id: formData.department, name: '' } : null,
           status: 'active' as const // Specify status as a literal type

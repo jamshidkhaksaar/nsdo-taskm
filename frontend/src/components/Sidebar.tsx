@@ -39,7 +39,7 @@ const mainMenuItems = [
   { title: 'Provinces', path: '/provinces', icon: <AssignmentIcon /> },
 ];
 
-// Items visible only to General Managers and Admins
+// Items visible only to Leadership and Admins
 const managerMenuItems = [
   { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> },
 ];
@@ -109,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
 
   const isManagerOrAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');
-    return role === 'admin' || role === 'general_manager' || role === 'manager' || role === 'leadership';
+    return role === 'admin' || role === 'leadership';
   }, [user?.role]);
 
   const getMenuItemStyles = (isActive: boolean) => ({
@@ -250,7 +250,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
           ))}
         </List>
 
-        {/* Manager menu section - visible to General Managers and Admins */}
+        {/* Leadership menu section - visible to Leadership and Admins */}
         {isManagerOrAdmin && (
           <>
             <Divider sx={{ 
