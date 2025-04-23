@@ -23,7 +23,7 @@ import {
   AvatarGroup,
   Tooltip
 } from '@mui/material';
-import { Task, User, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType } from '../../types/index';
+import { Task, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType, User } from '../../types/index';
 import { UserService } from '../../services/user';
 import { TaskService } from '../../services/task';
 import { useSelector } from 'react-redux';
@@ -123,12 +123,12 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     return prov ? prov.name : `ID: ${provinceId}`;
   }, [provinces]);
 
-  const handleDelegateSubmit = async () => {
+  const handleDelegateSubmit = async (selectedUsers: User[], comment: string) => {
     if (!task || !taskId) return;
 
-    const userIdsToDelegate = selectedUsers.map(user => user.id);
+    const selectedUserIds = selectedUsers.map(user => user.id);
 
-    if (userIdsToDelegate.length === 0) {
+    if (selectedUserIds.length === 0) {
         setDelegationError("Please select at least one user.");
         return;
     }
@@ -137,8 +137,8 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     setDelegationError(null);
 
     const delegationData: DelegateTaskData = {
-        assignedToUserIds: userIdsToDelegate,
-        comment: delegationComment || undefined,
+        newAssigneeUserIds: selectedUserIds,
+        delegationReason: comment,
     };
 
     try {

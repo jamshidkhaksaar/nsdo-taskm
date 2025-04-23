@@ -431,7 +431,7 @@ export const TaskService = {
         const stringTaskId = ensureStringId(originalTaskId);
         try {
             console.log(`Delegating task ${stringTaskId} with data:`, delegationData);
-            const response = await apiClient.post<Task>(`/api/tasks/${stringTaskId}/delegate`, delegationData);
+            const response = await apiClient.post<Task>(`/tasks/${stringTaskId}/delegate`, delegationData);
             return standardizeTask(response.data);
         } catch (error) {
             console.error(`Error delegating task ${stringTaskId}:`, error);

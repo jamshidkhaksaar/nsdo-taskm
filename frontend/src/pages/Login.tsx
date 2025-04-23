@@ -28,8 +28,8 @@ import { clearError, setCredentials } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
 import { loadFull } from "tsparticles";
-const Particles = lazy(() => import('react-tsparticles'));
-import type { Container as ParticlesContainer, Engine } from "tsparticles-engine";
+import { Engine, Container as ParticlesContainer } from "tsparticles-engine";
+import Particles from 'react-tsparticles';
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
 import LoginFooter from '../components/LoginFooter';
@@ -159,7 +159,26 @@ const Login: React.FC = () => {
         password: data.password
       };
       
-      // Try multiple login endpoints, starting with /login (which appears to be simpler)
+      // Verify backend is available first
+      try {
+        // First check if the backend is online
+        const healthCheck = await axios.get('http://localhost:3001/api/v1/health', {
+          timeout: 3000
+        });
+        
+        console.log('Backend health check:', healthCheck.status);
+        
+        if (healthCheck.status !== 200) {
+          throw new Error('Backend service is not available');
+        }
+      } catch (healthError) {
+        console.error('Backend health check failed:', healthError);
+        setError('Unable to connect to the server. Please verify the backend service is running.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Try multiple login endpoints, starting with /login
       try {
         console.log('Trying /api/auth/login endpoint...');
         
@@ -169,7 +188,8 @@ const Login: React.FC = () => {
           data: loginPayload,
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 5000
         });
         
         console.log('Login response from /login:', response.data);
@@ -187,16 +207,44 @@ const Login: React.FC = () => {
             data: loginPayload,
             headers: {
               'Content-Type': 'application/json'
-            }
+            },
+            timeout: 5000
           });
           
           console.log('Login response from /signin:', signinResponse.data);
           
           handleSuccessfulLogin(signinResponse.data);
           return;
-        } catch (signinError) {
+        } catch (signinError: any) {
           console.error('Both login attempts failed:', signinError);
-          handleLoginError(signinError);
+          
+          // Check if it's a backend format error
+          if (signinError.response && signinError.response.data && signinError.response.data.message && 
+              signinError.response.data.message.includes('Expected property name')) {
+            console.error('Backend JSON parsing error detected, trying with stringified payload');
+            
+            // Try with a properly stringified payload
+            try {
+              const stringifiedResponse = await axios({
+                method: 'post',
+                url: 'http://localhost:3001/api/v1/auth/signin',
+                data: JSON.stringify(loginPayload),
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                timeout: 5000
+              });
+              
+              console.log('Login response with stringified payload:', stringifiedResponse.data);
+              handleSuccessfulLogin(stringifiedResponse.data);
+              return;
+            } catch (finalError) {
+              console.error('Final login attempt failed:', finalError);
+              handleLoginError(finalError);
+            }
+          } else {
+            handleLoginError(signinError);
+          }
         }
       }
     } catch (error) {
@@ -271,6 +319,12 @@ const Login: React.FC = () => {
                                error.response.data?.error ||
                                'Invalid username or password. Please try again.';
           setError(`Login failed: ${errorMessage}`);
+        } else if (error.response.status === 401) {
+          setError('Authentication failed: Invalid username or password.');
+        } else if (error.response.status === 403) {
+          setError('Access denied: You do not have permission to log in.');
+        } else if (error.response.status >= 500) {
+          setError(`Server error (${error.response.status}): The server is experiencing issues. Please try again later.`);
         } else {
           // Other status codes
           const errorMessage = error.response.data?.message || 
@@ -280,11 +334,17 @@ const Login: React.FC = () => {
         }
       } else if (error.request) {
         // The request was made but no response was received
-        setError('No response from server. Please check your connection.');
+        if (error.code === 'ECONNABORTED') {
+          setError('Request timeout: The server took too long to respond. Please check your connection and try again.');
+        } else {
+          setError('No response from server. Please check your connection and verify the backend service is running.');
+        }
       } else {
         // Something happened in setting up the request that triggered an Error
         setError(error.message || 'An error occurred during login');
       }
+    } else if (error instanceof TypeError && error.message.includes('Network')) {
+      setError('Network error: Unable to connect to the server. Please check your internet connection.');
     } else {
       setError(error.message || 'An unknown error occurred');
     }

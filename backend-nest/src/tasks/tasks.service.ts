@@ -530,127 +530,104 @@ export class TasksService {
   }
 
   async delegateTask(id: string, dto: DelegateTaskDto, delegatorInfo: any): Promise<Task[]> {
-    const originalTask = await this.findOne(id); // Load original task with relations
+    const logContext = `[TasksService.delegateTask TaskID: ${id}, Delegator: ${delegatorInfo.userId}]`;
+    console.log(`${logContext} Starting delegation with DTO:`, dto);
 
-    // --- Permission Check: Only current assignee or creator/admin/leadership can delegate ---
-     const isCreator = originalTask.createdById === delegatorInfo.userId;
-     const isAssignee = await this.checkAssigneePermission(originalTask, delegatorInfo.userId);
-     const isAdminOrLeadership = [UserRole.ADMIN, UserRole.LEADERSHIP].includes(delegatorInfo.role);
+    const originalTask = await this.tasksRepository.findOne({
+        where: { id },
+        relations: ['createdBy'], // Only need creator for permissions
+    });
 
-     if (!isCreator && !isAssignee && !isAdminOrLeadership) {
-          throw new ForbiddenException('Only the creator, an assignee, admin, or leadership can delegate this task.');
-     }
-    // --- End Permission Check ---
-
-    // Validate that task is in a state that can be delegated
-    if ([TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.DELEGATED].includes(originalTask.status)) {
-        throw new BadRequestException(`Cannot delegate a task that is already ${originalTask.status}.`);
+    if (!originalTask) {
+        console.error(`${logContext} Original task not found.`);
+        throw new NotFoundException('Original task not found');
     }
 
-    // Validate new assignees/departments/province exist (reuse logic similar to 'create')
-    const hasUsers = dto.assignedToUserIds && dto.assignedToUserIds.length > 0;
-    const hasDepartments = dto.assignedToDepartmentIds && dto.assignedToDepartmentIds.length > 0;
-    const hasProvince = dto.assignedToProvinceId;
+    // Permissions check: Only creator, admin, or leadership can delegate
+    const isCreator = originalTask.createdById === delegatorInfo.userId;
+    const isAdmin = delegatorInfo.role === UserRole.ADMIN;
+    const isLeadership = delegatorInfo.role === UserRole.LEADERSHIP;
 
-    if (!hasUsers && !hasDepartments) {
-        throw new BadRequestException('Delegation requires specifying target users or departments (with optional province).');
-    }
-    if (hasUsers && hasDepartments) throw new BadRequestException('Cannot delegate to users and departments simultaneously.');
-    if (hasUsers && hasProvince) throw new BadRequestException('Cannot delegate to users and specify a province.');
-    if (!hasDepartments && hasProvince) throw new BadRequestException('Province delegation requires at least one department assignment.');
+    // Re-adding assignee check - delegation should be allowed by current assignee too
+    const isAssignee = await this.checkAssigneePermission(originalTask, delegatorInfo.userId); 
 
-    let newAssigneesUsers: User[] = [];
-    let newAssigneesDepartments: Department[] = [];
-    let newAssigneeProvince: Province | null = null;
-    let newDelegatedTaskType: TaskType;
-
-    try {
-        if (hasUsers) {
-            newDelegatedTaskType = TaskType.USER;
-            newAssigneesUsers = await this.usersRepository.findBy({ id: In(dto.assignedToUserIds!) });
-            if (newAssigneesUsers.length !== dto.assignedToUserIds!.length) throw new BadRequestException('One or more delegation target users not found.');
-        } else if (hasDepartments && hasProvince) {
-            newDelegatedTaskType = TaskType.PROVINCE_DEPARTMENT;
-            newAssigneeProvince = await this.provincesRepository.findOneBy({ id: dto.assignedToProvinceId });
-            if (!newAssigneeProvince) throw new BadRequestException(`Delegation target province ${dto.assignedToProvinceId} not found.`);
-            const departments = await this.departmentsRepository.find({ where: { id: In(dto.assignedToDepartmentIds!) }, relations: ['province'] });
-            if (departments.length !== dto.assignedToDepartmentIds!.length) throw new BadRequestException('One or more delegation target departments not found.');
-            const invalidDepartments = departments.filter(d => d.provinceId !== newAssigneeProvince!.id);
-            if (invalidDepartments.length > 0) throw new BadRequestException(`Target Departments [${invalidDepartments.map(d => d.id).join(', ')}] do not belong to target province ${newAssigneeProvince!.id}.`);
-            newAssigneesDepartments = departments;
-        } else if (hasDepartments) {
-            newDelegatedTaskType = TaskType.DEPARTMENT;
-            newAssigneesDepartments = await this.departmentsRepository.findBy({ id: In(dto.assignedToDepartmentIds!) });
-            if (newAssigneesDepartments.length !== dto.assignedToDepartmentIds!.length) throw new BadRequestException('One or more delegation target departments not found.');
-        }
-    } catch (error) {
-         console.error("Error validating delegation assignees:", error);
-         if (error instanceof BadRequestException) throw error;
-         throw new BadRequestException('Failed to validate delegation assignees.');
+    if (!isCreator && !isAdmin && !isLeadership && !isAssignee) {
+        console.warn(`${logContext} User does not have permission to delegate.`);
+        throw new ForbiddenException('Only the creator, an assignee, admin, or leadership can delegate this task.');
     }
 
-    // Create the new delegated task
-    const newTask = new Task();
-    newTask.title = dto.title || originalTask.title; // Use original title if not provided
-    newTask.description = dto.description || originalTask.description; // Use original description if not provided
-    newTask.priority = originalTask.priority; // Keep original priority
-    newTask.dueDate = dto.dueDate ? new Date(dto.dueDate) : originalTask.dueDate; // Allow overriding due date
-    newTask.status = TaskStatus.PENDING; // Delegated task starts as Pending
-    newTask.createdById = delegatorInfo.userId; // Delegator becomes creator of new task
-    newTask.delegatedFromTaskId = originalTask.id; // Link back to the original task
-    newTask.delegatedByUserId = delegatorInfo.userId; // Explicitly set who delegated
-    newTask.isDelegated = true; // Mark this task as a result of delegation
+    // Prevent delegating already delegated or completed/cancelled tasks
+    if (originalTask.isDelegated) {
+        throw new BadRequestException('This task has already been delegated.');
+    }
+    if ([TaskStatus.COMPLETED, TaskStatus.CANCELLED].includes(originalTask.status)) {
+        throw new BadRequestException('Cannot delegate a completed or cancelled task.');
+    }
 
-    // Assign based on validated DTO data
-    newTask.type = newDelegatedTaskType!;
-    newTask.assignedToUsers = newAssigneesUsers;
-    newTask.assignedToDepartments = newAssigneesDepartments;
-    newTask.assignedToProvinceId = newAssigneeProvince ? newAssigneeProvince.id : null;
+    // Validate target users exist (using newAssigneeUserIds - already validated by DTO decorator)
+    const newAssignees = await this.usersRepository.findBy({ id: In(dto.newAssigneeUserIds) });
+    if (newAssignees.length !== dto.newAssigneeUserIds.length) {
+        const foundIds = newAssignees.map(u => u.id);
+        const notFoundIds = dto.newAssigneeUserIds.filter(uid => !foundIds.includes(uid));
+        console.error(`${logContext} One or more target users not found: ${notFoundIds.join(', ')}`);
+        throw new BadRequestException(`One or more target users not found: ${notFoundIds.join(', ')}`);
+    }
 
-    // Link original task to the new one (assuming delegatedToTaskId exists on Task entity)
+    // --- Create New Delegated Tasks --- (Simplified)
+    const createdDelegatedTasks: Task[] = [];
+
+    for (const assignee of newAssignees) {
+        const newTask = new Task();
+        newTask.title = originalTask.title; // Inherit title
+        newTask.description = originalTask.description; // Inherit description
+        newTask.priority = originalTask.priority; // Inherit priority
+        newTask.dueDate = originalTask.dueDate; // Inherit due date
+        newTask.status = TaskStatus.PENDING; // Start as Pending
+        newTask.createdById = delegatorInfo.userId; // Delegator is creator
+        newTask.delegatedFromTaskId = originalTask.id; // Link to original
+        newTask.delegatedByUserId = delegatorInfo.userId; // Mark delegator
+        newTask.isDelegated = true;
+        newTask.type = TaskType.USER; // Delegated task is assigned to a user
+        newTask.assignedToUsers = [assignee]; // Assign only to this specific assignee
+        newTask.assignedToDepartments = []; // Clear department/province assignments
+        newTask.assignedToProvinceId = null;
+
+        createdDelegatedTasks.push(newTask);
+    }
+    // --- End Create New Delegated Tasks ---
+
+    // Update original task status
     originalTask.status = TaskStatus.DELEGATED;
-    // originalTask.delegatedToTaskId = savedNewTask.id; // This link needs to be set AFTER saving newTask
+    originalTask.isDelegated = true; // Also mark original as delegated
 
-    // --- Database Transaction (Recommended) ---
-    // Inject QueryRunner via constructor if not already done
-    // const queryRunner = this.tasksRepository.manager.connection.createQueryRunner();
-    // await queryRunner.connect();
-    // await queryRunner.startTransaction();
+    // --- Database Transaction --- 
     try {
-        // Save the new task first to get its ID
-        const savedNewTask = await this.tasksRepository.save(newTask);
-        // const savedNewTask = await queryRunner.manager.save(newTask);
-
-        // Now link the original task to the new task ID and save it
-        originalTask.delegatedToTaskId = savedNewTask.id;
+        // Save the original task with updated status
         const savedOriginalTask = await this.tasksRepository.save(originalTask);
-        // const savedOriginalTask = await queryRunner.manager.save(originalTask);
 
-        // await queryRunner.commitTransaction();
+        // Save all the new delegated tasks
+        const savedNewTasks = await this.tasksRepository.save(createdDelegatedTasks);
 
-        // Log activity AFTER successful transaction/saves
+        // Log activity
+        const newTasksSummary = savedNewTasks.map(t => `"${t.title}" (ID: ${t.id}) for ${t.assignedToUsers[0]?.username}`).join(', ');
         await this.activityLogService.createLog({
             action: `Task Delegated`,
             target: 'Task',
-            target_id: originalTask.id, // Log against original task
+            target_id: originalTask.id,
             user_id: delegatorInfo.userId,
-            details: `Task "${originalTask.title}" (ID: ${originalTask.id}) was delegated. New task "${savedNewTask.title}" (ID: ${savedNewTask.id}) created.`,
+            details: `Task "${originalTask.title}" (ID: ${originalTask.id}) was delegated. New task(s) created: ${newTasksSummary}. Reason: ${dto.delegationReason || 'N/A'}`,
             status: 'success'
         });
 
-        // Reload tasks using the main repository to ensure relations are correct
+        // Reload and return tasks
         const reloadedOriginal = await this.findOne(savedOriginalTask.id);
-        const reloadedNew = await this.findOne(savedNewTask.id);
-        return [reloadedOriginal, reloadedNew];
+        const reloadedNewTasks = await Promise.all(savedNewTasks.map(t => this.findOne(t.id)));
+        return [reloadedOriginal, ...reloadedNewTasks];
 
     } catch (err) {
-        // await queryRunner.rollbackTransaction();
         console.error("Delegation save failed:", err);
-        // Improve error handling: Check if it's a known DB constraint error etc.
         throw new BadRequestException(`Failed to delegate task: ${err.message || 'Database error'}`);
-    } finally {
-        // await queryRunner.release();
-    }
+    } 
     // --- End Transaction ---
   }
 

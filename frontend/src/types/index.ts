@@ -174,8 +174,8 @@ export type TaskUpdate = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt' | '
 
 // Define DelegateTaskData interface
 export interface DelegateTaskData {
-  assignedToUserIds: string[]; // Array of user IDs to delegate to
-  comment?: string; // Optional comment
+  newAssigneeUserIds: string[]; // Array of user IDs to delegate to (Renamed to match backend DTO)
+  delegationReason?: string; // Optional comment (Renamed to match backend DTO)
   // Maybe include original Task ID if needed by backend
 }
 

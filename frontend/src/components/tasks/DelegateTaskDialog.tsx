@@ -3,16 +3,25 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
   Autocomplete, CircularProgress, Alert, Typography, Box
 } from '@mui/material';
-import { User } from '@/types/user';
+import { User as UserType } from '@/types/user';
+import { User as IndexUser } from '@/types/index';
+
+// Type adapter function
+const convertUser = (user: UserType): IndexUser => {
+  return {
+    ...user,
+    role: (user.role || 'user') as 'user' | 'admin' | 'manager',
+  };
+};
 
 interface DelegateTaskDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (selectedUsers: User[], comment: string) => Promise<void>; // Adjusted onSubmit based on TaskViewDialog usage
+  onSubmit: (selectedUsers: IndexUser[], comment: string) => Promise<void>;
   taskId: string;
   taskTitle: string;
-  currentAssignees?: User[]; // Optional: To show who is already assigned
-  users: User[]; // List of users to select from
+  currentAssignees?: IndexUser[];
+  users: UserType[];
   loading: boolean;
   error: string | null;
 }
@@ -28,7 +37,7 @@ const DelegateTaskDialog: React.FC<DelegateTaskDialogProps> = ({
   loading,
   error,
 }) => {
-  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<UserType[]>([]);
   const [comment, setComment] = useState('');
 
   // Reset state when dialog opens or taskId changes
@@ -40,8 +49,9 @@ const DelegateTaskDialog: React.FC<DelegateTaskDialogProps> = ({
   }, [open]);
 
   const handleInternalSubmit = () => {
-    // Consider adding validation here if needed (e.g., ensure users are selected)
-    onSubmit(selectedUsers, comment);
+    // Convert user types before passing to onSubmit
+    const convertedUsers = selectedUsers.map(convertUser);
+    onSubmit(convertedUsers, comment);
   };
 
   // Filter out current assignees from the list of selectable users
@@ -65,7 +75,7 @@ const DelegateTaskDialog: React.FC<DelegateTaskDialogProps> = ({
           getOptionLabel={(option) => `${option.first_name || ''} ${option.last_name || ''}`.trim() || option.username || `ID: ${option.id}`}
           value={selectedUsers}
           onChange={(event, newValue) => {
-            setSelectedUsers(newValue as User[]);
+            setSelectedUsers(newValue as UserType[]);
           }}
           renderInput={(params) => (
             <TextField
