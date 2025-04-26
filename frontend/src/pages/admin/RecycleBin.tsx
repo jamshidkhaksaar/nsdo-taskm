@@ -329,7 +329,15 @@ const RecycleBin: React.FC = () => {
           Recycle Bin
         </Typography>
         
-        <Paper sx={{ mb: 4, p: 3, borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
+        <Paper sx={{ 
+          mb: 4, 
+          p: 3, 
+          borderRadius: '12px', 
+          backgroundColor: 'rgba(255, 255, 255, 0.15)', // Semi-transparent background
+          backdropFilter: 'blur(10px)', // Blur effect
+          border: '1px solid rgba(255, 255, 255, 0.2)', // Subtle border
+          boxShadow: 3 // Optional shadow for depth
+        }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={6}>
               <TextField
@@ -473,7 +481,15 @@ const RecycleBin: React.FC = () => {
         ) : (
           <>
             {deletedTasks.length === 0 ? (
-              <Paper sx={{ p: 4, textAlign: 'center', borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
+              <Paper sx={{ 
+                p: 4, 
+                textAlign: 'center', 
+                borderRadius: '12px', 
+                backgroundColor: 'rgba(255, 255, 255, 0.15)', // Semi-transparent background
+                backdropFilter: 'blur(10px)', // Blur effect
+                border: '1px solid rgba(255, 255, 255, 0.2)', // Subtle border
+                boxShadow: 3 // Optional shadow for depth
+              }}>
                 <Typography variant="h6">No deleted tasks found</Typography>
                 <Typography variant="body2" color="textSecondary">
                   When tasks are deleted with a reason, they will appear here
@@ -481,7 +497,13 @@ const RecycleBin: React.FC = () => {
               </Paper>
             ) : (
               <>
-                <TableContainer component={Paper} sx={{ borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
+                <TableContainer component={Paper} sx={{ 
+                  borderRadius: '12px', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)', // Semi-transparent background
+                  backdropFilter: 'blur(10px)', // Blur effect
+                  border: '1px solid rgba(255, 255, 255, 0.2)', // Subtle border
+                  boxShadow: 3 // Optional shadow for depth
+                }}>
                   <Table>
                     <TableHead>
                       <TableRow>
