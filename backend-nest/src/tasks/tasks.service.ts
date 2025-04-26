@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder, Not } from 'typeorm';
 import { Task, TaskStatus, TaskPriority, TaskType } from './entities/task.entity';
@@ -17,6 +17,8 @@ import { ActivityLog } from '../admin/entities/activity-log.entity';
 import { DelegateTaskDto } from './dto/delegate-task.dto';
 import { DeleteTaskDto } from './dto/delete-task.dto';
 import { RecycleBinQueryDto } from './dto/recycle-bin-query.dto';
+import { MailService } from '../mail/mail.service';
+import { ConfigService } from '@nestjs/config';
 
 // Define the missing Response Type
 export interface DashboardTasksResponse {
@@ -39,6 +41,8 @@ export interface TaskStatusCounts {
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(
     @InjectRepository(Task)
     private tasksRepository: Repository<Task>,
@@ -56,6 +60,8 @@ export class TasksService {
     private activityLogService: ActivityLogService,
     @InjectRepository(ActivityLog)
     private activityLogRepository: Repository<ActivityLog>,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(createTaskDto: CreateTaskDto, user: any): Promise<Task> {
@@ -161,8 +167,101 @@ export class TasksService {
       const savedTask = await this.tasksRepository.save(task);
       console.log('Task saved successfully with ID:', savedTask.id);
       
-      // Reload the task with all relations to ensure consistency
-      return this.findOne(savedTask.id); 
+      // --- Send Notifications ---
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      const taskLink = `${frontendUrl}/tasks/${savedTask.id}`; // Construct link to the task
+
+      // Reload the saved task with relations needed for notifications
+      const taskWithRelations = await this.tasksRepository.findOne({
+        where: { id: savedTask.id },
+        relations: [
+          'assignedToUsers', // Need emails and usernames
+          'assignedToDepartments', // Need department names and IDs
+          'createdBy' // Potentially useful, though we have the user object
+        ],
+      });
+
+      if (!taskWithRelations) {
+        this.logger.error(`Failed to reload task ${savedTask.id} for sending notifications.`);
+      } else {
+          if (taskWithRelations.type === TaskType.USER && taskWithRelations.assignedToUsers) {
+            for (const assignedUser of taskWithRelations.assignedToUsers) {
+              if (assignedUser.id === user.userId) continue; // Don't email the creator if they assigned it to themselves
+              try {
+                await this.mailService.sendTemplatedEmail(
+                  assignedUser.email,
+                  'TASK_ASSIGNED_USER',
+                  {
+                    username: assignedUser.username,
+                    taskTitle: taskWithRelations.title,
+                    dueDate: taskWithRelations.dueDate ? taskWithRelations.dueDate.toLocaleDateString() : 'N/A',
+                    taskDescription: taskWithRelations.description || 'No description provided.',
+                    taskLink: taskLink,
+                  }
+                );
+                this.logger.log(`Task assignment email sent to user ${assignedUser.email}`);
+              } catch (emailError) {
+                this.logger.error(`Failed to send task assignment email to user ${assignedUser.email}: ${emailError.message}`, emailError.stack);
+              }
+            }
+          } else if ((taskWithRelations.type === TaskType.DEPARTMENT || taskWithRelations.type === TaskType.PROVINCE_DEPARTMENT) && taskWithRelations.assignedToDepartments) {
+            const departmentIds = taskWithRelations.assignedToDepartments.map(d => d.id);
+            if (departmentIds.length > 0) {
+              try {
+                // Fetch users for each department and combine/deduplicate
+                let allUsersInDepartments: User[] = [];
+                for (const deptId of departmentIds) {
+                    const users = await this.usersService.findUsersByDepartment(deptId);
+                    allUsersInDepartments = allUsersInDepartments.concat(users);
+                }
+                // Ensure unique users
+                const uniqueUsersMap = new Map<string, User>();
+                allUsersInDepartments.forEach(u => {
+                    // Ensure the user object has departments loaded for the check below
+                    if (!uniqueUsersMap.has(u.id)) {
+                        uniqueUsersMap.set(u.id, u);
+                    }
+                });
+                const uniqueUsers = Array.from(uniqueUsersMap.values());
+                
+                for (const deptUser of uniqueUsers) { // Type should be inferred as User now
+                  if (deptUser.id === user.userId) continue; // Don't email the creator
+                  
+                  // Find which assigned department(s) this user belongs to for context
+                  // Use the originally fetched assignedToDepartments for name
+                  const userDepartment = taskWithRelations.assignedToDepartments.find(assignedDept => 
+                      deptUser.departments?.some(userDept => userDept.id === assignedDept.id)
+                  );
+                  const departmentName = userDepartment ? userDepartment.name : 'relevant department'; // Fallback name
+
+                  try {
+                    await this.mailService.sendTemplatedEmail(
+                      deptUser.email,
+                      'TASK_ASSIGNED_DEPARTMENT',
+                      {
+                        username: deptUser.username, 
+                        taskTitle: taskWithRelations.title,
+                        departmentName: departmentName,
+                        dueDate: taskWithRelations.dueDate ? taskWithRelations.dueDate.toLocaleDateString() : 'N/A',
+                        taskDescription: taskWithRelations.description || 'No description provided.',
+                        taskLink: taskLink,
+                      }
+                    );
+                    this.logger.log(`Task assignment email sent to department user ${deptUser.email}`);
+                  } catch (emailError) {
+                    this.logger.error(`Failed to send task assignment email to department user ${deptUser.email}: ${emailError.message}`, emailError.stack);
+                  }
+                }
+              } catch (serviceError) {
+                 this.logger.error(`Failed to fetch users or send notifications for department task: ${serviceError.message}`, serviceError.stack);
+              }
+            }
+          }
+       }
+      // --- End Send Notifications ---
+
+      // Return the reloaded task with full relations
+      return taskWithRelations || savedTask; // Fallback to savedTask if reload failed
 
     } catch (error) {
       console.error('Error creating task:', error);
