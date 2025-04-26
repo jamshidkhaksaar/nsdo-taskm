@@ -1,22 +1,18 @@
-import { Column, Entity, JoinTable, ManyToMany, OneToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinTable,
+  ManyToMany,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Task } from '../../tasks/entities/task.entity';
 import { Department } from '../../departments/entities/department.entity';
 import { Note } from '../../notes/entities/note.entity';
 import { v4 as uuidv4 } from 'uuid';
-
-export enum UserRole {
-  USER = 'user',
-  LEADERSHIP = 'leadership',
-  ADMIN = 'admin',
-}
-
-// Old role mapping (for reference in comments only)
-// USER = 'user'
-// MANAGER = 'manager' -> now mapped to 'user'
-// GENERAL_MANAGER = 'general_manager' -> now mapped to 'leadership'
-// LEADERSHIP = 'leadership'
-// ADMIN = 'admin'
+import { Role } from '../../rbac/entities/role.entity';
 
 @Entity('user')
 export class User {
@@ -33,61 +29,57 @@ export class User {
   @Exclude({ toPlainOnly: true })
   password: string;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.USER,
-  })
-  role: UserRole;
-
   @Column({ default: true })
   isActive: boolean;
 
-  // 2FA fields
-  @Column({ default: false })
+  @ManyToOne(() => Role, (role) => role.users, {
+    nullable: true,
+    onDelete: 'SET NULL',
+    eager: true,
+  })
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
+
+  @Column({ default: false, name: 'two_factor_enabled' })
   twoFactorEnabled: boolean;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, name: 'two_factor_secret' })
   @Exclude({ toPlainOnly: true })
   twoFactorSecret: string;
 
-  @Column({ default: 'app' })
+  @Column({ default: 'app', name: 'two_factor_method' })
   twoFactorMethod: string; // 'app' for authenticator app, 'email' for email-based 2FA
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'json', nullable: true, name: 'remembered_browsers' })
   rememberedBrowsers: { fingerprint: string, expiresAt: Date }[];
 
-  // Profile fields
   @Column({ nullable: true, type: 'text' })
   bio: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, name: 'avatar_url' })
   avatarUrl: string;
 
   @Column({ type: 'simple-array', nullable: true })
   skills: string[];
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'json', nullable: true, name: 'social_links' })
   socialLinks: Record<string, string>;
 
   @Column({ type: 'json', nullable: true })
   preferences: Record<string, any>;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', name: 'created_at' })
   createdAt: Date;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP', name: 'updated_at' })
   updatedAt: Date;
 
-  // Tasks created by this user
   @OneToMany(() => Task, (task) => task.createdBy)
   createdTasks: Task[];
 
-  // Tasks assigned to this user
   @ManyToMany(() => Task, (task) => task.assignedToUsers)
   assignedTasks: Task[];
 
-  // Departments this user belongs to
   @ManyToMany(() => Department, (department) => department.members)
   @JoinTable({
     name: 'user_departments',
@@ -96,7 +88,6 @@ export class User {
   })
   departments: Department[];
 
-  // Notes created by this user
   @OneToMany(() => Note, (note) => note.user)
   notes: Note[];
 } 
