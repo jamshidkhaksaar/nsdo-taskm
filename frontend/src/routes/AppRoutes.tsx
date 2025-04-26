@@ -19,15 +19,17 @@ const Users = lazyLoad(import('../pages/Users'));
 const NotFound = lazyLoad(import('../pages/NotFound'));
 const TasksOverview = lazyLoad(import('../pages/TasksOverview'));
 const AdminRoutes = lazyLoad(import('./AdminRoutes'));
-const ForgotPassword = lazyLoad(import('../pages/ForgotPassword'));
+// const ForgotPassword = lazyLoad(import('../pages/ForgotPassword')); // Commented out - file doesn't exist
 const ProvincesPage = lazyLoad(import('../pages/ProvincesPage'));
+const SettingsPage = lazyLoad(import("../pages/Settings"));
+const ProfilePage = lazyLoad(import("../pages/Profile"));
 
 const AppRoutes: React.FC = () => {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-password" element={<Navigate to="/login" />} /> {/* Temporarily redirect */}
         <Route
           path="/dashboard"
           element={
@@ -77,6 +79,8 @@ const AppRoutes: React.FC = () => {
           }
         />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

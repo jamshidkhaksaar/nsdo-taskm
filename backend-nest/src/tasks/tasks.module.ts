@@ -21,7 +21,6 @@ import { Province } from '../provinces/entities/province.entity';
     forwardRef(() => DepartmentsModule),
     forwardRef(() => ProvinceModule),
     forwardRef(() => AdminModule),
-    UsersModule,
     MailModule,
     ConfigModule,
   ],

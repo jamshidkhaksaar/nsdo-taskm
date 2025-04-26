@@ -1,15 +1,15 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-import { Task } from '../../tasks/entities/task.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+// import { User } from '../../users/entities/user.entity'; // Import later when UsersModule is ready
+// import { Task } from '../../tasks/entities/task.entity'; // Import later when TasksModule is ready
 
-export enum NotificationType {
-  TASK_CREATED = 'task_created',
-  TASK_ASSIGNED = 'task_assigned',
-  TASK_STATUS_CHANGED = 'task_status_changed',
-  COLLABORATOR_ADDED = 'collaborator_added',
-  TASK_DUE_SOON = 'task_due_soon',
-  TASK_OVERDUE = 'task_overdue',
-}
+// Define specific notification types if needed
+// export enum NotificationType {
+//   TASK_ASSIGNED = 'task_assigned',
+//   TASK_UPDATED = 'task_updated',
+//   MENTION = 'mention',
+//   SYSTEM = 'system',
+//   // Add more types as needed
+// }
 
 @Entity('notifications')
 export class Notification {
@@ -17,32 +17,34 @@ export class Notification {
   id: string;
 
   @Column()
+  type: string; // Consider using Enum later: type: NotificationType;
+
+  @Column('text')
   message: string;
 
-  @Column({
-    type: 'enum',
-    enum: NotificationType,
-    default: NotificationType.TASK_ASSIGNED,
-  })
-  type: NotificationType;
-
   @Column({ default: false })
-  read: boolean;
-
-  @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
-
-  @Column({ type: 'uuid' })
-  user_id: string;
-
-  @ManyToOne(() => Task, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'task_id' })
-  task: Task;
-
-  @Column({ type: 'uuid', nullable: true })
-  task_id: string;
+  isRead: boolean;
 
   @CreateDateColumn()
-  created_at: Date;
+  createdAt: Date;
+
+  // Relationships (Uncomment and adjust when related entities/modules are ready)
+  
+  // @Column({ name: 'user_id' })
+  // userId: string; // ID of the user this notification is for
+  
+  // @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  // @JoinColumn({ name: 'user_id' })
+  // user: User;
+
+  // @Column({ name: 'related_entity_type', nullable: true })
+  // relatedEntityType: string; // e.g., 'Task', 'Comment'
+
+  // @Column({ name: 'related_entity_id', nullable: true })
+  // relatedEntityId: string; // ID of the related entity
+
+  // Example specific relationship (Uncomment if Task entity is ready)
+  // @ManyToOne(() => Task, { nullable: true, onDelete: 'SET NULL' })
+  // @JoinColumn({ name: 'related_entity_id', referencedColumnName: 'id' }) // Adjust if relatedEntityId stores Task ID
+  // task: Task;
 } 
