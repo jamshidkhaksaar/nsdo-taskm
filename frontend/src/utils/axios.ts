@@ -5,24 +5,12 @@ import { CONFIG } from './config';
 // Create axios instance with the correct base URL
 console.log('[CONFIG] API_URL:', CONFIG.API_URL);
 
-// Force the baseURL to use port 3001 instead of 8000 if needed
-let baseURL = CONFIG.API_URL;
-if (baseURL.includes('localhost:8000')) {
-  baseURL = baseURL.replace('localhost:8000', 'localhost:3001');
-  console.log('[CONFIG] Forcing baseURL to use port 3001:', baseURL);
-} else if (baseURL.includes('localhost:3000')) {
-  // Replace frontend port 3000 with backend port 3001
-  baseURL = baseURL.replace('localhost:3000', 'localhost:3001');
-  console.log('[CONFIG] Replacing frontend port with backend port:', baseURL);
-} else if (baseURL.match(/localhost:\d+/) && !baseURL.includes('localhost:3001')) {
-  // Replace any other port with 3001
-  baseURL = baseURL.replace(/localhost:\d+/, 'localhost:3001');
-  console.log('[CONFIG] Forcing baseURL to use port 3001:', baseURL);
-}
+// Force the baseURL to use the value from CONFIG + add the API prefix
+let baseURL = CONFIG.API_URL + '/api/v1'; // Append the global prefix
 
-// If baseURL is still empty or invalid, set a default
-if (!baseURL || baseURL === '') {
-  baseURL = 'http://localhost:3001';
+// If baseURL is still empty or invalid, set a default (less likely now)
+if (!baseURL || baseURL === '/api/v1') { // Adjust default check slightly
+  baseURL = 'http://localhost:3001/api/v1';
   console.log('[CONFIG] Using default baseURL:', baseURL);
 }
 
@@ -58,9 +46,7 @@ export const ensureAuthToken = () => {
 ensureAuthToken();
 
 // Log that we're using real API requests
-if (process.env.NODE_ENV !== 'production') {
-  console.log('[REAL] Using real API requests to:', baseURL);
-}
+console.log('[PRODUCTION] Using real API requests to:', baseURL);
 
 // Global variables to handle token refresh
 let isRefreshing = false;
@@ -85,11 +71,6 @@ instance.interceptors.request.use(
   async (config) => {
     // For authenticated routes, ensure we have the latest token
     const token = localStorage.getItem('access_token');
-    
-    // Log request in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Request] ${config.method?.toUpperCase()} ${config.url}`);
-    }
     
     // Set the Authorization header with the latest token
     if (token) {
@@ -169,10 +150,6 @@ instance.interceptors.request.use(
 // Response interceptor
 instance.interceptors.response.use(
   (response) => {
-    // Log successful responses in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Response] ${response.status} ${response.config.url}`);
-    }
     return response;
   },
   async (error) => {

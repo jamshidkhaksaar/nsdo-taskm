@@ -19,6 +19,6 @@ export const updateTask = async (id: string, taskData: Partial<Omit<Task, 'id' |
     return response.data;
 };
 
-export const deleteTask = async (id: string): Promise<void> => {
-    await axios.delete(`${API_URL}/${id}`);
+export const deleteTask = async (id: string, deletionReason: string): Promise<void> => {
+    await axios.post(`${API_URL}/${id}/delete`, { deletionReason });
 }; 

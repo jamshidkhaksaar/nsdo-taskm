@@ -9,7 +9,8 @@ export enum TaskStatus {
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
-  DELEGATED = 'delegated'
+  DELEGATED = 'delegated',
+  DELETED = 'deleted'
 }
 
 export enum TaskPriority {
@@ -127,6 +128,35 @@ export class Task {
 
   @Column({ type: 'datetime', nullable: true })
   completedAt: Date | null;
+
+  @Column({ type: 'boolean', default: false })
+  isDeleted: boolean;
+
+  @Column({ type: 'datetime', nullable: true })
+  deletedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  deletedById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, eager: false })
+  @JoinColumn({ name: 'deletedById' })
+  deletedBy: User | null;
+
+  @Column({ type: 'text', nullable: true })
+  deletionReason: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  cancelledAt: Date | null;
+  
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  cancelledById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, eager: false })
+  @JoinColumn({ name: 'cancelledById' })
+  cancelledBy: User | null;
+
+  @Column({ type: 'text', nullable: true })
+  cancellationReason: string | null;
 }
 
 

@@ -31,9 +31,11 @@ async function bootstrap() {
   // Enable CORS with multiple origins
   app.enableCors({
     origin: [
-      configService.get('FRONTEND_URL') || 'http://localhost:3000',
-      'http://192.168.3.90:3000',  // Add your local network IP
-      'http://localhost:3000'
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:3001',
+      'http://192.168.3.90:3000',  // Add your local network IP if needed
+      configService.get('FRONTEND_URL') || 'http://localhost:3000'
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
@@ -70,7 +72,7 @@ async function bootstrap() {
   // Use port from config
   const port = configService.get('PORT') || 3001;
   await app.listen(port);
-  console.log(`Application is running in ${configService.get('NODE_ENV') || 'development'} mode on: http://localhost:${port}/api`);
+  console.log(`Application is running in ${configService.get('NODE_ENV') || 'development'} mode on: http://localhost:${port}/api/v1`);
   
   // Try to log available routes but handle errors properly
   try {

@@ -9,6 +9,7 @@ import {
   ActivityLogs,
   SystemSettings,
   BackupRestore,
+  RecycleBin
 } from '../pages/admin';
 import ProvinceAdmin from '../pages/ProvinceAdmin';
 import ProvinceManagement from '../pages/admin/ProvinceManagement';
@@ -30,6 +31,7 @@ const AdminRoutes: React.FC = () => {
       <Route path="settings" element={<SystemSettings />} />
       <Route path="backup" element={<BackupRestore />} />
       <Route path="provinces" element={<ProvinceManagement />} />
+      <Route path="recycle-bin" element={<RecycleBin />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

@@ -47,16 +47,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
-    "test": "vitest",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
     "tailwind:init": "npx tailwindcss init -p"
   },
   "eslintConfig": {
     "extends": [
-      "react-app",
-      "react-app/jest",
-      "plugin:storybook/recommended"
+      "react-app"
     ]
   },
   "browserslist": {

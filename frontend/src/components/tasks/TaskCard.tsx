@@ -17,6 +17,12 @@ import {
   Select,
   MenuItem as MuiMenuItem,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -34,6 +40,7 @@ import { Department } from '../../services/department';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { SelectChangeEvent } from '@mui/material/Select';
+import axios from 'axios';
 
 // Custom styles for the components
 const customStyles = {
@@ -154,6 +161,34 @@ const TaskCard: React.FC<TaskCardProps> = ({
     .map(user => `${user.first_name} ${user.last_name}`)
     .join(', ') || 'Unassigned';
   
+  // Add state for delete dialog
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [deletionReasonError, setDeletionReasonError] = useState('');
+
+  // Update handleDelete
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (deletionReason.length < 20) {
+      setDeletionReasonError('Please provide a detailed reason (at least 20 characters)');
+      return;
+    }
+    
+    try {
+      await axios.post(`/api/tasks/${task.id}/delete`, { deletionReason });
+      setOpenDeleteDialog(false);
+      onDelete && onDelete(task.id);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      // Handle error appropriately (e.g., show notification)
+      // You might want to add a user-facing error message here
+    }
+  };
+
   return (
     <Card
       sx={{ mb: 2, position: 'relative', overflow: 'visible', cursor: onClick ? 'pointer' : 'default' }}
@@ -266,7 +301,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {permissions.canDelete && onDelete && (
             <IconButton 
               size="small" 
-              onClick={(e) => { e.stopPropagation(); onDelete(task.id.toString()); }}
+              onClick={handleDelete}
               sx={{ color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}
             >
               <DeleteIcon fontSize="small" />
@@ -275,6 +310,42 @@ const TaskCard: React.FC<TaskCardProps> = ({
         </CardActions>
       )}
     </Card>
+
+    {/* Add the dialog at the end of the component */}
+    <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+      <DialogTitle>Delete Task</DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Please provide a detailed reason for deleting this task.
+          The reason must be at least 20 characters.
+        </DialogContentText>
+        <TextField
+          autoFocus
+          margin="dense"
+          id="deletion-reason"
+          label="Deletion Reason"
+          type="text"
+          fullWidth
+          multiline
+          rows={4}
+          value={deletionReason}
+          onChange={(e) => {
+            setDeletionReason(e.target.value);
+            if (e.target.value.length >= 20) {
+              setDeletionReasonError('');
+            }
+          }}
+          error={!!deletionReasonError}
+          helperText={deletionReasonError}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
+        <Button onClick={confirmDelete} color="error" variant="contained">
+          Delete
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 

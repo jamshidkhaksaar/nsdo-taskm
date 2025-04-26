@@ -79,7 +79,7 @@ export class ProvinceService {
       const completionTimes = completedTasks
         .filter(task => task.completedAt && task.createdAt)
         .map(task => {
-          const completionTime = task.completedAt.getTime() - task.createdAt.getTime();
+          const completionTime = task.completedAt!.getTime() - task.createdAt.getTime();
           return completionTime / (1000 * 60 * 60); // Convert to hours
         });
       

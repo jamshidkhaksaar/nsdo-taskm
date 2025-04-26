@@ -301,10 +301,11 @@ export const TaskService = {
     },
 
     // Delete a task
-    deleteTask: async (taskId: string): Promise<void> => {
+    deleteTask: async (taskId: string, deletionReason: string): Promise<void> => {
         const stringTaskId = ensureStringId(taskId);
         try {
-            await apiClient.delete(`/tasks/${stringTaskId}`);
+            // Use POST endpoint with deletion reason
+            await apiClient.post(`/tasks/${stringTaskId}/delete`, { deletionReason });
         } catch (error) {
             console.error(`Error deleting task ${stringTaskId}:`, error);
             throw error;

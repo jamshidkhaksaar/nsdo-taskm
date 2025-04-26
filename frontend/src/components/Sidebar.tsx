@@ -27,6 +27,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import DeleteIcon from '@mui/icons-material/Delete';
 import logo from '../assets/images/logo.png';
 import logoIcon from '../assets/images/logoIcon.png';
 
@@ -74,6 +75,12 @@ const adminMenuItems = [
     path: '/admin/activity-logs', 
     icon: <HistoryIcon />,
     description: 'View system activity and audit logs'
+  },
+  { 
+    title: 'Recycle Bin', 
+    path: '/admin/recycle-bin', 
+    icon: <DeleteIcon />,
+    description: 'View and manage deleted tasks'
   },
   { 
     title: 'System Settings', 

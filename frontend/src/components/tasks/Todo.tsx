@@ -18,7 +18,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  CircularProgress
+  CircularProgress,
+  DialogContentText
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, Add as AddIcon } from '@mui/icons-material';
 import { Task, TaskStatus } from '../../types/task';
@@ -45,6 +46,12 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
   const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<TaskStatus>(TaskStatus.PENDING);
 
+  // Add state for deletion
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [deletionReasonError, setDeletionReasonError] = useState('');
+
   // Fetch tasks on component mount
   useEffect(() => {
     fetchTasks();
@@ -53,7 +60,9 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const response = await axios.get<Task[]>('/tasks');
+      // Use specific endpoint for user tasks if userId is provided
+      const endpoint = userId ? `/tasks/user/${userId}` : '/tasks';
+      const response = await axios.get<Task[]>(endpoint);
       setTasks(response.data);
       setError(null);
     } catch (err) {
@@ -71,7 +80,10 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
       const response = await axios.post<Task>('/tasks', {
         title: newTaskTitle,
         description: newTaskDescription,
-        status: newTaskStatus
+        status: newTaskStatus,
+        type: 'personal', // Specify task type
+        priority: 'medium', // Default priority
+        is_private: false // Default visibility
       });
       
       setTasks([...tasks, response.data]);
@@ -84,10 +96,27 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
+  const initiateDeleteTask = (id: string) => {
+    setDeletingTaskId(id);
+    setDeletionReason('');
+    setDeletionReasonError('');
+    setDeletionDialogOpen(true);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deletingTaskId) return;
+    
+    if (!deletionReason || deletionReason.length < 20) {
+      setDeletionReasonError('Please provide a detailed reason (at least 20 characters)');
+      return;
+    }
+    
     try {
-      await axios.delete(`/tasks/${id}`);
-      setTasks(tasks.filter(task => task.id !== id));
+      await axios.post(`/tasks/${deletingTaskId}/delete`, { deletionReason });
+      setTasks(tasks.filter(task => task.id !== deletingTaskId));
+      setDeletionDialogOpen(false);
+      setDeletingTaskId(null);
+      setDeletionReason('');
     } catch (err) {
       console.error('Error deleting task:', err);
       setError('Failed to delete task. Please try again.');
@@ -232,84 +261,79 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
       </Card>
       
       {/* Task List */}
-      <Stack spacing={2}>
-        {tasks.length === 0 ? (
-          <Typography variant="body1" color="textSecondary" align="center">
-            No tasks found. Create a new task to get started!
-          </Typography>
-        ) : (
-          tasks.map((task) => (
-            <Card key={task.id} sx={{ mb: 1 }}>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                  <Box display="flex" alignItems="center" width="100%">
+      <Typography variant="h6" gutterBottom>
+        Task List ({tasks.length})
+      </Typography>
+      
+      {tasks.length === 0 ? (
+        <Typography color="textSecondary">
+          No tasks found. Create one to get started!
+        </Typography>
+      ) : (
+        <Stack spacing={2}>
+          {tasks.map(task => (
+            <Card key={task.id} sx={{ 
+              p: 2, 
+              opacity: isTaskDone(task) ? 0.7 : 1,
+              textDecoration: isTaskDone(task) ? 'line-through' : 'none'
+            }}>
+              <CardContent sx={{ pb: 1 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box display="flex" alignItems="center">
                     <Checkbox
                       checked={isTaskDone(task)}
-                      onChange={() => 
-                        handleStatusChange(
-                          task, 
-                          isTaskDone(task) ? TaskStatus.PENDING : TaskStatus.COMPLETED
-                        )
-                      }
-                    />
-                    <Box width="100%">
-                      <Typography
-                        variant="h6"
-                        sx={{
-                          textDecoration: isTaskDone(task) ? 'line-through' : 'none',
-                          color: isTaskDone(task) ? 'text.secondary' : 'text.primary'
-                        }}
-                      >
-                        {task.title}
-                      </Typography>
-                      {task.description && (
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                          {task.description}
-                        </Typography>
+                      onChange={() => handleStatusChange(task, 
+                        isTaskDone(task) ? TaskStatus.PENDING : TaskStatus.COMPLETED
                       )}
-                      <Box sx={{ mt: 1 }}>
-                        <Chip 
-                          label={task.status.replace('_', ' ')} 
-                          size="small" 
-                          color={getStatusColor(task.status) as any}
-                          sx={{ mr: 1 }}
-                        />
-                        {task.updated_at && (
-                          <Typography variant="caption" color="text.secondary">
-                            Updated: {new Date(task.updated_at).toLocaleDateString()}
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
+                    />
+                    <Typography variant="h6" component="div">
+                      {task.title}
+                    </Typography>
                   </Box>
                   <Box>
-                    <IconButton 
+                    <Chip 
+                      label={task.status} 
+                      color={getStatusColor(task.status) as any}
                       size="small" 
+                      sx={{ mr: 1 }}
+                    />
+                    <IconButton 
                       onClick={() => openEditDialog(task)}
-                      aria-label="edit task"
+                      color="primary"
+                      size="small"
                     >
-                      <EditIcon fontSize="small" />
+                      <EditIcon />
                     </IconButton>
                     <IconButton 
-                      size="small" 
-                      onClick={() => handleDeleteTask(task.id)}
-                      aria-label="delete task"
+                      onClick={() => initiateDeleteTask(task.id)}
+                      color="error"
+                      size="small"
                     >
-                      <DeleteIcon fontSize="small" />
+                      <DeleteIcon />
                     </IconButton>
                   </Box>
                 </Box>
+                {task.description && (
+                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1, ml: 4 }}>
+                    {task.description}
+                  </Typography>
+                )}
+                {task.dueDate && (
+                  <Typography variant="caption" color="textSecondary" sx={{ ml: 4 }}>
+                    Due: {new Date(task.dueDate).toLocaleDateString()}
+                  </Typography>
+                )}
               </CardContent>
             </Card>
-          ))
-        )}
-      </Stack>
+          ))}
+        </Stack>
+      )}
       
       {/* Edit Task Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
         <DialogTitle>Edit Task</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField
               fullWidth
               label="Task Title"
@@ -323,7 +347,7 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               multiline
-              rows={3}
+              rows={2}
               variant="outlined"
             />
             <FormControl fullWidth>
@@ -344,14 +368,50 @@ const Todo: React.FC<TodoProps> = ({ userId }) => {
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
           <Button 
-            onClick={handleUpdateTask} 
-            variant="contained" 
+            onClick={handleUpdateTask}
+            variant="contained"
             disabled={!editTitle.trim()}
           >
-            Save Changes
+            Save
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Delete Task Dialog */}
+      <Dialog open={deletionDialogOpen} onClose={() => setDeletionDialogOpen(false)}>
+        <DialogTitle>Delete Task</DialogTitle>
+        <DialogContent>
+          <DialogContentText gutterBottom>
+            Are you sure you want to delete this task? This action places the task in the recycle bin.
+            Please provide a detailed reason for deletion.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Reason for Deletion"
+            value={deletionReason}
+            onChange={(e) => setDeletionReason(e.target.value)}
+            error={!!deletionReasonError}
+            helperText={deletionReasonError || 'Minimum 20 characters required'}
+            multiline
+            rows={3}
+            variant="outlined"
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletionDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleDeleteTask}
+            color="error"
+            variant="contained"
+            disabled={!deletionReason || deletionReason.length < 20}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
     </Box>
   );
 };

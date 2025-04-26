@@ -12,6 +12,8 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { DashboardTasksResponse, TaskStatusCounts } from './tasks.service';
+import { DeleteTaskDto } from './dto/delete-task.dto';
+import { RecycleBinQueryDto } from './dto/recycle-bin-query.dto';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -28,6 +30,15 @@ export class TasksController {
   @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
   findAll(@Query() query, @Request() req) {
     return this.tasksService.findAll(query, req.user);
+  }
+
+  @Get('recycle-bin')
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Get deleted tasks from recycle bin (admin/leadership only)' })
+  @ApiResponse({ status: 200, description: 'Returns paginated list of deleted tasks.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions.' })
+  async getRecycleBin(@Query() query: RecycleBinQueryDto, @Request() req) {
+    return this.tasksService.findAllDeleted(query, req.user);
   }
 
   @Get('dashboard')
@@ -65,9 +76,15 @@ export class TasksController {
     return this.tasksService.update(id, updateTaskDto, req.user);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string, @Request() req) {
-    return this.tasksService.remove(id, req.user);
+  @Post(':id/delete')
+  @ApiOperation({ summary: 'Move task to recycle bin (requires comment)' })
+  @ApiBody({ type: DeleteTaskDto })
+  @ApiResponse({ status: 200, description: 'Task moved to recycle bin successfully.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions to delete.' })
+  @ApiResponse({ status: 404, description: 'Task not found.' })
+  @ApiResponse({ status: 400, description: 'Bad Request (e.g., insufficient deletion reason).' })
+  remove(@Param('id') id: string, @Body() deleteTaskDto: DeleteTaskDto, @Request() req) {
+    return this.tasksService.remove(id, deleteTaskDto, req.user);
   }
 
   @Patch(':id/status')
@@ -103,13 +120,13 @@ export class TasksController {
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Cancel a task (requires creator, admin, or leadership role)' })
+  @ApiOperation({ summary: 'Cancel a task (requires creator, admin, or leadership role and reason)' })
   @ApiResponse({ status: 200, description: 'Task cancelled successfully.' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions to cancel.' })
   @ApiResponse({ status: 404, description: 'Task not found.' })
-  @ApiResponse({ status: 400, description: 'Bad Request (e.g., trying to cancel a completed task).' })
-  cancelTask(@Param('id') id: string, @Request() req) {
-    const updateStatusDto: UpdateTaskStatusDto = { status: TaskStatus.CANCELLED };
+  @ApiResponse({ status: 400, description: 'Bad Request (e.g., trying to cancel a completed task or insufficient reason).' })
+  cancelTask(@Param('id') id: string, @Body() updateStatusDto: UpdateTaskStatusDto, @Request() req) {
+    updateStatusDto.status = TaskStatus.CANCELLED;
     return this.tasksService.updateStatus(id, updateStatusDto, req.user);
   }
 
@@ -131,5 +148,25 @@ export class TasksController {
         throw new ForbiddenException('You do not have permission to view task counts for this user.');
     }
     return this.tasksService.getTaskCountsByStatusForUser(userId);
+  }
+
+  @Post(':id/restore')
+  @Roles(UserRole.ADMIN, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Restore task from recycle bin (admin/leadership only)' })
+  @ApiResponse({ status: 200, description: 'Task restored successfully.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions to restore.' })
+  @ApiResponse({ status: 404, description: 'Task not found.' })
+  async restoreTask(@Param('id') id: string, @Request() req) {
+    return this.tasksService.restoreTask(id, req.user);
+  }
+
+  @Delete(':id/permanent')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Permanently delete task (admin only)' })
+  @ApiResponse({ status: 200, description: 'Task permanently deleted.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions to delete.' })
+  @ApiResponse({ status: 404, description: 'Task not found.' })
+  async permanentDelete(@Param('id') id: string, @Request() req) {
+    return this.tasksService.hardRemove(id, req.user);
   }
 }

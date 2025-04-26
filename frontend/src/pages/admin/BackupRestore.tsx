@@ -25,10 +25,15 @@ import {
   Switch,
   TextField,
   Container,
+  Stack,
+  Paper,
+  Grid,
 } from '@mui/material';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -36,7 +41,6 @@ import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLay
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { BackupService } from '../../services/backupService';
-import { testBackupApi, testBackupStatusEndpoint } from '../../utils/testBackupAPI';
 
 const DRAWER_WIDTH = 240;
 
@@ -228,38 +232,62 @@ const BackupRestore: React.FC = () => {
   const handleConfirmRestore = async () => {
     if (selectedBackup) {
       try {
-        await BackupService.restoreBackup(selectedBackup.id);
-        setSnackbar({
-          open: true,
-          message: 'System restored successfully',
-          severity: 'success'
-        });
-      } catch (error) {
+        setRestoreDialogOpen(false);
+        setIsBackupInProgress(true);
+        setBackupProgress(0);
+        
+        const interval = setInterval(() => {
+          setBackupProgress((prev) => {
+            if (prev >= 100) {
+              clearInterval(interval);
+              return 100;
+            }
+            return prev + 10;
+          });
+        }, 500);
+        
+        const result = await BackupService.restoreBackup(selectedBackup.id);
+        clearInterval(interval);
+        setIsBackupInProgress(false);
+        
+        if (result.success) {
+          setSnackbar({
+            open: true,
+            message: 'System restored successfully. Please refresh the page.',
+            severity: 'success'
+          });
+        } else {
+          throw new Error(result.message || 'Restore failed');
+        }
+      } catch (error: any) {
+        setIsBackupInProgress(false);
         console.error('Error restoring backup:', error);
         setSnackbar({
           open: true,
-          message: 'Failed to restore system',
+          message: error.response?.data?.error || 'Failed to restore system',
           severity: 'error'
         });
       }
     }
-    setRestoreDialogOpen(false);
   };
 
   const handleDelete = async (backupId: string) => {
     try {
       await BackupService.deleteBackup(backupId);
-      await fetchBackups();
+      
+      // Update the backup list
+      setBackups((prev) => prev.filter((backup) => backup.id !== backupId));
+      
       setSnackbar({
         open: true,
         message: 'Backup deleted successfully',
         severity: 'success'
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting backup:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to delete backup',
+        message: error.response?.data?.error || 'Failed to delete backup',
         severity: 'error'
       });
     }
@@ -267,20 +295,18 @@ const BackupRestore: React.FC = () => {
 
   const handleDownload = async (backup: Backup) => {
     try {
-      // The downloadBackup service now handles the download directly
       await BackupService.downloadBackup(backup.id);
       
-      // Show success message to the user
       setSnackbar({
         open: true,
-        message: 'Backup downloaded successfully',
+        message: 'Backup download started',
         severity: 'success'
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error downloading backup:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to download backup',
+        message: error.response?.data?.error || 'Failed to download backup',
         severity: 'error'
       });
     }
@@ -295,49 +321,8 @@ const BackupRestore: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    // Handle logout logic here
+    // Implement logout
     navigate('/login');
-  };
-
-
-  // Add function to test the API
-  const handleTestApi = async () => {
-    try {
-      const result = await testBackupApi();
-      console.log(result);
-      setSnackbar({
-        open: true,
-        message: 'API test completed - check browser console',
-        severity: 'info'
-      });
-    } catch (error) {
-      console.error('Error testing API:', error);
-      setSnackbar({
-        open: true,
-        message: 'API test failed - check browser console',
-        severity: 'error'
-      });
-    }
-  };
-
-  // Add function to test a specific backup ID status
-  const handleTestBackupStatus = async (backupId: string) => {
-    try {
-      const result = await testBackupStatusEndpoint(backupId);
-      console.log(`Status test for ${backupId}:`, result);
-      setSnackbar({
-        open: true,
-        message: `Status check for ${backupId} completed - see console`,
-        severity: 'info'
-      });
-    } catch (error) {
-      console.error(`Error testing status for ${backupId}:`, error);
-      setSnackbar({
-        open: true,
-        message: `Status check failed for ${backupId} - see console`,
-        severity: 'error'
-      });
-    }
   };
 
   const mainContent = (
@@ -374,40 +359,6 @@ const BackupRestore: React.FC = () => {
             />
           </CardContent>
         </Card>
-      )}
-
-      {/* Debug buttons for development */}
-      {process.env.NODE_ENV === 'development' && (
-        <Box sx={{ mb: 3, p: 2, background: 'rgba(255, 100, 100, 0.1)', borderRadius: 2 }}>
-          <Typography variant="subtitle2" sx={{ color: '#ff5555', mb: 1 }}>
-            Debug Tools
-          </Typography>
-          <Button 
-            variant="outlined" 
-            size="small" 
-            onClick={handleTestApi}
-            sx={{ mr: 1, borderColor: '#ff5555', color: '#ff5555' }}
-          >
-            Test API
-          </Button>
-          <Button 
-            variant="outlined" 
-            size="small" 
-            onClick={() => handleTestBackupStatus('backup-001')}
-            sx={{ mr: 1, borderColor: '#ff5555', color: '#ff5555' }}
-          >
-            Test Status 001
-          </Button>
-          <Button 
-            variant="outlined" 
-            size="small" 
-            onClick={() => handleTestBackupStatus(backups[0]?.id || 'backup-000')}
-            sx={{ borderColor: '#ff5555', color: '#ff5555' }}
-            disabled={backups.length === 0}
-          >
-            Test Latest Backup
-          </Button>
-        </Box>
       )}
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
@@ -795,6 +746,147 @@ const BackupRestore: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        {topWidgetsVisible && (
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={4}>
+              <Card
+                elevation={3}
+                sx={{
+                  p: 3,
+                  borderRadius: 2,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === 'dark' ? '#1e1e2d' : '#fff'
+                }}
+              >
+                <Typography variant="h6" component="h2" gutterBottom>
+                  Total Backups
+                </Typography>
+                <Typography variant="h3" component="div" sx={{ mb: 1 }}>
+                  {backups.length}
+                </Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.min((backups.length / 10) * 100, 100)}
+                  sx={{ height: 10, borderRadius: 5 }}
+                />
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card
+                elevation={3}
+                sx={{
+                  p: 3,
+                  borderRadius: 2,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === 'dark' ? '#1e1e2d' : '#fff'
+                }}
+              >
+                <Typography variant="h6" component="h2" gutterBottom>
+                  Latest Backup
+                </Typography>
+                {backups.length > 0 ? (
+                  <>
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      {new Date(backups[0].timestamp).toLocaleString()}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1, flexGrow: 1 }}
+                    >
+                      {backups[0].name}
+                    </Typography>
+                    <Chip
+                      label={
+                        backups[0].status === 'completed'
+                          ? 'Success'
+                          : backups[0].status === 'failed'
+                          ? 'Failed'
+                          : 'In Progress'
+                      }
+                      color={
+                        backups[0].status === 'completed'
+                          ? 'success'
+                          : backups[0].status === 'failed'
+                          ? 'error'
+                          : 'warning'
+                      }
+                      size="small"
+                    />
+                  </>
+                ) : (
+                  <Typography variant="body1" color="text.secondary">
+                    No backups available
+                  </Typography>
+                )}
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card
+                elevation={3}
+                sx={{
+                  p: 3,
+                  borderRadius: 2,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === 'dark' ? '#1e1e2d' : '#fff'
+                }}
+              >
+                <Typography variant="h6" component="h2" gutterBottom>
+                  Storage Used
+                </Typography>
+                <Typography variant="h3" component="div" sx={{ mb: 1 }}>
+                  {backups.reduce(
+                    (acc, backup) => acc + parseFloat(backup.size) || 0,
+                    0
+                  ).toFixed(1)}{' '}
+                  MB
+                </Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.min(
+                    (backups.reduce(
+                      (acc, backup) => acc + parseFloat(backup.size) || 0,
+                      0
+                    ) /
+                      100) *
+                      100,
+                    100
+                  )}
+                  sx={{ height: 10, borderRadius: 5 }}
+                />
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+          <Typography variant="h5" component="h1">
+            Backup History
+          </Typography>
+          
+          <Box>
+            <IconButton 
+              color="primary" 
+              onClick={() => setTopWidgetsVisible(!topWidgetsVisible)}
+              title={topWidgetsVisible ? 'Hide summary' : 'Show summary'}
+              sx={{ mr: 1 }}
+            >
+              {topWidgetsVisible ? <VisibilityOffIcon /> : <VisibilityIcon />}
+            </IconButton>
+          </Box>
+        </Box>
+      </Container>
     </Container>
   );
 

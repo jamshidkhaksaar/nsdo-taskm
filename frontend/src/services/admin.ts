@@ -1,11 +1,5 @@
 import axios from '../utils/axios';
-import { CONFIG } from '../utils/config';
 import { AxiosError } from 'axios';
-import { MockAdminService } from './mockAdminService';
-
-// Flag to determine if we should use mock data
-// In production, this should be false
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
 
 export const AdminService = {
   // Get dashboard stats
@@ -16,13 +10,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching dashboard stats:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock dashboard stats as fallback');
-        return MockAdminService.getDashboardStats();
-      }
-      
       throw error;
     }
   },
@@ -37,13 +24,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching users:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock users as fallback');
-        return MockAdminService.getUsers(search);
-      }
-      
       throw error;
     }
   },
@@ -56,13 +36,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching departments:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock departments as fallback');
-        return MockAdminService.getDepartments();
-      }
-      
       throw error;
     }
   },
@@ -75,13 +48,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching tasks:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock tasks as fallback');
-        return []; // No mock tasks defined yet
-      }
-      
       throw error;
     }
   },
@@ -94,13 +60,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching logs:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock logs as fallback');
-        return MockAdminService.getLogs();
-      }
-      
       throw error;
     }
   },
@@ -113,13 +72,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error clearing logs:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock clear logs as fallback');
-        return MockAdminService.clearLogs();
-      }
-      
       throw error;
     }
   },
@@ -132,25 +84,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock settings as fallback');
-        return { 
-          maintenance_mode: false,
-          allow_registration: true,
-          default_user_role: 'user',
-          session_timeout: 30,
-          password_policy: {
-            min_length: 8,
-            require_uppercase: true,
-            require_lowercase: true,
-            require_number: true,
-            require_special: true
-          }
-        };
-      }
-      
       throw error;
     }
   },
@@ -163,16 +96,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error updating settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock update settings as fallback');
-        return { 
-          ...settings,
-          updated_at: new Date().toISOString()
-        };
-      }
-      
       throw error;
     }
   },
@@ -185,13 +108,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error creating backup:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock create backup as fallback');
-        return MockAdminService.createBackup();
-      }
-      
       throw error;
     }
   },
@@ -204,13 +120,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[AdminService] Error fetching backups:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock backups as fallback');
-        return MockAdminService.getBackups();
-      }
-      
       throw error;
     }
   },
@@ -223,13 +132,6 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error(`[AdminService] Error deleting backup ${backupId}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock delete backup as fallback');
-        return MockAdminService.deleteBackup(backupId);
-      }
-      
       throw error;
     }
   },
@@ -242,45 +144,79 @@ export const AdminService = {
       return response.data;
     } catch (error: unknown) {
       console.error(`[AdminService] Error restoring backup ${backupId}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock restore backup as fallback');
-        return MockAdminService.restoreBackup(backupId);
-      }
-      
       throw error;
     }
   },
   
-  // Get system health
-  getHealth: async () => {
+  // Download backup
+  downloadBackup: async (backupId: string) => {
     try {
-      console.log('[AdminService] Checking system health');
-      const response = await axios.get('/admin/health');
+      console.log(`[AdminService] Downloading backup ${backupId}`);
+      const response = await axios.get(`/admin/backups/${backupId}/download`, {
+        responseType: 'blob'
+      });
+      
+      // Create file download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-${backupId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      
+      return { success: true };
+    } catch (error: unknown) {
+      console.error(`[AdminService] Error downloading backup ${backupId}:`, error);
+      throw error;
+    }
+  },
+  
+  // Get metrics
+  getMetrics: async (period: 'day' | 'week' | 'month' | 'year' = 'month') => {
+    try {
+      console.log(`[AdminService] Fetching metrics for period: ${period}`);
+      const response = await axios.get(`/admin/metrics?period=${period}`);
       return response.data;
     } catch (error: unknown) {
-      console.error('[AdminService] Error checking system health:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[AdminService] Using mock health check as fallback');
-        return {
-          status: 'ok',
-          timestamp: new Date().toISOString(),
-          message: 'API is operational',
-          database: {
-            connected: true,
-            message: 'Database connection successful',
-            type: 'mysql',
-            name: 'taskm_db'
-          },
-          environment: {
-            nodeEnv: 'development'
-          }
-        };
-      }
-      
+      console.error(`[AdminService] Error fetching metrics for period ${period}:`, error);
+      throw error;
+    }
+  },
+  
+  // Ban a user
+  banUser: async (userId: string, reason: string) => {
+    try {
+      console.log(`[AdminService] Banning user ${userId} for reason: ${reason}`);
+      const response = await axios.post(`/admin/users/${userId}/ban`, { reason });
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[AdminService] Error banning user ${userId}:`, error);
+      throw error;
+    }
+  },
+  
+  // Unban a user
+  unbanUser: async (userId: string) => {
+    try {
+      console.log(`[AdminService] Unbanning user ${userId}`);
+      const response = await axios.post(`/admin/users/${userId}/unban`);
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[AdminService] Error unbanning user ${userId}:`, error);
+      throw error;
+    }
+  },
+  
+  // Change user role
+  changeUserRole: async (userId: string, role: string) => {
+    try {
+      console.log(`[AdminService] Changing role for user ${userId} to ${role}`);
+      const response = await axios.patch(`/admin/users/${userId}/role`, { role });
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[AdminService] Error changing role for user ${userId}:`, error);
       throw error;
     }
   }

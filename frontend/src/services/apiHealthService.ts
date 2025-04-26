@@ -1,17 +1,40 @@
 import axios from '../utils/axios';
 import { AxiosError } from 'axios';
-import { 
-  EndpointStatus, 
-  GroupStatus, 
-  SystemHealth, 
-  MockApiHealthService,
-  StatusType
-} from './mockApiHealthService';
 import { refreshAccessToken, getAccessToken } from '../utils/authUtils';
 
-// Flag to determine if we should use mock data
-// In production, this should be false
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
+// Define types that were previously imported from mockApiHealthService
+export type StatusType = 'success' | 'warning' | 'error' | 'unknown';
+
+export interface EndpointStatus {
+  name: string;
+  endpoint: string;
+  status: StatusType;
+  statusCode: number;
+  responseTime: number;
+  message: string;
+  lastChecked: Date;
+}
+
+export interface GroupStatus {
+  name: string;
+  endpoints: EndpointStatus[];
+  status: StatusType;
+  lastChecked: Date;
+}
+
+export interface SystemHealth {
+  status: StatusType;
+  timestamp: Date;
+  groups: GroupStatus[];
+  version: string;
+  environment: string;
+  uptime: number;
+  memoryUsage: {
+    total: number;
+    used: number;
+    free: number;
+  };
+}
 
 export const ApiHealthService = {
   // Check a specific endpoint
@@ -85,9 +108,6 @@ export const ApiHealthService = {
         const token = getAccessToken();
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
-        } else if (USE_MOCK_DATA) {
-          console.log(`[ApiHealthService] No token available for ${endpointInfo.name}, using mock data`);
-          return MockApiHealthService.checkEndpoint(groupKey, endpointInfo);
         } else {
           throw new Error('Authentication required but no token available');
         }
@@ -125,17 +145,10 @@ export const ApiHealthService = {
               } else if (endpointInfo.method === 'POST') {
                 response = await axios.post(url, endpointInfo.payload || {}, { ...requestConfig, headers });
               }
-            } else if (USE_MOCK_DATA) {
-              console.log(`[ApiHealthService] Token refresh failed for ${endpointInfo.name}, using mock data`);
-              return MockApiHealthService.checkEndpoint(groupKey, endpointInfo);
             } else {
               throw new Error('Token refresh failed');
             }
           } catch (refreshError) {
-            if (USE_MOCK_DATA) {
-              console.log(`[ApiHealthService] Token refresh error for ${endpointInfo.name}, using mock data`);
-              return MockApiHealthService.checkEndpoint(groupKey, endpointInfo);
-            }
             throw refreshError;
           }
         } else {
@@ -170,12 +183,6 @@ export const ApiHealthService = {
       };
     } catch (error: any) {
       console.error(`[ApiHealthService] Error checking endpoint ${endpointInfo.name}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log(`[ApiHealthService] Using mock data for ${endpointInfo.name} due to error`);
-        return MockApiHealthService.checkEndpoint(groupKey, endpointInfo);
-      }
       
       const endTime = performance.now();
       let status: StatusType = 'error';
@@ -246,122 +253,196 @@ export const ApiHealthService = {
     } catch (error: unknown) {
       console.error('[ApiHealthService] Error fetching system health:', error);
       
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[ApiHealthService] Using mock system health as fallback');
-        return MockApiHealthService.getSystemHealth();
-      }
-      
-      throw error;
+      // Return a basic error status
+      return {
+        status: 'error',
+        timestamp: new Date(),
+        groups: [],
+        version: 'unknown',
+        environment: 'unknown',
+        uptime: 0,
+        memoryUsage: {
+          total: 0,
+          used: 0,
+          free: 0,
+        }
+      };
     }
   },
   
-  // Check all endpoints
-  checkAllEndpoints: async (API_ENDPOINTS: any): Promise<Record<string, GroupStatus>> => {
-    try {
-      console.log('[ApiHealthService] Checking all endpoints');
+  // Check the API health
+  checkApiHealth: async (): Promise<GroupStatus[]> => {
+    console.log('[ApiHealthService] Running API health check');
+    
+    // Define the API endpoints to check
+    const endpointGroups = [
+      {
+        key: 'auth',
+        name: 'Authentication',
+        endpoints: [
+          {
+            name: 'Login',
+            method: 'POST',
+            endpoint: '/auth/login',
+            requiresAuth: false,
+            payload: { username: 'health_check', password: 'health_check' },
+            optional: true,
+            fallbackMessage: 'Login endpoint error - this is expected for health checks'
+          },
+          {
+            name: 'Refresh Token',
+            method: 'POST',
+            endpoint: '/auth/refresh',
+            requiresAuth: false,
+            optional: true,
+            fallbackMessage: 'Refresh token endpoint error - this is expected for health checks'
+          }
+        ]
+      },
+      {
+        key: 'users',
+        name: 'User Management',
+        endpoints: [
+          {
+            name: 'User Profile',
+            method: 'GET',
+            endpoint: '/users/profile',
+            requiresAuth: true,
+            dynamicParams: false
+          },
+          {
+            name: 'User List',
+            method: 'GET',
+            endpoint: '/users',
+            requiresAuth: true
+          }
+        ]
+      },
+      {
+        key: 'tasks',
+        name: 'Task Management',
+        endpoints: [
+          {
+            name: 'Tasks List',
+            method: 'GET',
+            endpoint: '/tasks',
+            requiresAuth: true
+          },
+          {
+            name: 'Task Categories',
+            method: 'GET',
+            endpoint: '/tasks/categories',
+            requiresAuth: true,
+            optional: true
+          }
+        ]
+      },
+      {
+        key: 'departments',
+        name: 'Department Management',
+        endpoints: [
+          {
+            name: 'Departments List',
+            method: 'GET',
+            endpoint: '/departments',
+            requiresAuth: true
+          },
+          {
+            name: 'Department Details',
+            method: 'GET',
+            endpoint: '/departments/:id',
+            requiresAuth: true,
+            dynamicParams: true,
+            optional: true
+          }
+        ]
+      },
+      {
+        key: 'settings',
+        name: 'Settings',
+        endpoints: [
+          {
+            name: 'Security Settings',
+            method: 'GET',
+            endpoint: '/settings/security-settings/1',
+            requiresAuth: true,
+            optional: true
+          },
+          {
+            name: 'Notification Settings',
+            method: 'GET',
+            endpoint: '/settings/notification-settings/1',
+            requiresAuth: true,
+            optional: true
+          }
+        ]
+      },
+      {
+        key: 'system',
+        name: 'System',
+        endpoints: [
+          {
+            name: 'Health Check',
+            method: 'GET',
+            endpoint: '/health',
+            requiresAuth: false
+          },
+          {
+            name: 'API Status',
+            method: 'GET',
+            endpoint: '/api/status',
+            requiresAuth: false,
+            optional: true
+          }
+        ]
+      }
+    ];
+    
+    // Check each endpoint in each group
+    const groupResults: GroupStatus[] = [];
+    
+    for (const group of endpointGroups) {
+      console.log(`[ApiHealthService] Checking group: ${group.name}`);
       
-      // Initialize results structure
-      const results: Record<string, GroupStatus> = {};
+      const endpointResults: EndpointStatus[] = [];
+      let groupStatus: StatusType = 'success';
       
-      // Initialize each group
-      Object.keys(API_ENDPOINTS).forEach(groupKey => {
-        results[groupKey] = {
-          name: `${groupKey.charAt(0).toUpperCase() + groupKey.slice(1)} Endpoints`,
-          status: 'pending' as StatusType,
-          endpoints: API_ENDPOINTS[groupKey].map((endpoint: any, index: number) => ({
+      for (const endpoint of group.endpoints) {
+        try {
+          const result = await this.checkEndpoint(group.key, endpoint);
+          endpointResults.push(result);
+          
+          // Update group status based on endpoint status
+          if (result.status === 'error') {
+            groupStatus = 'error';
+          } else if (result.status === 'warning' && groupStatus !== 'error') {
+            groupStatus = 'warning';
+          }
+        } catch (error) {
+          console.error(`[ApiHealthService] Error checking endpoint ${endpoint.name}:`, error);
+          
+          endpointResults.push({
             name: endpoint.name,
             endpoint: endpoint.endpoint,
-            status: 'pending' as StatusType,
+            status: 'error',
+            statusCode: 0,
             responseTime: 0,
-            message: 'Pending check',
+            message: `Failed to check endpoint: ${error instanceof Error ? error.message : 'Unknown error'}`,
             lastChecked: new Date()
-          })),
-          successRate: 0
-        };
+          });
+          
+          groupStatus = 'error';
+        }
+      }
+      
+      groupResults.push({
+        name: group.name,
+        endpoints: endpointResults,
+        status: groupStatus,
+        lastChecked: new Date()
       });
-      
-      // Check core endpoints first to get authentication token
-      const coreEndpoints = API_ENDPOINTS.core;
-      if (coreEndpoints) {
-        for (let index = 0; index < coreEndpoints.length; index++) {
-          const endpoint = coreEndpoints[index];
-          const result = await ApiHealthService.checkEndpoint('core', endpoint);
-          
-          // Update the results
-          if (results.core && results.core.endpoints) {
-            results.core.endpoints[index] = result;
-          }
-        }
-        
-        // Calculate success rate for core group
-        if (results.core && results.core.endpoints) {
-          const coreEndpointsResults = results.core.endpoints;
-          const coreSuccessCount = coreEndpointsResults.filter(e => e.status === 'success').length;
-          results.core.successRate = (coreSuccessCount / coreEndpointsResults.length) * 100;
-          
-          // Determine core group status
-          if (coreSuccessCount === coreEndpointsResults.length) {
-            results.core.status = 'success';
-          } else if (coreSuccessCount === 0) {
-            results.core.status = 'error';
-          } else {
-            results.core.status = 'warning';
-          }
-        }
-      }
-      
-      // Check remaining endpoint groups
-      const remainingGroups = Object.keys(API_ENDPOINTS).filter(group => group !== 'core');
-      
-      for (let groupIndex = 0; groupIndex < remainingGroups.length; groupIndex++) {
-        const groupKey = remainingGroups[groupIndex];
-        const endpoints = API_ENDPOINTS[groupKey as keyof typeof API_ENDPOINTS];
-        
-        if (!endpoints) {
-          console.warn(`[ApiHealthService] No endpoints found for group ${groupKey}`);
-          continue;
-        }
-        
-        for (let index = 0; index < endpoints.length; index++) {
-          const endpoint = endpoints[index];
-          const result = await ApiHealthService.checkEndpoint(groupKey, endpoint);
-          
-          // Update the results
-          if (results[groupKey] && results[groupKey].endpoints) {
-            results[groupKey].endpoints[index] = result;
-          }
-        }
-        
-        // Calculate success rate for the group
-        if (results[groupKey] && results[groupKey].endpoints) {
-          const groupEndpoints = results[groupKey].endpoints;
-          const successCount = groupEndpoints.filter(e => e.status === 'success').length;
-          const warningCount = groupEndpoints.filter(e => e.status === 'warning').length;
-          results[groupKey].successRate = ((successCount + (warningCount * 0.5)) / groupEndpoints.length) * 100;
-          
-          // Determine group status
-          if (successCount === groupEndpoints.length) {
-            results[groupKey].status = 'success';
-          } else if (successCount === 0 && warningCount === 0) {
-            results[groupKey].status = 'error';
-          } else {
-            results[groupKey].status = 'warning';
-          }
-        }
-      }
-      
-      return results;
-    } catch (error: unknown) {
-      console.error('[ApiHealthService] Error checking all endpoints:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[ApiHealthService] Using mock endpoint statuses as fallback');
-        return MockApiHealthService.getEndpointStatuses();
-      }
-      
-      throw error;
     }
+    
+    return groupResults;
   }
 }; 

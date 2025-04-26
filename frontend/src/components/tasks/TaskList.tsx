@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Task } from '../../types';
 import { deleteTask } from '../../services/tasks.service'; // Import the deleteTask service
 import { format, isPast } from 'date-fns'; // Import date-fns functions (removed parseISO)
 import { useSelector } from 'react-redux'; // Import useSelector
 import { selectAuthUser } from '../../store/slices/authSlice'; // Import the selector
 import { TaskStatus } from '../../types'; // Import TaskStatus enum
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, TextField, Button } from '@mui/material';
 
 interface TaskListProps {
   tasks: Task[];
@@ -14,17 +15,37 @@ interface TaskListProps {
 
 const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
   const currentUser = useSelector(selectAuthUser); // Get current user from store
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [deletionReasonError, setDeletionReasonError] = useState('');
 
-  const handleDelete = async (id: string) => { // Changed id type to string based on Task type
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      try {
-        await deleteTask(id);
-        alert('Task deleted successfully');
-        onDelete(); // Refresh the list in the parent component
-      } catch (error) {
-        console.error('Failed to delete task:', error);
-        alert('Failed to delete task');
+  const handleDeleteClick = (id: string) => {
+    setDeletingTaskId(id);
+    setDeletionReason('');
+    setDeletionReasonError('');
+    setDeletionDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingTaskId) return;
+    
+    if (!deletionReason || deletionReason.length < 20) {
+      setDeletionReasonError('Please provide a detailed reason (at least 20 characters)');
+      return;
+    }
+    
+    try {
+      await deleteTask(deletingTaskId, deletionReason);
+      if (onDelete) {
+        onDelete();
       }
+      setDeletionDialogOpen(false);
+      setDeletingTaskId(null);
+      setDeletionReason('');
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      alert('Failed to delete the task. Please try again.');
     }
   };
 
@@ -125,7 +146,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(task.id)}
+                      onClick={() => handleDeleteClick(task.id)}
                       className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
                     >
                       Delete
@@ -138,6 +159,40 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
           )}
         </tbody>
       </table>
+      <Dialog open={deletionDialogOpen} onClose={() => setDeletionDialogOpen(false)}>
+        <DialogTitle>Delete Task</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this task? This action will move the task to the recycle bin.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="deletionReason"
+            label="Reason for Deletion (Min 20 characters)"
+            type="text"
+            fullWidth
+            multiline
+            rows={3}
+            value={deletionReason}
+            onChange={(e) => setDeletionReason(e.target.value)}
+            error={!!deletionReasonError}
+            helperText={deletionReasonError}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletionDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={handleConfirmDelete}
+            disabled={!deletionReason || deletionReason.length < 20}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

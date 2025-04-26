@@ -1,11 +1,19 @@
 import axios from '../utils/axios';
-import { CONFIG } from '../utils/config';
 import { AxiosError } from 'axios';
-import { ActivityLog, MockActivityLogsService } from './mockActivityLogsService';
 
-// Flag to determine if we should use mock data
-// In production, this should be false
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
+// Define types that were previously imported from mockActivityLogsService
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  username: string;
+  action: string;
+  target: string;
+  targetId: string;
+  details: string;
+  ip: string;
+  status: 'success' | 'failed' | 'warning';
+  timestamp: string;
+}
 
 export const ActivityLogsService = {
   // Get activity logs with pagination and filtering
@@ -28,20 +36,8 @@ export const ActivityLogsService = {
       if (error instanceof AxiosError && error.response && error.response.status === 404) {
         console.error('[ActivityLogsService] Activity logs endpoint not found. This endpoint may not be implemented in the backend.');
         
-        // Use mock data in development
-        if (USE_MOCK_DATA) {
-          console.log('[ActivityLogsService] Using mock activity logs as fallback');
-          return MockActivityLogsService.getLogs(params);
-        }
-        
         // Return empty logs instead of throwing
         return { logs: [], total: 0, page: params.page || 0, limit: params.limit || 10, totalPages: 0 };
-      }
-      
-      // For other errors, use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[ActivityLogsService] Using mock activity logs as fallback due to error');
-        return MockActivityLogsService.getLogs(params);
       }
       
       throw error;
@@ -56,13 +52,6 @@ export const ActivityLogsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[ActivityLogsService] Error clearing activity logs:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[ActivityLogsService] Using mock clear logs as fallback');
-        return MockActivityLogsService.clearLogs();
-      }
-      
       throw error;
     }
   },
@@ -75,13 +64,6 @@ export const ActivityLogsService = {
       return response.data;
     } catch (error: unknown) {
       console.error(`[ActivityLogsService] Error exporting activity logs as ${format}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[ActivityLogsService] Using mock export logs as fallback');
-        return MockActivityLogsService.exportLogs(format);
-      }
-      
       throw error;
     }
   }

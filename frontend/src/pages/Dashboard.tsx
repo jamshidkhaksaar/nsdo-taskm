@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton, Paper, Snackbar, Alert, AlertColor, Fab, Collapse, CardHeader, IconButton, Tooltip } from '@mui/material';
+import { useMediaQuery, useTheme, CircularProgress, Dialog, Button, Typography, Tabs, Tab, DialogTitle, DialogContent, DialogContentText, DialogActions, Skeleton, Paper, Snackbar, Alert, AlertColor, Fab, Collapse, CardHeader, IconButton, Tooltip, TextField } from '@mui/material';
 import Box from '@mui/material/Box';
 import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -627,18 +627,29 @@ const Dashboard: React.FC = () => {
     setEditTaskDialogOpen(true);
   }, [dashboardData]);
 
+  // Add state for deletion reason
+  const [deletionReason, setDeletionReason] = useState<string>('');
+  const [deletionReasonError, setDeletionReasonError] = useState<string>('');
+
   // Delete task handler
   const deleteTask = useCallback(async (taskId: string) => {
     try {
+      if (!deletionReason || deletionReason.length < 20) {
+        setDeletionReasonError('Please provide a detailed reason (at least 20 characters)');
+        return;
+      }
+      
       console.log('Deleting task with ID:', taskId);
-      await TaskService.deleteTask(taskId); // Use TaskService for deletion
+      await TaskService.deleteTask(taskId, deletionReason); // Pass deletion reason
       fetchDashboardTasks(); // Refresh ALL dashboard data after deletion
       setDeleteDialogOpen(false);
+      setDeletionReason(''); // Reset reason
+      setDeletionReasonError('');
     } catch (err) {
       console.error('Error deleting task:', err);
       handleError('Failed to delete task. Please try again later.');
     }
-  }, [fetchDashboardTasks, handleError]);
+  }, [fetchDashboardTasks, handleError, deletionReason]);
 
   // Ensure this handler always uses PERSONAL type and removes status param
   const handleOpenCreateTaskDialog = useCallback((type: TaskType, departmentId?: string) => {
@@ -1005,13 +1016,46 @@ const Dashboard: React.FC = () => {
         onDelete={handleOpenDeleteDialog}
         onChangeStatus={changeTaskStatus}
       />
-      <ConfirmationDialog
-        open={deleteDialogOpen}
-        onClose={handleCloseDeleteDialog}
-        onConfirm={() => deleteTask(selectedTaskId)}
-        title="Confirm Deletion"
-        message="Are you sure you want to delete this task?"
-      />
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Task</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this task? This action will move the task to the recycle bin.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="deletionReason"
+            label="Reason for Deletion (Min 20 characters)"
+            type="text"
+            fullWidth
+            multiline
+            rows={3}
+            value={deletionReason}
+            onChange={(e) => setDeletionReason(e.target.value)}
+            error={!!deletionReasonError}
+            helperText={deletionReasonError}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setDeleteDialogOpen(false);
+            setDeletionReason('');
+            setDeletionReasonError('');
+          }}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={() => deleteTask(selectedTaskId)}
+            disabled={!deletionReason || deletionReason.length < 20}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar for Notifications */}
       <Snackbar

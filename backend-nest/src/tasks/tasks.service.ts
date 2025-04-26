@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, SelectQueryBuilder } from 'typeorm';
+import { In, Repository, SelectQueryBuilder, Not } from 'typeorm';
 import { Task, TaskStatus, TaskPriority, TaskType } from './entities/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -15,6 +15,8 @@ import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
 import { UsersService } from '../users/users.service';
 import { ActivityLog } from '../admin/entities/activity-log.entity';
 import { DelegateTaskDto } from './dto/delegate-task.dto';
+import { DeleteTaskDto } from './dto/delete-task.dto';
+import { RecycleBinQueryDto } from './dto/recycle-bin-query.dto';
 
 // Define the missing Response Type
 export interface DashboardTasksResponse {
@@ -363,7 +365,7 @@ export class TasksService {
 
   async updateStatus(id: string, updateTaskStatusDto: UpdateTaskStatusDto, reqUser: any): Promise<Task> {
     const task = await this.findOne(id); // Ensure relations are loaded
-    const { status } = updateTaskStatusDto;
+    const { status, cancellationReason } = updateTaskStatusDto;
     const originalStatus = task.status;
 
     if (originalStatus === status) {
@@ -381,7 +383,17 @@ export class TasksService {
     // Rule: Only creator or admin/leadership can cancel
     if (status === TaskStatus.CANCELLED) {
         if (isCreator || isAdminOrLeadership) {
+            // Check for cancellation reason
+            if (!cancellationReason || cancellationReason.length < 20) {
+                throw new BadRequestException('A detailed cancellation reason (at least 20 characters) is required');
+            }
+            
             canChangeStatus = true;
+            
+            // Set cancellation metadata
+            task.cancelledAt = new Date();
+            task.cancelledById = reqUser.userId;
+            task.cancellationReason = cancellationReason;
         } else {
             throw new ForbiddenException('Only the task creator, admin, or leadership can cancel the task.');
         }
@@ -422,13 +434,18 @@ export class TasksService {
 
     task.status = status;
 
+    // If completing the task, set completedAt
+    if (status === TaskStatus.COMPLETED) {
+        task.completedAt = new Date();
+    }
+
     // Add activity log entry
     await this.activityLogService.createLog({
         action: `Task Status Changed`,
         target: 'Task',
         target_id: task.id,
         user_id: reqUser.userId,
-        details: `Status of task "${task.title}" (ID: ${task.id}) changed from ${originalStatus} to ${status}.`,
+        details: `Status of task "${task.title}" (ID: ${task.id}) changed from ${originalStatus} to ${status}.${status === TaskStatus.CANCELLED ? ` Reason: ${cancellationReason}` : ''}`,
         status: 'success'
     });
 
@@ -471,7 +488,7 @@ export class TasksService {
     return this.findOne(updatedTask.id); // Return with relations
   }
 
-  async remove(id: string, reqUser: any): Promise<void> {
+  async remove(id: string, deleteTaskDto: DeleteTaskDto, reqUser: any): Promise<void> {
     const task = await this.findOne(id); // Ensures task exists and loads createdById
 
     // --- Permission Check: Only creator or admin/leadership can delete ---
@@ -483,32 +500,153 @@ export class TasksService {
     }
     // --- End Permission Check ---
 
-    // Add activity log entry BEFORE deleting
+    // Validate deletion reason
+    if (!deleteTaskDto.deletionReason || deleteTaskDto.deletionReason.length < 20) {
+        throw new BadRequestException('A detailed deletion reason (at least 20 characters) is required');
+    }
+
+    // Implement soft delete
+    task.isDeleted = true;
+    task.status = TaskStatus.DELETED;
+    task.deletedAt = new Date();
+    task.deletedById = reqUser.userId;
+    task.deletionReason = deleteTaskDto.deletionReason;
+
+    // Add activity log entry for soft deletion
     await this.activityLogService.createLog({
-        action: `Task Deletion Attempted`,
+        action: `Task Deleted`,
         target: 'Task',
         target_id: id,
         user_id: reqUser.userId,
-        details: `Attempting to delete task "${task.title}" (ID: ${id}).`,
-        status: 'warning' // Use warning for attempt
+        details: `Task "${task.title}" (ID: ${id}) was moved to recycle bin. Reason: ${deleteTaskDto.deletionReason}`,
+        status: 'warning'
+    });
+
+    await this.tasksRepository.save(task);
+  }
+
+  async hardRemove(id: string, reqUser: any): Promise<void> {
+    // Only admin can permanently delete tasks
+    if (reqUser.role !== UserRole.ADMIN) {
+        throw new ForbiddenException('Only administrators can permanently delete tasks.');
+    }
+
+    const task = await this.findOne(id);
+    
+    // Add activity log entry BEFORE hard deleting
+    await this.activityLogService.createLog({
+        action: `Task Permanently Deleted`,
+        target: 'Task',
+        target_id: id,
+        user_id: reqUser.userId,
+        details: `Task "${task.title}" (ID: ${id}) was permanently deleted from the system.`,
+        status: 'warning'
     });
 
     const result = await this.tasksRepository.delete(id);
 
     if (result.affected === 0) {
-      // Log failure? Or rely on findOne exception?
-      throw new NotFoundException(`Task with ID ${id} could not be deleted (possibly already deleted).`);
-    } else {
-        // Log successful deletion confirmation
-         await this.activityLogService.createLog({
-             action: `Task Deleted Successfully`,
-             target: 'Task',
-             target_id: id, // ID still available here
-             user_id: reqUser.userId,
-             details: `Task "${task.title}" (ID: ${id}) was successfully deleted.`,
-             status: 'success'
-         });
+      throw new NotFoundException(`Task with ID ${id} could not be deleted.`);
     }
+  }
+
+  async restoreTask(id: string, reqUser: any): Promise<Task> {
+    // Only admin or leadership can restore tasks
+    if (![UserRole.ADMIN, UserRole.LEADERSHIP].includes(reqUser.role)) {
+        throw new ForbiddenException('Only administrators or leadership can restore deleted tasks.');
+    }
+
+    const task = await this.findOne(id);
+    
+    if (!task.isDeleted) {
+        throw new BadRequestException('Task is not in recycle bin.');
+    }
+
+    // Restore task to original status before deletion
+    task.isDeleted = false;
+    task.status = TaskStatus.PENDING; // Reset to pending
+    task.deletedAt = null;
+    
+    // Keep deletedById and deletionReason for audit trail
+
+    // Add activity log entry
+    await this.activityLogService.createLog({
+        action: `Task Restored`,
+        target: 'Task',
+        target_id: id,
+        user_id: reqUser.userId,
+        details: `Task "${task.title}" (ID: ${id}) was restored from the recycle bin.`,
+        status: 'success'
+    });
+
+    const restoredTask = await this.tasksRepository.save(task);
+    return this.findOne(restoredTask.id);
+  }
+
+  async findAllDeleted(query: RecycleBinQueryDto, reqUser: any): Promise<[Task[], number]> {
+    // Only admin or leadership can view recycled tasks
+    if (![UserRole.ADMIN, UserRole.LEADERSHIP].includes(reqUser.role)) {
+        throw new ForbiddenException('Only administrators or leadership can access the recycle bin.');
+    }
+
+    const queryBuilder = this.tasksRepository.createQueryBuilder('task')
+        .leftJoinAndSelect('task.createdBy', 'createdBy')
+        .leftJoinAndSelect('task.deletedBy', 'deletedBy')
+        .leftJoinAndSelect('task.assignedToUsers', 'assignedToUsers')
+        .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments')
+        .leftJoinAndSelect('task.assignedToProvince', 'assignedToProvince')
+        .where('task.isDeleted = :isDeleted', { isDeleted: true });
+
+    // Apply search filters
+    if (query.search) {
+        queryBuilder.andWhere('(task.title LIKE :search OR task.description LIKE :search OR task.deletionReason LIKE :search)', 
+          { search: `%${query.search}%` });
+    }
+
+    // Filter by user
+    if (query.userId) {
+        queryBuilder.andWhere('task.createdById = :userId', { userId: query.userId });
+    }
+
+    // Filter by department
+    if (query.departmentId) {
+        queryBuilder.andWhere('assignedToDepartments.id = :departmentId', { departmentId: query.departmentId });
+    }
+
+    // Filter by province
+    if (query.provinceId) {
+        queryBuilder.andWhere('(task.assignedToProvinceId = :provinceId OR assignedToDepartments.provinceId = :provinceId)', 
+          { provinceId: query.provinceId });
+    }
+
+    // Filter by deleted user
+    if (query.deletedByUserId) {
+        queryBuilder.andWhere('task.deletedById = :deletedByUserId', { deletedByUserId: query.deletedByUserId });
+    }
+
+    // Filter by date range
+    if (query.fromDate) {
+        queryBuilder.andWhere('task.deletedAt >= :fromDate', { fromDate: new Date(query.fromDate) });
+    }
+    if (query.toDate) {
+        queryBuilder.andWhere('task.deletedAt <= :toDate', { toDate: new Date(query.toDate) });
+    }
+
+    // Apply sorting
+    const sortBy = query.sortBy || 'deletedAt';
+    const sortOrder = query.sortOrder || 'DESC';
+    queryBuilder.orderBy(`task.${sortBy}`, sortOrder as 'ASC' | 'DESC');
+
+    // Apply pagination
+    const page = query.page ? parseInt(query.page, 10) : 1;
+    const limit = query.limit ? parseInt(query.limit, 10) : 10;
+    const skip = (page - 1) * limit;
+
+    queryBuilder.skip(skip).take(limit);
+
+    // Execute query and return paginated results
+    const [tasks, total] = await queryBuilder.getManyAndCount();
+    return [tasks, total];
   }
 
   async delegateTask(id: string, dto: DelegateTaskDto, delegatorInfo: any): Promise<Task[]> {
@@ -624,24 +762,21 @@ export class TasksService {
         throw new NotFoundException(`User with ID ${userId} not found.`);
       }
 
-      // Ensure user.departments is loaded before mapping
       const departmentIds = user.departments ? user.departments.map(d => d.id) : [];
 
-      const myPersonalTasks = await this.getTasksAssignedToUser(userId);
-      const tasksICreatedForOthers = await this.getTasksCreatedByUser(userId);
-      const tasksAssignedToMe = await this.getTasksAssignedToUser(userId); // Consider reusing myPersonalTasks if logic is identical
+      // Fetch tasks using updated helper methods
+      const myPersonalTasks = await this.getMyPersonalTasks(userId);
+      const tasksICreatedForOthers = await this.getTasksCreatedByUserForOthers(userId);
+      const tasksAssignedToMe = await this.getTasksAssignedToUserExplicitly(userId);
       const tasksAssignedToMyDepartments = await this.getTasksForDepartments(departmentIds);
-      const delegatedByTasks = await this.getTasksDelegatedByUser(userId);
-      const delegatedToTasks = await this.getTasksDelegatedToUser(userId);
-
-      const tasksDelegatedByMe = delegatedByTasks;
-      const tasksDelegatedToMe = delegatedToTasks;
+      const tasksDelegatedByMe = await this.getTasksDelegatedByUser(userId);
+      const tasksDelegatedToMe = await this.getTasksDelegatedToUser(userId);
 
       const response = {
         myPersonalTasks,
         tasksICreatedForOthers,
         tasksAssignedToMe,
-        tasksAssignedToMyDepartments, // Added new category
+        tasksAssignedToMyDepartments,
         tasksDelegatedByMe,
         tasksDelegatedToMe,
       };
@@ -652,15 +787,66 @@ export class TasksService {
 
     } catch (error) {
       console.error(`[TasksService] Error fetching dashboard tasks for user ${userId}:`, error);
-      // Use NestJS specific exception for better HTTP response
       if (error instanceof NotFoundException) {
-        throw error; // Re-throw NotFoundException specifically
+        throw error;
       }
       throw new InternalServerErrorException(`Failed to retrieve dashboard tasks: ${error.message}`);
     }
   }
 
-  // --- Helper methods used by getDashboardTasks --- (Existing ones: getTasksAssignedToUser, getTasksCreatedByUser, etc.)
+  // --- Updated Helper methods for Dashboard ---
+
+  async getMyPersonalTasks(userId: string): Promise<Task[]> {
+    console.log(`Fetching personal tasks for user ${userId}`);
+    try {
+      return await this.tasksRepository.find({
+        where: { createdById: userId, type: TaskType.PERSONAL, isDelegated: false },
+        relations: ['assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'createdBy'],
+        order: { createdAt: 'DESC' }
+      });
+    } catch (error) {
+      console.error(`Error fetching personal tasks for user ${userId}:`, error);
+      throw new Error(`Failed to fetch personal tasks: ${error.message}`);
+    }
+  }
+  
+  async getTasksAssignedToUserExplicitly(userId: string): Promise<Task[]> {
+    console.log(`Fetching tasks assigned explicitly (non-personal) to user ${userId}`);
+    try {
+      return await this.tasksRepository.createQueryBuilder('task')
+        .innerJoin('task.assignedToUsers', 'user')
+        .where('user.id = :userId', { userId })
+        .andWhere('task.type != :personalType', { personalType: TaskType.PERSONAL })
+        .andWhere('task.isDelegated = :isDelegated', { isDelegated: false })
+        .leftJoinAndSelect('task.createdBy', 'createdBy')
+        .leftJoinAndSelect('task.assignedToDepartments', 'assignedToDepartments')
+        .leftJoinAndSelect('task.assignedToProvince', 'assignedToProvince')
+        .leftJoinAndSelect('task.delegatedBy', 'delegatedBy')
+        .orderBy('task.createdAt', 'DESC')
+        .getMany();
+    } catch (error) {
+      console.error(`Error fetching non-personal tasks assigned to user ${userId}:`, error);
+      throw new Error(`Failed to fetch assigned non-personal tasks: ${error.message}`);
+    }
+  }
+
+  async getTasksCreatedByUserForOthers(userId: string): Promise<Task[]> {
+    console.log(`Fetching tasks created by user ${userId} for others (non-personal)`);
+    try {
+      return await this.tasksRepository.find({
+        where: { 
+          createdById: userId, 
+          type: Not(TaskType.PERSONAL), // Use TypeORM's Not operator
+          isDelegated: false 
+        },
+        relations: ['assignedToUsers', 'assignedToDepartments', 'assignedToProvince', 'delegatedBy', 'createdBy'],
+        order: { createdAt: 'DESC' }
+      });
+    } catch (error) {
+      console.error(`Error fetching non-personal tasks created by user ${userId}:`, error);
+      throw new Error(`Failed to fetch created non-personal tasks: ${error.message}`);
+    }
+  }
 
   // NEW Helper method to get tasks for multiple department IDs
   async getTasksForDepartments(departmentIds: string[]): Promise<Task[]> {

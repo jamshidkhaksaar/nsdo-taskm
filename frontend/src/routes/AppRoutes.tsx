@@ -4,6 +4,7 @@ import PrivateRoute from '../components/PrivateRoute';
 import Dashboard from '../pages/Dashboard';
 // Direct import critical components to avoid lazy loading issues
 import Login from '../pages/Login';
+import { AdminDashboard, UserManagement, DepartmentManagement, ActivityLogs, SystemSettings, BackupRestore, RecycleBin } from '../pages/admin';
 
 // For other components, use lazy loading with error handling
 const lazyLoad = (importPromise) => {

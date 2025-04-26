@@ -21,7 +21,8 @@ import {
   Divider,
   Avatar,
   AvatarGroup,
-  Tooltip
+  Tooltip,
+  DialogContentText
 } from '@mui/material';
 import { Task, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType, User } from '../../types/index';
 import { UserService } from '../../services/user';
@@ -43,6 +44,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import BusinessIcon from '@mui/icons-material/Business';
 import LocationCityIcon from '@mui/icons-material/LocationCity';
+import axios from 'axios';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -72,6 +74,10 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   const glassStyles = getGlassmorphismStyles(theme);
 
   const permissions = useTaskPermissions(task);
+
+  const [openCancelDialog, setOpenCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState('');
 
   useEffect(() => {
     if (open && taskId) {
@@ -193,17 +199,25 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   };
 
   const handleCancelTask = async () => {
-    if (task && taskId && permissions.canCancel) {
-      console.log(`Attempting to cancel task: ${taskId}`);
-      setLoading(true);
-      try {
-        const updatedTask = await TaskService.cancelTask(taskId);
-        setTask(updatedTask);
-      } catch (err: any) {
-        handleError(`Failed to cancel task: ${err.message || 'Unknown error'}`);
-      } finally {
-        setLoading(false);
+    if (cancelReason.length < 20) {
+      setCancelReasonError('Please provide a detailed reason (at least 20 characters)');
+      return;
+    }
+    
+    if (!task || !taskId) return;
+    
+    try {
+      await axios.post(`/api/tasks/${taskId}/cancel`, {
+        status: 'cancelled',
+        cancellationReason: cancelReason
+      });
+      onClose();
+      if (onChangeStatus) {
+        onChangeStatus(taskId, TaskStatus.CANCELLED);
       }
+    } catch (error) {
+      console.error('Error cancelling task:', error);
+      handleError('Failed to cancel task. Please try again later.');
     }
   };
 
@@ -506,7 +520,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
                  )}
                  {permissions.canCancel && task && (
                     <Button
-                        onClick={handleCancelTask}
+                        onClick={() => setOpenCancelDialog(true)}
                         variant="outlined"
                         color="warning"
                         startIcon={<CancelIcon />}
@@ -555,6 +569,41 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
           error={delegationError}
         />
       )}
+
+      <Dialog open={openCancelDialog} onClose={() => setOpenCancelDialog(false)}>
+        <DialogTitle>Cancel Task</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Please provide a detailed reason for cancelling this task.
+            The reason must be at least 20 characters.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="cancellation-reason"
+            label="Cancellation Reason"
+            type="text"
+            fullWidth
+            multiline
+            rows={4}
+            value={cancelReason}
+            onChange={(e) => {
+              setCancelReason(e.target.value);
+              if (e.target.value.length >= 20) {
+                setCancelReasonError('');
+              }
+            }}
+            error={!!cancelReasonError}
+            helperText={cancelReasonError}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCancelDialog(false)}>Cancel</Button>
+          <Button onClick={handleCancelTask} color="primary" variant="contained">
+            Confirm Cancellation
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };

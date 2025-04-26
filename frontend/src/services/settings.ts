@@ -1,17 +1,40 @@
 import axios from '../utils/axios';
-import { CONFIG } from '../utils/config';
 import { AxiosError } from 'axios';
-import { 
-  SecuritySettings, 
-  BackupSettings, 
-  NotificationSettings, 
-  ApiSettings, 
-  MockSettingsService 
-} from './mockSettingsService';
 
-// Flag to determine if we should use mock data
-// In production, this should be false
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
+// Define types that were previously imported from mockSettingsService
+export interface SecuritySettings {
+  passwordExpiryDays: number;
+  requireMfa: boolean;
+  sessionTimeoutMinutes: number;
+  loginAttemptsBeforeLockout: number;
+  lockoutDurationMinutes: number;
+}
+
+export interface BackupSettings {
+  automaticBackups: boolean;
+  backupFrequencyDays: number;
+  backupRetentionDays: number;
+  backupLocation: string;
+  includeAttachments: boolean;
+}
+
+export interface NotificationSettings {
+  emailNotifications: boolean;
+  emailServer: string;
+  emailPort: number;
+  emailUsername: string;
+  emailPassword: string;
+  emailFromAddress: string;
+  emailUseSsl: boolean;
+  inAppNotifications: boolean;
+}
+
+export interface ApiSettings {
+  apiEnabled: boolean;
+  apiKey: string;
+  rateLimitPerMinute: number;
+  allowedOrigins: string;
+}
 
 export const SettingsService = {
   // Get security settings
@@ -22,24 +45,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching security settings:', error);
-      
-      // Check if the error is a 404
-      if (error instanceof AxiosError && error.response && error.response.status === 404) {
-        console.error('[SettingsService] Security settings endpoint not found. This endpoint may not be implemented in the backend.');
-        
-        // Use mock data in development
-        if (USE_MOCK_DATA) {
-          console.log('[SettingsService] Using mock security settings as fallback');
-          return MockSettingsService.getSecuritySettings();
-        }
-      }
-      
-      // For other errors, use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock security settings as fallback due to error');
-        return MockSettingsService.getSecuritySettings();
-      }
-      
       throw error;
     }
   },
@@ -52,13 +57,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating security settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock update security settings as fallback');
-        return MockSettingsService.updateSecuritySettings(settings);
-      }
-      
       throw error;
     }
   },
@@ -71,24 +69,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching backup settings:', error);
-      
-      // Check if the error is a 404
-      if (error instanceof AxiosError && error.response && error.response.status === 404) {
-        console.error('[SettingsService] Backup settings endpoint not found. This endpoint may not be implemented in the backend.');
-        
-        // Use mock data in development
-        if (USE_MOCK_DATA) {
-          console.log('[SettingsService] Using mock backup settings as fallback');
-          return MockSettingsService.getBackupSettings();
-        }
-      }
-      
-      // For other errors, use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock backup settings as fallback due to error');
-        return MockSettingsService.getBackupSettings();
-      }
-      
       throw error;
     }
   },
@@ -101,13 +81,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating backup settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock update backup settings as fallback');
-        return MockSettingsService.updateBackupSettings(settings);
-      }
-      
       throw error;
     }
   },
@@ -120,24 +93,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching notification settings:', error);
-      
-      // Check if the error is a 404
-      if (error instanceof AxiosError && error.response && error.response.status === 404) {
-        console.error('[SettingsService] Notification settings endpoint not found. This endpoint may not be implemented in the backend.');
-        
-        // Use mock data in development
-        if (USE_MOCK_DATA) {
-          console.log('[SettingsService] Using mock notification settings as fallback');
-          return MockSettingsService.getNotificationSettings();
-        }
-      }
-      
-      // For other errors, use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock notification settings as fallback due to error');
-        return MockSettingsService.getNotificationSettings();
-      }
-      
       throw error;
     }
   },
@@ -150,13 +105,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating notification settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock update notification settings as fallback');
-        return MockSettingsService.updateNotificationSettings(settings);
-      }
-      
       throw error;
     }
   },
@@ -169,24 +117,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching API settings:', error);
-      
-      // Check if the error is a 404
-      if (error instanceof AxiosError && error.response && error.response.status === 404) {
-        console.error('[SettingsService] API settings endpoint not found. This endpoint may not be implemented in the backend.');
-        
-        // Use mock data in development
-        if (USE_MOCK_DATA) {
-          console.log('[SettingsService] Using mock API settings as fallback');
-          return MockSettingsService.getApiSettings();
-        }
-      }
-      
-      // For other errors, use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock API settings as fallback due to error');
-        return MockSettingsService.getApiSettings();
-      }
-      
       throw error;
     }
   },
@@ -199,13 +129,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating API settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock update API settings as fallback');
-        return MockSettingsService.updateApiSettings(settings);
-      }
-      
       throw error;
     }
   },
@@ -218,13 +141,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error testing email settings:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock test email as fallback');
-        return MockSettingsService.testEmailSettings();
-      }
-      
       throw error;
     }
   },
@@ -237,13 +153,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error generating API key:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock generate API key as fallback');
-        return MockSettingsService.generateApiKey();
-      }
-      
       throw error;
     }
   },
@@ -261,12 +170,6 @@ export const SettingsService = {
     } catch (error) {
       console.error('Error updating password:', error);
       
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock password update as fallback');
-        return { success: true, message: 'Password updated successfully (mock)' };
-      }
-      
       throw error;
     }
   },
@@ -277,12 +180,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: any) {
       console.error('2FA status fetch error:', error);
-      
-      // Use mock data in development if needed
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock 2FA status as fallback');
-        return { enabled: false };
-      }
       
       throw error;
     }
@@ -308,24 +205,6 @@ export const SettingsService = {
     } catch (error: any) {
       console.error('2FA setup error:', error);
       
-      // Use mock data in development if needed
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock 2FA setup as fallback');
-        if (method === 'app') {
-          return {
-            qr_code: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/TaskManager:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=TaskManager',
-            enabled: true,
-            method: 'app'
-          };
-        } else {
-          return {
-            enabled: true,
-            method: 'email',
-            message: 'Verification code sent to your email'
-          };
-        }
-      }
-      
       throw error;
     }
   },
@@ -346,12 +225,6 @@ export const SettingsService = {
     } catch (error: any) {
       console.error('2FA verification error:', error);
       
-      // Use mock data in development if needed
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock 2FA verification as fallback');
-        return { success: true, message: '2FA verification successful (mock)' };
-      }
-      
       throw error;
     }
   },
@@ -366,12 +239,6 @@ export const SettingsService = {
       return response.data;
     } catch (error: any) {
       console.error('Email 2FA code request error:', error);
-      
-      // Use mock data in development if needed
-      if (USE_MOCK_DATA) {
-        console.log('[SettingsService] Using mock email 2FA code request as fallback');
-        return { success: true, message: 'Verification code sent to your email (mock)' };
-      }
       
       throw error;
     }

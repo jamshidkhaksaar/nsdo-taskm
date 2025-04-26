@@ -1,13 +1,15 @@
 import axios from '../utils/axios';
 import { AxiosError } from 'axios';
-import { 
-  BackupOptions, 
-  MockBackupService 
-} from './mockBackupService';
 
-// Flag to determine if we should use mock data
-// In production, this should be false
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
+// Define types that were previously imported from mockBackupService
+export interface BackupOptions {
+  type: 'full' | 'partial';
+  includeDatabases?: boolean;
+  includeMedia?: boolean;
+  includeSettings?: boolean;
+  location?: string;
+  customPath?: string;
+}
 
 export const BackupService = {
   // Check backup status
@@ -28,13 +30,6 @@ export const BackupService = {
       }
     } catch (error: unknown) {
       console.error(`[BackupService] Error checking status of backup with ID ${id}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock backup status as fallback');
-        return MockBackupService.getBackup(id);
-      }
-      
       throw error;
     }
   },
@@ -47,24 +42,6 @@ export const BackupService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[BackupService] Error fetching backups:', error);
-      
-      // Check if the error is a 404
-      if (error instanceof AxiosError && error.response && error.response.status === 404) {
-        console.error('[BackupService] Backups endpoint not found. This endpoint may not be implemented in the backend.');
-        
-        // Use mock data in development
-        if (USE_MOCK_DATA) {
-          console.log('[BackupService] Using mock backups as fallback');
-          return MockBackupService.getBackups();
-        }
-      }
-      
-      // For other errors, use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock backups as fallback due to error');
-        return MockBackupService.getBackups();
-      }
-      
       throw error;
     }
   },
@@ -77,13 +54,6 @@ export const BackupService = {
       return response.data;
     } catch (error: unknown) {
       console.error(`[BackupService] Error fetching backup with ID ${id}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock backup as fallback');
-        return MockBackupService.getBackup(id);
-      }
-      
       throw error;
     }
   },
@@ -106,13 +76,6 @@ export const BackupService = {
       return response.data;
     } catch (error: unknown) {
       console.error('[BackupService] Error creating backup:', error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock create backup as fallback');
-        return MockBackupService.createBackup(options);
-      }
-      
       throw error;
     }
   },
@@ -125,13 +88,6 @@ export const BackupService = {
       return response.data;
     } catch (error: unknown) {
       console.error(`[BackupService] Error restoring from backup with ID ${id}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock restore backup as fallback');
-        return MockBackupService.restoreBackup(id);
-      }
-      
       throw error;
     }
   },
@@ -144,13 +100,6 @@ export const BackupService = {
       return response.data;
     } catch (error: unknown) {
       console.error(`[BackupService] Error deleting backup with ID ${id}:`, error);
-      
-      // Use mock data in development
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock delete backup as fallback');
-        return MockBackupService.deleteBackup(id);
-      }
-      
       throw error;
     }
   },
@@ -224,13 +173,6 @@ VALUES (UUID(), '${id}', NOW(), 'Emergency backup created due to download failur
         return { success: true, message: 'Emergency backup file downloaded' };
       } catch (fallbackError) {
         console.error('[BackupService] Fallback download also failed:', fallbackError);
-      }
-      
-      // If we get here, both regular and fallback download failed
-      // Use mock data in development as a last resort
-      if (USE_MOCK_DATA) {
-        console.log('[BackupService] Using mock download backup as fallback');
-        return MockBackupService.downloadBackup(id);
       }
       
       throw error;

@@ -13,3 +13,9 @@ export interface User {
   avatar?: string;
   role?: 'user' | 'leadership' | 'admin';
 }
+
+export enum UserRole {
+  USER = 'user',
+  LEADERSHIP = 'leadership',
+  ADMIN = 'admin'
+}
