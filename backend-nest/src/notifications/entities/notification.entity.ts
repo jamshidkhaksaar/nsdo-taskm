@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-// import { User } from '../../users/entities/user.entity'; // Import later when UsersModule is ready
-// import { Task } from '../../tasks/entities/task.entity'; // Import later when TasksModule is ready
+import { User } from '../../users/entities/user.entity'; // Import User
+// import { Task } from '../../tasks/entities/task.entity'; // Keep Task import commented for now if not needed directly on entity
+// import { NotificationType } from './notification-type.enum'; // Uncomment if NotificationType enum is needed
 
 // Define specific notification types if needed
 // export enum NotificationType {
@@ -28,23 +29,24 @@ export class Notification {
   @CreateDateColumn()
   createdAt: Date;
 
-  // Relationships (Uncomment and adjust when related entities/modules are ready)
+  // Relationships
   
-  // @Column({ name: 'user_id' })
-  // userId: string; // ID of the user this notification is for
+  @Column({ name: 'user_id' }) // Explicitly define the column name
+  userId: string; // ID of the user this notification is for
   
-  // @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  // @JoinColumn({ name: 'user_id' })
-  // user: User;
+  @ManyToOne(() => User, { onDelete: 'CASCADE' }) // Define relation to User
+  @JoinColumn({ name: 'user_id' }) // Specify the foreign key column
+  user: User;
 
-  // @Column({ name: 'related_entity_type', nullable: true })
-  // relatedEntityType: string; // e.g., 'Task', 'Comment'
+  @Column({ name: 'related_entity_type', nullable: true })
+  relatedEntityType: string; // e.g., 'Task', 'Comment'
 
-  // @Column({ name: 'related_entity_id', nullable: true })
-  // relatedEntityId: string; // ID of the related entity
+  @Column({ name: 'related_entity_id', nullable: true })
+  relatedEntityId: string; // ID of the related entity
 
-  // Example specific relationship (Uncomment if Task entity is ready)
+  // Specific relationship to Task is likely NOT needed here if we use type/id
+  // Keeping commented out:
   // @ManyToOne(() => Task, { nullable: true, onDelete: 'SET NULL' })
-  // @JoinColumn({ name: 'related_entity_id', referencedColumnName: 'id' }) // Adjust if relatedEntityId stores Task ID
+  // @JoinColumn({ name: 'related_entity_id', referencedColumnName: 'id' }) 
   // task: Task;
 } 

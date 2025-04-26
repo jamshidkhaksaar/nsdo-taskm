@@ -13,6 +13,7 @@ import { ConfigModule } from '@nestjs/config';
 import { User } from '../users/entities/user.entity';
 import { Department } from '../departments/entities/department.entity';
 import { Province } from '../provinces/entities/province.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { Province } from '../provinces/entities/province.entity';
     forwardRef(() => AdminModule),
     MailModule,
     ConfigModule,
+    NotificationsModule,
   ],
   controllers: [TasksController],
   providers: [TasksService],

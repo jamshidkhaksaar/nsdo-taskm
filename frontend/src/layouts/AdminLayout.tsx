@@ -6,6 +6,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { useNavigate } from 'react-router-dom';
+import useWebSocket from '../hooks/useWebSocket';
+import NotificationsMenu from '../components/layout/NotificationsMenu';
 import { standardBackgroundStyle } from '../utils/backgroundStyles';
 
 const DRAWER_WIDTH = 240;
@@ -15,10 +17,22 @@ interface AdminLayoutProps {
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
   const [greeting, setGreeting] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  const { isConnected, lastNotification, notifications } = useWebSocket(token);
+
+  useEffect(() => {
+    console.log('[AdminLayout] WebSocket Connected:', isConnected);
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (lastNotification) {
+      console.log('[AdminLayout] New Notification Received:', lastNotification);
+    }
+  }, [lastNotification]);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -55,8 +69,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           p: 3,
           width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { sm: `${DRAWER_WIDTH}px` },
+          position: 'relative',
         }}
       >
+        <Box sx={{ position: 'absolute', top: 16, right: 24 }}>
+            <NotificationsMenu notifications={notifications} />
+        </Box>
+
         <Container maxWidth="lg">
           <Typography variant="h4" sx={{ mb: 4, color: 'white' }}>
             {greeting}, {user?.username || 'Admin'}

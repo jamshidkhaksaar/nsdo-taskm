@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, Optional, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Optional, NotFoundException, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
@@ -14,13 +14,13 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    // @InjectRepository(Notification)
-    // private notificationsRepository: Repository<Notification>,
+    @InjectRepository(Notification)
+    private notificationsRepository: Repository<Notification>,
     // @Optional() @Inject(forwardRef(() => UsersService))
     // private usersService: UsersService,
     // @Optional() @Inject(forwardRef(() => TasksService))
     // private tasksService: TasksService,
-    @Inject(REDIS_PUBLISHER) private readonly redisPublisher: Redis, 
+    @Inject(REDIS_PUBLISHER) private readonly redisPublisher: Redis,
   ) {}
 
   /* Existing methods commented out until dependencies are ready
@@ -70,34 +70,52 @@ export class NotificationsService {
   }
   */
 
-  // New method for creating and publishing
+  // Method for creating, saving, and publishing
   async createAndPublishNotification(payload: {
     type: string;
     message: string;
-    userId?: string; // Target specific user
+    userId: string; // Make userId mandatory for saving
     relatedEntityType?: string;
     relatedEntityId?: string;
-  }): Promise<void /* or Promise<Notification> */> {
-    this.logger.log(`Creating notification: ${payload.type} for user ${payload.userId || 'general'}`);
-    
-    // 1. TODO: Persist notification to the database (using this.notificationsRepository)
-    // const newNotification = this.notificationsRepository.create({...payload});
-    // await this.notificationsRepository.save(newNotification);
-    // this.logger.log(`Notification saved with ID: ${newNotification.id}`);
+  }): Promise<Notification> { // Return the saved Notification
+    this.logger.log(`Creating notification: ${payload.type} for user ${payload.userId}`);
+
+    if (!payload.userId) {
+        this.logger.error('Cannot create notification: userId is missing.', payload);
+        throw new BadRequestException('Notification must have a target userId.');
+    }
+
+    // 1. Persist notification to the database
+    let savedNotification: Notification | null = null;
+    try {
+        const newNotification = this.notificationsRepository.create({
+            type: payload.type,
+            message: payload.message,
+            userId: payload.userId,
+            relatedEntityType: payload.relatedEntityType,
+            relatedEntityId: payload.relatedEntityId,
+            isRead: false,
+        });
+        savedNotification = await this.notificationsRepository.save(newNotification);
+        this.logger.log(`Notification saved with ID: ${savedNotification.id}`);
+    } catch (dbError) {
+        this.logger.error(`Failed to save notification to database: ${dbError.message}`, dbError.stack);
+        throw new InternalServerErrorException(`Failed to save notification: ${dbError.message}`);
+    }
 
     // 2. Publish to Redis channel
     const channel = 'notifications:new';
-    const message = JSON.stringify(payload); // Use payload directly or the persisted entity
-    
+    const message = JSON.stringify(payload);
+
     try {
-      await this.redisPublisher.publish(channel, message); // Uncommented publish call
+      await this.redisPublisher.publish(channel, message);
       this.logger.log(`Published notification structure to Redis channel ${channel}`);
-    } catch (error) {
-      this.logger.error(`Failed to publish notification to Redis: ${error.message}`, error.stack);
-      // Handle error: maybe retry or log for background processing
+    } catch (redisError) {
+      this.logger.error(`Failed to publish notification to Redis (DB save was successful): ${redisError.message}`, redisError.stack);
+      // Logged error, continue
     }
 
-    // Optional: Return the created notification entity
-    // return newNotification;
+    // Return the created notification entity
+    return savedNotification;
   }
 }

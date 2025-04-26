@@ -8,6 +8,8 @@ import { User } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
+import { UserContext } from './interfaces/user-context.interface';
+import { CaptchaService } from '../captcha/captcha.service';
 
 @Injectable()
 export class AuthService {
@@ -19,6 +21,7 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly captchaService: CaptchaService,
   ) {}
 
   async validateUser(username: string, password: string): Promise<User | null> {
@@ -39,10 +42,19 @@ export class AuthService {
   }
 
   async signIn(loginCredentialsDto: LoginCredentialsDto): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
-    this.logger.log(`[DEBUG] Entered signIn with: ${JSON.stringify(loginCredentialsDto)}`);
-    const { username, password } = loginCredentialsDto;
+    this.logger.log(`[DEBUG] Entered signIn with DTO including captcha field`);
+    const { username, password, captchaToken } = loginCredentialsDto;
     this.logger.log(`Login attempt for user: ${username}`);
     
+    // --- CAPTCHA Verification ---
+    const isCaptchaValid = await this.captchaService.verifyToken(captchaToken);
+    if (!isCaptchaValid) {
+        this.logger.warn(`CAPTCHA verification failed for login attempt: ${username}`);
+        throw new UnauthorizedException('CAPTCHA verification failed. Please try again.');
+    }
+    this.logger.log(`CAPTCHA verification successful for login attempt: ${username}`);
+    // --- End CAPTCHA Verification ---
+
     try {
       this.logger.log(`[signIn] Calling usersService.findOne for username: '${username}'...`);
       const user = await this.usersService.findOne(username);
@@ -137,6 +149,34 @@ export class AuthService {
     } catch (error) {
       this.logger.error(`Token refresh error: ${error.message}`, error.stack);
       throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  // New method to verify a JWT string and return the user payload
+  async verifyJwtAndGetUser(token: string): Promise<UserContext | null> {
+    try {
+      this.logger.debug(`[verifyJwtAndGetUser] Verifying token: ${token ? token.substring(0, 10) + '...' : 'null'}`);
+      const payload: JwtPayload = this.jwtService.verify(token); // Throws error if invalid/expired
+      this.logger.debug(`[verifyJwtAndGetUser] Token verified. Payload: ${JSON.stringify(payload)}`);
+
+      // We trust the payload if verify succeeds, but check user existence for robustness
+      const user = await this.usersService.findById(payload.sub); // Use findById
+      if (!user) {
+        this.logger.warn(`[verifyJwtAndGetUser] User with ID ${payload.sub} from token not found in DB.`);
+        return null; // Or throw UnauthorizedException?
+      }
+
+      // Construct the user context expected by the gateway/app
+      const userContext: UserContext = {
+        userId: payload.sub,
+        username: payload.username,
+        role: user.role, // Get role from the fresh user data
+      };
+      this.logger.debug(`[verifyJwtAndGetUser] Returning user context: ${JSON.stringify(userContext)}`);
+      return userContext;
+    } catch (error) {
+      this.logger.warn(`[verifyJwtAndGetUser] JWT verification failed: ${error.message}`);
+      return null; // Return null if token is invalid or expired
     }
   }
 

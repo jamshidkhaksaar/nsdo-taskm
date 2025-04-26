@@ -9,6 +9,10 @@ export class LoginCredentialsDto {
   @IsNotEmpty()
   password: string;
 
+  @IsString()
+  @IsNotEmpty()
+  captchaToken: string;
+
   @IsOptional()
   @IsString()
   fingerprint?: string;

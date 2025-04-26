@@ -3,6 +3,8 @@ import { Server, Socket } from 'socket.io';
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { REDIS_SUBSCRIBER } from './notifications.module';
 import Redis from 'ioredis';
+import { AuthService } from '../auth/auth.service';
+import { UserContext } from '../auth/interfaces/user-context.interface';
 
 @Injectable()
 @WebSocketGateway({
@@ -16,10 +18,11 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
   server: Server;
 
   private logger: Logger = new Logger('NotificationsGateway');
-  private connectedUsers: Map<string, string> = new Map(); // Map userId to socketId
+  private connectedUsers: Map<string, Set<string>> = new Map();
 
   constructor(
-    @Inject(REDIS_SUBSCRIBER) private readonly redisSubscriber: Redis
+    @Inject(REDIS_SUBSCRIBER) private readonly redisSubscriber: Redis,
+    private readonly authService: AuthService,
   ) {}
 
   afterInit(server: Server) {
@@ -27,26 +30,54 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     this.subscribeToNotifications();
   }
 
-  handleConnection(client: Socket, ...args: any[]) {
-    this.logger.log(`Client connected: ${client.id}`);
-    // Handle authentication and user mapping here
-    // const userId = this.getUserIdFromAuth(client.handshake.auth); 
-    // if (userId) {
-    //   this.connectedUsers.set(userId, client.id);
-    //   this.logger.log(`User ${userId} mapped to socket ${client.id}`);
-    // }
+  async handleConnection(client: Socket, ...args: any[]) {
+    this.logger.log(`Client connecting: ${client.id}`);
+    const token = client.handshake.auth?.token;
+
+    if (!token) {
+        this.logger.warn(`Client ${client.id} connection attempt without token. Disconnecting.`);
+        client.disconnect(true);
+        return;
+    }
+
+    try {
+        const userContext: UserContext | null = await this.authService.verifyJwtAndGetUser(token);
+        
+        if (userContext) {
+            this.logger.log(`Client ${client.id} authenticated as user ${userContext.userId} (${userContext.username}).`);
+            if (!this.connectedUsers.has(userContext.userId)) {
+                this.connectedUsers.set(userContext.userId, new Set<string>());
+            }
+            this.connectedUsers.get(userContext.userId)?.add(client.id);
+            this.logger.log(`Current connections for user ${userContext.userId}: ${this.connectedUsers.get(userContext.userId)?.size}`);
+
+        } else {
+            this.logger.warn(`Client ${client.id} authentication failed (invalid token?). Disconnecting.`);
+            client.disconnect(true);
+        }
+    } catch (error) {
+        this.logger.error(`Error during client ${client.id} authentication: ${error.message}`, error.stack);
+        client.disconnect(true);
+    }
   }
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
-    // Remove user mapping on disconnect
-    // for (const [userId, socketId] of this.connectedUsers.entries()) {
-    //   if (socketId === client.id) {
-    //     this.connectedUsers.delete(userId);
-    //     this.logger.log(`User ${userId} disconnected.`);
-    //     break;
-    //   }
-    // }
+    let foundUserId: string | null = null;
+    for (const [userId, socketIds] of this.connectedUsers.entries()) {
+      if (socketIds.has(client.id)) {
+        foundUserId = userId;
+        socketIds.delete(client.id);
+        if (socketIds.size === 0) {
+          this.connectedUsers.delete(userId);
+          this.logger.log(`User ${userId} completely disconnected.`);
+        }
+        break;
+      }
+    }
+    if (foundUserId) {
+      this.logger.log(`Removed socket ${client.id} mapping for user ${foundUserId}. Remaining connections: ${this.connectedUsers.get(foundUserId)?.size || 0}`);
+    }
   }
 
   private subscribeToNotifications() {
@@ -72,18 +103,19 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
   }
 
   private handleNotification(notification: any): void {
-    // Logic to find the target user(s) and send via WebSocket
-    const targetUserId = notification.userId; // Assuming payload has userId
+    const targetUserId = notification.userId;
     if (!targetUserId) {
         this.logger.warn('Received notification without target userId, cannot send via WebSocket.', notification);
-        // Optionally, broadcast to an admin channel or handle differently
-        return; 
+        return;
     }
-    
-    const socketId = this.connectedUsers.get(targetUserId);
-    if (socketId) {
-      this.server.to(socketId).emit('notification', notification); // Emit a specific event name
-      this.logger.log(`Notification sent to user ${targetUserId} via socket ${socketId}`);
+
+    const socketIdsSet = this.connectedUsers.get(targetUserId);
+    if (socketIdsSet && socketIdsSet.size > 0) {
+        const socketIdsArray = Array.from(socketIdsSet);
+        this.logger.log(`Sending notification to user ${targetUserId} via ${socketIdsArray.length} socket(s): ${socketIdsArray.join(', ')}`);
+        socketIdsArray.forEach(socketId => {
+            this.server.to(socketId).emit('notification', notification);
+        });
     } else {
       this.logger.log(`User ${targetUserId} not connected via WebSocket.`);
     }
@@ -95,12 +127,6 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     this.logger.log('Message received from client:', data);
     // Optionally broadcast or respond
     // this.server.emit('messageToClient', { sender: client.id, message: data });
-  }
-
-  // Add method for associating userId with socketId after auth
-  addUserSocket(userId: string, socketId: string) {
-    this.connectedUsers.set(userId, socketId);
-    this.logger.log(`Manually mapped User ${userId} to socket ${socketId}`);
   }
 
 } 

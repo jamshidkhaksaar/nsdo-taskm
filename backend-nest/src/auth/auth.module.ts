@@ -11,6 +11,7 @@ import { TwoFactorController } from './two-factor.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
 import { MailModule } from '../mail/mail.module';
+import { CaptchaModule } from '../captcha/captcha.module';
 
 @Module({
   imports: [
@@ -28,9 +29,10 @@ import { MailModule } from '../mail/mail.module';
       }),
     }),
     MailModule,
+    CaptchaModule,
   ],
   providers: [AuthService, JwtStrategy, TwoFactorService],
   controllers: [AuthController, TwoFactorController],
-  exports: [JwtStrategy, PassportModule, TwoFactorService],
+  exports: [AuthService, JwtStrategy, PassportModule, TwoFactorService],
 })
 export class AuthModule {} 

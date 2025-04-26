@@ -19,6 +19,7 @@ import { DeleteTaskDto } from './dto/delete-task.dto';
 import { RecycleBinQueryDto } from './dto/recycle-bin-query.dto';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // Define the missing Response Type
 export interface DashboardTasksResponse {
@@ -62,6 +63,7 @@ export class TasksService {
     private activityLogRepository: Repository<ActivityLog>,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(createTaskDto: CreateTaskDto, user: any): Promise<Task> {
@@ -167,7 +169,7 @@ export class TasksService {
       const savedTask = await this.tasksRepository.save(task);
       console.log('Task saved successfully with ID:', savedTask.id);
       
-      // --- Send Notifications ---
+      // --- Send Notifications (Email and In-App/Teams via Redis) ---
       const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
       const taskLink = `${frontendUrl}/tasks/${savedTask.id}`; // Construct link to the task
 
@@ -175,7 +177,7 @@ export class TasksService {
       const taskWithRelations = await this.tasksRepository.findOne({
         where: { id: savedTask.id },
         relations: [
-          'assignedToUsers', // Need emails and usernames
+          'assignedToUsers', // Need emails, IDs and usernames
           'assignedToDepartments', // Need department names and IDs
           'createdBy' // Potentially useful, though we have the user object
         ],
@@ -184,9 +186,12 @@ export class TasksService {
       if (!taskWithRelations) {
         this.logger.error(`Failed to reload task ${savedTask.id} for sending notifications.`);
       } else {
+          // --- User Assignment Notifications ---
           if (taskWithRelations.type === TaskType.USER && taskWithRelations.assignedToUsers) {
             for (const assignedUser of taskWithRelations.assignedToUsers) {
-              if (assignedUser.id === user.userId) continue; // Don't email the creator if they assigned it to themselves
+              if (assignedUser.id === user.userId) continue; // Don't notify the creator if they assigned it to themselves
+
+              // Send Email (Existing Logic)
               try {
                 await this.mailService.sendTemplatedEmail(
                   assignedUser.email,
@@ -203,7 +208,22 @@ export class TasksService {
               } catch (emailError) {
                 this.logger.error(`Failed to send task assignment email to user ${assignedUser.email}: ${emailError.message}`, emailError.stack);
               }
+
+              // Publish Redis Notification (New Logic)
+              try {
+                await this.notificationsService.createAndPublishNotification({
+                  type: 'TASK_ASSIGNED',
+                  message: `You have been assigned a new task: "${taskWithRelations.title}" by ${taskWithRelations.createdBy?.username || 'Unknown User'}`,
+                  userId: assignedUser.id, // Target the specific assigned user
+                  relatedEntityType: 'Task',
+                  relatedEntityId: savedTask.id,
+                });
+                 this.logger.log(`Task assignment notification published for user ${assignedUser.id}`);
+              } catch (notificationError) {
+                 this.logger.error(`Failed to publish task assignment notification for user ${assignedUser.id}: ${notificationError.message}`, notificationError.stack);
+              }
             }
+          // --- Department Assignment Notifications ---
           } else if ((taskWithRelations.type === TaskType.DEPARTMENT || taskWithRelations.type === TaskType.PROVINCE_DEPARTMENT) && taskWithRelations.assignedToDepartments) {
             const departmentIds = taskWithRelations.assignedToDepartments.map(d => d.id);
             if (departmentIds.length > 0) {
@@ -224,8 +244,8 @@ export class TasksService {
                 });
                 const uniqueUsers = Array.from(uniqueUsersMap.values());
                 
-                for (const deptUser of uniqueUsers) { // Type should be inferred as User now
-                  if (deptUser.id === user.userId) continue; // Don't email the creator
+                for (const deptUser of uniqueUsers) {
+                  if (deptUser.id === user.userId) continue; // Don't notify the creator
                   
                   // Find which assigned department(s) this user belongs to for context
                   // Use the originally fetched assignedToDepartments for name
@@ -234,6 +254,7 @@ export class TasksService {
                   );
                   const departmentName = userDepartment ? userDepartment.name : 'relevant department'; // Fallback name
 
+                  // Send Email (Existing Logic)
                   try {
                     await this.mailService.sendTemplatedEmail(
                       deptUser.email,
@@ -251,17 +272,48 @@ export class TasksService {
                   } catch (emailError) {
                     this.logger.error(`Failed to send task assignment email to department user ${deptUser.email}: ${emailError.message}`, emailError.stack);
                   }
+
+                  // Publish Redis Notification (New Logic)
+                  try {
+                    await this.notificationsService.createAndPublishNotification({
+                        type: 'TASK_ASSIGNED_DEPARTMENT',
+                        message: `A new task "${taskWithRelations.title}" relevant to your department (${departmentName}) has been created by ${taskWithRelations.createdBy?.username || 'Unknown User'}`,
+                        userId: deptUser.id, // Target the specific user in the department
+                        relatedEntityType: 'Task',
+                        relatedEntityId: savedTask.id,
+                        // Optionally add departmentId if needed downstream
+                        // departmentId: userDepartment?.id
+                    });
+                    this.logger.log(`Task assignment notification published for department user ${deptUser.id}`);
+                  } catch (notificationError) {
+                    this.logger.error(`Failed to publish task assignment notification for department user ${deptUser.id}: ${notificationError.message}`, notificationError.stack);
+                  }
                 }
-              } catch (serviceError) {
-                 this.logger.error(`Failed to fetch users or send notifications for department task: ${serviceError.message}`, serviceError.stack);
+              } catch (deptUserError) {
+                this.logger.error(`Error processing department assignment notifications: ${deptUserError.message}`, deptUserError.stack);
               }
             }
           }
        }
       // --- End Send Notifications ---
 
-      // Return the reloaded task with full relations
-      return taskWithRelations || savedTask; // Fallback to savedTask if reload failed
+      // Log activity
+      try {
+          await this.activityLogService.createLog({
+            user_id: user.userId,
+            action: 'CREATE_TASK',
+            target: 'Task',
+            target_id: savedTask.id,
+            details: `Created task: ${savedTask.title}`,
+            // ip_address: // We don't have the request object here easily
+          });
+          this.logger.log(`Activity logged for task creation: ${savedTask.id}`);
+      } catch (logError) {
+          this.logger.error(`Failed to log activity for task creation ${savedTask.id}: ${logError.message}`, logError.stack);
+          // Decide if this should prevent returning the task
+      }
+
+      return savedTask;
 
     } catch (error) {
       console.error('Error creating task:', error);
@@ -447,10 +499,10 @@ export class TasksService {
     // Log changes if any occurred
     if (changed) {
         await this.activityLogService.createLog({
-            action: `Task Details Updated`,
+            user_id: reqUser.userId,
+            action: 'Task Details Updated',
             target: 'Task',
             target_id: task.id,
-            user_id: reqUser.userId,
             details: `Details for task "${task.title}" (ID: ${task.id}) were updated.`,
             status: 'success'
         });
@@ -466,6 +518,8 @@ export class TasksService {
     const task = await this.findOne(id); // Ensure relations are loaded
     const { status, cancellationReason } = updateTaskStatusDto;
     const originalStatus = task.status;
+    // Store original assignees *before* potentially changing the task state
+    const originalAssignees = await this.getAssigneesForNotification(task);
 
     if (originalStatus === status) {
         console.warn(`Task ${id} is already in status ${status}. No update performed.`);
@@ -540,15 +594,42 @@ export class TasksService {
 
     // Add activity log entry
     await this.activityLogService.createLog({
-        action: `Task Status Changed`,
+        user_id: reqUser.userId,
+        action: 'Task Status Changed',
         target: 'Task',
         target_id: task.id,
-        user_id: reqUser.userId,
         details: `Status of task "${task.title}" (ID: ${task.id}) changed from ${originalStatus} to ${status}.${status === TaskStatus.CANCELLED ? ` Reason: ${cancellationReason}` : ''}`,
         status: 'success'
     });
 
     const updatedTask = await this.tasksRepository.save(task);
+
+    // --- Send Notifications for Status Change ---
+    if ([TaskStatus.COMPLETED, TaskStatus.CANCELLED].includes(status)) {
+        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+        const taskLink = `${frontendUrl}/tasks/${updatedTask.id}`;
+        const statusText = status === TaskStatus.COMPLETED ? 'completed' : 'cancelled';
+        const message = `The status of task "${updatedTask.title}" has been updated to ${statusText}.`;
+
+        for (const assignee of originalAssignees) {
+            if (assignee.id === reqUser.userId) continue; // Don't notify the user who made the change
+
+            try {
+                await this.notificationsService.createAndPublishNotification({
+                    type: `TASK_STATUS_${status.toUpperCase()}`,
+                    message: message,
+                    userId: assignee.id,
+                    relatedEntityType: 'Task',
+                    relatedEntityId: updatedTask.id,
+                });
+                this.logger.log(`Task status change notification (${status}) published for user ${assignee.id}`);
+            } catch (notificationError) {
+                this.logger.error(`Failed to publish task status change notification for user ${assignee.id}: ${notificationError.message}`, notificationError.stack);
+            }
+        }
+    }
+    // --- End Notifications ---
+
     return this.findOne(updatedTask.id); // Return with relations
   }
 
@@ -556,6 +637,8 @@ export class TasksService {
     const task = await this.findOne(id);
     const { priority } = updateTaskPriorityDto;
     const originalPriority = task.priority;
+    // Store original assignees *before* potentially changing the task state
+    const originalAssignees = await this.getAssigneesForNotification(task);
 
     if (originalPriority === priority) {
         console.warn(`Task ${id} already has priority ${priority}. No update performed.`);
@@ -575,15 +658,39 @@ export class TasksService {
 
      // Add activity log entry
     await this.activityLogService.createLog({
-        action: `Task Priority Changed`,
+        user_id: reqUser.userId,
+        action: 'Task Priority Changed',
         target: 'Task',
         target_id: task.id,
-        user_id: reqUser.userId,
         details: `Priority of task "${task.title}" (ID: ${task.id}) changed from ${originalPriority} to ${priority}.`,
         status: 'success'
     });
 
     const updatedTask = await this.tasksRepository.save(task);
+
+    // --- Send Notifications for Priority Change ---
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const taskLink = `${frontendUrl}/tasks/${updatedTask.id}`;
+    const message = `The priority of task "${updatedTask.title}" has been changed from ${originalPriority} to ${priority}.`;
+
+    for (const assignee of originalAssignees) {
+        if (assignee.id === reqUser.userId) continue; // Don't notify the user who made the change
+
+        try {
+            await this.notificationsService.createAndPublishNotification({
+                type: 'TASK_PRIORITY_CHANGED',
+                message: message,
+                userId: assignee.id,
+                relatedEntityType: 'Task',
+                relatedEntityId: updatedTask.id,
+            });
+            this.logger.log(`Task priority change notification published for user ${assignee.id}`);
+        } catch (notificationError) {
+            this.logger.error(`Failed to publish task priority change notification for user ${assignee.id}: ${notificationError.message}`, notificationError.stack);
+        }
+    }
+    // --- End Notifications ---
+
     return this.findOne(updatedTask.id); // Return with relations
   }
 
@@ -613,10 +720,10 @@ export class TasksService {
 
     // Add activity log entry for soft deletion
     await this.activityLogService.createLog({
-        action: `Task Deleted`,
+        user_id: reqUser.userId,
+        action: 'Task Deleted',
         target: 'Task',
         target_id: id,
-        user_id: reqUser.userId,
         details: `Task "${task.title}" (ID: ${id}) was moved to recycle bin. Reason: ${deleteTaskDto.deletionReason}`,
         status: 'warning'
     });
@@ -634,10 +741,10 @@ export class TasksService {
     
     // Add activity log entry BEFORE hard deleting
     await this.activityLogService.createLog({
-        action: `Task Permanently Deleted`,
+        user_id: reqUser.userId,
+        action: 'Task Permanently Deleted',
         target: 'Task',
         target_id: id,
-        user_id: reqUser.userId,
         details: `Task "${task.title}" (ID: ${id}) was permanently deleted from the system.`,
         status: 'warning'
     });
@@ -670,10 +777,10 @@ export class TasksService {
 
     // Add activity log entry
     await this.activityLogService.createLog({
-        action: `Task Restored`,
+        user_id: reqUser.userId,
+        action: 'Task Restored',
         target: 'Task',
         target_id: id,
-        user_id: reqUser.userId,
         details: `Task "${task.title}" (ID: ${id}) was restored from the recycle bin.`,
         status: 'success'
     });
@@ -754,13 +861,16 @@ export class TasksService {
 
     const originalTask = await this.tasksRepository.findOne({
         where: { id },
-        relations: ['createdBy'], // Only need creator for permissions
+        relations: ['createdBy', 'assignedToUsers', 'assignedToDepartments'], // Load relations needed for permissions AND original assignees
     });
 
     if (!originalTask) {
         console.error(`${logContext} Original task not found.`);
         throw new NotFoundException('Original task not found');
     }
+
+    // Get original assignees BEFORE modifying the task
+    const originalAssignees = await this.getAssigneesForNotification(originalTask);
 
     // Permissions check: Only creator, admin, or leadership can delegate
     const isCreator = originalTask.createdById === delegatorInfo.userId;
@@ -792,7 +902,7 @@ export class TasksService {
         throw new BadRequestException(`One or more target users not found: ${notFoundIds.join(', ')}`);
     }
 
-    // --- Create New Delegated Tasks --- (Simplified)
+    // --- Create New Delegated Tasks ---
     const createdDelegatedTasks: Task[] = [];
 
     for (const assignee of newAssignees) {
@@ -830,13 +940,36 @@ export class TasksService {
         // Log activity
         const newTasksSummary = savedNewTasks.map(t => `"${t.title}" (ID: ${t.id}) for ${t.assignedToUsers[0]?.username}`).join(', ');
         await this.activityLogService.createLog({
-            action: `Task Delegated`,
+            user_id: delegatorInfo.userId,
+            action: 'Task Delegated',
             target: 'Task',
             target_id: originalTask.id,
-            user_id: delegatorInfo.userId,
             details: `Task "${originalTask.title}" (ID: ${originalTask.id}) was delegated. New task(s) created: ${newTasksSummary}. Reason: ${dto.delegationReason || 'N/A'}`,
             status: 'success'
         });
+
+        // --- Notify Original Assignees --- 
+        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+        const originalTaskLink = `${frontendUrl}/tasks/${originalTask.id}`;
+        const delegationMessage = `Task "${originalTask.title}" (which you were assigned to) has been delegated by ${delegatorInfo.username || 'Unknown User'}.`;
+
+        for (const assignee of originalAssignees) {
+            if (assignee.id === delegatorInfo.userId) continue; // Don't notify the delegator
+
+            try {
+                await this.notificationsService.createAndPublishNotification({
+                    type: 'TASK_DELEGATED_AWAY', // Specific type for original assignees
+                    message: delegationMessage,
+                    userId: assignee.id,
+                    relatedEntityType: 'Task',
+                    relatedEntityId: originalTask.id,
+                });
+                this.logger.log(`Task delegated-away notification published for original assignee ${assignee.id}`);
+            } catch (notificationError) {
+                this.logger.error(`Failed to publish task delegated-away notification for user ${assignee.id}: ${notificationError.message}`, notificationError.stack);
+            }
+        }
+        // --- End Notify Original Assignees ---
 
         // Reload and return tasks
         const reloadedOriginal = await this.findOne(savedOriginalTask.id);
@@ -1180,4 +1313,36 @@ export class TasksService {
   }
 
   // END: NEW Methods for Aggregated Status Counts
+
+  // NEW Helper method to get all relevant assignees for a notification
+  private async getAssigneesForNotification(task: Task): Promise<User[]> {
+      let assignees: User[] = [];
+
+      // Direct User Assignees
+      if (task.assignedToUsers && task.assignedToUsers.length > 0) {
+          assignees = assignees.concat(task.assignedToUsers);
+      }
+
+      // Department Assignees (Includes Province/Dept case implicitly)
+      if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+          const departmentIds = task.assignedToDepartments.map(d => d.id);
+          try {
+              let usersInDepartments: User[] = [];
+              for (const deptId of departmentIds) {
+                  const users = await this.usersService.findUsersByDepartment(deptId);
+                  usersInDepartments = usersInDepartments.concat(users);
+              }
+              // Add unique users from departments
+              usersInDepartments.forEach(deptUser => {
+                  if (!assignees.some(existing => existing.id === deptUser.id)) {
+                      assignees.push(deptUser);
+                  }
+              });
+          } catch (error) {
+              this.logger.error(`Failed to get users for departments [${departmentIds.join(', ')}] for notification: ${error.message}`, error.stack);
+          }
+      }
+
+      return assignees; // Returns unique list of User entities
+  }
 }

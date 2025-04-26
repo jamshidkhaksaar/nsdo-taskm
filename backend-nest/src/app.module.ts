@@ -22,6 +22,12 @@ import { BackupModule } from './backup/backup.module';
 import { ProfileModule } from './profile/profile.module';
 import { MailModule } from './mail/mail.module';
 import { NotesModule } from './notes/notes.module';
+import { Notification } from './notifications/entities/notification.entity';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ProvinceModule } from './provinces/province.module';
+import { EmailTemplatesModule } from './email-templates/email-templates.module';
+import { EmailTemplate } from './email-templates/entities/email-template.entity';
 
 // Import all entity classes directly
 import { User } from './users/entities/user.entity';
@@ -42,6 +48,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { ProvinceModule } from './provinces/province.module';
 import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { EmailTemplate } from './email-templates/entities/email-template.entity';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -97,6 +104,7 @@ import { EmailTemplate } from './email-templates/entities/email-template.entity'
     TerminusModule,
     ProvinceModule,
     EmailTemplatesModule,
+    NotificationsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
