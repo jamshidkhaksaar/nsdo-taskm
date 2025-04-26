@@ -25,6 +25,7 @@
     "prepare:db": "npm run check:env && npm run migration:run && npm run migrate:user-roles"
   },
   "dependencies": {
+    "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/bull": "^11.0.2",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.0.1",
@@ -37,6 +38,7 @@
     "@nestjs/terminus": "^11.0.0",
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/typeorm": "^11.0.0",
+    "@sendgrid/mail": "^8.1.5",
     "axios": "^1.8.2",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.49.2",
@@ -48,6 +50,7 @@
     "helmet": "^8.1.0",
     "mysql2": "^3.12.0",
     "nest-commander": "^3.16.1",
+    "nodemailer": "^6.10.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -72,6 +75,7 @@
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.7",
+    "@types/nodemailer": "^6.4.17",
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.5",

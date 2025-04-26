@@ -9,8 +9,7 @@
     "noImplicitAny": false
   },
   "include": [
-    "backend-nest/**/*",
-    "frontend/**/*"
+    "backend-nest/**/*"
   ],
   "exclude": [
     "node_modules",

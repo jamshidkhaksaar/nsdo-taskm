@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Post, Body, Param, UseGuards, ValidationPipe } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,12 +8,37 @@ import { UpdateApiSettingsDto } from './dto/update-api-settings.dto';
 import { UpdateSecuritySettingsDto } from './dto/update-security-settings.dto';
 import { UpdateBackupSettingsDto } from './dto/update-backup-settings.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { UpdateSettingsDto } from './dto/update-settings.dto';
+import { Setting } from './entities/setting.entity';
+import { TestSendGridDto } from './dto/test-sendgrid.dto';
 
-@ApiTags('Settings')
+@ApiTags('System Settings')
+@ApiBearerAuth()
 @Controller('settings')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
+
+  @Get()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get all system settings (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Returns all settings.', type: [Setting] })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  findAll() {
+    return this.settingsService.getAllSettings();
+  }
+
+  @Put()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update system settings (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Settings updated successfully.', type: [Setting] })
+  @ApiResponse({ status: 400, description: 'Invalid input data.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  update(@Body(new ValidationPipe()) updateSettingsDto: UpdateSettingsDto) {
+    // Add sanitization/validation logic here if needed, especially for API keys
+    return this.settingsService.updateSettings(updateSettingsDto);
+  }
 
   // API Settings endpoints
   @Get('api-settings/:id')
@@ -115,5 +140,16 @@ export class SettingsController {
   @ApiResponse({ status: 200, description: 'Test email sent successfully' })
   async testEmailSettings(@Body() testEmailDto: UpdateNotificationSettingsDto) {
     return this.settingsService.testEmailSettings(testEmailDto);
+  }
+
+  // Endpoint to test SendGrid settings specifically
+  @Post('test-sendgrid')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Test SendGrid configuration (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Test email sent successfully or error message returned.' })
+  @ApiResponse({ status: 400, description: 'Invalid input data or configuration error.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async testSendGrid(@Body(new ValidationPipe()) testSendGridDto: TestSendGridDto) {
+    return this.settingsService.testSendGridSettings(testSendGridDto.recipientEmail);
   }
 } 

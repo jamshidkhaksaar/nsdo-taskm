@@ -114,41 +114,6 @@ const settingsSections: SettingsSection[] = [
         value: true,
         description: 'Send email notifications for important events',
       },
-      {
-        id: 'smtpServer',
-        label: 'SMTP Server',
-        type: 'text',
-        value: 'smtp.example.com',
-        description: 'Email server hostname',
-      },
-      {
-        id: 'smtpPort',
-        label: 'SMTP Port',
-        type: 'number',
-        value: 587,
-        description: 'Email server port',
-      },
-      {
-        id: 'smtpUsername',
-        label: 'SMTP Username',
-        type: 'text',
-        value: '',
-        description: 'Email server username',
-      },
-      {
-        id: 'smtpPassword',
-        label: 'SMTP Password',
-        type: 'text',
-        value: '',
-        description: 'Email server password',
-      },
-      {
-        id: 'smtpUseTls',
-        label: 'Use TLS',
-        type: 'switch',
-        value: true,
-        description: 'Enable TLS encryption',
-      },
     ],
   },
   {
@@ -230,11 +195,6 @@ const backupSettingsMap = {
 // Add notification settings mapping after the backup settings map
 const notificationSettingsMap = {
   emailNotifications: 'email_notifications_enabled',
-  smtpServer: 'smtp_server',
-  smtpPort: 'smtp_port',
-  smtpUsername: 'smtp_username',
-  smtpPassword: 'smtp_password',
-  smtpUseTls: 'smtp_use_tls'
 };
 
 // Add API settings mapping after the notification settings map

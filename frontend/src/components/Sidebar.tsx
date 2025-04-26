@@ -10,6 +10,10 @@ import {
   Collapse,
   ListItemButton,
   Box,
+  Toolbar,
+  Typography,
+  IconButton,
+  useTheme,
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -28,12 +32,24 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import DeleteIcon from '@mui/icons-material/Delete';
+import MailIcon from '@mui/icons-material/Mail';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import logo from '../assets/images/logo.png';
 import logoIcon from '../assets/images/logoIcon.png';
 
+// Define interface for menu items
+interface MenuItem {
+  title: string;
+  path: string;
+  icon: React.ReactNode;
+  description?: string;
+  onClick?: (navigate: any) => void;
+}
+
 const DRAWER_WIDTH = 240;
 
-const mainMenuItems = [
+const mainMenuItems: MenuItem[] = [
   { title: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { title: 'Departments', path: '/departments', icon: <BusinessIcon /> },
   { title: 'Users', path: '/users', icon: <PeopleIcon /> },
@@ -41,11 +57,11 @@ const mainMenuItems = [
 ];
 
 // Items visible only to Leadership and Admins
-const managerMenuItems = [
+const managerMenuItems: MenuItem[] = [
   { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> },
 ];
 
-const adminMenuItems = [
+const adminMenuItems: MenuItem[] = [
   { 
     title: 'Admin Dashboard', 
     path: '/admin', 
@@ -94,6 +110,12 @@ const adminMenuItems = [
     icon: <BackupIcon />,
     description: 'Manage system backups and restoration'
   },
+  {
+    title: 'Email Configuration',
+    path: '/admin/email-config',
+    icon: <MailIcon />,
+    description: 'Configure email settings and templates'
+  },
 ];
 
 interface SidebarProps {
@@ -108,6 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
   const [adminMenuOpen, setAdminMenuOpen] = useState(true);
+  const theme = useTheme();
 
   const isAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');
@@ -350,7 +373,18 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
                 {adminMenuItems.map((item) => (
                   <ListItem key={item.title} disablePadding>
                     <ListItemButton
-                      onClick={() => navigate(item.path)}
+                      onClick={() => {
+                        console.log('Navigating to:', item.path);
+                        console.log('Menu item clicked:', item.title);
+                        if (item.title === 'Email Configuration') {
+                          console.log('Email Configuration clicked - path:', item.path);
+                        }
+                        if (item.onClick) {
+                          item.onClick(navigate);
+                        } else {
+                          navigate(item.path);
+                        }
+                      }}
                       selected={isActive(item.path)}
                       sx={{
                         ...getMenuItemStyles(isActive(item.path)),

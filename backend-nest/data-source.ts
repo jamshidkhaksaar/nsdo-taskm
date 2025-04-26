@@ -9,8 +9,10 @@ import { ApiSettings } from './src/settings/entities/api-settings.entity';
 import { BackupSettings } from './src/settings/entities/backup-settings.entity';
 import { NotificationSettings } from './src/settings/entities/notification-settings.entity';
 import { SecuritySettings } from './src/settings/entities/security-settings.entity';
+import { Setting } from './src/settings/entities/setting.entity';
 import { ActivityLog } from './src/admin/entities/activity-log.entity';
 import { Backup } from './src/backup/entities/backup.entity';
+import { EmailTemplate } from './src/email-templates/entities/email-template.entity';
 
 // Load environment variables if needed (e.g., using dotenv)
 // import * as dotenv from 'dotenv';
@@ -36,8 +38,10 @@ export const dataSourceOptions: DataSourceOptions = {
     BackupSettings,
     NotificationSettings,
     SecuritySettings,
+    Setting,
     ActivityLog,
     Backup,
+    EmailTemplate,
   ],
   migrations: ['src/migrations/*.ts'], // Point to TS migration files
   migrationsTableName: "typeorm_migrations",

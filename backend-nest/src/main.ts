@@ -46,9 +46,7 @@ async function bootstrap() {
   
   // Enable validation pipes
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
     transform: true,
-    forbidNonWhitelisted: true,
   }));
 
   // Enable CSRF protection with cookies

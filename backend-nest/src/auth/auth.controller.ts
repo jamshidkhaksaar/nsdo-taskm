@@ -2,6 +2,8 @@ import { Body, Controller, Post, UnauthorizedException, Logger } from '@nestjs/c
 import { AuthService } from './auth.service';
 import { LoginCredentialsDto } from './dto/auth-credentials.dto';
 import { TwoFactorService } from './two-factor.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 class RequestEmailCodeDto {
   username: string;
@@ -135,5 +137,15 @@ export class AuthController {
       this.logger.error(`Email code request error: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  @Post('/forgot-password')
+  @ApiOperation({ summary: 'Initiate password reset process' })
+  @ApiResponse({ status: 200, description: 'Password reset email sent (if user exists).' })
+  @ApiResponse({ status: 400, description: 'Invalid email format.' })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    this.logger.log(`Forgot password request for email: ${forgotPasswordDto.email}`);
+    // Delegate the logic to AuthService
+    return this.authService.handleForgotPasswordRequest(forgotPasswordDto.email);
   }
 } 

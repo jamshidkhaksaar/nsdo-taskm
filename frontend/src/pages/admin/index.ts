@@ -5,3 +5,4 @@ export { default as ActivityLogs } from './ActivityLogs';
 export { default as SystemSettings } from './SystemSettings';
 export { default as BackupRestore } from './BackupRestore';
 export { default as RecycleBin } from './RecycleBin';
+export { default as EmailConfiguration } from './EmailConfiguration';

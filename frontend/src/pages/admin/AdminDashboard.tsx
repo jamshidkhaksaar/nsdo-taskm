@@ -12,10 +12,12 @@ import {
   Container,
   useTheme,
   useMediaQuery,
+  Button,
 } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import MailIcon from '@mui/icons-material/Mail';
 import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -238,7 +240,8 @@ const AdminDashboard: React.FC = () => {
             Overview of system statistics and recent activities
           </Typography>
 
-          <Grid container spacing={3}>
+          {/* Stats Overview Section */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* Stats Cards */}
             <Grid item xs={12} md={4}>
               <Card sx={cardStyle}>

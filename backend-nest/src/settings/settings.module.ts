@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SettingsController } from './settings.controller';
 import { SettingsService } from './settings.service';
@@ -6,6 +6,8 @@ import { ApiSettings } from './entities/api-settings.entity';
 import { SecuritySettings } from './entities/security-settings.entity';
 import { BackupSettings } from './entities/backup-settings.entity';
 import { NotificationSettings } from './entities/notification-settings.entity';
+import { Setting } from './entities/setting.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -13,8 +15,10 @@ import { NotificationSettings } from './entities/notification-settings.entity';
       ApiSettings,
       SecuritySettings,
       BackupSettings,
-      NotificationSettings
+      NotificationSettings,
+      Setting
     ]),
+    forwardRef(() => AuthModule),
   ],
   controllers: [SettingsController],
   providers: [SettingsService],

@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  DialogContentText,
   Paper,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
@@ -51,6 +52,10 @@ interface TwoFactorFormInputs {
   rememberDevice: boolean;
 }
 
+interface ForgotPasswordFormInputs {
+  email: string;
+}
+
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -61,6 +66,10 @@ const twoFactorSchema = z.object({
   verificationCode: z.string().min(6, 'Verification code must be at least 6 characters'),
   rememberDevice: z.boolean().default(true)
 }) as z.ZodType<TwoFactorFormInputs>;
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+}) as z.ZodType<ForgotPasswordFormInputs>;
 
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -76,6 +85,11 @@ const Login: React.FC = () => {
   const [twoFactorMethod] = useState<string>('app');
   const [loginCredentials, setLoginCredentials] = useState<LoginFormInputs | null>(null);
   const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
+  const [forgotPasswordError, setForgotPasswordError] = useState('');
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -122,7 +136,6 @@ const Login: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Clear any auth errors when component unmounts
   useEffect(() => {
     return () => {
       dispatch(clearError());
@@ -139,29 +152,24 @@ const Login: React.FC = () => {
 
   const onSubmit = async (data: LoginFormInputs) => {
     try {
-      // Handle "Remember Me" functionality
       if (data.rememberMe) {
         localStorage.setItem('rememberedUsername', data.username);
       } else {
         localStorage.removeItem('rememberedUsername');
       }
 
-      // Store login credentials for potential 2FA use
       setLoginCredentials(data);
 
       console.log('Attempting login with:', { username: data.username, password: '***' });
       setIsLoading(true);
-      setError(''); // Clear any previous errors
+      setError('');
       
-      // Create a simple login object
       const loginPayload = {
         username: data.username,
         password: data.password
       };
       
-      // Verify backend is available first
       try {
-        // First check if the backend is online
         const healthCheck = await axios.get('http://localhost:3001/api/v1/health', {
           timeout: 3000
         });
@@ -173,14 +181,9 @@ const Login: React.FC = () => {
         }
       } catch (healthError) {
         console.error('Backend health check failed:', healthError);
-        // Use mock data for testing - don't block login during development
         console.log('Using mock data for development testing');
-        //setError('Unable to connect to the server. Please verify the backend service is running.');
-        //setIsLoading(false);
-        //return;
       }
       
-      // Try multiple login endpoints, starting with /login
       try {
         console.log('Trying /api/auth/login endpoint...');
         
@@ -201,7 +204,6 @@ const Login: React.FC = () => {
       } catch (loginError) {
         console.warn('Login via /api/auth/login failed, trying /api/auth/signin...', loginError);
         
-        // Try the signin endpoint as a backup
         try {
           const signinResponse = await axios({
             method: 'post',
@@ -220,12 +222,10 @@ const Login: React.FC = () => {
         } catch (signinError: any) {
           console.error('Both login attempts failed:', signinError);
           
-          // Check if it's a backend format error
           if (signinError.response && signinError.response.data && signinError.response.data.message && 
               signinError.response.data.message.includes('Expected property name')) {
             console.error('Backend JSON parsing error detected, trying with stringified payload');
             
-            // Try with a properly stringified payload
             try {
               const stringifiedResponse = await axios({
                 method: 'post',
@@ -256,12 +256,10 @@ const Login: React.FC = () => {
     }
   };
   
-  // Function to handle successful login
   const handleSuccessfulLogin = (responseData: any) => {
     try {
       console.log('Processing login response:', responseData);
       
-      // Extract tokens and user data
       const accessToken = responseData.access || responseData.token || responseData.accessToken;
       const refreshToken = responseData.refresh || responseData.refreshToken;
       const userData = responseData.user || {};
@@ -272,28 +270,23 @@ const Login: React.FC = () => {
         return;
       }
       
-      // Store tokens in localStorage
       localStorage.setItem('access_token', accessToken);
       if (refreshToken) {
         localStorage.setItem('refresh_token', refreshToken);
       }
       
-      // Store user data
       if (userData) {
         localStorage.setItem('user', JSON.stringify(userData));
       }
       
-      // Set token in axios headers
       axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
       
-      // Update Redux store
       dispatch(setCredentials({
         user: userData,
         token: accessToken,
         refreshToken: refreshToken
       }));
       
-      // Redirect to dashboard or previous page
       console.log('Login successful, redirecting to:', from);
       setIsLoading(false);
       navigate(from);
@@ -304,19 +297,15 @@ const Login: React.FC = () => {
     }
   };
   
-  // Function to handle login errors
   const handleLoginError = (error: any) => {
     console.error('Login error:', error);
     
-    // Handle different error types
     if (axios.isAxiosError(error)) {
       if (error.response) {
         console.error('Error response data:', error.response.data);
         console.error('Error response status:', error.response.status);
         
-        // For 400 errors
         if (error.response.status === 400) {
-          // Extract and display the detailed error message if available
           const errorMessage = error.response.data?.message || 
                                error.response.data?.error ||
                                'Invalid username or password. Please try again.';
@@ -328,21 +317,18 @@ const Login: React.FC = () => {
         } else if (error.response.status >= 500) {
           setError(`Server error (${error.response.status}): The server is experiencing issues. Please try again later.`);
         } else {
-          // Other status codes
           const errorMessage = error.response.data?.message || 
                                error.response.data?.error || 
                                `Error ${error.response.status}: ${error.response.statusText}`;
           setError(errorMessage);
         }
       } else if (error.request) {
-        // The request was made but no response was received
         if (error.code === 'ECONNABORTED') {
           setError('Request timeout: The server took too long to respond. Please check your connection and try again.');
         } else {
           setError('No response from server. Please check your connection and verify the backend service is running.');
         }
       } else {
-        // Something happened in setting up the request that triggered an Error
         setError(error.message || 'An error occurred during login');
       }
     } else if (error instanceof TypeError && error.message.includes('Network')) {
@@ -363,7 +349,6 @@ const Login: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Use AuthService to login with 2FA code
       const response = await AuthService.login(
         loginCredentials.username,
         loginCredentials.password,
@@ -374,7 +359,6 @@ const Login: React.FC = () => {
       console.log('2FA login response:', response);
 
       if (response) {
-        // Extract tokens and user data
         const accessToken = response.access || response.token;
         const userData = response.user;
         
@@ -382,24 +366,19 @@ const Login: React.FC = () => {
           throw new Error('No access token received from server');
         }
         
-        // Store tokens in localStorage
         localStorage.setItem('access_token', accessToken);
         
-        // Store user data
         if (userData) {
           localStorage.setItem('user', JSON.stringify(userData));
         }
         
-        // Set token in axios headers
         axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         
-        // Dispatch login action to Redux
         dispatch(setCredentials({
           user: userData,
           token: accessToken
         }));
         
-        // Close 2FA dialog and redirect to dashboard
         setShow2FADialog(false);
         navigate(from, { replace: true });
       } else {
@@ -490,6 +469,42 @@ const Login: React.FC = () => {
       transform: translateX(0);
     }
   `;
+
+  const handleOpenForgotPassword = () => {
+    setIsForgotPasswordOpen(true);
+    setForgotPasswordMessage('');
+    setForgotPasswordError('');
+  };
+
+  const handleCloseForgotPassword = () => {
+    setIsForgotPasswordOpen(false);
+    setForgotPasswordEmail('');
+  };
+
+  const handleForgotPasswordSubmit = async () => {
+    if (!forgotPasswordEmail || !/^\S+@\S+\.\S+$/.test(forgotPasswordEmail)) {
+      setForgotPasswordError('Please enter a valid email address.');
+      return;
+    }
+    setForgotPasswordLoading(true);
+    setForgotPasswordMessage('');
+    setForgotPasswordError('');
+
+    try {
+      const response = await axiosInstance.post('/auth/forgot-password', { email: forgotPasswordEmail });
+      console.log(`Forgot password request successful for: ${forgotPasswordEmail}`, response.data);
+
+      setForgotPasswordMessage(response.data.message || 'If an account with this email exists, a password reset link has been sent.');
+      setTimeout(handleCloseForgotPassword, 3000);
+      
+    } catch (err: any) {
+      console.error('Forgot password error:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to send reset link. Please check the email address or try again later.';
+      setForgotPasswordError(errorMessage);
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
 
   return (
     <Box
@@ -715,15 +730,14 @@ const Login: React.FC = () => {
             label={<Typography sx={glassStyles.text.secondary}>Remember me</Typography>}
           />
           <MuiLink
-            component={Link}
-            to="/forgot-password"
+            component="button"
+            variant="body2"
+            onClick={handleOpenForgotPassword}
             sx={{
-              ...glassStyles.text.secondary,
+              color: theme.palette.primary.light,
+              cursor: 'pointer',
               textDecoration: 'none',
-              '&:hover': {
-                textDecoration: 'underline',
-                color: 'white',
-              },
+              '&:hover': { textDecoration: 'underline' }
             }}
           >
             Forgot password?
@@ -759,7 +773,6 @@ const Login: React.FC = () => {
         </Box>
       </Box>
       
-      {/* 2FA Dialog */}
       <Dialog 
         open={show2FADialog} 
         onClose={() => setShow2FADialog(false)}
@@ -872,10 +885,107 @@ const Login: React.FC = () => {
         </DialogContent>
       </Dialog>
       
+      <Dialog open={isForgotPasswordOpen} onClose={handleCloseForgotPassword} 
+        PaperProps={{ 
+          sx: {
+            ...glassStyles.card,
+            padding: 0,
+            border: `1px solid rgba(255, 255, 255, 0.2)`
+          } 
+        }}
+      >
+        <DialogTitle sx={{ ...glassStyles.text.primary, p: 3, pb: 2, borderBottom: `1px solid rgba(255, 255, 255, 0.12)` }}>Reset Password</DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <DialogContentText sx={{ ...glassStyles.text.secondary, mb: 3 }}>
+            Enter your email address below, and we'll send you a link to reset your password.
+          </DialogContentText>
+          
+          {forgotPasswordMessage && (
+            <Alert 
+              severity="success" 
+              icon={false}
+              sx={{ 
+                mb: 2, 
+                backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                backdropFilter: 'blur(5px)',
+                color: '#e8f5e9',
+                border: '1px solid rgba(76, 175, 80, 0.3)',
+                borderRadius: '8px',
+              }}
+            >
+              {forgotPasswordMessage}
+            </Alert>
+          )}
+          {forgotPasswordError && (
+            <Alert 
+              severity="error" 
+              icon={false}
+              sx={{ 
+                mb: 2, 
+                backgroundColor: 'rgba(211, 47, 47, 0.15)',
+                backdropFilter: 'blur(5px)',
+                color: '#ffcdd2',
+                border: '1px solid rgba(211, 47, 47, 0.3)',
+                borderRadius: '8px',
+              }}
+            >
+              {forgotPasswordError}
+            </Alert>
+          )}
+          
+          <TextField
+            autoFocus
+            margin="dense"
+            id="forgot-email"
+            label="Email Address"
+            type="email"
+            fullWidth
+            variant="outlined"
+            value={forgotPasswordEmail}
+            onChange={(e) => {
+              setForgotPasswordEmail(e.target.value);
+              if (forgotPasswordError) setForgotPasswordError(''); 
+            }}
+            disabled={forgotPasswordLoading}
+            InputLabelProps={{ 
+              style: glassStyles.inputLabel
+            }}
+            sx={{ 
+              '& .MuiOutlinedInput-root': glassStyles.input
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1, borderTop: `1px solid rgba(255, 255, 255, 0.12)` }}>
+          <Button 
+            onClick={handleCloseForgotPassword} 
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.7)',
+              mr: 1, 
+              textTransform: 'none',
+              '&:hover': { 
+                backgroundColor: 'rgba(255, 255, 255, 0.08)'
+              } 
+            }}
+          >
+              Cancel
+          </Button> 
+          <Button 
+            onClick={handleForgotPasswordSubmit} 
+            variant="contained" 
+            disabled={forgotPasswordLoading || !forgotPasswordEmail}
+            sx={{ 
+              ...glassStyles.button,
+              textTransform: 'none',
+            }} 
+          >
+            {forgotPasswordLoading ? <CircularProgress size={24} sx={{ color: 'white' }}/> : 'Send Reset Link'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
       <LoginFooter />
     </Box>
   );
 };
-
 
 export default Login;

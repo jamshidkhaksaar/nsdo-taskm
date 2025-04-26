@@ -10,9 +10,16 @@ import { UpdateSecuritySettingsDto } from './dto/update-security-settings.dto';
 import { UpdateBackupSettingsDto } from './dto/update-backup-settings.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { Setting } from './entities/setting.entity';
+import { UpdateSettingsDto } from './dto/update-settings.dto';
+import { SettingDto } from './dto/update-settings.dto';
+import { Logger } from '@nestjs/common';
+import * as SendGrid from '@sendgrid/mail';
 
 @Injectable()
 export class SettingsService {
+  private readonly logger = new Logger(SettingsService.name);
+
   constructor(
     @InjectRepository(ApiSettings)
     private apiSettingsRepository: Repository<ApiSettings>,
@@ -25,6 +32,9 @@ export class SettingsService {
     
     @InjectRepository(NotificationSettings)
     private notificationSettingsRepository: Repository<NotificationSettings>,
+    
+    @InjectRepository(Setting)
+    private settingsRepository: Repository<Setting>,
   ) {}
 
   // Initialize settings if they don't exist (called when app starts)
@@ -277,5 +287,134 @@ export class SettingsService {
   // Helper method to generate a random API key
   private generateRandomApiKey(): string {
     return `key_${uuidv4().replace(/-/g, '')}`;
+  }
+
+  async getAllSettings(): Promise<Setting[]> {
+    return this.settingsRepository.find();
+  }
+
+  async getSetting(key: string): Promise<Setting | null> {
+    return this.settingsRepository.findOneBy({ key });
+  }
+
+  async getSettingValue(key: string): Promise<string | null> {
+    const setting = await this.getSetting(key);
+    return setting ? setting.value : null;
+  }
+
+  async updateSettings(updateSettingsDto: UpdateSettingsDto): Promise<Setting[]> {
+    this.logger.debug(`Entering updateSettings with DTO: ${JSON.stringify(updateSettingsDto)}`);
+    const updatedSettings: Setting[] = [];
+
+    if (!updateSettingsDto || !Array.isArray(updateSettingsDto.settings)) {
+      this.logger.error('Invalid settings data format received.', updateSettingsDto);
+      throw new Error('Invalid settings data format. Expected an object with a "settings" array.');
+    }
+    
+    this.logger.debug(`Number of settings to process: ${updateSettingsDto.settings.length}`);
+
+    for (const settingDto of updateSettingsDto.settings) {
+      this.logger.debug(`Processing setting DTO: ${JSON.stringify(settingDto)}`);
+      if (!settingDto || !settingDto.key) {
+        this.logger.warn('Skipping setting DTO due to missing key.', settingDto);
+        continue;
+      }
+      
+      let setting = await this.settingsRepository.findOne({ where: { key: settingDto.key } });
+      this.logger.debug(`Found existing setting for key ${settingDto.key}: ${!!setting}`);
+      
+      if (setting) {
+        this.logger.debug(`Updating setting ${settingDto.key} from ${setting.value} to ${settingDto.value}`);
+        setting.value = settingDto.value;
+        if (settingDto.description !== undefined) {
+          setting.description = settingDto.description;
+        }
+      } else {
+        this.logger.debug(`Creating new setting for key ${settingDto.key} with value ${settingDto.value}`);
+        setting = this.settingsRepository.create(settingDto);
+      }
+      
+      try {
+        const savedSetting = await this.settingsRepository.save(setting);
+        this.logger.debug(`Successfully saved setting for key ${settingDto.key}`);
+        updatedSettings.push(savedSetting);
+      } catch(dbError) {
+          this.logger.error(`Database error saving setting for key ${settingDto.key}: ${dbError.message}`, dbError.stack);
+          throw dbError;
+      }
+    }
+    
+    this.logger.debug(`Finished updateSettings. Returning ${updatedSettings.length} updated settings.`);
+    return updatedSettings;
+  }
+
+  // Consider adding methods to get specific, strongly-typed settings
+  async getSendGridApiKey(): Promise<string | null> {
+    return this.getSettingValue('SENDGRID_API_KEY');
+  }
+
+  async getEmailFromAddress(): Promise<string | null> {
+    // Example: Fetch a default FROM address
+    return this.getSettingValue('EMAIL_FROM_ADDRESS'); 
+  }
+
+  // You might want a method to get all settings as a key-value object for easier use
+  async getAllSettingsAsMap(): Promise<Record<string, string>> {
+    const settings = await this.getAllSettings();
+    const settingsMap: Record<string, string> = {};
+    settings.forEach(s => {
+      settingsMap[s.key] = s.value;
+    });
+    return settingsMap;
+  }
+
+  // Method to test SendGrid configuration using @sendgrid/mail
+  async testSendGridSettings(recipientEmail: string): Promise<{ success: boolean; message: string }> {
+    this.logger.debug(`Attempting to send test email to ${recipientEmail} via @sendgrid/mail.`);
+    
+    const apiKey = await this.getSettingValue('SENDGRID_API_KEY');
+    const fromAddress = await this.getSettingValue('EMAIL_FROM_ADDRESS');
+
+    if (!apiKey) {
+      this.logger.error('SendGrid API Key is not configured.');
+      return { success: false, message: 'SendGrid API Key is not configured in settings.' };
+    }
+    if (!fromAddress) {
+      this.logger.error('Default From Email Address is not configured.');
+      return { success: false, message: 'Default From Email Address is not configured in settings.' };
+    }
+
+    SendGrid.setApiKey(apiKey); // Set the API key for this request
+    this.logger.debug(`Using From Address: ${fromAddress}`);
+    this.logger.debug(`Using SendGrid API Key: SG.***${apiKey.slice(-4)}`); 
+
+    const msg = {
+      to: recipientEmail,
+      from: fromAddress,
+      subject: 'TaskM SendGrid Test Email',
+      text: 'This is a test email sent from the TaskM application using your configured SendGrid settings.',
+      html: '<p>This is a test email sent from the TaskM application using your configured SendGrid settings.</p>',
+    };
+
+    try {
+      await SendGrid.send(msg);
+      this.logger.log(`Successfully sent SendGrid test email to ${recipientEmail} via @sendgrid/mail.`);
+      return { success: true, message: `Test email successfully sent to ${recipientEmail}.` };
+    } catch (error) {
+      this.logger.error(`Failed to send SendGrid test email to ${recipientEmail} via @sendgrid/mail: ${error.message}`, error.stack);
+      let errorMessage = 'Failed to send test email. Check backend logs for details.';
+      // Try to extract specific SendGrid errors if available
+      if (error.response?.body?.errors) {
+          errorMessage = `SendGrid Error: ${error.response.body.errors.map(e => e.message).join(', ')}`;
+      } else if (error.code === 'ENOTFOUND') {
+          errorMessage = 'Network error: Could not reach SendGrid. Check DNS and connectivity.';
+      } else if (error.message.includes('Forbidden') || error.statusCode === 403) {
+          errorMessage = 'SendGrid Error: Authentication failed. Check your API Key permissions.';
+      } else if (error.statusCode === 401) {
+           errorMessage = 'SendGrid Error: Authentication failed. Check your API Key.';
+      }
+      
+      return { success: false, message: errorMessage };
+    }
   }
 } 

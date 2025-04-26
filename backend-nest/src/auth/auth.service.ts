@@ -5,6 +5,9 @@ import { UsersService } from '../users/users.service';
 import { LoginCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { User } from '../users/entities/user.entity';
+import { MailService } from '../mail/mail.service';
+import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +17,8 @@ export class AuthService {
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
     private jwtService: JwtService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async validateUser(username: string, password: string): Promise<User | null> {
@@ -132,6 +137,48 @@ export class AuthService {
     } catch (error) {
       this.logger.error(`Token refresh error: ${error.message}`, error.stack);
       throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  async handleForgotPasswordRequest(email: string): Promise<{ message: string }> {
+    this.logger.log(`Forgot password request received for email: ${email}`);
+    try {
+      const user = await this.usersService.findByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists - security best practice
+        this.logger.warn(`Forgot password request for non-existent email: ${email}`);
+        return { message: 'If an account with this email exists, a password reset link has been sent.' };
+      }
+
+      // Generate a secure, unique, time-limited reset token (implement proper storage/validation)
+      // For demo purposes, using a simple UUID - **REPLACE with secure implementation**
+      const resetToken = uuidv4();
+      const expiryMinutes = 30; // Token expiry time
+      const expiryTime = new Date(Date.now() + expiryMinutes * 60000);
+      
+      // TODO: Securely store the resetToken and expiryTime associated with user.id
+      // Example: await this.passwordResetTokenRepository.save({ userId: user.id, token: hashedToken, expiresAt: expiryTime });
+      this.logger.log(`Generated reset token ${resetToken} for user ${user.username} (expires: ${expiryTime.toISOString()}) - **STORE SECURELY**`);
+
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
+      
+      this.logger.log(`Sending password reset email to ${user.email} for user ${user.username}`);
+      await this.mailService.sendTemplatedEmail(
+        user.email, 
+        'PASSWORD_RESET_REQUEST', 
+        {
+          username: user.username,
+          resetLink: resetLink,
+        }
+      );
+
+      return { message: 'If an account with this email exists, a password reset link has been sent.' };
+
+    } catch (error) {
+      this.logger.error(`Error handling forgot password request for ${email}: ${error.message}`, error.stack);
+      // Return a generic message even on internal errors
+      return { message: 'An error occurred while processing your request. Please try again later.' };
     }
   }
 } 

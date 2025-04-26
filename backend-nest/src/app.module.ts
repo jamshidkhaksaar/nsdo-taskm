@@ -32,12 +32,16 @@ import { ApiSettings } from './settings/entities/api-settings.entity';
 import { BackupSettings } from './settings/entities/backup-settings.entity';
 import { NotificationSettings } from './settings/entities/notification-settings.entity';
 import { SecuritySettings } from './settings/entities/security-settings.entity';
+import { Setting } from './settings/entities/setting.entity';
 import { ActivityLog } from './admin/entities/activity-log.entity';
 import { Backup } from './backup/entities/backup.entity';
 import { Province } from './provinces/entities/province.entity';
+import { Notification } from './notifications/entities/notification.entity';
 import { AnalyticsModule } from './analytics/analytics.module';
 
 import { ProvinceModule } from './provinces/province.module';
+import { EmailTemplatesModule } from './email-templates/email-templates.module';
+import { EmailTemplate } from './email-templates/entities/email-template.entity';
 
 @Module({
   imports: [
@@ -63,9 +67,12 @@ import { ProvinceModule } from './provinces/province.module';
           BackupSettings,
           NotificationSettings,
           SecuritySettings,
+          Setting,
           ActivityLog,
           Backup,
           Province,
+          EmailTemplate,
+          Notification,
         ],
         synchronize: configService.get('DATABASE_SYNC') === 'true',
         logging: true,
@@ -87,17 +94,9 @@ import { ProvinceModule } from './provinces/province.module';
     MailModule,
     NotesModule,
     AnalyticsModule,
-    // BullModule.forRoot({
-    //   redis: {
-    //     host: 'localhost',
-    //     port: 6379,
-    //   },
-    // }),
-    // BullModule.registerQueue({
-    //   name: 'default',
-    // }),
     TerminusModule,
     ProvinceModule,
+    EmailTemplatesModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

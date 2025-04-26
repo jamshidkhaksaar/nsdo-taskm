@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { ActivityLogService } from '../admin/services/activity-log.service';
+import { MailService } from '../mail/mail.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UsersService {
@@ -14,6 +16,8 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @Inject(forwardRef(() => ActivityLogService))
     private activityLogService: ActivityLogService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async findOne(username: string): Promise<User> {
@@ -103,6 +107,26 @@ export class UsersService {
       // Save the user to the database
       const savedUser = await this.usersRepository.save(user);
       this.logger.log(`Successfully created user with username: ${username}, ID: ${savedUser.id}`);
+
+      // Send Welcome Email
+      try {
+        const loginLink = this.configService.get<string>('FRONTEND_URL') + '/login';
+        await this.mailService.sendTemplatedEmail(
+          savedUser.email,
+          'WELCOME_EMAIL',
+          {
+            username: savedUser.username,
+            password: password, // Send the original password for the first login
+            loginLink: loginLink,
+          }
+        );
+        this.logger.log(`Welcome email sent successfully to ${savedUser.email}`);
+      } catch (emailError) {
+        this.logger.error(`Failed to send welcome email to ${savedUser.email}: ${emailError.message}`, emailError.stack);
+        // Decide if you want to throw an error here or just log it
+        // For now, we log the error but don't block user creation
+      }
+
       return savedUser;
     } catch (error) {
       this.logger.error(`Error creating user with username ${username}: ${error.message}`, error.stack);
@@ -226,6 +250,22 @@ export class UsersService {
     } catch (error) {
       this.logger.error(`Error updating user with ID ${id}: ${error.message}`, error.stack);
       throw error;
+    }
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    try {
+      this.logger.log(`Looking for user with email: ${email}`);
+      const user = await this.usersRepository.findOneBy({ email });
+      if (user) {
+        this.logger.log(`Found user with email ${email}, ID: ${user.id}`);
+      } else {
+        this.logger.log(`User with email ${email} not found.`);
+      }
+      return user;
+    } catch (error) {
+      this.logger.error(`Error finding user by email ${email}: ${error.message}`, error.stack);
+      return null; // Return null on error to avoid crashing the flow
     }
   }
 } 
