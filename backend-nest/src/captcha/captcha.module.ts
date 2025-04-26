@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
-import { ConfigModule } from '@nestjs/config'; // Import ConfigModule if not global
 import { CaptchaService } from './captcha.service';
 
 @Module({
   imports: [
-    HttpModule, // Import HttpModule for HttpService dependency
-    ConfigModule, // ConfigService is used by CaptchaService
+    ConfigModule, // Import ConfigModule to use ConfigService
+    HttpModule,   // Import HttpModule to use HttpService
   ],
   providers: [CaptchaService],
-  exports: [CaptchaService], // Export service for other modules to use
+  exports: [CaptchaService], // Export CaptchaService so other modules can use it
 })
 export class CaptchaModule {} 

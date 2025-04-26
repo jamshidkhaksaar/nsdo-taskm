@@ -24,10 +24,12 @@ import { MailModule } from './mail/mail.module';
 import { NotesModule } from './notes/notes.module';
 import { Notification } from './notifications/entities/notification.entity';
 import { AnalyticsModule } from './analytics/analytics.module';
-import { NotificationsModule } from './notifications/notifications.module';
+import { CaptchaModule } from './captcha/captcha.module';
+import { Province } from './provinces/entities/province.entity';
+import { EmailTemplate } from './email-templates/entities/email-template.entity';
 import { ProvinceModule } from './provinces/province.module';
 import { EmailTemplatesModule } from './email-templates/email-templates.module';
-import { EmailTemplate } from './email-templates/entities/email-template.entity';
+import { NotificationsModule } from './notifications/notifications.module';
 
 // Import all entity classes directly
 import { User } from './users/entities/user.entity';
@@ -41,14 +43,6 @@ import { SecuritySettings } from './settings/entities/security-settings.entity';
 import { Setting } from './settings/entities/setting.entity';
 import { ActivityLog } from './admin/entities/activity-log.entity';
 import { Backup } from './backup/entities/backup.entity';
-import { Province } from './provinces/entities/province.entity';
-import { Notification } from './notifications/entities/notification.entity';
-import { AnalyticsModule } from './analytics/analytics.module';
-
-import { ProvinceModule } from './provinces/province.module';
-import { EmailTemplatesModule } from './email-templates/email-templates.module';
-import { EmailTemplate } from './email-templates/entities/email-template.entity';
-import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -105,6 +99,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ProvinceModule,
     EmailTemplatesModule,
     NotificationsModule,
+    CaptchaModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

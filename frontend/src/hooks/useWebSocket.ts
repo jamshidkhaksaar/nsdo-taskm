@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import io, { Socket } from 'socket.io-client';
+import { toast } from 'react-toastify';
 
 // Define the structure of the notification payload expected from the backend
 export interface NotificationPayload {
@@ -86,6 +87,9 @@ const useWebSocket = (token: string | null): UseWebSocketReturn => {
       setLastNotification(data);
       // Add to the list of notifications (e.g., keep last 10)
       setNotifications(prev => [data, ...prev.slice(0, 9)]);
+
+      // Display toast notification
+      toast.info(data.message || 'New notification received');
     });
 
     // --- Cleanup ---

@@ -1,6 +1,7 @@
-import { Body, Controller, Post, UnauthorizedException, Logger } from '@nestjs/common';
+import { Body, Controller, Post, UnauthorizedException, Logger, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginCredentialsDto } from './dto/auth-credentials.dto';
+import { LoginTwoFactorDto } from './dto/login-two-factor.dto';
 import { TwoFactorService } from './two-factor.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -10,6 +11,7 @@ class RequestEmailCodeDto {
   password: string;
 }
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -22,93 +24,45 @@ export class AuthController {
   }
 
   @Post('/signin')
+  @ApiOperation({ summary: 'Sign in user (handles 2FA check internally)' })
+  @ApiResponse({ status: 200, description: 'Login successful or 2FA required.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized (Invalid Credentials / CAPTCHA / 2FA code).' })
   async signIn(
     @Body() loginCredentialsDto: LoginCredentialsDto,
-  ): Promise<{ access: string | null, refresh: string | null, user: any | null, need_2fa?: boolean, method?: string }> {
-    this.logger.log(`[DEBUG] >>> signIn controller method entered`);
-    this.logger.log(`[DEBUG] Entered signIn with: ${JSON.stringify(loginCredentialsDto)}`);
+  ): Promise<any> {
+    this.logger.log(`[Controller] POST /auth/signin`);
     try {
-      // Check if the user has 2FA enabled and if the browser is remembered
-      const user = await this.authService.validateUser(
-        loginCredentialsDto.username, 
-        loginCredentialsDto.password
-      );
-      
-      if (user && user.twoFactorEnabled) {
-        // If fingerprint is provided, check if it's a remembered browser
-        if (loginCredentialsDto.fingerprint && user.rememberedBrowsers?.length > 0) {
-          const isBrowserRemembered = await this.twoFactorService.checkRememberedBrowser(
-            user.id, 
-            loginCredentialsDto.fingerprint
-          );
-          
-          if (isBrowserRemembered) {
-            this.logger.log(`Browser is remembered for user ${user.username}, skipping 2FA`);
-            // Skip 2FA for remembered browsers
-            return this.authService.signIn(loginCredentialsDto);
-          }
-        }
-        
-        // If verification code is provided, verify it
-        if (loginCredentialsDto.verification_code) {
-          const isCodeValid = await this.twoFactorService.verify(
-            user.id, 
-            loginCredentialsDto.verification_code,
-            loginCredentialsDto.remember_me === true
-          );
-          
-          if (isCodeValid) {
-            this.logger.log(`2FA verification successful for user ${user.username}`);
-            return this.authService.signIn(loginCredentialsDto);
-          } else {
-            this.logger.warn(`Invalid 2FA verification code for user ${user.username}`);
-            throw new UnauthorizedException('Invalid verification code');
-          }
-        }
-        
-        // If no verification code is provided, return need_2fa flag
-        this.logger.log(`2FA required for user ${user.username}, method: ${user.twoFactorMethod}`);
-        return { 
-          access: null, 
-          refresh: null, 
-          user: null, 
-          need_2fa: true,
-          method: user.twoFactorMethod || 'app'
-        };
-      }
-      
-      // No 2FA required, proceed with normal login
-      return this.authService.signIn(loginCredentialsDto);
+      const result = await this.authService.signIn(loginCredentialsDto);
+      return result;
     } catch (error) {
-      this.logger.error(`Login error: ${error.message}`, error.stack);
+      this.logger.error(`Login error in controller: ${error.message}`, error.stack);
       throw error;
     }
   }
 
-  @Post('/login')
-  async login(
-    @Body() loginCredentialsDto: LoginCredentialsDto,
-  ): Promise<{ access: string | null, refresh: string | null, user: any | null }> {
-    this.logger.log(`[DEBUG] Entered login with: ${JSON.stringify(loginCredentialsDto)}`);
+  @Post('/login/2fa')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify 2FA code and complete login' })
+  @ApiResponse({ status: 200, description: '2FA Verification successful, tokens returned.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized (Invalid 2FA code or user session).' })
+  async login2FA(
+    @Body() loginTwoFactorDto: LoginTwoFactorDto
+  ): Promise<any> {
+    this.logger.log(`[Controller] POST /auth/login/2fa for userId: ${loginTwoFactorDto.userId}`);
     try {
-      this.logger.log(
-        `Login attempt for user: ${loginCredentialsDto.username}`
-      );
-      const result = await this.authService.signIn(loginCredentialsDto);
-      this.logger.log(
-        `Login successful for user: ${loginCredentialsDto.username}`
+      const result = await this.authService.login2FA(
+        loginTwoFactorDto.userId,
+        loginTwoFactorDto.verificationCode
       );
       return result;
     } catch (error) {
-      this.logger.error(
-        `Login error for user ${loginCredentialsDto.username}: ${error.message}`,
-        error.stack
-      );
+      this.logger.error(`2FA Login error in controller: ${error.message}`, error.stack);
       throw error;
     }
   }
 
   @Post('/refresh')
+  @ApiOperation({ summary: 'Refresh access token using refresh token' })
   refresh(@Body() body: { refresh_token: string }): Promise<{ access: string, refresh: string }> {
     return this.authService.refreshToken(body.refresh_token);
   }
@@ -116,23 +70,13 @@ export class AuthController {
   @Post('/request-email-code')
   async requestEmailCode(@Body() requestEmailCodeDto: RequestEmailCodeDto): Promise<{ success: boolean, message: string }> {
     try {
-      // Validate user credentials first
       const user = await this.authService.validateUser(
         requestEmailCodeDto.username, 
         requestEmailCodeDto.password
       );
-      
-      if (!user) {
-        throw new UnauthorizedException('Invalid credentials');
-      }
-      
-      // Send verification code via email
+      if (!user) throw new UnauthorizedException('Invalid credentials');
       await this.twoFactorService.sendEmailCode(user.id, user.email);
-      
-      return { 
-        success: true, 
-        message: 'Verification code sent to your email' 
-      };
+      return { success: true, message: 'Verification code sent to your email' };
     } catch (error) {
       this.logger.error(`Email code request error: ${error.message}`, error.stack);
       throw error;
@@ -145,7 +89,6 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid email format.' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
     this.logger.log(`Forgot password request for email: ${forgotPasswordDto.email}`);
-    // Delegate the logic to AuthService
     return this.authService.handleForgotPasswordRequest(forgotPasswordDto.email);
   }
 } 

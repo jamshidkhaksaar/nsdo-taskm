@@ -10,14 +10,32 @@ import UsersPage from './pages/Users';
 import ProvincesPage from './pages/ProvincesPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import React, { Suspense } from 'react';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { useWebSocketNotifications } from './hooks/useWebSocketNotifications';
 
 // Explicitly import Login for fallback
 import Login from './pages/Login';
 
 const App: React.FC = () => {
+  // Call the hook to establish connection and listen for notifications
+  useWebSocketNotifications();
+
   return (
     <Router>
       <ThemeProvider theme={theme}>
+        <ToastContainer 
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="colored" 
+        />
         <Routes>
           <Route path="/login" element={<Suspense fallback={<div>Loading login page...</div>}><Login /></Suspense>} />
           <Route 

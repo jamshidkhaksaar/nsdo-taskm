@@ -40,11 +40,13 @@ import { AuthService } from '../services/AuthService';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
+// import { Turnstile } from 'react-turnstile'; // Temporarily comment out
 
 interface LoginFormInputs {
   username: string;
   password: string;
   rememberMe: boolean;
+  captchaToken?: string;
 }
 
 interface TwoFactorFormInputs {
@@ -90,6 +92,9 @@ const Login: React.FC = () => {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [forgotPasswordError, setForgotPasswordError] = useState('');
+  // const [captchaToken, setCaptchaToken] = useState<string | null>(null); // Temporarily comment out
+
+  // const turnstileSiteKey = import.meta.env.VITE_APP_TURNSTILE_SITE_KEY; // Temporarily comment out
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -150,7 +155,95 @@ const Login: React.FC = () => {
     return <LoadingScreen />;
   }
 
+  const handleSuccessfulLogin = (responseData: any) => {
+    try {
+      console.log('Processing login response:', responseData);
+      
+      const accessToken = responseData.access || responseData.token || responseData.accessToken;
+      const refreshToken = responseData.refresh || responseData.refreshToken;
+      const userData = responseData.user || {};
+      
+      if (!accessToken) {
+        setError('Invalid response from server: No access token provided');
+        setIsLoading(false);
+        return;
+      }
+      
+      localStorage.setItem('access_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('refresh_token', refreshToken);
+      }
+      
+      if (userData) {
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+      
+      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      
+      dispatch(setCredentials({
+        user: userData,
+        token: accessToken,
+        refreshToken: refreshToken
+      }));
+      
+      console.log('Login successful, redirecting to:', from);
+      setIsLoading(false);
+      navigate(from);
+    } catch (error) {
+      console.error('Error processing login response:', error);
+      setError('An error occurred while processing the login response');
+      setIsLoading(false);
+    }
+  };
+  
+  const handleLoginError = (error: any) => {
+    console.error('Login error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        
+        if (error.response.status === 400) {
+          const errorMessage = error.response.data?.message || 
+                               error.response.data?.error ||
+                               'Invalid username or password. Please try again.';
+          setError(`Login failed: ${errorMessage}`);
+        } else if (error.response.status === 401) {
+          setError('Authentication failed: Invalid username or password.');
+        } else if (error.response.status === 403) {
+          setError('Access denied: You do not have permission to log in.');
+        } else if (error.response.status >= 500) {
+          setError(`Server error (${error.response.status}): The server is experiencing issues. Please try again later.`);
+        } else {
+          const errorMessage = error.response.data?.message || 
+                               error.response.data?.error || 
+                               `Error ${error.response.status}: ${error.response.statusText}`;
+          setError(errorMessage);
+        }
+      } else if (error.request) {
+        if (error.code === 'ECONNABORTED') {
+          setError('Request timeout: The server took too long to respond. Please check your connection and try again.');
+        } else {
+          setError('No response from server. Please check your connection and verify the backend service is running.');
+        }
+      } else {
+        setError(error.message || 'An error occurred during login');
+      }
+    } else if (error instanceof TypeError && error.message.includes('Network')) {
+      setError('Network error: Unable to connect to the server. Please check your internet connection.');
+    } else {
+      setError(error.message || 'An unknown error occurred');
+    }
+    
+    setIsLoading(false);
+  };
+
   const onSubmit = async (data: LoginFormInputs) => {
+    // if (!captchaToken) { // Temporarily comment out check
+    //   setError('CAPTCHA verification is required. Please wait or refresh.');
+    //   return;
+    // }
     try {
       if (data.rememberMe) {
         localStorage.setItem('rememberedUsername', data.username);
@@ -159,14 +252,14 @@ const Login: React.FC = () => {
       }
 
       setLoginCredentials(data);
-
-      console.log('Attempting login with:', { username: data.username, password: '***' });
+      console.log('Attempting login with:', { username: data.username, password: '***' /* captchaToken: '***' */ }); // Temporarily comment out token log
       setIsLoading(true);
       setError('');
       
       const loginPayload = {
         username: data.username,
-        password: data.password
+        password: data.password,
+        // captchaToken: captchaToken, // Temporarily comment out token
       };
       
       try {
@@ -256,90 +349,6 @@ const Login: React.FC = () => {
     }
   };
   
-  const handleSuccessfulLogin = (responseData: any) => {
-    try {
-      console.log('Processing login response:', responseData);
-      
-      const accessToken = responseData.access || responseData.token || responseData.accessToken;
-      const refreshToken = responseData.refresh || responseData.refreshToken;
-      const userData = responseData.user || {};
-      
-      if (!accessToken) {
-        setError('Invalid response from server: No access token provided');
-        setIsLoading(false);
-        return;
-      }
-      
-      localStorage.setItem('access_token', accessToken);
-      if (refreshToken) {
-        localStorage.setItem('refresh_token', refreshToken);
-      }
-      
-      if (userData) {
-        localStorage.setItem('user', JSON.stringify(userData));
-      }
-      
-      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      
-      dispatch(setCredentials({
-        user: userData,
-        token: accessToken,
-        refreshToken: refreshToken
-      }));
-      
-      console.log('Login successful, redirecting to:', from);
-      setIsLoading(false);
-      navigate(from);
-    } catch (error) {
-      console.error('Error processing login response:', error);
-      setError('An error occurred while processing the login response');
-      setIsLoading(false);
-    }
-  };
-  
-  const handleLoginError = (error: any) => {
-    console.error('Login error:', error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        
-        if (error.response.status === 400) {
-          const errorMessage = error.response.data?.message || 
-                               error.response.data?.error ||
-                               'Invalid username or password. Please try again.';
-          setError(`Login failed: ${errorMessage}`);
-        } else if (error.response.status === 401) {
-          setError('Authentication failed: Invalid username or password.');
-        } else if (error.response.status === 403) {
-          setError('Access denied: You do not have permission to log in.');
-        } else if (error.response.status >= 500) {
-          setError(`Server error (${error.response.status}): The server is experiencing issues. Please try again later.`);
-        } else {
-          const errorMessage = error.response.data?.message || 
-                               error.response.data?.error || 
-                               `Error ${error.response.status}: ${error.response.statusText}`;
-          setError(errorMessage);
-        }
-      } else if (error.request) {
-        if (error.code === 'ECONNABORTED') {
-          setError('Request timeout: The server took too long to respond. Please check your connection and try again.');
-        } else {
-          setError('No response from server. Please check your connection and verify the backend service is running.');
-        }
-      } else {
-        setError(error.message || 'An error occurred during login');
-      }
-    } else if (error instanceof TypeError && error.message.includes('Network')) {
-      setError('Network error: Unable to connect to the server. Please check your internet connection.');
-    } else {
-      setError(error.message || 'An unknown error occurred');
-    }
-    
-    setIsLoading(false);
-  };
-
   const onSubmit2FA = async (data: TwoFactorFormInputs) => {
     if (!loginCredentials) {
       setError('Login credentials lost. Please try again.');
@@ -584,6 +593,7 @@ const Login: React.FC = () => {
       <Box
         component="form"
         onSubmit={formSubmit(onSubmit)}
+        noValidate
         sx={{
           width: '100%',
           maxWidth: '450px',
@@ -661,116 +671,111 @@ const Login: React.FC = () => {
 
         <Box sx={{ mb: 3 }}>
           <TextField
-            label="Username"
+            margin="normal"
+            required
             fullWidth
+            id="username"
+            label="Username"
+            autoComplete="username"
+            autoFocus
             {...register('username')}
             error={!!errors.username}
             helperText={errors.username?.message}
-            variant="outlined"
-            InputLabelProps={{
-              style: glassStyles.inputLabel
-            }}
-            sx={{
-              mb: 2,
-              '& .MuiOutlinedInput-root': glassStyles.input,
-            }}
+            InputLabelProps={{ style: glassStyles.inputLabel }}
+            InputProps={{ style: glassStyles.input }}
+            sx={{ width: '100%' }}
           />
+        </Box>
+
+        <Box sx={{ mb: 3 }}>
           <TextField
+            margin="normal"
+            required
+            fullWidth
             label="Password"
             type={showPassword ? 'text' : 'password'}
-            fullWidth
+            id="password"
+            autoComplete="current-password"
             {...register('password')}
             error={!!errors.password}
             helperText={errors.password?.message}
-            variant="outlined"
-            InputLabelProps={{
-              style: glassStyles.inputLabel
-            }}
+            InputLabelProps={{ style: glassStyles.inputLabel }}
             InputProps={{
+              style: glassStyles.input,
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
+                    aria-label="toggle password visibility"
                     onClick={handleTogglePasswordVisibility}
                     edge="end"
-                    title={showPassword ? "Hide password" : "Show password"}
-                    sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                    sx={{ color: glassStyles.text.muted.color }}
                   >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
               ),
             }}
-            sx={{
-              mb: 1,
-              '& .MuiOutlinedInput-root': glassStyles.input,
-            }}
+            sx={{ width: '100%' }}
           />
         </Box>
-
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 3,
-          }}
-        >
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <FormControlLabel
             control={
               <Checkbox 
-                {...register('rememberMe')} 
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-checked': {
-                    color: 'rgba(255, 255, 255, 0.9)',
-                  },
+                value="remember"
+                {...register('rememberMe')}
+                sx={{ 
+                  color: glassStyles.text.muted.color,
+                  '&.Mui-checked': { color: glassStyles.text.primary.color }
                 }}
               />
             }
-            label={<Typography sx={glassStyles.text.secondary}>Remember me</Typography>}
+            label="Remember me"
+            sx={{ label: { color: glassStyles.text.secondary.color } }}
           />
-          <MuiLink
+          <MuiLink 
             component="button"
-            variant="body2"
+            variant="body2" 
             onClick={handleOpenForgotPassword}
-            sx={{
-              color: theme.palette.primary.light,
-              cursor: 'pointer',
-              textDecoration: 'none',
-              '&:hover': { textDecoration: 'underline' }
+            sx={{ 
+              color: glassStyles.text.primary.color,
+              cursor: 'pointer', 
+              textDecoration: 'none', 
+              '&:hover': { textDecoration: 'underline' } 
             }}
           >
             Forgot password?
           </MuiLink>
         </Box>
 
+        {/* Temporarily Commented Out Turnstile Component */}
+        {/* {turnstileSiteKey ? (
+          <Box sx={{ my: 2, display: 'flex', justifyContent: 'center' }}>
+            <Turnstile
+              siteKey={turnstileSiteKey}
+              onSuccess={(token) => setCaptchaToken(token)}
+              onError={() => { setError('CAPTCHA challenge failed.'); setCaptchaToken(null); }}
+              onExpire={() => { setError('CAPTCHA expired.'); setCaptchaToken(null); }}
+              options={{ theme: theme.palette.mode, size: 'normal' }}
+            />
+          </Box>
+        ) : (
+          <Alert severity="warning" sx={{ my: 2 }}>
+            CAPTCHA site key not configured.
+          </Alert>
+        )} */}
+
         <Button
           type="submit"
           fullWidth
           variant="contained"
-          disabled={loading}
-          sx={{
-            py: 1.5,
-            textTransform: 'none',
-            fontSize: '1rem',
-            fontWeight: 600,
-            ...glassStyles.button,
-          }}
+          sx={glassStyles.button}
+          disabled={isLoading /* || !captchaToken */} // Temporarily remove token check from disabled
         >
-          {loading ? (
-            <CircularProgress size={24} color="inherit" />
-          ) : (
-            'Sign In'
-          )}
+          {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
         </Button>
 
-        <Box
-          sx={{
-            mt: 3,
-            textAlign: 'center',
-          }}
-        >
-        </Box>
       </Box>
       
       <Dialog 

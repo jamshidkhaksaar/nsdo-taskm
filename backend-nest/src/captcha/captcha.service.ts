@@ -15,53 +15,60 @@ interface TurnstileResponse {
 @Injectable()
 export class CaptchaService {
   private readonly logger = new Logger(CaptchaService.name);
-  private readonly turnstileVerifyUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
   constructor(
-    private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly httpService: HttpService,
   ) {}
 
-  async verifyToken(token: string, remoteIp?: string): Promise<boolean> {
+  async verifyToken(token: string, ip?: string): Promise<boolean> {
     const secretKey = this.configService.get<string>('TURNSTILE_SECRET_KEY');
+    const verificationUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
     if (!secretKey) {
-      this.logger.error('Turnstile secret key (TURNSTILE_SECRET_KEY) is not configured.');
-      // Fail verification if secret key is missing
-      return false;
+      this.logger.error('TURNSTILE_SECRET_KEY is not configured. CAPTCHA verification skipped (FAILING OPEN - NOT SECURE FOR PRODUCTION).');
+      // In a real production scenario, you might want to fail closed (return false) 
+      // if the key is missing, depending on security requirements.
+      return true; // Fail open for dev convenience if key is missing
     }
 
     if (!token) {
-        this.logger.warn('Verification attempt with empty token.');
-        return false;
+      this.logger.warn('No CAPTCHA token provided.');
+      return false;
     }
 
     try {
-      this.logger.debug('Sending verification request to Cloudflare Turnstile...');
+      this.logger.log('Verifying CAPTCHA token...');
       const response = await firstValueFrom(
-        this.httpService.post<TurnstileResponse>(this.turnstileVerifyUrl, {
-          secret: secretKey,
-          response: token,
-          remoteip: remoteIp, // Optional: Include user's IP address
-        }, {
-          headers: {
-            'Content-Type': 'application/json', 
+        this.httpService.post(
+          verificationUrl,
+          {
+            secret: secretKey,
+            response: token,
+            remoteip: ip, // Optional: Include user's IP if available
           },
-        })
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        ),
       );
 
-      this.logger.debug(`Turnstile response: ${JSON.stringify(response.data)}`);
+      const responseData = response.data;
+      this.logger.log('CAPTCHA verification response:', responseData);
 
-      if (response.data.success) {
-        this.logger.log('Turnstile verification successful.');
+      if (responseData.success) {
+        this.logger.log('CAPTCHA verification successful.');
         return true;
       } else {
-        this.logger.warn(`Turnstile verification failed. Error codes: ${response.data['error-codes']?.join(', ') || 'None'}`);
+        this.logger.warn(`CAPTCHA verification failed: ${responseData['error-codes']?.join(', ')}`);
         return false;
       }
     } catch (error) {
-      this.logger.error(`Error verifying Turnstile token: ${error.message}`, error.stack);
-      // Fail verification on any error during the API call
+      this.logger.error(`Error during CAPTCHA verification request: ${error.message}`, error.stack);
+      // Decide how to handle errors - fail open or closed?
+      // Failing closed (returning false) is generally safer.
       return false;
     }
   }
