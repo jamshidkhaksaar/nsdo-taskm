@@ -1,7 +1,14 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
-import { ActivityLogService } from '../services/activity-log.service';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  Inject,
+} from "@nestjs/common";
+import { Observable } from "rxjs";
+import { tap } from "rxjs/operators";
+import { ActivityLogService } from "../services/activity-log.service";
+import { ModuleRef } from "@nestjs/core";
 
 interface LoggingConfig {
   action: string;
@@ -29,31 +36,42 @@ export class ActivityLoggerInterceptor implements NestInterceptor {
         next: (data) => {
           // Success case - log activity with success status
           this.activityLogService.logFromRequest(
-            request, 
-            action, 
-            target, 
-            details, 
+            request,
+            action,
+            target,
+            details,
             targetId,
-            'success'
+            "success",
           );
         },
         error: (error) => {
           // Error case - log activity with error status
           this.activityLogService.logFromRequest(
-            request, 
-            action, 
-            target, 
-            `${details} - Failed: ${error.message}`, 
+            request,
+            action,
+            target,
+            `${details} - Failed: ${error.message}`,
             targetId,
-            'error'
+            "error",
           );
         },
-      })
+      }),
     );
   }
 }
 
-// Factory function to create interceptors with different configs
-export function createActivityLogInterceptor(config: LoggingConfig, activityLogService: ActivityLogService) {
-  return new ActivityLoggerInterceptor(activityLogService, config);
-} 
+// Factory provider to create ActivityLoggerInterceptor with the right dependencies
+export const ActivityLoggerInterceptorFactory = {
+  provide: "ACTIVITY_LOGGER_INTERCEPTOR",
+  useFactory: (
+    activityLogService: ActivityLogService,
+    config: LoggingConfig = {
+      action: "access",
+      target: "resource",
+      details: "Accessed resource",
+    },
+  ) => {
+    return new ActivityLoggerInterceptor(activityLogService, config);
+  },
+  inject: [ActivityLogService],
+};

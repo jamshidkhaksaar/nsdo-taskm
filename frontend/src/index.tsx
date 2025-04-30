@@ -2,7 +2,7 @@
 import './polyfills/dragDropPolyfill';
 import { StrictMode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
- 
+import { BrowserRouter } from 'react-router-dom';
 
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
@@ -24,7 +24,9 @@ root.render(
     <ErrorBoundary>
       <Provider store={store}>
         <QueryClientProvider client={queryClient}>
-          <App />
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
         </QueryClientProvider>
       </Provider>
     </ErrorBoundary>

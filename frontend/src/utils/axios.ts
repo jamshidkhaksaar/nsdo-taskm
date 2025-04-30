@@ -3,21 +3,16 @@ import { refreshAccessToken } from './authUtils';
 import { CONFIG } from './config';
 
 // Create axios instance with the correct base URL
-console.log('[CONFIG] API_URL:', CONFIG.API_URL);
+let baseURL = CONFIG.API_URL;
 
-// Force the baseURL to use the value from CONFIG + add the API prefix
-let baseURL = CONFIG.API_URL + '/api/v1'; // Append the global prefix
-
-// If baseURL is still empty or invalid, set a default (less likely now)
-if (!baseURL || baseURL === '/api/v1') { // Adjust default check slightly
-  baseURL = 'http://localhost:3001/api/v1';
-  console.log('[CONFIG] Using default baseURL:', baseURL);
+// If baseURL is still empty or invalid, set a default
+if (!baseURL) {
+  baseURL = 'http://localhost:3001';
 }
 
-console.log('[CONFIG] Final baseURL:', baseURL);
-
+// Create separate axios instances for regular API calls and auth endpoints
 const instance = axios.create({
-  baseURL: baseURL,
+  baseURL: `${baseURL}/api/v1`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -27,26 +22,29 @@ const instance = axios.create({
 
 // Function to ensure the auth token is properly set in the axios instance
 export const ensureAuthToken = () => {
-  const token = localStorage.getItem('access_token');
-  
-  if (token) {
-    instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    // Also update the global axios instance
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  try {
+    const token = localStorage.getItem('access_token');
     
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('Auth token loaded from localStorage and set in axios instance');
+    if (token) {
+      // Set token in the instance headers
+      instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Also update the global axios instance
+      import('axios').then(axiosModule => {
+        const globalAxios = axiosModule.default;
+        globalAxios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }).catch(() => {
+        // If dynamic import fails, fail silently
+      });
     }
-  } else if (process.env.NODE_ENV !== 'production') {
-    console.log('No auth token found in localStorage during initialization');
+  } catch (error) {
+    // If there's an error accessing localStorage (e.g., in SSR contexts)
+    // just continue without setting the token
   }
 };
 
 // Call immediately to set token on initialization
 ensureAuthToken();
-
-// Log that we're using real API requests
-console.log('[PRODUCTION] Using real API requests to:', baseURL);
 
 // Global variables to handle token refresh
 let isRefreshing = false;
@@ -79,70 +77,11 @@ instance.interceptors.request.use(
       // Also update the default headers for future requests
       instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
-      // Verify token format - ONLY trigger token refresh for expired tokens
-      // and do it asynchronously without blocking the request
-      try {
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const tokenPayload = JSON.parse(atob(tokenParts[1]));
-          const expirationTime = tokenPayload.exp * 1000; // Convert to milliseconds
-          
-          // If token is expired or about to expire (within 60 seconds), refresh it before proceeding
-          if (Date.now() >= expirationTime - 60000) {
-            console.log('[Token] Token expired or about to expire, refreshing before request');
-            try {
-              // Wait for token refresh to complete before proceeding with the request
-              const newToken = await refreshAccessToken();
-              if (newToken) {
-                // Update the request with the new token
-                config.headers['Authorization'] = `Bearer ${newToken}`;
-                console.log('[Token] Successfully refreshed token for request');
-              }
-            } catch (refreshError) {
-              console.error('[Token] Failed to refresh token before request:', refreshError);
-              // Continue with the request even if refresh fails
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[Token] Error parsing token:', error);
-        // Continue with the request even if token parsing fails
-      }
-    } else {
-      // Check if this is an authenticated route that should have a token
-      const isAuthenticatedRoute = config.url && 
-        !config.url.includes('/auth/login') && 
-        !config.url.includes('/auth/signin') && 
-        !config.url.includes('/auth/refresh') && 
-        !config.url.includes('/health');
-      
-      if (isAuthenticatedRoute) {
-        console.warn(`[Auth] No auth token available for authenticated route: ${config.url}`);
-        // Try to refresh the token if we have a refresh token
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          try {
-            console.log('[Auth] Attempting to refresh token before request');
-            // Wait for token refresh to complete
-            const newToken = await refreshAccessToken();
-            if (newToken) {
-              // Update the request with the new token
-              config.headers['Authorization'] = `Bearer ${newToken}`;
-              console.log('[Auth] Successfully refreshed token for request');
-            }
-          } catch (refreshError) {
-            console.error('[Auth] Token refresh failed:', refreshError);
-            // Continue with the request even if refresh fails
-          }
-        }
-      }
-    }
+    } 
     
     return config;
   },
   (error) => {
-    console.error('[Request Error]:', error);
     return Promise.reject(error);
   }
 );
@@ -155,17 +94,26 @@ instance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // If the error is not related to authentication, just reject it
-    if (!error.response || error.response.status !== 401) {
+    // If there's no response at all, it's a network error
+    if (!error.response) {
       return Promise.reject(error);
     }
     
-    // Don't retry if already a retry attempt or if it's a refresh token endpoint
+    // If the error is not a 401 Unauthorized, just reject it
+    if (error.response.status !== 401) {
+      return Promise.reject(error);
+    }
+    
+    // Avoid infinite loops - don't retry if:
+    // 1. It's already a retry attempt
+    // 2. It's a refresh token endpoint
+    // 3. It's any auth endpoint
     if (originalRequest._retry || 
-        (originalRequest.url && originalRequest.url.includes('/auth/refresh'))) {
-      console.log('[Auth] Token refresh failed or already retried, not logging out immediately');
-      // Instead of logging out immediately, allow navigation to continue
-      // The router guards will handle redirection if needed
+        (originalRequest.url && (
+          originalRequest.url.includes('/auth/refresh') || 
+          originalRequest.url.includes('/auth/login') ||
+          originalRequest.url.includes('/auth/logout')
+        ))) {
       return Promise.reject(error);
     }
     
@@ -174,29 +122,31 @@ instance.interceptors.response.use(
     
     // If we are already refreshing, add this request to the queue
     if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      })
-        .then(token => {
-          if (token) {
-            originalRequest.headers['Authorization'] = `Bearer ${token}`;
-            return instance(originalRequest);
-          }
-          return Promise.reject(error);
+      try {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
         })
-        .catch(err => {
-          return Promise.reject(err);
-        });
+          .then(token => {
+            if (token) {
+              originalRequest.headers['Authorization'] = `Bearer ${token}`;
+              return instance(originalRequest);
+            }
+            return Promise.reject(new Error('Failed to refresh token'));
+          })
+          .catch(err => {
+            return Promise.reject(err);
+          });
+      } catch (queueError) {
+        return Promise.reject(queueError);
+      }
     }
     
     isRefreshing = true;
     
     try {
-      console.log('[Auth] Attempting to refresh token after 401 error...');
       const newToken = await refreshAccessToken();
       
       if (newToken) {
-        console.log('[Auth] Token refreshed successfully, retrying request');
         // Update the Authorization header with the new token
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
         
@@ -211,18 +161,18 @@ instance.interceptors.response.use(
         isRefreshing = false;
         return instance(originalRequest);
       } else {
-        console.log('[Auth] Token refresh failed, but not redirecting immediately');
         // Process queued requests with error
         processQueue(new Error('Failed to refresh token'), null);
         isRefreshing = false;
-        return Promise.reject(error);
+        return Promise.reject(new Error('Failed to refresh token'));
       }
     } catch (refreshError) {
-      console.error('[Auth] Error during token refresh:', refreshError);
       // Process queued requests with error
       processQueue(refreshError as Error, null);
       isRefreshing = false;
       return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
     }
   }
 );

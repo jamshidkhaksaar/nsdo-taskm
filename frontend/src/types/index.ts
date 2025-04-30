@@ -201,6 +201,15 @@ export interface DashboardTasksResponse {
 
 // END: Add Task and Dashboard Types
 
+// START: Department Performer Type
+export interface DepartmentPerformer {
+  id: string;
+  name: string; // Assuming name exists
+  taskCount?: number; // Assuming a performance metric exists
+  // Add other relevant fields based on actual API response
+}
+// END: Department Performer Type
+
 // Export types/interfaces from other files within the types directory
 // Add specific files as needed, e.g.:
 // export * from './auth'; 

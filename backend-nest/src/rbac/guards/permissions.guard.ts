@@ -1,8 +1,14 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { RoleService } from '../services/role.service';
-import { User } from '../../users/entities/user.entity'; // Adjust path as needed
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator'; // We'll create this decorator next
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { RoleService } from "../services/role.service";
+import { User } from "../../users/entities/user.entity"; // Adjust path as needed
+import { PERMISSIONS_KEY } from "../decorators/permissions.decorator"; // We'll create this decorator next
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -26,19 +32,24 @@ export class PermissionsGuard implements CanActivate {
     const user: User = request.user; // Assumes user object is attached by AuthGuard
 
     if (!user) {
-        // Or handle as unauthorized if preferred
-        throw new ForbiddenException('User not found in request for permission check.'); 
+      // Or handle as unauthorized if preferred
+      throw new ForbiddenException(
+        "User not found in request for permission check.",
+      );
     }
-    
+
     // Check if the user has ALL required permissions
-    const hasPermissions = await this.roleService.hasAllPermissions(user, requiredPermissions);
+    const hasPermissions = await this.roleService.hasAllPermissions(
+      user,
+      requiredPermissions,
+    );
 
     if (!hasPermissions) {
-        throw new ForbiddenException(
-            `User does not have the required permissions: ${requiredPermissions.join(', ')}`
-        );
+      throw new ForbiddenException(
+        `User does not have the required permissions: ${requiredPermissions.join(", ")}`,
+      );
     }
 
     return true;
   }
-} 
+}

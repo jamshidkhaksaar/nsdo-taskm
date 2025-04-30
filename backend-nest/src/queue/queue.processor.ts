@@ -1,11 +1,11 @@
-import { Process, Processor } from '@nestjs/bull';
-import { Job } from 'bullmq';
+import { Process, Processor } from "@nestjs/bull";
+import { Job } from "bullmq";
 
-@Processor('default')
+@Processor("default")
 export class DefaultQueueProcessor {
   @Process()
   async handleJob(job: Job) {
-    console.log('Processing job:', job.id, job.name, job.data);
+    console.log("Processing job:", job.id, job.name, job.data);
     // Add your background task logic here
   }
 }

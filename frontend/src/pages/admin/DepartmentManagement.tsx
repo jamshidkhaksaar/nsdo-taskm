@@ -55,7 +55,7 @@ import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
 import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
 import { DepartmentService } from '../../services/department';
-import { Department, CreateDepartmentPayload, Province, User } from '@/types/index';
+import { Department, CreateDepartmentPayload, Province } from '@/types/index';
 import * as provinceService from '../../services/provinceService';
 import { UserService } from '../../services/user';
 
@@ -137,7 +137,7 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  const { data: departments = [], isLoading: isLoadingDepartments, error: fetchDepartmentsError } = 
+  const { data: departments = [], isLoading: isLoadingDepartments } = 
     useQuery<Department[], Error>({
       queryKey: ['departments'],
       queryFn: DepartmentService.getDepartments,

@@ -3,9 +3,6 @@ import { Province, Department, CreateProvinceDto, UpdateProvinceDto, AssignDepar
 
 // --- Admin Province Endpoints --- 
 
-// Base URL for non-GET admin operations might still be useful if structured differently
-const ADMIN_BASE_URL = '/admin/provinces'; // Keep for POST/PUT/DELETE if they use this structure, BUT GET is different now
-
 /**
  * Fetches all provinces (Admin context).
  */

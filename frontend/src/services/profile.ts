@@ -44,7 +44,7 @@ const formatSocialMediaUrl = (platform: string, value: string): string | null =>
 export const ProfileService = {
   getProfile: async () => {
     try {
-      const response = await axios.get('/profile/me/');
+      const response = await axios.get('profile/me/');
       return response.data;
     } catch (error: any) {
       console.error('Error fetching profile:', error);
@@ -59,7 +59,7 @@ export const ProfileService = {
         if (newToken) {
           try {
             console.log('Token refreshed, retrying profile fetch');
-            const retryResponse = await axios.get('/profile/me/');
+            const retryResponse = await axios.get('profile/me/');
             return retryResponse.data;
           } catch (retryError: any) {
             console.error('Error fetching profile after token refresh:', retryError);
@@ -102,7 +102,7 @@ export const ProfileService = {
 
       console.log('Cleaned data to send:', cleanData); // Debug log
 
-      const response = await axios.put('/profile/me/', cleanData, {
+      const response = await axios.put('profile/me/', cleanData, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -136,7 +136,7 @@ export const ProfileService = {
             );
             
             console.log('Token refreshed, retrying profile update');
-            const retryResponse = await axios.put('/profile/me/', cleanData, {
+            const retryResponse = await axios.put('profile/me/', cleanData, {
               headers: {
                 'Content-Type': 'application/json',
               },
@@ -159,7 +159,7 @@ export const ProfileService = {
 
   updateAvatar: async (formData: FormData) => {
     try {
-      const response = await axios.patch('/profile/me/', formData, {
+      const response = await axios.patch('profile/me/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -176,7 +176,7 @@ export const ProfileService = {
         if (newToken) {
           try {
             console.log('Token refreshed, retrying avatar update');
-            const retryResponse = await axios.patch('/profile/me/', formData, {
+            const retryResponse = await axios.patch('profile/me/', formData, {
               headers: {
                 'Content-Type': 'multipart/form-data',
               },

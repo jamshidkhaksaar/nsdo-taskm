@@ -6,13 +6,18 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./backend-nest/node_modules/@types"
+    ]
   },
   "include": [
     "backend-nest/**/*"
   ],
   "exclude": [
     "node_modules",
-    "**/node_modules/*"
+    "**/node_modules/*",
+    "frontend/**/*"
   ]
 } 

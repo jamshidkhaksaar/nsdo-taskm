@@ -9,8 +9,8 @@ import {
   ArrayMinSize,
   ValidateIf,
   ValidationArguments,
-} from 'class-validator';
-import { TaskPriority, TaskType } from '../entities/task.entity';
+} from "class-validator";
+import { TaskPriority, TaskType } from "../entities/task.entity";
 
 export class CreateTaskDto {
   @IsNotEmpty()
@@ -33,21 +33,21 @@ export class CreateTaskDto {
 
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
-  @ValidateIf(o => !o.assignedToDepartmentIds && !o.assignedToProvinceId)
+  @IsUUID("4", { each: true })
+  @ValidateIf((o) => !o.assignedToDepartmentIds && !o.assignedToProvinceId)
   assignedToUserIds?: string[];
 
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
-  @ValidateIf(o => !o.assignedToUserIds)
+  @IsUUID("4", { each: true })
+  @ValidateIf((o) => !o.assignedToUserIds)
   assignedToDepartmentIds?: string[];
 
   @IsOptional()
-  @IsUUID('4')
-  @ValidateIf(o => !!o.assignedToDepartmentIds && !o.assignedToUserIds)
+  @IsUUID("4")
+  @ValidateIf((o) => !!o.assignedToDepartmentIds && !o.assignedToUserIds)
   assignedToProvinceId?: string;
 
   // Note: TaskType will be determined by the backend based on which assignment fields are present
   //       createdByUserId will be set from the authenticated user
-} 
+}

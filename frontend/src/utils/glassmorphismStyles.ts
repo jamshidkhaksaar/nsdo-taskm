@@ -4,9 +4,10 @@
  */
 
 import { Theme } from '@mui/material';
+import createMuiStyles, { correctMuiClassNames } from './muiStyleFixes';
 
 // Glassmorphism styles for input fields
-export const glassmorphismInputStyle = {
+export const glassmorphismInputStyle = createMuiStyles({
   backgroundColor: 'rgba(255, 255, 255, 0.1)',
   backdropFilter: 'blur(10px)',
   borderRadius: '10px',
@@ -28,20 +29,20 @@ export const glassmorphismInputStyle = {
   '& .MuiInputAdornment-root .MuiSvgIcon-root': {
     color: 'rgba(255, 255, 255, 0.7)',
   },
-};
+});
 
 // Glassmorphism styles for form containers
-export const glassmorphismFormStyle = {
+export const glassmorphismFormStyle = createMuiStyles({
   backgroundColor: 'rgba(255, 255, 255, 0.15)',
   backdropFilter: 'blur(12px)',
   borderRadius: '16px',
   border: '1px solid rgba(255, 255, 255, 0.18)',
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
   padding: '24px',
-};
+});
 
 // Glassmorphism styles for buttons
-export const glassmorphismButtonStyle = {
+export const glassmorphismButtonStyle = createMuiStyles({
   backgroundColor: 'rgba(255, 255, 255, 0.2)',
   backdropFilter: 'blur(10px)',
   color: 'white',
@@ -52,36 +53,42 @@ export const glassmorphismButtonStyle = {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     boxShadow: '0 6px 25px rgba(0, 0, 0, 0.2)',
   },
-};
+});
 
 // Glassmorphism styles for cards
-export const glassmorphismCardStyle = {
+export const glassmorphismCardStyle = createMuiStyles({
   backgroundColor: 'rgba(255, 255, 255, 0.1)',
   backdropFilter: 'blur(10px)',
   borderRadius: '16px',
   border: '1px solid rgba(255, 255, 255, 0.18)',
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-};
+});
 
 // Function to get theme-aware glassmorphism styles
-export const getGlassmorphismStyles = (theme: Theme = { palette: { error: { light: '#f44336' } } } as Theme) => ({
-  input: {
-    ...glassmorphismInputStyle,
+export const getGlassmorphismStyles = (theme: Theme = { palette: { error: { light: '#f44336' } } } as Theme) => {
+  const formHelperTextStyle = createMuiStyles({
     '& .MuiFormHelperText-root': {
       color: theme?.palette?.error?.light || '#f44336',
     },
-  },
-  form: glassmorphismFormStyle,
-  button: glassmorphismButtonStyle,
-  card: glassmorphismCardStyle,
-  // Label styles for inputs
-  inputLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  // Text styles
-  text: {
-    primary: { color: 'white' },
-    secondary: { color: 'rgba(255, 255, 255, 0.8)' },
-    muted: { color: 'rgba(255, 255, 255, 0.6)' },
-  },
-}); 
+  });
+
+  return correctMuiClassNames({
+    input: {
+      ...glassmorphismInputStyle,
+      ...formHelperTextStyle,
+    },
+    form: glassmorphismFormStyle,
+    button: glassmorphismButtonStyle,
+    card: glassmorphismCardStyle,
+    // Label styles for inputs
+    inputLabel: {
+      color: 'rgba(255, 255, 255, 0.7)',
+    },
+    // Text styles
+    text: {
+      primary: { color: 'white' },
+      secondary: { color: 'rgba(255, 255, 255, 0.8)' },
+      muted: { color: 'rgba(255, 255, 255, 0.6)' },
+    },
+  });
+}; 

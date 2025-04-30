@@ -1,7 +1,6 @@
 import axios from '../utils/axios';
 import { AxiosError } from 'axios';
 
-// Define types that were previously imported from mockActivityLogsService
 export interface ActivityLog {
   id: string;
   userId: string;

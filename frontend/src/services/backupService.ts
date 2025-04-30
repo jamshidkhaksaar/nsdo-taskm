@@ -1,7 +1,6 @@
 import axios from '../utils/axios';
-import { AxiosError } from 'axios';
 
-// Define types that were previously imported from mockBackupService
+
 export interface BackupOptions {
   type: 'full' | 'partial';
   includeDatabases?: boolean;
@@ -19,13 +18,13 @@ export const BackupService = {
       
       // Try the dedicated status endpoint first
       try {
-        const response = await axios.get(`/backups/${id}/status`);
+        const response = await axios.get(`backups/${id}/status`);
         return response.data;
       } catch (statusError: unknown) {
         console.warn(`[BackupService] Status endpoint failed, falling back to main endpoint: ${statusError}`);
         
         // If status endpoint fails, try the main backup endpoint
-        const response = await axios.get(`/backups/${id}`);
+        const response = await axios.get(`backups/${id}`);
         return response.data;
       }
     } catch (error: unknown) {
@@ -38,7 +37,7 @@ export const BackupService = {
   getBackups: async () => {
     try {
       console.log('[BackupService] Fetching backups');
-      const response = await axios.get('/backups');
+      const response = await axios.get('backups');
       return response.data;
     } catch (error: unknown) {
       console.error('[BackupService] Error fetching backups:', error);
@@ -50,7 +49,7 @@ export const BackupService = {
   getBackup: async (id: string) => {
     try {
       console.log(`[BackupService] Fetching backup with ID: ${id}`);
-      const response = await axios.get(`/backups/${id}`);
+      const response = await axios.get(`backups/${id}`);
       return response.data;
     } catch (error: unknown) {
       console.error(`[BackupService] Error fetching backup with ID ${id}:`, error);
@@ -64,7 +63,7 @@ export const BackupService = {
       console.log('[BackupService] Creating backup with options:', options);
       
       // Simplified approach to send JSON directly
-      const response = await axios.post('/backups/create_backup', {
+      const response = await axios.post('backups/create_backup', {
         type: options.type,
         includeDatabases: options.includeDatabases || false,
         includeMedia: options.includeMedia || false,
@@ -84,7 +83,7 @@ export const BackupService = {
   restoreBackup: async (id: string) => {
     try {
       console.log(`[BackupService] Restoring from backup with ID: ${id}`);
-      const response = await axios.post(`/backups/${id}/restore`);
+      const response = await axios.post(`backups/${id}/restore`);
       return response.data;
     } catch (error: unknown) {
       console.error(`[BackupService] Error restoring from backup with ID ${id}:`, error);
@@ -96,7 +95,7 @@ export const BackupService = {
   deleteBackup: async (id: string) => {
     try {
       console.log(`[BackupService] Deleting backup with ID: ${id}`);
-      const response = await axios.delete(`/backups/${id}`);
+      const response = await axios.delete(`backups/${id}`);
       return response.data;
     } catch (error: unknown) {
       console.error(`[BackupService] Error deleting backup with ID ${id}:`, error);
@@ -108,7 +107,7 @@ export const BackupService = {
   downloadBackup: async (id: string) => {
     try {
       console.log(`[BackupService] Downloading backup with ID: ${id}`);
-      const response = await axios.get(`/backups/${id}/download`, {
+      const response = await axios.get(`backups/${id}/download`, {
         responseType: 'blob'
       });
       

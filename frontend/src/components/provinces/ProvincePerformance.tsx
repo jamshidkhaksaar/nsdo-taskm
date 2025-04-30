@@ -22,9 +22,9 @@ import {
   Legend,
   ArcElement,
   PointElement,
-  LineElement,
+  LineElement
 } from 'chart.js';
-import { Bar, Pie, Line } from 'react-chartjs-2';
+import { Bar, Pie } from 'react-chartjs-2';
 import { TaskStatus } from '@/types';
 
 // Register ChartJS components
@@ -74,12 +74,7 @@ const ProvincePerformance: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Only allow admin and leadership to see this component
-  if (user?.role !== 'ADMIN' && user?.role !== 'LEADERSHIP') {
-    return null;
-  }
-
-  // Load performance data for selected provinces
+  // Load performance data for selected provinces (Hook called before conditional return)
   useEffect(() => {
     const fetchPerformanceData = async () => {
       if (selectedProvinces.length === 0) {
@@ -109,6 +104,11 @@ const ProvincePerformance: React.FC = () => {
 
     fetchPerformanceData();
   }, [selectedProvinces]);
+
+  // Only allow admin and leadership to see this component (Moved after hook calls)
+  if (user?.role !== 'ADMIN' && user?.role !== 'LEADERSHIP') {
+    return null;
+  }
 
   // Prepare data for the task status distribution chart
   const getStatusDistributionData = () => {

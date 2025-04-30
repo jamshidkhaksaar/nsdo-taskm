@@ -1,34 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   AppBar,
   Toolbar,
   IconButton,
   Typography,
-  Badge,
-  Avatar,
-  Menu,
-  MenuItem,
-  ListItemIcon,
   Box,
-  InputBase,
   Tooltip,
-  useTheme,
-  useMediaQuery,
   Button
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import SearchIcon from '@mui/icons-material/Search';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import SettingsIcon from '@mui/icons-material/Settings';
-import LogoutIcon from '@mui/icons-material/Logout';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
-import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
 import { SxProps, Theme } from '@mui/material/styles';
-import { alpha } from '@mui/material/styles';
 
 interface DashboardTopBarProps {
   username: string;
@@ -65,8 +48,7 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
   onToggleRightSidebar,
   sx,
 }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // const theme = useTheme(); // Unused
 
   return (
     <AppBar
@@ -149,7 +131,7 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
                 },
               }}
             >
-              <AccountCircleIcon />
+              <PersonOutlineIcon />
             </IconButton>
           </Tooltip>
           <Tooltip title="Settings">

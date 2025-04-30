@@ -13,15 +13,19 @@ import {
   Alert,
   Snackbar,
   Container,
-  useTheme,
-  useMediaQuery,
+  // CircularProgress, // Removed unused
+  // Paper, // Removed unused
+  // Grid, // Removed unused
+  // Select, // Removed unused
+  // MenuItem, // Removed unused
+  // InputLabel, // Removed unused
+  // FormControl, // Removed unused
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SecurityIcon from '@mui/icons-material/Security';
 import BackupIcon from '@mui/icons-material/Backup';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
-import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -208,11 +212,9 @@ const apiSettingsMap = {
 };
 
 const SystemSettings: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [notifications, setNotifications] = useState(3);
   
   const [settings, setSettings] = useState(settingsSections);
@@ -221,19 +223,14 @@ const SystemSettings: React.FC = () => {
     message: '',
     severity: 'success'
   });
-  const [testingEmail, setTestingEmail] = useState(false);
-  const [generatingApiKey, setGeneratingApiKey] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [testingEmail] = useState(false);
+  const [generatingApiKey] = useState(false);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
     // Function to fetch settings
     const fetchSettings = async () => {
       try {
-        setLoading(true);
-        
         // Fetch security settings
         const securitySettings = await SettingsService.getSecuritySettings();
         console.log('Security settings loaded:', securitySettings);
@@ -301,10 +298,8 @@ const SystemSettings: React.FC = () => {
         });
         
         setSettings(mappedSettings);
-        setLoading(false);
       } catch (error) {
         console.error('Error fetching settings:', error);
-        setLoading(false);
       }
     };
     
@@ -313,8 +308,6 @@ const SystemSettings: React.FC = () => {
 
   const handleSettingChange = async (sectionId: string, settingId: string, value: any) => {
     try {
-      setSaving(true);
-      
       // Find the section and setting
       const section = settings.find(s => s.id === sectionId);
       if (!section) {
@@ -344,7 +337,7 @@ const SystemSettings: React.FC = () => {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await SettingsService.updateSecuritySettings({
+          const updatedSettings = await SettingsService.updateSecuritySettings({
             [backendFieldName]: processedValue
           });
 
@@ -354,7 +347,7 @@ const SystemSettings: React.FC = () => {
             severity: 'success'
           });
 
-          console.log('Security setting updated:', data);
+          console.log('Security setting updated:', updatedSettings);
         }
       }
       else if (sectionId === 'backup') {
@@ -366,7 +359,7 @@ const SystemSettings: React.FC = () => {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await SettingsService.updateBackupSettings({
+          const updatedSettings = await SettingsService.updateBackupSettings({
             [backendFieldName]: processedValue
           });
 
@@ -376,7 +369,7 @@ const SystemSettings: React.FC = () => {
             severity: 'success'
           });
 
-          console.log('Backup setting updated:', data);
+          console.log('Backup setting updated:', updatedSettings);
         }
       }
       else if (sectionId === 'notifications') {
@@ -388,7 +381,7 @@ const SystemSettings: React.FC = () => {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await SettingsService.updateNotificationSettings({
+          const updatedSettings = await SettingsService.updateNotificationSettings({
             [backendFieldName]: processedValue
           });
 
@@ -398,7 +391,7 @@ const SystemSettings: React.FC = () => {
             severity: 'success'
           });
 
-          console.log('Notification setting updated:', data);
+          console.log('Notification setting updated:', updatedSettings);
         }
       }
       else if (sectionId === 'api') {
@@ -410,7 +403,7 @@ const SystemSettings: React.FC = () => {
             processedValue = parseInt(value, 10);
           }
 
-          const { data } = await SettingsService.updateApiSettings({
+          const updatedSettings = await SettingsService.updateApiSettings({
             [backendFieldName]: processedValue
           });
 
@@ -420,7 +413,7 @@ const SystemSettings: React.FC = () => {
             severity: 'success'
           });
 
-          console.log('API setting updated:', data);
+          console.log('API setting updated:', updatedSettings);
         }
       }
     } catch (error) {
@@ -430,14 +423,11 @@ const SystemSettings: React.FC = () => {
         message: `Failed to update ${sectionId} setting`,
         severity: 'error'
       });
-    } finally {
-      setSaving(false);
     }
   };
 
   const handleSave = async () => {
     try {
-      setSaving(true);
       setSnackbar({
         open: true,
         message: 'Saving settings...',
@@ -528,16 +518,12 @@ const SystemSettings: React.FC = () => {
         message: 'Failed to save settings',
         severity: 'error'
       });
-    } finally {
-      setSaving(false);
     }
   };
 
   // Add test email function
   const handleTestEmailSettings = async () => {
     try {
-      setTestingEmail(true);
-      
       // Get notification settings
       const notificationSection = settings.find(s => s.id === 'notifications');
       if (!notificationSection) {
@@ -558,7 +544,7 @@ const SystemSettings: React.FC = () => {
       }, {} as Record<string, any>);
       
       // Send test email
-      const response = await SettingsService.testEmailSettings(notificationSettings);
+      await SettingsService.testEmailSettings(notificationSettings);
       
       setSnackbar({
         open: true,
@@ -566,7 +552,7 @@ const SystemSettings: React.FC = () => {
         severity: 'success'
       });
       
-      console.log('Test email response:', response.data);
+      console.log('Test email sent successfully');
     } catch (error) {
       console.error('Error sending test email:', error);
       setSnackbar({
@@ -574,18 +560,14 @@ const SystemSettings: React.FC = () => {
         message: 'Failed to send test email',
         severity: 'error'
       });
-    } finally {
-      setTestingEmail(false);
     }
   };
 
   // Add generate API key function
   const handleGenerateApiKey = async () => {
     try {
-      setGeneratingApiKey(true);
-      
       // Generate new API key
-      const { data } = await SettingsService.generateApiKey();
+      const newApiKeyData = await SettingsService.generateApiKey();
       
       // Update local state
       setSettings(prevSettings => 
@@ -595,7 +577,7 @@ const SystemSettings: React.FC = () => {
               ...section,
               settings: section.settings.map(setting => {
                 if (setting.id === 'apiKey') {
-                  return { ...setting, value: data.api_key };
+                  return { ...setting, value: newApiKeyData.apiKey };
                 }
                 return setting;
               })
@@ -617,8 +599,6 @@ const SystemSettings: React.FC = () => {
         message: 'Failed to generate API key',
         severity: 'error'
       });
-    } finally {
-      setGeneratingApiKey(false);
     }
   };
 

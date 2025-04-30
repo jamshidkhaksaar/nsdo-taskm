@@ -1,30 +1,66 @@
-import { Injectable, Inject } from '@nestjs/common';
-import Redis from 'ioredis';
-import { REDIS_PUBLISHER } from '../notifications.module';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification } from '../entities/notification.entity';
-import { User } from '../../users/entities/user.entity';
+import {
+  Injectable,
+  Inject,
+  Logger,
+  BadRequestException,
+} from "@nestjs/common";
+import Redis from "ioredis";
+import { REDIS_PUBLISHER } from "../notifications.module";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  Notification,
+  NotificationType,
+} from "../entities/notification.entity";
+import { User } from "../../users/entities/user.entity";
+import { InternalServerErrorException } from "@nestjs/common";
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
-    @Inject(REDIS_PUBLISHER) private readonly redisPublisher: Redis,
+    // Temporarily comment out Redis Publisher injection decorator
+    // @Inject(REDIS_PUBLISHER)
+    // private readonly redisPublisher: Redis, // Already commented out
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
   ) {}
 
-  async createNotification(userId: string, type: string, message: string, relatedEntityType?: string, relatedEntityId?: string): Promise<Notification> {
-    const newNotification = this.notificationRepository.create({
+  async createNotification(
+    userId: string,
+    type: string,
+    message: string,
+    relatedEntityType?: string,
+    relatedEntityId?: string,
+  ): Promise<Notification> {
+    const notificationType = type as NotificationType;
+    if (!Object.values(NotificationType).includes(notificationType)) {
+      this.logger.error(`Invalid NotificationType provided: ${type}`);
+      throw new BadRequestException(`Invalid notification type: ${type}`);
+    }
+
+    const newNotificationData = {
       userId,
-      type,
+      type: notificationType,
       message,
       isRead: false,
       relatedEntityType,
       relatedEntityId,
-    });
-    
-    const savedNotification = await this.notificationRepository.save(newNotification);
+    };
+
+    const newNotification: Notification =
+      this.notificationRepository.create(newNotificationData);
+
+    const savedNotification: Notification =
+      await this.notificationRepository.save(newNotification);
+
+    if (!savedNotification) {
+      this.logger.error(
+        "Failed to save notification, repository returned null/undefined",
+      );
+      throw new InternalServerErrorException("Failed to save notification");
+    }
 
     const payload = {
       id: savedNotification.id,
@@ -37,12 +73,21 @@ export class NotificationsService {
       relatedEntityId: savedNotification.relatedEntityId,
     };
 
-    const channel = 'notifications:new';
+    const channel = "notifications:new";
     try {
-      await this.redisPublisher.publish(channel, JSON.stringify(payload));
-      console.log(`Published notification ${savedNotification.id} to ${channel}:`, payload);
+      // Temporarily comment out publishing
+      // await this.redisPublisher.publish(channel, JSON.stringify(payload));
+      this.logger.warn(
+        `Redis publishing temporarily disabled. Would publish notification ${savedNotification.id} to ${channel}:`,
+        payload,
+      );
+      // console.log(`Published notification ${savedNotification.id} to ${channel}:`, payload);
     } catch (error) {
-      console.error(`Failed to publish notification ${savedNotification.id} to Redis:`, error);
+      // this.logger.error(`Failed to publish notification ${savedNotification.id} to Redis:`, error);
+      this.logger.error(
+        `Error during temporarily disabled Redis publish step: ${error}`,
+      ); // Log if error still occurs somehow
+      // console.error(`Failed to publish notification ${savedNotification.id} to Redis:`, error);
     }
 
     return savedNotification;
@@ -51,4 +96,4 @@ export class NotificationsService {
   // TODO: Add methods for retrieving/marking notifications as read later
   // async getUserNotifications(userId: string): Promise<Notification[]> { ... }
   // async markNotificationAsRead(notificationId: string): Promise<Notification> { ... }
-} 
+}

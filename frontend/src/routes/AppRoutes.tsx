@@ -1,10 +1,9 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from '../components/PrivateRoute';
 import Dashboard from '../pages/Dashboard';
 // Direct import critical components to avoid lazy loading issues
 import Login from '../pages/Login';
-import { AdminDashboard, UserManagement, DepartmentManagement, ActivityLogs, SystemSettings, BackupRestore, RecycleBin } from '../pages/admin';
 
 // For other components, use lazy loading with error handling
 const lazyLoad = (importPromise) => {
@@ -18,7 +17,7 @@ const Departments = lazyLoad(import('../pages/Departments'));
 const Users = lazyLoad(import('../pages/Users'));
 const NotFound = lazyLoad(import('../pages/NotFound'));
 const TasksOverview = lazyLoad(import('../pages/TasksOverview'));
-const AdminRoutes = lazyLoad(import('./AdminRoutes'));
+// const AdminRoutes = lazyLoad(import('./AdminRoutes'));
 // const ForgotPassword = lazyLoad(import('../pages/ForgotPassword')); // Commented out - file doesn't exist
 const ProvincesPage = lazyLoad(import('../pages/ProvincesPage'));
 const SettingsPage = lazyLoad(import("../pages/Settings"));
@@ -67,14 +66,6 @@ const AppRoutes: React.FC = () => {
           element={
             <PrivateRoute>
               <ProvincesPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/*"
-          element={
-            <PrivateRoute>
-              <AdminRoutes />
             </PrivateRoute>
           }
         />

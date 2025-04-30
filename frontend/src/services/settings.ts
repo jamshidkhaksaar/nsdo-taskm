@@ -1,7 +1,6 @@
 import axios from '../utils/axios';
-import { AxiosError } from 'axios';
 
-// Define types that were previously imported from mockSettingsService
+// Define types that were previously imported or defined inline
 export interface SecuritySettings {
   passwordExpiryDays: number;
   requireMfa: boolean;
@@ -36,12 +35,18 @@ export interface ApiSettings {
   allowedOrigins: string;
 }
 
+// Define the missing type
+export interface TwoFactorStatusResponse {
+  isEnabled: boolean;
+  method?: 'TOTP' | 'Email' | 'None'; // Or appropriate values
+}
+
 export const SettingsService = {
   // Get security settings
-  getSecuritySettings: async () => {
+  getSecuritySettings: async (): Promise<SecuritySettings> => {
     try {
       console.log('[SettingsService] Fetching security settings');
-      const response = await axios.get('/settings/security-settings/1/');
+      const response = await axios.get('settings/security-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching security settings:', error);
@@ -50,10 +55,10 @@ export const SettingsService = {
   },
   
   // Update security settings
-  updateSecuritySettings: async (settings: Partial<SecuritySettings>) => {
+  updateSecuritySettings: async (settings: Partial<SecuritySettings>): Promise<SecuritySettings> => {
     try {
       console.log('[SettingsService] Updating security settings');
-      const response = await axios.patch('/settings/security-settings/1/', settings);
+      const response = await axios.patch('settings/security-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating security settings:', error);
@@ -62,10 +67,10 @@ export const SettingsService = {
   },
   
   // Get backup settings
-  getBackupSettings: async () => {
+  getBackupSettings: async (): Promise<BackupSettings> => {
     try {
       console.log('[SettingsService] Fetching backup settings');
-      const response = await axios.get('/settings/backup-settings/1/');
+      const response = await axios.get('settings/backup-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching backup settings:', error);
@@ -74,10 +79,10 @@ export const SettingsService = {
   },
   
   // Update backup settings
-  updateBackupSettings: async (settings: Partial<BackupSettings>) => {
+  updateBackupSettings: async (settings: Partial<BackupSettings>): Promise<BackupSettings> => {
     try {
       console.log('[SettingsService] Updating backup settings');
-      const response = await axios.patch('/settings/backup-settings/1/', settings);
+      const response = await axios.patch('settings/backup-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating backup settings:', error);
@@ -86,10 +91,10 @@ export const SettingsService = {
   },
   
   // Get notification settings
-  getNotificationSettings: async () => {
+  getNotificationSettings: async (): Promise<NotificationSettings> => {
     try {
       console.log('[SettingsService] Fetching notification settings');
-      const response = await axios.get('/settings/notification-settings/1/');
+      const response = await axios.get('settings/notification-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching notification settings:', error);
@@ -98,10 +103,10 @@ export const SettingsService = {
   },
   
   // Update notification settings
-  updateNotificationSettings: async (settings: Partial<NotificationSettings>) => {
+  updateNotificationSettings: async (settings: Partial<NotificationSettings>): Promise<NotificationSettings> => {
     try {
       console.log('[SettingsService] Updating notification settings');
-      const response = await axios.patch('/settings/notification-settings/1/', settings);
+      const response = await axios.patch('settings/notification-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating notification settings:', error);
@@ -110,10 +115,10 @@ export const SettingsService = {
   },
   
   // Get API settings
-  getApiSettings: async () => {
+  getApiSettings: async (): Promise<ApiSettings> => {
     try {
       console.log('[SettingsService] Fetching API settings');
-      const response = await axios.get('/settings/api-settings/1/');
+      const response = await axios.get('settings/api-settings/1/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error fetching API settings:', error);
@@ -122,10 +127,10 @@ export const SettingsService = {
   },
   
   // Update API settings
-  updateApiSettings: async (settings: Partial<ApiSettings>) => {
+  updateApiSettings: async (settings: Partial<ApiSettings>): Promise<ApiSettings> => {
     try {
       console.log('[SettingsService] Updating API settings');
-      const response = await axios.patch('/settings/api-settings/1/', settings);
+      const response = await axios.patch('settings/api-settings/1/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error updating API settings:', error);
@@ -133,11 +138,11 @@ export const SettingsService = {
     }
   },
   
-  // Test email settings
-  testEmailSettings: async (settings: Partial<NotificationSettings>) => {
+  // Test notification settings
+  testEmailSettings: async (settings: Partial<NotificationSettings>): Promise<void> => {
     try {
       console.log('[SettingsService] Testing email settings');
-      const response = await axios.post('/settings/notification-settings/test-email/', settings);
+      const response = await axios.post('settings/notification-settings/test-email/', settings);
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error testing email settings:', error);
@@ -146,10 +151,10 @@ export const SettingsService = {
   },
   
   // Generate new API key
-  generateApiKey: async () => {
+  generateApiKey: async (): Promise<{ apiKey: string }> => {
     try {
       console.log('[SettingsService] Generating new API key');
-      const response = await axios.post('/settings/api-settings/generate-key/');
+      const response = await axios.post('settings/api-settings/generate-key/');
       return response.data;
     } catch (error: unknown) {
       console.error('[SettingsService] Error generating API key:', error);
@@ -174,9 +179,10 @@ export const SettingsService = {
     }
   },
 
-  get2FAStatus: async () => {
+  // Get 2FA status
+  get2FAStatus: async (): Promise<TwoFactorStatusResponse> => {
     try {
-      const response = await axios.get('/settings/2fa-status/');
+      const response = await axios.get('settings/2fa-status/');
       return response.data;
     } catch (error: any) {
       console.error('2FA status fetch error:', error);
@@ -193,7 +199,7 @@ export const SettingsService = {
       const payload = { enabled: enabled, method: method };
       console.log('2FA setup payload:', payload);
       
-      const response = await axios.post('/settings/setup_2fa/', payload);
+      const response = await axios.post('settings/setup_2fa/', payload);
       console.log('2FA setup response:', response.data);
       
       // Make sure we have a QR code if enabling with app method
@@ -216,7 +222,7 @@ export const SettingsService = {
       }
       
       console.log(`Verifying 2FA code: ${verificationCode.substring(0, 2)}***, rememberBrowser: ${rememberBrowser}`);
-      const response = await axios.post('/settings/verify_2fa/', {
+      const response = await axios.post('settings/verify_2fa/', {
         verification_code: verificationCode.trim(),
         remember_browser: rememberBrowser
       });
@@ -232,7 +238,7 @@ export const SettingsService = {
   send2FACode: async (email: string) => {
     try {
       console.log(`Requesting 2FA code via email for: ${email}`);
-      const response = await axios.post('/settings/send_2fa_code/', {
+      const response = await axios.post('settings/send_2fa_code/', {
         email: email
       });
       console.log('Email 2FA code response:', response.data);
@@ -246,7 +252,7 @@ export const SettingsService = {
 
   downloadTasks: async (format: 'csv' | 'pdf') => {
     try {
-      const response = await axios.get('/settings/download-tasks/', {
+      const response = await axios.get('settings/download-tasks/', {
         params: { format },
         responseType: 'blob',
         headers: {

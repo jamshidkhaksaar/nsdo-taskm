@@ -1,10 +1,10 @@
-import { IsString, IsOptional, Length } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional, Length } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class UpdateProvinceDto {
   @ApiProperty({
-    description: 'The updated name of the province',
-    example: 'Ontario',
+    description: "The updated name of the province",
+    example: "Ontario",
     required: false,
     maxLength: 100,
   })
@@ -14,8 +14,8 @@ export class UpdateProvinceDto {
   name?: string;
 
   @ApiProperty({
-    description: 'Updated optional description for the province',
-    example: 'Canada\'s most populous province.',
+    description: "Updated optional description for the province",
+    example: "Canada's most populous province.",
     required: false,
     maxLength: 255,
   })
@@ -23,4 +23,4 @@ export class UpdateProvinceDto {
   @IsString()
   @Length(0, 255)
   description?: string;
-} 
+}

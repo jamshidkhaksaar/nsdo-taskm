@@ -1,5 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  ForbiddenException,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -7,14 +12,14 @@ export class ApiKeyGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const apiKey = request.headers['x-api-key'];
+    const apiKey = request.headers["x-api-key"];
 
-    const validApiKey = this.configService.get<string>('API_KEY');
+    const validApiKey = this.configService.get<string>("API_KEY");
 
     if (apiKey && apiKey === validApiKey) {
       return true;
     }
 
-    throw new ForbiddenException('Invalid or missing API key');
+    throw new ForbiddenException("Invalid or missing API key");
   }
 }

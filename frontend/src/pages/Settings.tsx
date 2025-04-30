@@ -18,7 +18,6 @@ import {
   Radio,
   CircularProgress,
   useTheme,
-  useMediaQuery,
 } from '@mui/material';
 import {
   Lock as LockIcon,
@@ -30,7 +29,6 @@ import Sidebar from '../components/Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
 import { SettingsService } from '../services/settings';
-import { standardBackgroundStyle } from '../utils/backgroundStyles';
 import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
@@ -71,12 +69,9 @@ const Settings: React.FC = () => {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
-  const [exportOption] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [open, setOpen] = useState(true);
-  const [verificationError, setVerificationError] = useState('');
   const [twoFactorMethod, setTwoFactorMethod] = useState('app');
   const [emailSent, setEmailSent] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -85,7 +80,6 @@ const Settings: React.FC = () => {
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const glassStyles = getGlassmorphismStyles(theme);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -207,21 +201,22 @@ const Settings: React.FC = () => {
 
   const handleVerify2FA = async () => {
     if (!verificationCode || verificationCode.trim() === '') {
-      setVerificationError('Verification code is required');
+      setError('Verification code is required');
       return;
     }
-    
+
     try {
       console.log(`Verifying code: ${verificationCode.substring(0, 2)}***`);
-      const response = await SettingsService.verify2FA(verificationCode, rememberMe);
-      console.log('Verification response:', response);
-      
-      if (response.success) {
+      const verificationResult = await SettingsService.verify2FA(verificationCode, rememberMe); 
+      console.log('Verification response:', verificationResult);
+
+      if (verificationResult.success) {
         setTwoFactorEnabled(true);
         setVerificationCode('');
         setQrCode('');
         setEmailSent(false);
         setSuccess('Two-factor authentication has been successfully enabled!');
+        setError(null);
         
         // Fetch the updated status to ensure the UI is in sync with the server
         try {
@@ -233,17 +228,17 @@ const Settings: React.FC = () => {
           console.error('Failed to fetch updated 2FA status:', statusError);
         }
       } else {
-        setVerificationError(response.message || 'Verification failed. Please try again.');
+        setError(verificationResult.message || 'Verification failed. Please try again.');
       }
     } catch (error) {
       console.error('Error during 2FA verification:', error);
-      setVerificationError('Failed to verify the code. Please try again.');
+      setError('Failed to verify the code. Please try again.');
     }
   };
 
   const handleSendEmailCode = async () => {
     try {
-      const response = await SettingsService.send2FACode(user?.email || '');
+      await SettingsService.send2FACode(user?.email || '');
       setEmailSent(true);
       setSuccess('Verification code sent to your email.');
     } catch (error) {
@@ -312,10 +307,6 @@ const Settings: React.FC = () => {
 
   const handleHelpClick = () => {
     console.log('Help clicked');
-  };
-
-  const toggleDrawer = () => {
-    setOpen(!open);
   };
 
   const mainContent = (

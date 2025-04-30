@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from "class-validator";
 
 export class CreateDepartmentDto {
   @IsNotEmpty()
@@ -10,10 +10,10 @@ export class CreateDepartmentDto {
   description?: string;
 
   @IsOptional()
-  @IsUUID('4') // Validate as UUID
+  @IsUUID("4") // Validate as UUID
   head?: string;
 
   @IsOptional()
-  @IsUUID('4') // Validate as UUID
+  @IsUUID("4") // Validate as UUID
   provinceId?: string;
-} 
+}

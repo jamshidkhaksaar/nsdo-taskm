@@ -6,3 +6,4 @@ export { default as SystemSettings } from './SystemSettings';
 export { default as BackupRestore } from './BackupRestore';
 export { default as RecycleBin } from './RecycleBin';
 export { default as EmailConfiguration } from './EmailConfiguration';
+export { default as RBACManagement } from './rbac';

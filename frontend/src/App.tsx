@@ -1,29 +1,23 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 import { AppRoutes } from './routes';
-import Profile from './pages/Profile';
-import Settings from './pages/Settings';
-import ProtectedRoute from './routes/ProtectedRoute';
-import DepartmentsPage from './pages/Departments';
-import UsersPage from './pages/Users';
-import ProvincesPage from './pages/ProvincesPage';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import React, { Suspense } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useWebSocketNotifications } from './hooks/useWebSocketNotifications';
-
-// Explicitly import Login for fallback
-import Login from './pages/Login';
+import { SnackbarProvider } from 'notistack';
 
 const App: React.FC = () => {
   // Call the hook to establish connection and listen for notifications
   useWebSocketNotifications();
 
   return (
-    <Router>
-      <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme}>
+      <SnackbarProvider 
+        maxSnack={3} 
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        autoHideDuration={5000}
+      >
         <ToastContainer 
           position="top-right"
           autoClose={5000}
@@ -36,31 +30,9 @@ const App: React.FC = () => {
           pauseOnHover
           theme="colored" 
         />
-        <Routes>
-          <Route path="/login" element={<Suspense fallback={<div>Loading login page...</div>}><Login /></Suspense>} />
-          <Route 
-            path="/profile" 
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/settings" 
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="/departments" element={<DepartmentsPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/provinces" element={<ProvincesPage />} />
-          <Route path="*" element={<AppRoutes />} />
-        </Routes>
-      </ThemeProvider>
-    </Router>
+        <AppRoutes />
+      </SnackbarProvider>
+    </ThemeProvider>
   );
 };
 

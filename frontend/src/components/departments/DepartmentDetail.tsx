@@ -1,36 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import {
   Box,
   Typography,
   Paper,
-  CircularProgress,
   Alert,
-  Grid,
-  Card,
-  CardContent,
-  AvatarGroup,
-  Avatar,
-  Tooltip,
-  Divider,
+  Skeleton,
   Button,
   Tabs,
   Tab,
-  Skeleton,
-  useTheme,
+  Divider
 } from '@mui/material';
-import WorkIcon from '@mui/icons-material/Work';
-import PeopleIcon from '@mui/icons-material/People';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import PeopleAddIcon from '@mui/icons-material/GroupAdd';
-import AddMemberDialog from './AddMemberDialog';
+import { Add as AddIcon } from '@mui/icons-material';
 import { DepartmentService } from '../../services/department';
 import { TaskService } from '../../services/task';
-import { Department, User, Task } from '@/types/index';
+import { Department, Task } from '@/types';
 import TasksSection from './TasksSection';
-import DepartmentStatusStats from './DepartmentStatusStats';
 import { RootState } from '@/store';
 
 interface DepartmentDetailProps {
@@ -39,11 +25,8 @@ interface DepartmentDetailProps {
 }
 
 const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAddTaskClick }) => {
-  const theme = useTheme();
-  const queryClient = useQueryClient();
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const [tabValue, setTabValue] = useState(0);
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
   const { 
     data: department, 
@@ -55,23 +38,14 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
     enabled: !!departmentId,
   });
   
-  const { 
-    data: tasks,
-    isLoading: isLoadingTasks, 
-    error: fetchTasksError 
-  } = useQuery<Task[], Error>({
+  const { data: tasks } = useQuery<Task[], Error>({
     queryKey: ['departmentTasks', departmentId], 
     queryFn: () => TaskService.getTasksByDepartment(departmentId),
-    enabled: !!departmentId && tabValue === 1,
-    initialData: [],
+    enabled: !!departmentId,
   });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
-  };
-
-  const handleMemberAdded = () => {
-    queryClient.invalidateQueries({ queryKey: ['departmentDetails', departmentId] });
   };
 
   if (isLoadingDepartment) {
@@ -108,19 +82,9 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
             >
               New Task
             </Button>
-            <Button 
-              variant="outlined" 
-              startIcon={<PeopleAddIcon />} 
-              onClick={() => setIsAddMemberOpen(true)} 
-              size="small"
-            >
-              Add Member
-            </Button>
         </Box>
       </Box>
       
-      <DepartmentStatusStats departmentId={departmentId} />
-
       <Divider sx={{ my: 2 }} />
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
@@ -152,14 +116,6 @@ const DepartmentDetail: React.FC<DepartmentDetailProps> = ({ departmentId, onAdd
             viewMode="department"
           />
       )}
-      
-      <AddMemberDialog 
-        open={isAddMemberOpen} 
-        onClose={() => setIsAddMemberOpen(false)} 
-        departmentId={departmentId}
-        currentMembers={department?.members || []}
-        onMemberAdded={handleMemberAdded}
-      />
     </Paper>
   );
 };

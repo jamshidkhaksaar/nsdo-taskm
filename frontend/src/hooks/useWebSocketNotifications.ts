@@ -1,16 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
-import io, { Socket } from 'socket.io-client';
-import { toast } from 'react-toastify'; // Assuming react-toastify is installed
+import { useSelector } from 'react-redux';
+import { io, Socket } from 'socket.io-client';
+import { toast } from 'react-toastify';
+import { selectToken as selectAuthToken } from '../store/slices/authSlice';
 
-// Assume we get the auth token from somewhere (e.g., Redux store, context, local storage)
-// Replace this with your actual token retrieval logic
-const getAuthToken = (): string | null => {
-  // Example: Reading from localStorage
-  return localStorage.getItem('authToken');
-};
-
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001'; // Default backend URL
-const SOCKET_NAMESPACE = '/notifications';
+// Use Vite env variable syntax (ensure VITE_WEBSOCKET_URL is in your .env)
+const SOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3001'; // Default WebSocket URL (use ws:// or wss://)
+const SOCKET_NAMESPACE = '/notifications'; // Make sure this matches your backend gateway namespace if you set one
 
 interface NotificationPayload {
   id: string;
@@ -28,10 +24,9 @@ export const useWebSocketNotifications = () => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [lastNotification, setLastNotification] = useState<NotificationPayload | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const token = useSelector(selectAuthToken); // Get token from Redux store
 
   useEffect(() => {
-    const token = getAuthToken();
-
     if (!token) {
       console.log('WebSocket: No auth token found, connection not established.');
       // If already connected, disconnect
@@ -111,7 +106,7 @@ export const useWebSocketNotifications = () => {
         setIsConnected(false);
       }
     };
-  }, []); // Re-run effect if auth token changes (add token to dependency array if retrieved reactively)
+  }, [token]);
 
   // Optionally expose a function to manually send messages if needed
   // const sendMessage = (event: string, data: any) => {

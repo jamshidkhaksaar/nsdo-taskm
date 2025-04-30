@@ -10,21 +10,18 @@ import {
   CircularProgress,
   Alert,
   Container,
-  useTheme,
-  useMediaQuery,
-  Button,
 } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import MailIcon from '@mui/icons-material/Mail';
 import axios from '../../utils/axios';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { logout } from '../../store/slices/authSlice';
 
 const DRAWER_WIDTH = 240;
 
@@ -38,19 +35,6 @@ const fillNumberAnimation = keyframes`
     transform: translateY(0);
   }
 `;
-
-interface Activity {
-  id: string;
-  user: string;
-  user_id?: string;
-  action: string;
-  target: string;
-  target_id?: string;
-  details: string;
-  timestamp: string;
-  ip_address?: string;
-  status: 'success' | 'warning' | 'error';
-}
 
 interface DepartmentStat {
   id: string;
@@ -76,12 +60,11 @@ const cardStyle = {
 };
 
 const AdminDashboard: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications, /* setNotifications */] = useState(3);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +79,6 @@ const AdminDashboard: React.FC = () => {
     completedTasks: 0,
     upcomingTasks: 0
   });
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [departmentStats, setDepartmentStats] = useState<DepartmentStat[]>([]);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
@@ -133,9 +115,6 @@ const AdminDashboard: React.FC = () => {
         
         // Set department stats
         setDepartmentStats(response.data.department_stats || []);
-        
-        // Set activities
-        setActivities(response.data.recent_activities || []);
       } else {
         setError('Invalid response data from API');
         console.error('Invalid dashboard data from API');
@@ -170,7 +149,6 @@ const AdminDashboard: React.FC = () => {
         upcomingTasks: 0
       });
       setDepartmentStats([]);
-      setActivities([]);
     } finally {
       setLoading(false);
     }
@@ -185,42 +163,8 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Handle logout logic here
+    dispatch(logout());
     navigate('/login');
-  };
-
-  const handleNotificationClick = () => {
-    setNotifications(0);
-  };
-
-  const handleProfileClick = () => {
-    navigate('/profile');
-  };
-
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleHelpClick = () => {
-    console.log('Help clicked');
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
-
-  const getStatusColor = (status: 'success' | 'warning' | 'error') => {
-    switch (status) {
-      case 'success':
-        return '#4caf50';
-      case 'warning':
-        return '#ff9800';
-      case 'error':
-        return '#f44336';
-      default:
-        return '#4caf50';
-    }
   };
 
   const mainContent = (
@@ -456,11 +400,11 @@ const AdminDashboard: React.FC = () => {
           username={user?.username || 'Admin'}
           notificationCount={notifications}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={() => console.log('Notification clicked')}
+          onNotificationClick={() => console.log('Notification Clicked (Placeholder)')}
           onLogout={handleLogout}
           onProfileClick={() => navigate('/profile')}
           onSettingsClick={() => navigate('/admin/settings')}
-          onHelpClick={() => console.log('Help clicked')}
+          onHelpClick={() => console.log('Help Clicked (Placeholder)')}
           onToggleTopWidgets={handleToggleTopWidgets}
           topWidgetsVisible={topWidgetsVisible}
         />

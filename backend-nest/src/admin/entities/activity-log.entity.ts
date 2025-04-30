@@ -1,13 +1,20 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { User } from "../../users/entities/user.entity";
 
 @Entity()
 export class ActivityLog {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @ManyToOne(() => User, { nullable: true })
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn({ name: "user_id" })
   user: User;
 
   @Column({ nullable: true })
@@ -29,12 +36,12 @@ export class ActivityLog {
   ip_address: string;
 
   @Column({
-    type: 'enum',
-    enum: ['success', 'warning', 'error'],
-    default: 'success'
+    type: "enum",
+    enum: ["success", "warning", "error"],
+    default: "success",
   })
-  status: 'success' | 'warning' | 'error';
+  status: "success" | "warning" | "error";
 
   @CreateDateColumn()
   timestamp: Date;
-} 
+}

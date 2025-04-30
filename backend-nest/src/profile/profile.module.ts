@@ -1,9 +1,9 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { ProfileController } from './profile.controller';
-import { ProfileService } from './profile.service';
-import { UsersModule } from '../users/users.module';
-import { AuthModule } from '../auth/auth.module';
-import { AdminModule } from '../admin/admin.module';
+import { Module, forwardRef } from "@nestjs/common";
+import { ProfileController } from "./profile.controller";
+import { ProfileService } from "./profile.service";
+import { UsersModule } from "../users/users.module";
+import { AuthModule } from "../auth/auth.module";
+import { AdminModule } from "../admin/admin.module";
 
 @Module({
   imports: [
@@ -15,4 +15,4 @@ import { AdminModule } from '../admin/admin.module';
   providers: [ProfileService],
   exports: [ProfileService],
 })
-export class ProfileModule {} 
+export class ProfileModule {}

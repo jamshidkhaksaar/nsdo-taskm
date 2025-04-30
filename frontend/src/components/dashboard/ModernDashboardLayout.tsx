@@ -1,5 +1,5 @@
-import React, { ReactNode, useEffect } from 'react';
-import { Box, useTheme, useMediaQuery, Typography } from '@mui/material';
+import React, { ReactNode } from 'react';
+import { Box, useTheme, useMediaQuery } from '@mui/material';
 import { standardBackgroundStyle } from '../../utils/backgroundStyles';
 
 interface ModernDashboardLayoutProps {
@@ -15,6 +15,8 @@ interface ModernDashboardLayoutProps {
   quickNotesVisible?: boolean;
 }
 
+const DRAWER_WIDTH = 240;
+
 const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
   sidebar,
   topBar,
@@ -22,18 +24,16 @@ const ModernDashboardLayout: React.FC<ModernDashboardLayoutProps> = ({
   rightPanel,
   footer,
   sidebarOpen,
-  drawerWidth,
+  drawerWidth = DRAWER_WIDTH,
   disableMainContentScroll = false,
   quickNotesPanel,
   quickNotesVisible = false
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
 
   // Calculate the correct left margin based on sidebar state
   const sidebarWidth = sidebarOpen ? drawerWidth : (isMobile ? 0 : 65);
-  const marginLeft = sidebarOpen ? (isMobile ? 0 : `${sidebarWidth}px`) : (isMobile ? 0 : '64px'); // Adjusted for collapsed state
 
   return (
     <Box

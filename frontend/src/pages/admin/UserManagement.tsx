@@ -30,14 +30,12 @@ import {
   Tooltip,
   Container,
   useTheme,
-  useMediaQuery,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import BlockIcon from '@mui/icons-material/Block';
-import axios from '../../utils/axios';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -45,30 +43,19 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DoneIcon from '@mui/icons-material/Done';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
-import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
-import Sidebar from '../../components/Sidebar';
-import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
-import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
-import { AdminService } from '../../services/admin';
-import { UserService, User as ServiceUser } from '../../services/user';
-import TasksSection from '../../components/departments/TasksSection';
+import { RootState } from '@/store';
+import { UserService } from '@/services/user';
+import { UserRole } from '@/types/user';
+import { toast } from 'react-toastify';
+import ModernDashboardLayout from '@/components/dashboard/ModernDashboardLayout';
+import Sidebar from '@/components/Sidebar';
+import DashboardTopBar from '@/components/dashboard/DashboardTopBar';
+import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
+import { AdminService } from '@/services/admin';
+import TasksSection from '@/components/departments/TasksSection';
+import { User, Department } from '@/types/index';
 
 const DRAWER_WIDTH = 240;
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  department: string; // This is just the ID
-  department_name: string;
-  status: 'active' | 'inactive';
-  last_login: string;
-  position: string;
-}
 
 interface UserFormData {
   username: string;
@@ -81,39 +68,19 @@ interface UserFormData {
   password?: string;
 }
 
-interface Department {
-  id: string;
-  name: string;
-}
-
 interface EditMode {
   isEdit: boolean;
   userId: string | null;
 }
 
-interface AdminUser {
-  id: string;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: 'admin' | 'user' | 'leadership';
-  status: 'active' | 'inactive';
-  position: string;
-  department?: {
-    id: string;
-    name: string;
-  };
-  last_login: string;
-}
-
 const UserManagement: React.FC = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const navigate = useNavigate();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
@@ -137,12 +104,10 @@ const UserManagement: React.FC = () => {
   const glassStyles = getGlassmorphismStyles(theme);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
-  // Fetch assigned tasks when selectedUser changes
   useEffect(() => {
     const fetchAssignedTasks = async () => {
       if (selectedUser) {
         try {
-          // Import TaskService dynamically to avoid circular import issues
           const { TaskService } = await import('../../services/task');
           const tasks = await TaskService.getAssignedTasks(selectedUser);
           setAssignedTasks(tasks);
@@ -158,12 +123,10 @@ const UserManagement: React.FC = () => {
 
   const handleUserSelect = (userId: string) => {
     setSelectedUser(userId);
-    // Implement user selection logic
   };
 
   const handleEditUser = async (userId: string) => {
     try {
-      // Use UserService instead of direct axios call
       const user = await UserService.getUserById(userId);
       if (user) {
         setFormData({
@@ -187,7 +150,6 @@ const UserManagement: React.FC = () => {
   const handleDeleteUser = async (userId: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        // Use UserService instead of direct axios call
         await UserService.deleteUser(userId);
         alert('User deleted successfully!');
         await fetchUsers();
@@ -200,7 +162,6 @@ const UserManagement: React.FC = () => {
 
   const handleResetPassword = async (userId: string) => {
     try {
-      // Use UserService instead of direct axios call
       const response = await UserService.resetPassword(userId, '');
       alert(`Password has been reset. New password: ${response.newPassword}`);
     } catch (error) {
@@ -211,7 +172,6 @@ const UserManagement: React.FC = () => {
 
   const handleToggleStatus = async (userId: string) => {
     try {
-      // Use UserService instead of direct axios call
       await UserService.toggleUserStatus(userId);
       await fetchUsers();
     } catch (error) {
@@ -260,62 +220,51 @@ const UserManagement: React.FC = () => {
         return;
       }
       if (editMode.isEdit && editMode.userId) {
-        // Update existing user
-        const userData: Partial<ServiceUser> = {
+        const userData: Partial<User> = {
           username: formData.username,
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
           position: formData.position,
-          role: formData.role as 'admin' | 'user' | 'leadership'
+          role: formData.role as UserRole,
         };
         
-        // Only include department if one is selected
         if (formData.department) {
-          // When handling the department field, pass it as a string
-          // The API will handle converting it to an object
-          userData.department = formData.department ? { id: formData.department, name: '' } : null;
+          userData.department = { id: formData.department, name: departments.find(d => d.id === formData.department)?.name || '' };
         }
         
-        // Use UserService instead of direct axios call
-        await UserService.updateUser(editMode.userId, userData);
-        alert('User updated successfully!');
+        await UserService.updateUser(editMode.userId, userData as any);
+        toast.success('User updated successfully!');
         handleCloseDialog();
         await fetchUsers();
       } else {
-        // Create new user
-        // Format the data for the API and include all required properties
         const createUserData = {
           username: formData.username,
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          role: formData.role as 'admin' | 'user' | 'leadership',
+          role: formData.role as UserRole,
           position: formData.position,
-          department: formData.department ? { id: formData.department, name: '' } : null,
-          status: 'active' as const // Specify status as a literal type
+          departmentId: formData.department || undefined,
+          status: 'active' as const
         };
         
-        // Use UserService instead of direct axios call
         const response = await UserService.createUser({
           ...createUserData,
-          // Add the password separately since it's not in the User type
           password: formData.password
         } as any);
         
         if (response) {
-          alert(`User created successfully! ${
-            formData.password 
-              ? 'Password set as specified.' 
-              : `Default password: ${response.default_password}`
-          }`);
+          toast.success(`User created! ${formData.password ? 'PW set.' : `Default PW: ${response.default_password}`}`);
           handleCloseDialog();
           await fetchUsers();
         }
       }
     } catch (error: any) {
       console.error('Error saving user:', error);
-      setError(error.message || `Failed to ${editMode.isEdit ? 'update' : 'create'} user`);
+      const message = error.response?.data?.message || error.message || `Failed to ${editMode.isEdit ? 'update' : 'create'} user`;
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -324,23 +273,24 @@ const UserManagement: React.FC = () => {
       setLoading(true);
       console.log('[UserManagement] Fetching users with search:', searchQuery);
       
-      // Use AdminService instead of direct axios call
       const userData = await AdminService.getUsers(searchQuery);
       console.log('[UserManagement] Raw user data from backend:', userData);
       
-      // Format the users to match the interface
-      const formattedUsers = userData.map((user: any) => ({
+      const formattedUsers = userData.map((user: any): User => ({
         id: user.id,
         username: user.username,
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
         role: user.role,
-        department: user.department?.id || '',
-        department_name: user.department?.name ?? (user.department ? 'Assigned' : 'None'),
+        department: user.department,
         status: user.status,
         last_login: user.last_login,
-        position: user.position
+        position: user.position,
+        avatar: user.avatar,
+        isActive: user.isActive,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
       }));
       
       setUsers(formattedUsers);
@@ -354,7 +304,6 @@ const UserManagement: React.FC = () => {
 
   const fetchDepartments = async () => {
     try {
-      // Use AdminService instead of direct axios call
       const departmentData = await AdminService.getDepartments();
       
       setDepartments(departmentData.map((dept: any) => ({
@@ -398,24 +347,7 @@ const UserManagement: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    // Handle logout logic here
     navigate('/login');
-  };
-
-  const handleNotificationClick = () => {
-    setNotifications(0);
-  };
-
-  const handleProfileClick = () => {
-    navigate('/profile');
-  };
-
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleHelpClick = () => {
-    console.log('Help clicked');
   };
 
   const mainContent = (
@@ -561,7 +493,7 @@ const UserManagement: React.FC = () => {
                     <TableCell sx={{ color: '#fff' }}>{user.username}</TableCell>
                     <TableCell sx={{ color: '#fff' }}>{user.email}</TableCell>
                     <TableCell sx={{ color: '#fff' }}>{user.role}</TableCell>
-                    <TableCell sx={{ color: '#fff' }}>{user.department_name}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>{user.department?.name ?? 'None'}</TableCell>
                     <TableCell>
                       <Chip
                         label={user.status}
@@ -832,28 +764,19 @@ const UserManagement: React.FC = () => {
 
   return (
     <ModernDashboardLayout
-      sidebar={
-        <Sidebar
-          open={sidebarOpen}
-          onToggleDrawer={handleToggleSidebar}
-          onLogout={handleLogout}
-          drawerWidth={DRAWER_WIDTH}
-        />
-      }
-      topBar={
-        <DashboardTopBar
-          username={user?.username || 'Admin'}
-          notificationCount={notifications}
-          onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={() => console.log('Notification clicked')}
-          onLogout={handleLogout}
-          onProfileClick={() => navigate('/profile')}
-          onSettingsClick={() => navigate('/admin/settings')}
-          onHelpClick={() => console.log('Help clicked')}
-          onToggleTopWidgets={handleToggleTopWidgets}
-          topWidgetsVisible={topWidgetsVisible}
-        />
-      }
+      sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={DRAWER_WIDTH} />}
+      topBar={<DashboardTopBar 
+                username={currentUser?.username ?? 'User'}
+                notificationCount={notifications}
+                onToggleSidebar={handleToggleSidebar}
+                onNotificationClick={() => console.log('Notifications clicked')}
+                onLogout={handleLogout}
+                onProfileClick={() => navigate('/profile')}
+                onSettingsClick={() => navigate('/admin/settings')}
+                onHelpClick={() => console.log('Help clicked')}
+                onToggleTopWidgets={handleToggleTopWidgets} 
+                topWidgetsVisible={topWidgetsVisible} 
+              />}
       mainContent={mainContent}
       sidebarOpen={sidebarOpen}
       drawerWidth={DRAWER_WIDTH}

@@ -14,7 +14,6 @@ import {
   Alert,
   CircularProgress,
   InputAdornment,
-  useMediaQuery,
 } from '@mui/material';
 import {
   LinkedIn as LinkedInIcon,
@@ -28,11 +27,11 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { ProfileService } from '../services/profile';
 import Sidebar from '../components/Sidebar';
-import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
+import createMuiStyles from '../utils/muiStyleFixes';
 
 interface UserProfile {
   avatar_url: string | null;
@@ -49,18 +48,39 @@ interface UserProfile {
 
 const DRAWER_WIDTH = 240;
 
+// Create a reusable styled text field definition with the MUI fixes
+const textFieldStyle = createMuiStyles({
+  mb: 2,
+  '& .MuiOutlinedInput-root': {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    color: '#fff',
+    '& fieldset': {
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    '&:hover fieldset': {
+      borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: '#2196f3',
+    },
+  },
+  '& .MuiInputLabel-root': {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: '#2196f3',
+  },
+});
+
 const Profile: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
   
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications] = useState(3);
   
   // Profile state
   const [profile, setProfile] = useState<UserProfile>({
@@ -196,22 +216,6 @@ const Profile: React.FC = () => {
   const handleToggleTopWidgets = useCallback(() => {
     setTopWidgetsVisible(prev => !prev);
   }, []);
-
-  const handleNotificationClick = () => {
-    setNotifications(0);
-  };
-
-  const handleProfileClick = () => {
-    // Already on profile page
-  };
-
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleHelpClick = () => {
-    console.log('Help clicked');
-  };
 
   const mainContent = (
     <Container maxWidth="lg" sx={{ py: 3 }}>
@@ -368,12 +372,11 @@ const Profile: React.FC = () => {
                 <Box sx={{ display: 'flex', width: '100%', gap: 1 }}>
                   <TextField
                     fullWidth
-                    size="small"
-                    placeholder="Add skill"
                     value={newSkill}
+                    placeholder="Add a skill (e.g. React, TypeScript)"
                     onChange={(e) => setNewSkill(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
-                    sx={{ 
+                    sx={createMuiStyles({
                       '& .MuiOutlinedInput-root': {
                         backgroundColor: 'rgba(255, 255, 255, 0.05)',
                         color: '#fff',
@@ -387,7 +390,7 @@ const Profile: React.FC = () => {
                           borderColor: '#2196f3',
                         },
                       },
-                    }}
+                    })}
                   />
                   <Button 
                     onClick={handleAddSkill}
@@ -431,28 +434,7 @@ const Profile: React.FC = () => {
                         rows={4}
                         value={profile.bio}
                         onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     
@@ -462,28 +444,7 @@ const Profile: React.FC = () => {
                         label="Phone Number"
                         value={profile.phone_number}
                         onChange={(e) => setProfile({ ...profile, phone_number: e.target.value })}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     
@@ -493,28 +454,7 @@ const Profile: React.FC = () => {
                         label="Location"
                         value={profile.location}
                         onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     
@@ -531,28 +471,7 @@ const Profile: React.FC = () => {
                             </InputAdornment>
                           ),
                         }}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     
@@ -569,28 +488,7 @@ const Profile: React.FC = () => {
                             </InputAdornment>
                           ),
                         }}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     
@@ -607,28 +505,7 @@ const Profile: React.FC = () => {
                             </InputAdornment>
                           ),
                         }}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     
@@ -645,28 +522,7 @@ const Profile: React.FC = () => {
                             </InputAdornment>
                           ),
                         }}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#fff',
-                            '& fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.2)',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'rgba(255, 255, 255, 0.3)',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#2196f3',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                          },
-                          '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#2196f3',
-                          },
-                        }}
+                        sx={textFieldStyle}
                       />
                     </Grid>
                     

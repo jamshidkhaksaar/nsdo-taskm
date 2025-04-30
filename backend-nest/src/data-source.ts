@@ -1,5 +1,5 @@
-import { DataSource } from 'typeorm';
-import * as dotenv from 'dotenv';
+import { DataSource } from "typeorm";
+import * as dotenv from "dotenv";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -22,13 +22,13 @@ import { EmailTemplate } from '../dist/email-templates/entities/email-template.e
 */
 
 export const AppDataSource = new DataSource({
-  type: 'mysql',
-  host: process.env.DATABASE_HOST || 'localhost',
-  port: parseInt(process.env.DATABASE_PORT || '3306', 10),
-  username: process.env.DATABASE_USERNAME || 'root',
-  password: process.env.DATABASE_PASSWORD || 'root',
-  database: process.env.DATABASE_NAME || 'taskmanagement',
-  entities: ['dist/**/*.entity.js'], // Use glob pattern again
+  type: "mysql",
+  host: process.env.DATABASE_HOST || "localhost",
+  port: parseInt(process.env.DATABASE_PORT || "3306", 10),
+  username: process.env.DATABASE_USERNAME || "root",
+  password: process.env.DATABASE_PASSWORD || "root",
+  database: process.env.DATABASE_NAME || "taskmanagement",
+  entities: ["dist/**/*.entity.js"], // Use glob pattern again
   // Remove explicit list
   /*
   entities: [
@@ -47,7 +47,7 @@ export const AppDataSource = new DataSource({
     EmailTemplate, // New
   ],
   */
-  migrations: ['dist/migrations/*.js'],
+  migrations: ["dist/migrations/*.js"],
   synchronize: false,
   logging: true,
 });
@@ -61,4 +61,4 @@ export const AppDataSource = new DataSource({
 //   })
 //   .catch((err) => {
 //     console.error('Error during Data Source initialization', err);
-//   }); 
+//   });

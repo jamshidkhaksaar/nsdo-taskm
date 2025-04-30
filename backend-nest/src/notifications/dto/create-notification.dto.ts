@@ -1,30 +1,54 @@
-import { IsNotEmpty, IsString, IsEnum, IsOptional, IsNumber, IsBoolean } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { NotificationType } from '../entities/notification.entity';
+import {
+  IsNotEmpty,
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsUUID,
+} from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+import { NotificationType } from "../entities/notification.entity";
 
 export class CreateNotificationDto {
-  @ApiProperty({ description: 'Notification message' })
+  @ApiProperty({ description: "Notification message" })
   @IsNotEmpty()
   @IsString()
   message: string;
 
-  @ApiProperty({ description: 'Notification type', enum: NotificationType })
+  @ApiProperty({ description: "Notification type", enum: NotificationType })
   @IsNotEmpty()
   @IsEnum(NotificationType)
   type: NotificationType;
 
-  @ApiProperty({ description: 'User ID to notify', type: String })
+  @ApiProperty({ description: "User ID to notify", type: String })
   @IsNotEmpty()
-  @IsString()
-  user_id: string;
+  @IsUUID()
+  userId: string;
 
-  @ApiProperty({ description: 'Task ID related to the notification', required: false, type: String })
+  @ApiProperty({
+    description: "Task ID related to the notification",
+    required: false,
+    type: String,
+  })
   @IsOptional()
   @IsString()
-  task_id?: string;
+  relatedEntityType?: string;
 
-  @ApiProperty({ description: 'Whether the notification has been read', default: false })
+  @ApiProperty({
+    description: "Task ID related to the notification",
+    required: false,
+    type: String,
+  })
+  @IsOptional()
+  @IsUUID()
+  relatedEntityId?: string;
+
+  @ApiProperty({
+    description: "Whether the notification has been read",
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
-  read?: boolean;
-} 
+  isRead?: boolean;
+}

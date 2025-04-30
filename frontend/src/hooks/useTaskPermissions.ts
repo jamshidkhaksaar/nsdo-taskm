@@ -1,6 +1,6 @@
 import { useSelector } from 'react-redux';
-import { RootState } from '../store';
-import { Task, User, TaskType } from '../types/index';
+import { RootState } from '@/store';
+import { Task, TaskType } from '@/types';
 
 export interface TaskPermissions {
   canView: boolean;

@@ -1,18 +1,25 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import {
+  Entity,
+  Column,
+  PrimaryColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { User } from "../../users/entities/user.entity";
 
 export enum BackupStatus {
-  COMPLETED = 'completed',
-  IN_PROGRESS = 'in_progress',
-  FAILED = 'failed'
+  COMPLETED = "completed",
+  IN_PROGRESS = "in_progress",
+  FAILED = "failed",
 }
 
 export enum BackupType {
-  FULL = 'full',
-  PARTIAL = 'partial'
+  FULL = "full",
+  PARTIAL = "partial",
 }
 
-@Entity('backups')
+@Entity("backups")
 export class Backup {
   @PrimaryColumn()
   id: string;
@@ -27,21 +34,21 @@ export class Backup {
   size: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: BackupType,
-    default: BackupType.FULL
+    default: BackupType.FULL,
   })
   type: BackupType;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: BackupStatus,
-    default: BackupStatus.IN_PROGRESS
+    default: BackupStatus.IN_PROGRESS,
   })
   status: BackupStatus;
 
   @ManyToOne(() => User, { eager: true })
-  @JoinColumn({ name: 'created_by_id' })
+  @JoinColumn({ name: "created_by_id" })
   createdBy: User;
 
   @Column({ nullable: true })
@@ -55,4 +62,4 @@ export class Backup {
 
   @Column({ default: false })
   is_deleted: boolean;
-} 
+}

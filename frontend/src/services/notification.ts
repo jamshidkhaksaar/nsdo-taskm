@@ -1,5 +1,4 @@
 import axios from '../utils/axios';
-import { User } from '../types/user';
 
 export interface Notification {
   id: number;
@@ -15,7 +14,7 @@ export const NotificationService = {
   // Get all notifications for the current user
   getNotifications: async (): Promise<Notification[]> => {
     try {
-      const response = await axios.get('/api/notifications/user');
+      const response = await axios.get('notifications/user');
       return response.data;
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -26,7 +25,7 @@ export const NotificationService = {
   // Get unread notifications for the current user
   getUnreadNotifications: async (): Promise<Notification[]> => {
     try {
-      const response = await axios.get('/api/notifications/user/unread');
+      const response = await axios.get('notifications/user/unread');
       return response.data;
     } catch (error) {
       console.error('Error fetching unread notifications:', error);
@@ -37,7 +36,7 @@ export const NotificationService = {
   // Mark a notification as read
   markAsRead: async (notificationId: number): Promise<void> => {
     try {
-      await axios.patch(`/api/notifications/${notificationId}/read`);
+      await axios.patch(`notifications/${notificationId}/read`);
     } catch (error) {
       console.error(`Error marking notification ${notificationId} as read:`, error);
     }
@@ -46,7 +45,7 @@ export const NotificationService = {
   // Mark all notifications as read
   markAllAsRead: async (): Promise<void> => {
     try {
-      await axios.patch('/api/notifications/user/read-all');
+      await axios.patch('notifications/user/read-all');
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
@@ -55,7 +54,7 @@ export const NotificationService = {
   // Delete a notification
   deleteNotification: async (notificationId: number): Promise<void> => {
     try {
-      await axios.delete(`/api/notifications/${notificationId}`);
+      await axios.delete(`notifications/${notificationId}`);
     } catch (error) {
       console.error(`Error deleting notification ${notificationId}:`, error);
     }

@@ -8,8 +8,7 @@ import {
   ListItemText, 
   Checkbox,
   Radio,
-  FormControlLabel,
-  CircularProgress
+  CircularProgress,
 } from '@mui/material';
 import { useSelector, useDispatch } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';

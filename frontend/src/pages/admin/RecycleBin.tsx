@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -25,22 +25,13 @@ import {
   FormControl,
   InputLabel,
   Grid,
-  Divider,
   CircularProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Card,
-  CardContent,
-  useTheme,
-  useMediaQuery,
   SelectChangeEvent,
 } from '@mui/material';
 import { 
   Delete as DeleteIcon, 
   Restore as RestoreIcon, 
   Search as SearchIcon, 
-  ExpandMore as ExpandMoreIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
@@ -119,15 +110,12 @@ const formatRelativeTime = (date: Date): string => {
 };
 
 const RecycleBin: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [notifications, setNotifications] = useState(0);
   
   const [deletedTasks, setDeletedTasks] = useState<DeletedTask[]>([]);
-  const [filteredTasks, setFilteredTasks] = useState<DeletedTask[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [searchText, setSearchText] = useState<string>('');
@@ -158,7 +146,8 @@ const RecycleBin: React.FC = () => {
     }
   }, [user, navigate]);
 
-  const fetchDeletedTasks = async () => {
+  // Wrap fetch functions in useCallback
+  const fetchDeletedTasks = useCallback(async () => {
     setLoading(true);
     try {
       // Build query params
@@ -175,48 +164,48 @@ const RecycleBin: React.FC = () => {
       
       const response = await axios.get(`/api/v1/tasks/recycle-bin?${params.toString()}`);
       setDeletedTasks(response.data[0]);
-      setFilteredTasks(response.data[0]);
       setTotalCount(response.data[1]);
     } catch (error) {
       console.error('Failed to fetch deleted tasks:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchText, filters, page, rowsPerPage, setLoading, setDeletedTasks, setTotalCount]);
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await axios.get('/api/v1/departments');
       setDepartments(response.data);
     } catch (error) {
       console.error('Failed to fetch departments:', error);
     }
-  };
+  }, [setDepartments]);
 
-  const fetchProvinces = async () => {
+  const fetchProvinces = useCallback(async () => {
     try {
       const response = await axios.get('/api/v1/provinces');
       setProvinces(response.data);
     } catch (error) {
       console.error('Failed to fetch provinces:', error);
     }
-  };
+  }, [setProvinces]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await axios.get('/api/v1/users');
       setUsers(response.data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
     }
-  };
+  }, [setUsers]);
 
+  // useEffect now correctly depends on the useCallback-wrapped functions
   useEffect(() => {
     fetchDeletedTasks();
     fetchDepartments();
     fetchProvinces();
     fetchUsers();
-  }, [page, rowsPerPage, searchText, filters]);
+  }, [fetchDeletedTasks, fetchDepartments, fetchProvinces, fetchUsers]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(event.target.value);

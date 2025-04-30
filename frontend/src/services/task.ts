@@ -2,7 +2,7 @@ import apiClient from '../utils/axios';
 import { AxiosResponse } from 'axios';
 import { Task, CreateTask, TaskStatus, TaskUpdate, Department, TaskPriority, DashboardTasksResponse, DelegateTaskData, TaskType } from '@/types/index';
 import { User } from '@/types/user';
-import { parseDate, toISOString } from '../utils/dateUtils';
+import { toISOString } from '../utils/dateUtils';
 import dayjs from 'dayjs';
 
 // Enhanced interface to support role-based task creation
@@ -12,22 +12,6 @@ interface GetTasksParams {
     user_id?: string;
     include_all?: boolean; // For leadership and admins to see all tasks
 }
-
-// Status mapping between frontend and backend
-// No longer needed as backend now uses same values as frontend
-const frontendToBackendStatus: Record<TaskStatus, string> = {
-    [TaskStatus.PENDING]: 'pending',
-    [TaskStatus.IN_PROGRESS]: 'in_progress',
-    [TaskStatus.COMPLETED]: 'completed',
-    [TaskStatus.CANCELLED]: 'cancelled',
-};
-
-const backendToFrontendStatus: Record<string, TaskStatus> = {
-    'pending': TaskStatus.PENDING,
-    'in_progress': TaskStatus.IN_PROGRESS,
-    'completed': TaskStatus.COMPLETED,
-    'cancelled': TaskStatus.CANCELLED,
-};
 
 // Helper function to ensure IDs are strings
 const ensureStringId = (id: string | number): string => {

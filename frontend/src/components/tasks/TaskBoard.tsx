@@ -1,26 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import {
   Box,
   Paper,
   Typography,
   Chip,
   IconButton,
-  Tooltip,
   Grid,
-  useTheme,
-  alpha,
-  Avatar,
   Button,
   Menu,
-  MenuItem
+  MenuItem,
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DoneIcon from '@mui/icons-material/Done';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -28,7 +21,6 @@ import { KeyboardArrowDown as KeyboardArrowDownIcon } from "@mui/icons-material"
 import { format } from "date-fns";
 import { Task, TaskStatus } from "../../types";
 import { User } from '../../types/user';
-import { CollaboratorAvatars } from './CollaboratorAvatars';
 import { TaskService } from '../../services/task';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddIcon from '@mui/icons-material/Add';
@@ -79,7 +71,6 @@ const TaskCard: React.FC<{
   onDelete?: (taskId: string) => void;
   onChangeStatus?: (taskId: string, newStatus: TaskStatus) => void;
 }> = ({ task, index, onEdit, onDelete, onChangeStatus }) => {
-  const theme = useTheme();
   const [collaborators, setCollaborators] = useState<User[]>([]);
   const [statusAnchorEl, setStatusAnchorEl] = useState<null | HTMLElement>(null);
 
@@ -265,7 +256,7 @@ const TaskCard: React.FC<{
 
       {collaborators.length > 0 && (
         <Box sx={{ mt: 2 }}>
-          <CollaboratorAvatars collaborators={collaborators} />
+          {/* <CollaboratorAvatars collaborators={collaborators} /> */}
         </Box>
       )}
     </Paper>
@@ -278,31 +269,35 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   onDeleteTask,
   onTaskUpdated
 }) => {
-  const theme = useTheme();
   const [localTasks, setLocalTasks] = useState(tasks);
   const [activeTab, setActiveTab] = useState('my_tasks');
 
   const columns: { [key in TaskStatus]: { title: string; icon: React.ReactNode; color: string } } = {
     [TaskStatus.PENDING]: { 
       title: 'Upcoming', 
-      icon: '📋', 
-      color: 'rgba(237, 238, 245, 0.95)'
+      icon: <AccessTimeIcon fontSize="small" sx={{ color: 'orange' }} />, 
+      color: 'warning'
     },
     [TaskStatus.IN_PROGRESS]: { 
       title: 'In Progress', 
-      icon: '🔄', 
-      color: 'rgba(237, 238, 245, 0.95)'
+      icon: <PlayArrowIcon fontSize="small" sx={{ color: 'lightblue' }} />, 
+      color: 'info' 
     },
     [TaskStatus.COMPLETED]: { 
       title: 'Completed', 
-      icon: '✅', 
-      color: 'rgba(237, 238, 245, 0.95)'
+      icon: <DoneIcon fontSize="small" sx={{ color: 'lightgreen' }} />, 
+      color: 'success' 
     },
     [TaskStatus.CANCELLED]: { 
       title: 'Cancelled', 
-      icon: '❌', 
-      color: 'rgba(237, 238, 245, 0.95)'
-    }
+      icon: <CancelIcon fontSize="small" sx={{ color: 'red' }} />, 
+      color: 'error' 
+    },
+    [TaskStatus.DELEGATED]: { 
+      title: 'Delegated', 
+      icon: <AssignmentIcon fontSize="small" sx={{ color: 'purple' }} />,
+      color: 'secondary' 
+    },
   };
 
   const getTasksByStatus = (status: TaskStatus) => {
@@ -489,7 +484,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   <Chip
                     label={getTasksByStatus(status as TaskStatus).length}
                     size="small"
-                    sx={{ fontWeight: 'medium', backgroundColor: alpha('#000', 0.1) }}
+                    sx={{ fontWeight: 'medium', backgroundColor: 'rgba(0, 0, 0, 0.1)' }}
                   />
                 </Box>
 
@@ -505,7 +500,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     />
                   ))}
                   {getTasksByStatus(status as TaskStatus).length === 0 && (
-                    <Typography variant="body2" sx={{ color: alpha('#000', 0.5), textAlign: 'center', mt: 2 }}>
+                    <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.5)', textAlign: 'center', mt: 2 }}>
                       No tasks in this column
                     </Typography>
                   )}

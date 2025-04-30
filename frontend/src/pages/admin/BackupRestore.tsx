@@ -25,8 +25,6 @@ import {
   Switch,
   TextField,
   Container,
-  Stack,
-  Paper,
   Grid,
 } from '@mui/material';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';

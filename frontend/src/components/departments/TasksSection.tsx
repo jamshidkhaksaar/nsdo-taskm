@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -15,8 +15,8 @@ import WorkIcon from '@mui/icons-material/Work';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
-import { Task } from '../../types/index';
-import { UserService } from '../../services/user';
+import { Task } from '@/types/index';
+import { UserService } from '@/services/user';
 
 interface TasksSectionProps {
   tasks?: Task[];
@@ -48,21 +48,21 @@ const TasksSection: React.FC<TasksSectionProps> = ({
 }) => {
   const [userCache, setUserCache] = useState<Record<string, string>>({});
   
-  // Use provided grouped tasks or filter directly from the main tasks prop
-  const upcomingTasks = propsUpcomingTasks || 
+  // Memoize task filtering/grouping
+  const upcomingTasks = useMemo(() => propsUpcomingTasks || 
     (tasks ? tasks.filter(task => 
       task.status === 'pending' && 
       new Date(task.dueDate || '') > new Date()
-    ) : []);
+    ) : []), [tasks, propsUpcomingTasks]);
   
-  const ongoingTasks = propsOngoingTasks || 
+  const ongoingTasks = useMemo(() => propsOngoingTasks || 
     (tasks ? tasks.filter(task => 
       task.status === 'in_progress' || 
       (task.status === 'pending' && new Date(task.dueDate || '') <= new Date())
-    ) : []);
+    ) : []), [tasks, propsOngoingTasks]);
   
-  const completedTasks = propsCompletedTasks || 
-    (tasks ? tasks.filter(task => task.status === 'completed') : []);
+  const completedTasks = useMemo(() => propsCompletedTasks || 
+    (tasks ? tasks.filter(task => task.status === 'completed') : []), [tasks, propsCompletedTasks]);
   
   // Load user data for assigned tasks
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, Suspense, lazy } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,7 +24,8 @@ import {
   Paper,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Navigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { clearError, setCredentials } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
@@ -54,10 +55,6 @@ interface TwoFactorFormInputs {
   rememberDevice: boolean;
 }
 
-interface ForgotPasswordFormInputs {
-  email: string;
-}
-
 const loginSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -68,10 +65,6 @@ const twoFactorSchema = z.object({
   verificationCode: z.string().min(6, 'Verification code must be at least 6 characters'),
   rememberDevice: z.boolean().default(true)
 }) as z.ZodType<TwoFactorFormInputs>;
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
-}) as z.ZodType<ForgotPasswordFormInputs>;
 
 const Login: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -92,7 +85,7 @@ const Login: React.FC = () => {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [forgotPasswordError, setForgotPasswordError] = useState('');
-  // const [captchaToken, setCaptchaToken] = useState<string | null>(null); // Temporarily comment out
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   // const turnstileSiteKey = import.meta.env.VITE_APP_TURNSTILE_SITE_KEY; // Temporarily comment out
 
@@ -157,8 +150,6 @@ const Login: React.FC = () => {
 
   const handleSuccessfulLogin = (responseData: any) => {
     try {
-      console.log('Processing login response:', responseData);
-      
       const accessToken = responseData.access || responseData.token || responseData.accessToken;
       const refreshToken = responseData.refresh || responseData.refreshToken;
       const userData = responseData.user || {};
@@ -178,7 +169,11 @@ const Login: React.FC = () => {
         localStorage.setItem('user', JSON.stringify(userData));
       }
       
-      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      // Update axios auth headers
+      import('../utils/axios').then(axiosModule => {
+        const axiosInstance = axiosModule.default;
+        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      });
       
       dispatch(setCredentials({
         user: userData,
@@ -186,24 +181,17 @@ const Login: React.FC = () => {
         refreshToken: refreshToken
       }));
       
-      console.log('Login successful, redirecting to:', from);
       setIsLoading(false);
       navigate(from);
     } catch (error) {
-      console.error('Error processing login response:', error);
       setError('An error occurred while processing the login response');
       setIsLoading(false);
     }
   };
   
   const handleLoginError = (error: any) => {
-    console.error('Login error:', error);
-    
     if (axios.isAxiosError(error)) {
       if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        
         if (error.response.status === 400) {
           const errorMessage = error.response.data?.message || 
                                error.response.data?.error ||
@@ -240,11 +228,24 @@ const Login: React.FC = () => {
   };
 
   const onSubmit = async (data: LoginFormInputs) => {
-    // if (!captchaToken) { // Temporarily comment out check
-    //   setError('CAPTCHA verification is required. Please wait or refresh.');
-    //   return;
-    // }
+    if (!executeRecaptcha) {
+      setError('Recaptcha not available. Please try refreshing the page.');
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
     try {
+      const captchaToken = await executeRecaptcha('login_action');
+
+      if (!captchaToken) {
+        setError('Failed to get reCAPTCHA token. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
       if (data.rememberMe) {
         localStorage.setItem('rememberedUsername', data.username);
       } else {
@@ -252,163 +253,68 @@ const Login: React.FC = () => {
       }
 
       setLoginCredentials(data);
-      console.log('Attempting login with:', { username: data.username, password: '***' /* captchaToken: '***' */ }); // Temporarily comment out token log
-      setIsLoading(true);
-      setError('');
-      
-      const loginPayload = {
-        username: data.username,
-        password: data.password,
-        // captchaToken: captchaToken, // Temporarily comment out token
-      };
-      
-      try {
-        const healthCheck = await axios.get('http://localhost:3001/api/v1/health', {
-          timeout: 3000
-        });
-        
-        console.log('Backend health check:', healthCheck.status);
-        
-        if (healthCheck.status !== 200) {
-          throw new Error('Backend service is not available');
-        }
-      } catch (healthError) {
-        console.error('Backend health check failed:', healthError);
-        console.log('Using mock data for development testing');
+
+      const response = await AuthService.login(data.username, data.password, captchaToken);
+
+      if (response.need_2fa) {
+        setShow2FADialog(true);
+      } else {
+        handleSuccessfulLogin(response);
       }
-      
-      try {
-        console.log('Trying /api/auth/login endpoint...');
-        
-        const response = await axios({
-          method: 'post',
-          url: 'http://localhost:3001/api/v1/auth/login',
-          data: loginPayload,
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          timeout: 5000
-        });
-        
-        console.log('Login response from /login:', response.data);
-        
-        handleSuccessfulLogin(response.data);
-        return;
-      } catch (loginError) {
-        console.warn('Login via /api/auth/login failed, trying /api/auth/signin...', loginError);
-        
-        try {
-          const signinResponse = await axios({
-            method: 'post',
-            url: 'http://localhost:3001/api/v1/auth/signin',
-            data: loginPayload,
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            timeout: 5000
-          });
-          
-          console.log('Login response from /signin:', signinResponse.data);
-          
-          handleSuccessfulLogin(signinResponse.data);
-          return;
-        } catch (signinError: any) {
-          console.error('Both login attempts failed:', signinError);
-          
-          if (signinError.response && signinError.response.data && signinError.response.data.message && 
-              signinError.response.data.message.includes('Expected property name')) {
-            console.error('Backend JSON parsing error detected, trying with stringified payload');
-            
-            try {
-              const stringifiedResponse = await axios({
-                method: 'post',
-                url: 'http://localhost:3001/api/v1/auth/signin',
-                data: JSON.stringify(loginPayload),
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                timeout: 5000
-              });
-              
-              console.log('Login response with stringified payload:', stringifiedResponse.data);
-              handleSuccessfulLogin(stringifiedResponse.data);
-              return;
-            } catch (finalError) {
-              console.error('Final login attempt failed:', finalError);
-              handleLoginError(finalError);
-            }
-          } else {
-            handleLoginError(signinError);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Unexpected error during login:', error);
-      setError('An unexpected error occurred. Please try again.');
-      setIsLoading(false);
+
+    } catch (error: any) {
+      handleLoginError(error);
     }
   };
   
   const onSubmit2FA = async (data: TwoFactorFormInputs) => {
     if (!loginCredentials) {
-      setError('Login credentials lost. Please try again.');
+      setError('Login session expired. Please login again.');
       setShow2FADialog(false);
       return;
     }
+    
+    if (!executeRecaptcha) {
+      setError('Recaptcha not available for 2FA. Please try refreshing.');
+      setIsLoading(false);
+      return;
+    }
 
-    setIsLoading(true);
     try {
-      const response = await AuthService.login(
+      setIsLoading(true);
+      setError('');
+      
+      const captchaToken = await executeRecaptcha('2fa_verify_action');
+      
+      if (!captchaToken) {
+        setError('Failed to get reCAPTCHA token for 2FA. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+      
+      const loginResponse = await AuthService.login(
         loginCredentials.username,
         loginCredentials.password,
+        captchaToken,
         data.verificationCode,
-        data.rememberDevice
+        loginCredentials.rememberMe
       );
-
-      console.log('2FA login response:', response);
-
-      if (response) {
-        const accessToken = response.access || response.token;
-        const userData = response.user;
-        
-        if (!accessToken) {
-          throw new Error('No access token received from server');
-        }
-        
-        localStorage.setItem('access_token', accessToken);
-        
-        if (userData) {
-          localStorage.setItem('user', JSON.stringify(userData));
-        }
-        
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-        
-        dispatch(setCredentials({
-          user: userData,
-          token: accessToken
-        }));
-        
-        setShow2FADialog(false);
-        navigate(from, { replace: true });
-      } else {
-        throw new Error('Invalid response from server');
-      }
-    } catch (err: any) {
-      console.error('2FA verification error:', err);
       
-      if (axios.isAxiosError(err)) {
-        if (err.response) {
-          const errorMessage = err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
-          setError(errorMessage);
-        } else if (err.request) {
-          setError('No response from server. Please check your connection.');
+      handleSuccessfulLogin(loginResponse);
+      setShow2FADialog(false);
+    } catch (error) {
+      console.error('2FA verification failed:', error);
+      
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response.status === 401) {
+          setError('Invalid verification code. Please try again.');
         } else {
-          setError(err.message || 'An error occurred during 2FA verification');
+          setError(`Error: ${error.response.data?.message || error.message}`);
         }
       } else {
-        setError(err.message || 'An unknown error occurred');
+        setError('An error occurred during 2FA verification');
       }
-    } finally {
+      
       setIsLoading(false);
     }
   };

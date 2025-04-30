@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../../users/users.service';
-import { JwtPayload } from '../interfaces/jwt-payload.interface';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { ConfigService } from "@nestjs/config";
+import { UsersService } from "../../users/users.service";
+import { JwtPayload } from "../interfaces/jwt-payload.interface";
+import { UserContext } from "../interfaces/user-context.interface";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -11,11 +12,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private usersService: UsersService,
   ) {
-    const jwtSecret = configService.get<string>('JWT_SECRET');
+    const jwtSecret = configService.get<string>("JWT_SECRET");
     if (!jwtSecret) {
-      throw new Error('JWT_SECRET is not defined in environment variables');
+      throw new Error("JWT_SECRET is not defined in environment variables");
     }
-    
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: jwtSecret,
@@ -23,14 +24,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    console.log('[JwtStrategy] Validating payload:', payload); // Log the incoming payload
+    console.log("[JwtStrategy] Validating payload:", payload); // Log the incoming payload
     const { username, sub } = payload;
     // Fetch user primarily to check existence and potentially get roles/permissions
     const user = await this.usersService.findOne(username);
 
     if (!user) {
       console.error(`[JwtStrategy] User not found for username: ${username}`);
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException("User not found");
     }
 
     // Instead of returning the full entity, return essential info including the ID from the token payload (sub)
@@ -40,8 +41,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       username: username,
       role: user.role, // Include role from the fetched user entity for authorization
     };
-    console.log('[JwtStrategy] Validation successful, returning user context:', userContext);
+    console.log(
+      "[JwtStrategy] Validation successful, returning user context:",
+      userContext,
+    );
     return userContext;
     // return user; // Old problematic return
   }
-} 
+}

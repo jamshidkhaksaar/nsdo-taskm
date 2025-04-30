@@ -1,6 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from "typeorm";
 
-@Entity('security_settings')
+@Entity("security_settings")
 export class SecuritySettings {
   @PrimaryGeneratedColumn()
   id: number;
@@ -22,10 +28,10 @@ export class SecuritySettings {
 
   @Column({ default: 60 })
   session_timeout_minutes: number;
-  
+
   @CreateDateColumn()
   created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;
-} 
+}

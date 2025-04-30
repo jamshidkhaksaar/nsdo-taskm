@@ -1,17 +1,12 @@
 import React from 'react';
 import {
-  Box,
   List,
   ListItem,
   ListItemText,
-  Typography,
-  Divider,
   Paper,
-  TextField,
-  InputAdornment
+  Typography
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import { Department } from '@/types/index';
+import { Department } from '@/types';
 
 // Define the shape of the department object expected, including the count
 interface DepartmentWithCount extends Department {

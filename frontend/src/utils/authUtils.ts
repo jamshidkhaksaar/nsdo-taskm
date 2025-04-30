@@ -2,13 +2,10 @@ import axios from './axios';
 import { CONFIG } from './config';
 import { store } from '../store';
 import { updateToken } from '../store/slices/authSlice';
- 
-
 
 // Store tokens in localStorage
 export const storeTokens = (access: string, refresh: string) => {
   if (!access) {
-    console.error('Attempted to store empty access token');
     return;
   }
   
@@ -30,29 +27,7 @@ export const storeTokens = (access: string, refresh: string) => {
     
     // Also set in global axios
     axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
-    
-    // Log token storage in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('Tokens stored successfully. Auth headers updated.');
-      
-      // Verify the token was set correctly
-      const instanceHeader = axiosInstance?.defaults?.headers?.common?.['Authorization'];
-      const globalHeader = axios.defaults.headers.common['Authorization'];
-      
-      if (typeof instanceHeader === 'string') {
-        console.log('Instance Authorization header set:', instanceHeader.substring(0, 15) + '...');
-      } else {
-        console.warn('Failed to set instance Authorization header');
-      }
-      
-      if (typeof globalHeader === 'string') {
-        console.log('Global Authorization header set:', globalHeader.substring(0, 15) + '...');
-      } else {
-        console.warn('Failed to set global Authorization header');
-      }
-    }
   } catch (error) {
-    console.error('Error setting Authorization headers:', error);
     // Fallback to direct setting
     axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
   }
@@ -63,7 +38,6 @@ export const parseJwt = (token: string): any => {
   try {
     return JSON.parse(atob(token.split('.')[1]));
   } catch (e) {
-    console.error('Failed to parse JWT token:', e);
     return null;
   }
 };
@@ -99,7 +73,6 @@ export const isAuthenticated = (): boolean => {
     // Both tokens expired
     return false;
   } catch (error) {
-    console.error('Error checking authentication status:', error);
     return false;
   }
 };
@@ -126,18 +99,12 @@ export const logout = () => {
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
-    console.log('No refresh token found, clearing auth state');
-    // Don't redirect, just clear state
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
+    logout();
     return null;
   }
 
   try {
-    console.log('Attempting to refresh token...');
-    
-    // Import the CONFIG to get the correct API URL
+    // Get the base URL without /api/v1 for auth endpoints
     const apiUrl = CONFIG.API_URL || 'http://localhost:3001';
     
     // Use the correct API URL for the refresh endpoint
@@ -145,48 +112,43 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
     
     try {
-      // Remove extra /api if apiUrl already ends with /api/v1
-      const refreshUrl = apiUrl.endsWith('/api/v1')
-        ? `${apiUrl}/auth/refresh`
-        : `${apiUrl}/api/auth/refresh`;
+      // Auth endpoints use the /api/v1 prefix like other endpoints
+      const refreshUrl = `${apiUrl}/api/v1/auth/refresh`;
       const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ refresh_token: refreshToken }),
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: 'include' // Include cookies if using HTTP-only cookies
       });
       
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error(`Token refresh failed with status: ${response.status}`);
+        // Clear auth state on refresh failure
+        logout();
+        return null;
       }
       
       const data = await response.json();
-      console.log('Token refresh response received');
       
       // Handle the response based on the backend's structure
       let newToken = null;
       let newRefreshToken = null;
       
-      if (data.access) {
+      if (data.access || data.accessToken) {
         // If the backend returns access and refresh tokens
-        newToken = data.access;
-        newRefreshToken = data.refresh || refreshToken;
+        newToken = data.access || data.accessToken;
+        newRefreshToken = data.refresh || data.refreshToken || refreshToken;
       } else if (data.token) {
         // If the backend returns a token property instead
         newToken = data.token;
-        newRefreshToken = data.refresh || refreshToken;
-      } else if (data.accessToken) {
-        // Another possible format
-        newToken = data.accessToken;
-        newRefreshToken = data.refreshToken || refreshToken;
+        newRefreshToken = data.refresh || data.refreshToken || refreshToken;
       }
       
       if (newToken) {
-        console.log('New tokens received, storing them');
         storeTokens(newToken, newRefreshToken || refreshToken);
         
         // Import store and update Redux state
@@ -196,29 +158,20 @@ export const refreshAccessToken = async (): Promise<string | null> => {
             refreshToken: newRefreshToken || refreshToken 
           }));
         } catch (storeError) {
-          console.error('Error updating Redux store with new token:', storeError);
+          // Continue even if Redux update fails
         }
         
         return newToken;
+      } else {
+        logout();
+        return null;
       }
-      
-      // If we couldn't get a new token
-      console.log('No valid token in response, clearing auth state');
-      // Don't redirect, just clear state
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      return null;
     } catch (fetchError) {
       clearTimeout(timeoutId);
       throw fetchError;
     }
   } catch (error) {
-    console.error('Token refresh failed:', error);
-    // Don't redirect, just clear state
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
+    logout();
     return null;
   }
 };

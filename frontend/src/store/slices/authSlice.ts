@@ -193,4 +193,7 @@ export const { setCredentials, updateToken, logout, clearError } = authSlice.act
 // Selector to get the current user
 export const selectAuthUser = (state: { auth: AuthState }) => state.auth.user;
 
+// Selector to get the current auth token
+export const selectToken = (state: { auth: AuthState }): string | null => state.auth.token;
+
 export default authSlice.reducer; 

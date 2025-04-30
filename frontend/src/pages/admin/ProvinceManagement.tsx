@@ -24,8 +24,6 @@ import {
     ListItemIcon, 
     ListItemText, 
     Checkbox, 
-    FormGroup, 
-    FormControlLabel 
 } from '@mui/material';
 import { Edit, Delete, Add, Assignment } from '@mui/icons-material';
 import * as provinceService from '../../services/provinceService'; // Assuming service functions are exported
@@ -189,7 +187,7 @@ const ProvinceManagement: React.FC = () => {
     const [provinceForAssignment, setProvinceForAssignment] = useState<Province | null>(null);
 
     // Fetch Provinces using React Query
-    const { data: provinces, isLoading, error, refetch } = useQuery<Province[], Error>({
+    const { data: provinces, isLoading, error } = useQuery<Province[], Error>({
         queryKey: ['adminProvinces'],
         queryFn: provinceService.getAdminProvinces,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes

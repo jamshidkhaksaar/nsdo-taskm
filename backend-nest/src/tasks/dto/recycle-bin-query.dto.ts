@@ -1,5 +1,5 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { TaskStatus, TaskType } from '../entities/task.entity';
+import { IsEnum, IsOptional, IsString } from "class-validator";
+import { TaskStatus, TaskType } from "../entities/task.entity";
 
 export class RecycleBinQueryDto {
   @IsOptional()
@@ -9,19 +9,19 @@ export class RecycleBinQueryDto {
   @IsOptional()
   @IsString()
   userId?: string;
-  
+
   @IsOptional()
   @IsString()
   departmentId?: string;
-  
+
   @IsOptional()
   @IsString()
   provinceId?: string;
-  
+
   @IsOptional()
   @IsEnum(TaskStatus, { each: true })
   status?: TaskStatus[];
-  
+
   @IsOptional()
   @IsEnum(TaskType, { each: true })
   type?: TaskType[];
@@ -29,11 +29,11 @@ export class RecycleBinQueryDto {
   @IsOptional()
   @IsString()
   fromDate?: string;
-  
+
   @IsOptional()
   @IsString()
   toDate?: string;
-  
+
   @IsOptional()
   @IsString()
   deletedByUserId?: string;
@@ -41,16 +41,16 @@ export class RecycleBinQueryDto {
   @IsOptional()
   @IsString()
   sortBy?: string;
-  
+
   @IsOptional()
   @IsString()
-  sortOrder?: 'ASC' | 'DESC';
-  
+  sortOrder?: "ASC" | "DESC";
+
   @IsOptional()
   @IsString()
   page?: string;
-  
+
   @IsOptional()
   @IsString()
   limit?: string;
-} 
+}

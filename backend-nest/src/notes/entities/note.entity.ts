@@ -1,13 +1,20 @@
-import { Entity, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from "typeorm";
+import { User } from "../../users/entities/user.entity";
+import { v4 as uuidv4 } from "uuid";
 
 @Entity()
 export class Note {
-  @Column({ type: 'varchar', length: 36, primary: true })
+  @Column({ type: "varchar", length: 36, primary: true })
   id: string = uuidv4();
 
-  @Column('text')
+  @Column("text")
   content: string;
 
   @Column({ nullable: true, length: 50 })
@@ -22,7 +29,7 @@ export class Note {
   @Column()
   userId: string;
 
-  @ManyToOne(() => User, user => user.notes)
-  @JoinColumn({ name: 'userId' })
+  @ManyToOne(() => User, (user) => user.notes)
+  @JoinColumn({ name: "userId" })
   user: User;
-} 
+}

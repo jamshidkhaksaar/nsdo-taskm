@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID } from "class-validator";
 
 export class LoginTwoFactorDto {
   @IsUUID()
@@ -8,4 +8,4 @@ export class LoginTwoFactorDto {
   @IsString()
   @IsNotEmpty()
   verificationCode: string;
-} 
+}

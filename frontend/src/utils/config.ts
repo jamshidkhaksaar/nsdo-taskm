@@ -4,7 +4,7 @@
 const getBaseUrl = (): string => {
   // In production, API calls should go to the same host (relative URLs)
   // In development, we might need to specify the backend explicitly
-  if (import.meta.env.MODE === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     return ''; // Use relative URLs in production
   } else {
     // Always use port 3001 for the backend in development
@@ -18,18 +18,12 @@ export const CONFIG = {
   API_URL: getBaseUrl(),
   
   // Feature flags
-  DEBUG: import.meta.env.MODE === 'development',
+  DEBUG: process.env.NODE_ENV === 'development',
   
   // Helper to toggle debug mode
   toggleDebug: (): void => {
     CONFIG.DEBUG = !CONFIG.DEBUG;
-    console.log(`Debug mode ${CONFIG.DEBUG ? 'enabled' : 'disabled'}`);
   }
 };
-
-// Log the API URL in development
-if (import.meta.env.MODE === 'development') {
-  console.log('[CONFIG] Using API URL:', CONFIG.API_URL);
-}
 
 export default CONFIG; 

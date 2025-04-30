@@ -1,5 +1,4 @@
 import axios from '../utils/axios';
-import { AxiosError } from 'axios';
 
 export const AdminService = {
   // Get dashboard stats

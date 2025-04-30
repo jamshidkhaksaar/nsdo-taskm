@@ -1,14 +1,14 @@
-import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional, IsEnum, IsBoolean } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export enum BackupType {
-  FULL = 'full',
-  PARTIAL = 'partial',
+  FULL = "full",
+  PARTIAL = "partial",
 }
 
 export class BackupOptionsDto {
   @ApiProperty({
-    description: 'Type of backup',
+    description: "Type of backup",
     enum: BackupType,
     default: BackupType.FULL,
   })
@@ -16,7 +16,7 @@ export class BackupOptionsDto {
   type: BackupType;
 
   @ApiProperty({
-    description: 'Backup storage location',
+    description: "Backup storage location",
     required: false,
   })
   @IsString()
@@ -24,7 +24,7 @@ export class BackupOptionsDto {
   location?: string;
 
   @ApiProperty({
-    description: 'Include database in backup',
+    description: "Include database in backup",
     required: false,
     default: true,
   })
@@ -33,7 +33,7 @@ export class BackupOptionsDto {
   includeDatabases?: boolean;
 
   @ApiProperty({
-    description: 'Include media files in backup',
+    description: "Include media files in backup",
     required: false,
     default: true,
   })
@@ -42,7 +42,7 @@ export class BackupOptionsDto {
   includeMedia?: boolean;
 
   @ApiProperty({
-    description: 'Include system settings in backup',
+    description: "Include system settings in backup",
     required: false,
     default: true,
   })
@@ -51,10 +51,10 @@ export class BackupOptionsDto {
   includeSettings?: boolean;
 
   @ApiProperty({
-    description: 'Custom backup path',
+    description: "Custom backup path",
     required: false,
   })
   @IsString()
   @IsOptional()
   customPath?: string;
-} 
+}

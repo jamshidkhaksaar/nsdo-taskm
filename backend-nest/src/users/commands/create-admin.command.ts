@@ -1,9 +1,9 @@
-import { Command, CommandRunner } from 'nest-commander';
-import { Injectable } from '@nestjs/common';
-import { UsersService } from '../users.service';
+import { Command, CommandRunner } from "nest-commander";
+import { Injectable } from "@nestjs/common";
+import { UsersService } from "../users.service";
 
 @Injectable()
-@Command({ name: 'create-admin', description: 'Create an admin user' })
+@Command({ name: "create-admin", description: "Create an admin user" })
 export class CreateAdminCommand extends CommandRunner {
   constructor(private readonly usersService: UsersService) {
     super();
@@ -16,7 +16,7 @@ export class CreateAdminCommand extends CommandRunner {
     const [username, email, password] = passedParams;
 
     if (!username || !email || !password) {
-      console.error('Please provide username, email, and password');
+      console.error("Please provide username, email, and password");
       return;
     }
 
@@ -28,7 +28,7 @@ export class CreateAdminCommand extends CommandRunner {
       );
       console.log(`Admin user created successfully: ${user.username}`);
     } catch (error) {
-      console.error('Failed to create admin user:', error.message);
+      console.error("Failed to create admin user:", error.message);
     }
   }
-} 
+}

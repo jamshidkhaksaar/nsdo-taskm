@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -13,29 +13,23 @@ import {
   Grid,
   Chip,
   TextField,
-  Autocomplete,
   Select,
   MenuItem,
-  FormControl,
   SelectChangeEvent,
   Divider,
   Avatar,
   AvatarGroup,
   Tooltip,
-  DialogContentText
+  DialogContentText,
 } from '@mui/material';
-import { Task, Department, Province, TaskStatus, TaskPriority, DelegateTaskData, TaskType, User } from '../../types/index';
-import { UserService } from '../../services/user';
+import { Task, TaskStatus, TaskPriority, TaskType } from '../../types/index';
 import { TaskService } from '../../services/task';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import useReferenceData from '@/hooks/useReferenceData';
-import dayjs from 'dayjs';
-import { getGlassmorphismStyles } from '../../utils/glassmorphismStyles';
+import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
 import { useTaskPermissions } from '@/hooks/useTaskPermissions';
-import { formatDate, DATE_FORMATS, parseDate } from '../../utils/dateUtils';
-import DelegateTaskDialog from './DelegateTaskDialog';
+import { formatDate, DATE_FORMATS } from '@/utils/dateUtils';
+import axios from 'axios';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -44,7 +38,6 @@ import PeopleIcon from '@mui/icons-material/People';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import BusinessIcon from '@mui/icons-material/Business';
 import LocationCityIcon from '@mui/icons-material/LocationCity';
-import axios from 'axios';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -57,8 +50,7 @@ interface TaskViewDialogProps {
 
 const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, onEdit, onDelete, onChangeStatus }) => {
   const theme = useTheme();
-  const { user: currentUser } = useSelector((state: RootState) => state.auth);
-  const { users, departments, provinces, loading: loadingRefData } = useReferenceData();
+  const { users, departments, loading: loadingRefData } = useReferenceData();
   const { error: fetchError, handleError, clearError } = useErrorHandler();
 
   const [task, setTask] = useState<Task | null>(null);
@@ -66,11 +58,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false);
 
-  const [delegateDialogOpen, setDelegateDialogOpen] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
-  const [delegationComment, setDelegationComment] = useState('');
-  const [delegationError, setDelegationError] = useState<string | null>(null);
-  const [delegationLoading, setDelegationLoading] = useState(false);
   const glassStyles = getGlassmorphismStyles(theme);
 
   const permissions = useTaskPermissions(task);
@@ -102,13 +89,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
       };
       fetchDetails();
     }
-    if (!open || !taskId) {
-      setDelegateDialogOpen(false);
-      setSelectedUsers([]);
-      setDelegationComment('');
-      setDelegationError(null);
-      setDelegationLoading(false);
-    }
   }, [open, taskId, clearError, handleError]);
 
   const getUserName = useCallback((userId: string | null | undefined): string => {
@@ -125,43 +105,9 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
 
   const getProvinceName = useCallback((provinceId: string | null | undefined): string => {
     if (!provinceId) return 'N/A';
-    const prov = provinces.find(p => p.id === provinceId);
+    const prov = departments.find(p => p.id === provinceId);
     return prov ? prov.name : `ID: ${provinceId}`;
-  }, [provinces]);
-
-  const handleDelegateSubmit = async (selectedUsers: User[], comment: string) => {
-    if (!task || !taskId) return;
-
-    const selectedUserIds = selectedUsers.map(user => user.id);
-
-    if (selectedUserIds.length === 0) {
-        setDelegationError("Please select at least one user.");
-        return;
-    }
-
-    setDelegationLoading(true);
-    setDelegationError(null);
-
-    const delegationData: DelegateTaskData = {
-        newAssigneeUserIds: selectedUserIds,
-        delegationReason: comment,
-    };
-
-    try {
-        console.log(`[TaskViewDialog] Delegating task ${taskId} with data:`, delegationData);
-        const newTask = await TaskService.delegateTask(taskId, delegationData);
-        console.log("[TaskViewDialog] Delegation successful, new task created/returned:", newTask);
-        setTask(newTask);
-        setDelegateDialogOpen(false);
-    } catch (err: any) {
-        console.error("Delegation failed:", err);
-        const errMsg = `Delegation failed: ${err.response?.data?.message || err.message || 'Unknown error'}`;
-        handleError(errMsg);
-        setDelegationError(errMsg);
-    } finally {
-        setDelegationLoading(false);
-    }
-  };
+  }, [departments]);
 
   const handleStatusChange = async (event: SelectChangeEvent<TaskStatus>) => {
     const newStatus = event.target.value as TaskStatus;
@@ -435,7 +381,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
               </Box>
           </Box>
 
-           {task.type === TaskType.PROVINCE_DEPARTMENT || task.assignedToProvinceId && (
+           {(task.type === TaskType.PROVINCE_DEPARTMENT || task.assignedToProvinceId) && (
                <Box mb={2}>
                   <Typography variant="overline" color="text.secondary" display="block">Province</Typography>
                   {typeof provinceDisplayNode === 'string' ? (
@@ -511,7 +457,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
                     <Button
                         color="secondary"
                         variant="contained"
-                        onClick={() => setDelegateDialogOpen(true)}
                         startIcon={<PeopleIcon />}
                         sx={{ mr: 1 }}
                     >
@@ -556,20 +501,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         </DialogActions>
       </Dialog>
 
-      {task && (
-        <DelegateTaskDialog
-          open={delegateDialogOpen}
-          onClose={() => setDelegateDialogOpen(false)}
-          taskId={taskId!}
-          taskTitle={task.title}
-          currentAssignees={task.assignedToUsers || []}
-          users={users}
-          onSubmit={handleDelegateSubmit}
-          loading={delegationLoading}
-          error={delegationError}
-        />
-      )}
-
       <Dialog open={openCancelDialog} onClose={() => setOpenCancelDialog(false)}>
         <DialogTitle>Cancel Task</DialogTitle>
         <DialogContent>
@@ -606,25 +537,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
       </Dialog>
     </>
   );
-};
-
-const getStatusColor = (status: TaskStatus): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
-  switch (status) {
-    case TaskStatus.PENDING: return 'warning';
-    case TaskStatus.IN_PROGRESS: return 'info';
-    case TaskStatus.COMPLETED: return 'success';
-    case TaskStatus.CANCELLED: return 'error';
-    default: return 'default';
-  }
-};
-
-const getPriorityColor = (priority: TaskPriority): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
-  switch (priority) {
-    case TaskPriority.LOW: return 'info';
-    case TaskPriority.MEDIUM: return 'warning';
-    case TaskPriority.HIGH: return 'error';
-    default: return 'default';
-  }
 };
 
 export default TaskViewDialog;

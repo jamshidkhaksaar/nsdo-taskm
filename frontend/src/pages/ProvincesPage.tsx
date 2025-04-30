@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import React, { useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import {
-    Box, Typography, Paper, Button, CircularProgress, Alert, Grid, Tabs, Tab
+    Box, Typography, Alert, Grid, Tabs, Tab
 } from '@mui/material';
-import { AppDispatch, RootState } from '../store';
+import { RootState } from '../store';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import CreateTaskDialog from '@/components/dialogs/CreateTaskDialog';
 import { TaskType } from '@/types/index';
@@ -11,7 +11,6 @@ import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import { useNavigate } from 'react-router-dom';
-import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
 import ProvinceSelector from '@/components/provinces/ProvinceSelector';
 import DepartmentSelector from '@/components/provinces/DepartmentSelector';
 import ProvincePerformance from '@/components/provinces/ProvincePerformance';
@@ -52,7 +51,6 @@ const a11yProps = (index: number) => {
 };
 
 const ProvincesPage: React.FC = () => {
-    const dispatch = useDispatch<AppDispatch>();
     const navigate = useNavigate();
     const { user } = useSelector((state: RootState) => state.auth);
     const { error: generalError, handleError, clearError } = useErrorHandler();

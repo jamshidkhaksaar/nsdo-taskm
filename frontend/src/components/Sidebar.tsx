@@ -10,10 +10,6 @@ import {
   Collapse,
   ListItemButton,
   Box,
-  Toolbar,
-  Typography,
-  IconButton,
-  useTheme,
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -29,12 +25,10 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MailIcon from '@mui/icons-material/Mail';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import SecurityIcon from '@mui/icons-material/Security';
 import logo from '../assets/images/logo.png';
 import logoIcon from '../assets/images/logoIcon.png';
 
@@ -73,6 +67,12 @@ const adminMenuItems: MenuItem[] = [
     path: '/admin/users', 
     icon: <PeopleIcon />,
     description: 'Manage users, roles, and permissions'
+  },
+  { 
+    title: 'RBAC Management', 
+    path: '/admin/rbac', 
+    icon: <SecurityIcon />,
+    description: 'Manage role-based access control, roles and permissions'
   },
   { 
     title: 'Department Management', 
@@ -130,7 +130,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
   const [adminMenuOpen, setAdminMenuOpen] = useState(true);
-  const theme = useTheme();
 
   const isAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');

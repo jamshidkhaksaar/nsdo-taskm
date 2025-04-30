@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Note } from './entities/note.entity';
-import { CreateNoteDto } from './dto/create-note.dto';
-import { UpdateNoteDto } from './dto/update-note.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Note } from "./entities/note.entity";
+import { CreateNoteDto } from "./dto/create-note.dto";
+import { UpdateNoteDto } from "./dto/update-note.dto";
 
 @Injectable()
 export class NotesService {
@@ -15,7 +15,7 @@ export class NotesService {
   async findAll(userId: string): Promise<Note[]> {
     return this.notesRepository.find({
       where: { userId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
   }
 
@@ -40,17 +40,21 @@ export class NotesService {
     return this.notesRepository.save(note);
   }
 
-  async update(id: string, updateNoteDto: UpdateNoteDto, userId: string): Promise<Note> {
+  async update(
+    id: string,
+    updateNoteDto: UpdateNoteDto,
+    userId: string,
+  ): Promise<Note> {
     const note = await this.findOne(id, userId);
-    
+
     Object.assign(note, updateNoteDto);
-    
+
     return this.notesRepository.save(note);
   }
 
   async remove(id: string, userId: string): Promise<void> {
     const note = await this.findOne(id, userId);
-    
+
     await this.notesRepository.remove(note);
   }
 }

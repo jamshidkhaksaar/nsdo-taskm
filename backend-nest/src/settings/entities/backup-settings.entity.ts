@@ -1,6 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from "typeorm";
 
-@Entity('backup_settings')
+@Entity("backup_settings")
 export class BackupSettings {
   @PrimaryGeneratedColumn()
   id: number;
@@ -14,12 +20,12 @@ export class BackupSettings {
   @Column({ default: 30 })
   backup_retention_days: number;
 
-  @Column({ default: '/backups' })
+  @Column({ default: "/backups" })
   backup_location: string;
-  
+
   @CreateDateColumn()
   created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;
-} 
+}

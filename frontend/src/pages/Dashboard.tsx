@@ -490,11 +490,25 @@ const Dashboard: React.FC = () => {
     // TODO: Implement notification panel logic
   }, []);
 
+  // --- Snackbar Helper ---
+  const showSnackbar = useCallback((message: string, severity: AlertColor = 'success') => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  }, []);
+
+  const handleCloseSnackbar = useCallback((event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+  }, []);
+
   const handleTaskCreated = useCallback(async () => {
     setCreateTaskDialogOpen(false);
     await fetchDashboardTasks();
     showSnackbar('Task created successfully.');
-  }, [fetchDashboardTasks]);
+  }, [fetchDashboardTasks, showSnackbar]);
 
   const handleCloseCreateTaskDialog = useCallback(() => {
     setCreateTaskDialogOpen(false);
@@ -524,20 +538,6 @@ const Dashboard: React.FC = () => {
 
   const handleTabChange = useCallback((event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
-  }, []);
-
-  // --- Snackbar Helper ---
-  const showSnackbar = useCallback((message: string, severity: AlertColor = 'success') => {
-    setSnackbarMessage(message);
-    setSnackbarSeverity(severity);
-    setSnackbarOpen(true);
-  }, []);
-
-  const handleCloseSnackbar = useCallback((event?: React.SyntheticEvent | Event, reason?: string) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    setSnackbarOpen(false);
   }, []);
 
   // --- Update Handlers to Show Snackbar ---

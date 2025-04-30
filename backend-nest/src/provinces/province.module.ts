@@ -1,12 +1,12 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Province } from './entities/province.entity';
-import { Department } from '../departments/entities/department.entity';
-import { ProvinceService } from './province.service';
-import { ProvinceController } from './province.controller';
-import { DepartmentsModule } from '../departments/departments.module';
-import { TasksModule } from '../tasks/tasks.module';
-import { AdminModule } from '../admin/admin.module';
+import { Module, forwardRef } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { Province } from "./entities/province.entity";
+import { Department } from "../departments/entities/department.entity";
+import { ProvinceService } from "./province.service";
+import { ProvinceController } from "./province.controller";
+import { DepartmentsModule } from "../departments/departments.module";
+import { TasksModule } from "../tasks/tasks.module";
+import { AdminModule } from "../admin/admin.module";
 
 @Module({
   imports: [

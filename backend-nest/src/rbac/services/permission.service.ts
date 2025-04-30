@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { Permission } from '../entities/permission.entity';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { In, Repository } from "typeorm";
+import { Permission } from "../entities/permission.entity";
 
 @Injectable()
 export class PermissionService {
@@ -11,11 +11,15 @@ export class PermissionService {
   ) {}
 
   async findAll(): Promise<Permission[]> {
-    return this.permissionRepository.find({ order: { group: 'ASC', name: 'ASC' } });
+    return this.permissionRepository.find({
+      order: { group: "ASC", name: "ASC" },
+    });
   }
 
   async findById(id: string): Promise<Permission> {
-    const permission = await this.permissionRepository.findOne({ where: { id } });
+    const permission = await this.permissionRepository.findOne({
+      where: { id },
+    });
     if (!permission) {
       throw new NotFoundException(`Permission with ID "${id}" not found`);
     }
@@ -23,7 +27,9 @@ export class PermissionService {
   }
 
   async findByName(name: string): Promise<Permission> {
-    const permission = await this.permissionRepository.findOne({ where: { name } });
+    const permission = await this.permissionRepository.findOne({
+      where: { name },
+    });
     if (!permission) {
       throw new NotFoundException(`Permission with name "${name}" not found`);
     }
@@ -31,10 +37,10 @@ export class PermissionService {
   }
 
   async findByNames(names: string[]): Promise<Permission[]> {
-    return this.permissionRepository.find({ 
-      where: { name: In(names) }
+    return this.permissionRepository.find({
+      where: { name: In(names) },
     });
   }
 
   // We might add seeding logic here or in a separate seeder later
-} 
+}

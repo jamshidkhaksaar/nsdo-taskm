@@ -1,6 +1,17 @@
 import axios, { AxiosError } from 'axios';
 import { storeTokens } from '../utils/authUtils';
 import axiosInstance from '../utils/axios';
+import { CONFIG } from '../utils/config';
+
+// Create a special instance for auth endpoints
+const authAxios = axios.create({
+  baseURL: `${CONFIG.API_URL || 'http://localhost:3001'}/api/v1`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 15000,
+  withCredentials: true,
+});
 
 // Define interfaces
 export interface User {
@@ -23,51 +34,85 @@ export interface LoginResponse {
 // Initialize auth token from localStorage if it exists
 const token = localStorage.getItem('access_token');
 if (token) {
-  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  authAxios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 }
 
 export const login = async (username: string, password: string): Promise<LoginResponse> => {
-  console.log(`Login attempt with username: ${username}, password: ${'*'.repeat(password.length)}`);
-  
   try {
-    const response = await axiosInstance.post('/api/auth/login', { username, password });
-    
-    // The backend returns { access, refresh, user }
-    if (response.data && response.data.access) {
-      // Store tokens in localStorage
-      storeTokens(response.data.access, response.data.refresh || '');
+    // Try primary endpoint first
+    try {
+      const response = await authAxios.post('/auth/signin', { username, password });
       
-      // Set the token in axios headers for future requests
-      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
-      
-      return {
-        success: true,
-        message: 'Login successful',
-        user: response.data.user,
-        accessToken: response.data.access,
-        refreshToken: response.data.refresh
-      };
-    } else {
-      console.error('Login response missing token:', response.data);
-      return {
-        success: false,
-        message: 'Invalid login response from server'
-      };
+      // The backend returns { access, refresh, user }
+      if (response.data && (response.data.access || response.data.token)) {
+        const accessToken = response.data.access || response.data.token;
+        const refreshToken = response.data.refresh || '';
+        
+        // Store tokens in localStorage
+        storeTokens(accessToken, refreshToken);
+        
+        // Set the token in axios headers for future requests
+        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        authAxios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        
+        return {
+          success: true,
+          message: 'Login successful',
+          user: response.data.user,
+          accessToken,
+          refreshToken
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Invalid login response from server'
+        };
+      }
+    } catch (primaryError) {
+      // If primary endpoint fails, try fallback endpoint
+      try {
+        const response = await authAxios.post('/auth/login', { username, password });
+        
+        if (response.data && (response.data.access || response.data.token)) {
+          const accessToken = response.data.access || response.data.token;
+          const refreshToken = response.data.refresh || '';
+          
+          // Store tokens in localStorage
+          storeTokens(accessToken, refreshToken);
+          
+          // Set the token in axios headers for future requests
+          axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+          authAxios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+          
+          return {
+            success: true,
+            message: 'Login successful',
+            user: response.data.user,
+            accessToken,
+            refreshToken
+          };
+        } else {
+          throw new Error('Invalid login response from server');
+        }
+      } catch (fallbackError) {
+        // If fallback also fails, throw the primary error
+        throw primaryError;
+      }
     }
   } catch (error) {
-    console.error('Login error:', error);
-    
     // Handle error and return appropriate response
     if (axios.isAxiosError(error) && (error as AxiosError).response) {
+      const errorResponse = (error as AxiosError).response;
       return {
         success: false,
-        message: ((error as AxiosError).response?.data as any)?.message || 'Login failed',
+        message: (errorResponse?.data as any)?.message || 'Login failed',
       };
     }
     
     return {
       success: false,
-      message: 'Login failed. Please try again.',
+      message: error instanceof Error ? error.message : 'Login failed. Please try again.',
     };
   }
 };
@@ -80,33 +125,16 @@ export const logout = async (): Promise<{ success: boolean; message: string }> =
     localStorage.removeItem('user');
     
     // Clear Authorization header from axios instances
-    delete axios.defaults.headers.common['Authorization'];
     delete axiosInstance.defaults.headers.common['Authorization'];
-    
-    // Log logout in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('Logout successful. Auth headers cleared.');
-      
-      // Verify headers were cleared
-      const globalHeader = axios.defaults.headers.common['Authorization'];
-      const instanceHeader = axiosInstance.defaults.headers.common['Authorization'];
-      
-      if (globalHeader) {
-        console.warn('Failed to clear global Authorization header');
-      }
-      
-      if (instanceHeader) {
-        console.warn('Failed to clear instance Authorization header');
-      }
-    }
+    delete authAxios.defaults.headers.common['Authorization'];
     
     try {
       // We don't await this because we want to log out even if the server request fails
-      axiosInstance.post('/auth/logout').catch(error => {
-        console.warn('Error calling logout endpoint:', error);
+      axiosInstance.post('/auth/logout').catch(() => {
+        // Silent catch - we're logging out locally regardless
       });
-    } catch (error) {
-      console.warn('Error during server logout:', error);
+    } catch {
+      // Silent catch - we're logging out locally regardless
     }
     
     return {
@@ -114,7 +142,6 @@ export const logout = async (): Promise<{ success: boolean; message: string }> =
       message: 'Logged out successfully'
     };
   } catch (error) {
-    console.error('Error during logout:', error);
     return {
       success: false,
       message: 'Error during logout'
@@ -123,14 +150,10 @@ export const logout = async (): Promise<{ success: boolean; message: string }> =
 };
 
 export const register = async (userData: { username: string; email: string; password: string }): Promise<void> => {
-  console.log('Attempting registration with:', { username: userData.username, email: userData.email, password: '***' });
-  
   try {
-    const response = await axios.post('/api/auth/signup', userData);
-    console.log('Registration response:', response);
+    const response = await authAxios.post('/auth/signup', userData);
     return response.data;
   } catch (error) {
-    console.error('Registration failed:', error);
     throw error;
   }
 };
@@ -138,19 +161,14 @@ export const register = async (userData: { username: string; email: string; pass
 export const refreshToken = async (): Promise<{access: string, refresh: string} | null> => {
   const refreshToken = localStorage.getItem('refresh_token');
   if (!refreshToken) {
-    console.error('No refresh token found');
     return null;
   }
   
   try {
-    console.log('Attempting to refresh token using auth service...');
-    
-    // Use the axiosInstance with the correct baseURL
-    const response = await axiosInstance.post('/api/auth/refresh', {
+    // Use authAxios for auth endpoints 
+    const response = await authAxios.post('/auth/refresh', {
       refresh_token: refreshToken
     });
-    
-    console.log('Token refresh response:', response.status);
     
     const { access, refresh } = response.data;
     
@@ -159,7 +177,6 @@ export const refreshToken = async (): Promise<{access: string, refresh: string} 
     
     return response.data;
   } catch (error) {
-    console.error('Failed to refresh token:', error);
     return null;
   }
 };

@@ -1,7 +1,12 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { User } from '../../users/entities/user.entity'; // Adjust path as needed
-import { ROLES_KEY } from '../decorators/roles.decorator';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { User } from "../../users/entities/user.entity"; // Adjust path as needed
+import { ROLES_KEY } from "../decorators/roles.decorator";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -23,18 +28,22 @@ export class RolesGuard implements CanActivate {
 
     if (!user || !user.role) {
       // Or handle as unauthorized if preferred
-       throw new ForbiddenException('User or user role not found in request for role check.');
+      throw new ForbiddenException(
+        "User or user role not found in request for role check.",
+      );
     }
 
     // Check if the user's role name is included in the required roles
-    const hasRole = requiredRoles.some((roleName) => user.role.name === roleName);
+    const hasRole = requiredRoles.some(
+      (roleName) => user.role.name === roleName,
+    );
 
     if (!hasRole) {
-        throw new ForbiddenException(
-            `User role \"${user.role.name}\" is not authorized. Required roles: ${requiredRoles.join(', ')}`
-        );
+      throw new ForbiddenException(
+        `User role \"${user.role.name}\" is not authorized. Required roles: ${requiredRoles.join(", ")}`,
+      );
     }
-    
+
     return true;
   }
-} 
+}
