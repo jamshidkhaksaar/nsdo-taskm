@@ -282,7 +282,7 @@ const UserManagement: React.FC = () => {
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
-        role: user.role,
+        role: typeof user.role === 'object' && user.role !== null ? user.role.name : user.role || 'N/A',
         department: user.department,
         status: user.status,
         last_login: user.last_login,
@@ -293,6 +293,7 @@ const UserManagement: React.FC = () => {
         updated_at: user.updated_at,
       }));
       
+      console.log('[UserManagement] Formatted user data:', formattedUsers);
       setUsers(formattedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -492,8 +493,12 @@ const UserManagement: React.FC = () => {
                   >
                     <TableCell sx={{ color: '#fff' }}>{user.username}</TableCell>
                     <TableCell sx={{ color: '#fff' }}>{user.email}</TableCell>
-                    <TableCell sx={{ color: '#fff' }}>{user.role}</TableCell>
-                    <TableCell sx={{ color: '#fff' }}>{user.department?.name ?? 'None'}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>
+                      {user.role || 'N/A'}
+                    </TableCell>
+                    <TableCell sx={{ color: '#fff' }}>
+                      {user.department?.name ?? 'None'}
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={user.status}

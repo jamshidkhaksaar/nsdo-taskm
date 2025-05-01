@@ -210,6 +210,23 @@ export interface DepartmentPerformer {
 }
 // END: Department Performer Type
 
+// START: Activity Log Type
+export interface ActivityLog {
+  id: string;
+  timestamp: string;
+  userId?: string; // User who performed the action
+  username?: string; // Username (denormalized for display)
+  user?: { username: string }; // Alternative nested user object
+  action: string; // e.g., 'create', 'update', 'delete', 'login'
+  target?: string; // e.g., 'task', 'user', 'department'
+  targetId?: string; // ID of the affected entity
+  details: string; // Human-readable description of the action
+  ipAddress?: string; // IP address of the user
+  ip?: string; // Alternative field name for IP
+  status?: 'success' | 'failed' | 'info'; // Optional status
+}
+// END: Activity Log Type
+
 // Export types/interfaces from other files within the types directory
 // Add specific files as needed, e.g.:
 // export * from './auth'; 
