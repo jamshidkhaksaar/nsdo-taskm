@@ -10,6 +10,13 @@ import {
 import RoleManagement from './RoleManagement';
 import PermissionManagement from './PermissionManagement';
 import SystemSetup from './SystemSetup';
+import ModernDashboardLayout from '@/components/dashboard/ModernDashboardLayout';
+import Sidebar from '@/components/Sidebar';
+import DashboardTopBar from '@/components/dashboard/DashboardTopBar';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '@/store';
+import { logout } from '@/store/slices/authSlice';
 
 // Tab Panel Component
 interface TabPanelProps {
@@ -41,14 +48,57 @@ function TabPanel(props: TabPanelProps) {
 const RBACManagement: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [error] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('sidebarOpenState');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const navigate = useNavigate();
+  const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((state: RootState) => state.auth);
 
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  return (
-    <Box sx={{ p: 3, height: '100%' }}>
+  // Sidebar toggle handler
+  const handleDrawerToggle = () => {
+    setSidebarOpen(prev => {
+        const newState = !prev;
+        localStorage.setItem('sidebarOpenState', JSON.stringify(newState));
+        return newState;
+    });
+  };
+  
+  // Logout handler (needed for TopBar)
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate('/login');
+  };
+
+  // Define Layout Elements
+  const sidebarElement = <Sidebar 
+                            open={sidebarOpen} 
+                            onToggleDrawer={handleDrawerToggle}
+                            onLogout={handleLogout}
+                          />;
+  const topBarElement = <DashboardTopBar 
+                            onToggleSidebar={handleDrawerToggle}
+                            username={user?.username || 'User'}
+                            notificationCount={0}
+                            onNotificationClick={() => {}}
+                            onLogout={handleLogout}
+                            onProfileClick={() => navigate('/profile')}
+                            onSettingsClick={() => navigate('/settings')}
+                            onHelpClick={() => {}}
+                            onToggleTopWidgets={() => {}}
+                            topWidgetsVisible={true}
+                            showQuickNotesButton={false}
+                          />;
+  
+  // --- Define Main Content ---
+  const mainContentElement = (
+    <Box sx={{ p: 3 }}> 
       <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#fff' }}>
         RBAC Management
       </Typography>
@@ -97,6 +147,19 @@ const RBACManagement: React.FC = () => {
         </TabPanel>
       </Paper>
     </Box>
+  );
+  // --- End Main Content Definition ---
+
+  // --- Main Return using ModernDashboardLayout ---
+  return (
+    <ModernDashboardLayout
+      sidebar={sidebarElement}
+      topBar={topBarElement}
+      mainContent={mainContentElement}
+      sidebarOpen={sidebarOpen}
+      drawerWidth={240} // Assuming default drawer width
+      // Add quick notes panel if needed later
+    />
   );
 };
 
