@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { RootState } from '../store';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
-import CreateTaskDialog from '@/components/dialogs/CreateTaskDialog';
+import CreateTaskDialog from '@/components/tasks/CreateTaskDialog';
 import { TaskType } from '@/types/index';
 import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';

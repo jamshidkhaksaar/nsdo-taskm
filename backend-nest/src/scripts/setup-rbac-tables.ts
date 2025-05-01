@@ -21,7 +21,7 @@ console.log("Using hardcoded database config:", {
  * This script sets up the RBAC tables and seeds initial data
  */
 async function setupRbacTables() {
-  const logger = new Logger("SetupRbacTables");
+  // const logger = new Logger("SetupRbacTables");
   console.log("Starting RBAC tables setup...");
 
   // Create a simple TypeORM connection

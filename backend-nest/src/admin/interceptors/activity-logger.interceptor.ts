@@ -3,12 +3,10 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Inject,
 } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { tap } from "rxjs/operators";
 import { ActivityLogService } from "../services/activity-log.service";
-import { ModuleRef } from "@nestjs/core";
 
 interface LoggingConfig {
   action: string;

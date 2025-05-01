@@ -26,12 +26,15 @@ import {
 import { UpdateSettingsDto } from "./dto/update-settings.dto";
 import { Setting } from "./entities/setting.entity";
 import { TestSendGridDto } from "./dto/test-sendgrid.dto";
+import { Logger } from "@nestjs/common";
 
 @ApiTags("System Settings")
 @ApiBearerAuth()
 @Controller("settings")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SettingsController {
+  private readonly logger = new Logger(SettingsController.name);
+
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get()
@@ -173,13 +176,14 @@ export class SettingsController {
     );
   }
 
-  @Post("notification-settings/test-email")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post("test-email")
   @Roles("ADMIN")
   @ApiOperation({ summary: "Test email settings" })
   @ApiResponse({ status: 200, description: "Test email sent successfully" })
-  async testEmailSettings(@Body() testEmailDto: UpdateNotificationSettingsDto) {
-    return this.settingsService.testEmailSettings(testEmailDto);
+  @ApiResponse({ status: 400, description: 'Invalid settings or test failed' })
+  async testEmailSettings() {
+    this.logger.log("Received request to test email settings.");
+    return this.settingsService.testEmailSettings();
   }
 
   // Endpoint to test SendGrid settings specifically

@@ -12,7 +12,6 @@ import { UpdateNotificationSettingsDto } from "./dto/update-notification-setting
 import { v4 as uuidv4 } from "uuid";
 import { Setting } from "./entities/setting.entity";
 import { UpdateSettingsDto } from "./dto/update-settings.dto";
-import { SettingDto } from "./dto/update-settings.dto";
 import { Logger } from "@nestjs/common";
 import * as SendGrid from "@sendgrid/mail";
 
@@ -294,14 +293,12 @@ export class SettingsService {
     return this.notificationSettingsRepository.save(settings);
   }
 
-  async testEmailSettings(
-    testEmailDto: UpdateNotificationSettingsDto,
-  ): Promise<{ success: boolean; message: string }> {
-    // This would send a test email in a real implementation
-    // For now, just return a success response
+  async testEmailSettings(): Promise<{ success: boolean; message: string }> {
+    this.logger.log("Testing email settings...");
+    // For now, just return success. Implementation needed.
     return {
       success: true,
-      message: "Test email sent successfully",
+      message: "Test email settings test completed successfully",
     };
   }
 

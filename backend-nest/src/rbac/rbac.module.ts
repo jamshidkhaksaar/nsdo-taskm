@@ -1,18 +1,20 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Role } from "./entities/role.entity";
 import { Permission } from "./entities/permission.entity";
 import { PermissionService } from "./services/permission.service";
 import { RoleService } from "./services/role.service";
 import { RolesGuard } from "./guards/roles.guard";
-import { PermissionsGuard } from "./guards/permissions.guard";
 import { RbacSeederService } from "./services/rbac-seeder.service";
 import { RbacAdminController } from "./controllers/rbac-admin.controller";
+import { PermissionsGuard } from "./guards/permissions.guard";
+import { TasksModule } from "../tasks/tasks.module";
 // Import controllers, guards here later
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Role, Permission]),
+    forwardRef(() => TasksModule),
     // Import other necessary modules (e.g., forwardRef(() => UsersModule) if needed for circular deps)
   ],
   controllers: [RbacAdminController],
@@ -20,8 +22,8 @@ import { RbacAdminController } from "./controllers/rbac-admin.controller";
     PermissionService,
     RoleService,
     RolesGuard,
-    PermissionsGuard,
     RbacSeederService,
+    PermissionsGuard,
     // Add RolesGuard, PermissionsGuard later
   ],
   exports: [

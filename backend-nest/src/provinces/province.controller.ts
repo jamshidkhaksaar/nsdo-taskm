@@ -23,6 +23,7 @@ import { DepartmentsService } from "../departments/departments.service";
 import { AssignDepartmentsDto } from "./dto/assign-departments.dto";
 import { TasksService } from "../tasks/tasks.service";
 import { ActivityLogService } from "../admin/services/activity-log.service";
+import { TaskQueryService } from "../tasks/task-query.service";
 // Auth related imports
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"; // Assuming JWT guard for auth
 import {
@@ -42,6 +43,7 @@ export class ProvinceController {
     private readonly provinceService: ProvinceService,
     private readonly departmentsService: DepartmentsService,
     private readonly tasksService: TasksService,
+    private readonly taskQueryService: TaskQueryService,
     private readonly activityLogService: ActivityLogService,
   ) {}
 
@@ -208,27 +210,8 @@ export class ProvinceController {
   @ApiResponse({ status: 200, description: "List of tasks for the province." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   @ApiResponse({ status: 404, description: "Province not found." })
-  async getProvinceTasks(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
-    const tasks = await this.tasksService.getTasksForProvince(id);
-
-    try {
-      const province = await this.provinceService.findOne(id);
-      await this.activityLogService.logFromRequest(
-        req,
-        "view",
-        "province_tasks",
-        `Viewed tasks for province: ${province.name}`,
-        id,
-      );
-    } catch (logError) {
-      console.error(
-        `Failed to log province task view activity: ${logError.message}`,
-      );
-    }
-
+  async getTasksForProvince(@Param("id") id: string) {
+    const tasks = await this.taskQueryService.getTasksForProvince(id);
     return tasks;
   }
 

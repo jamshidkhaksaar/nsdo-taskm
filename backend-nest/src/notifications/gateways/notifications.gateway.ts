@@ -7,8 +7,6 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Injectable, Inject, Logger, OnModuleInit } from "@nestjs/common";
-import Redis from "ioredis";
-import { REDIS_SUBSCRIBER } from "../notifications.module";
 import { AuthService } from "../../auth/auth.service";
 import { WsException } from "@nestjs/websockets";
 

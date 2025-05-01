@@ -19,13 +19,14 @@ import { CreateDepartmentDto } from "./dto/create-department.dto";
 import { UpdateDepartmentDto } from "./dto/update-department.dto";
 import { Department } from "./entities/department.entity";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { GetUser } from "../auth/decorators/get-user.decorator";
 import { User } from "../users/entities/user.entity";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { Roles } from "../auth/decorators/roles.decorator";
+import { RolesGuard } from "../rbac/guards/roles.guard";
+import { Roles } from "../rbac/decorators/roles.decorator";
 import { ActivityLogService } from "../admin/services/activity-log.service";
-import { TaskStatus } from "../tasks/entities/task.entity";
+import { TaskStatus, Task } from "../tasks/entities/task.entity";
 import { TasksService } from "../tasks/tasks.service";
+import { TaskQueryService } from "../tasks/task-query.service";
+import { ApiOperation } from "@nestjs/swagger";
 
 @Controller("departments")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,6 +36,7 @@ export class DepartmentsController {
     @Inject(forwardRef(() => ActivityLogService))
     private activityLogService: ActivityLogService,
     private tasksService: TasksService,
+    private taskQueryService: TaskQueryService,
   ) {}
 
   @Get()
@@ -186,9 +188,10 @@ export class DepartmentsController {
   }
 
   @Get("/:id/tasks")
-  async getDepartmentTasks(@Param("id") id: string, @Request() req) {
-    // TODO: Add permission check? (e.g., only members/head can view?)
-    const tasks = await this.tasksService.getTasksForDepartment(id);
+  @ApiOperation({ summary: "Get tasks for a specific department" })
+  async getTasksForDepartment(@Param("id") id: string, @Request() req) {
+    // Use TaskQueryService
+    const tasks = await this.taskQueryService.getTasksForDepartment(id);
 
     // Log activity
     try {

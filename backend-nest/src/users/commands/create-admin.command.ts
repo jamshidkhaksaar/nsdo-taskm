@@ -9,10 +9,7 @@ export class CreateAdminCommand extends CommandRunner {
     super();
   }
 
-  async run(
-    passedParams: string[],
-    options?: Record<string, any>,
-  ): Promise<void> {
+  async run(passedParams: string[]): Promise<void> {
     const [username, email, password] = passedParams;
 
     if (!username || !email || !password) {

@@ -1,18 +1,10 @@
-import {
-  Injectable,
-  Inject,
-  Logger,
-  BadRequestException,
-} from "@nestjs/common";
-import Redis from "ioredis";
-import { REDIS_PUBLISHER } from "../notifications.module";
+import { Injectable, Logger, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import {
   Notification,
   NotificationType,
 } from "../entities/notification.entity";
-import { User } from "../../users/entities/user.entity";
 import { InternalServerErrorException } from "@nestjs/common";
 
 @Injectable()
@@ -20,9 +12,6 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    // Temporarily comment out Redis Publisher injection decorator
-    // @Inject(REDIS_PUBLISHER)
-    // private readonly redisPublisher: Redis, // Already commented out
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
   ) {}

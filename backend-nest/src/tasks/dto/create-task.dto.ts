@@ -6,11 +6,9 @@ import {
   IsDateString,
   IsUUID,
   IsArray,
-  ArrayMinSize,
   ValidateIf,
-  ValidationArguments,
 } from "class-validator";
-import { TaskPriority, TaskType } from "../entities/task.entity";
+import { TaskPriority } from "../entities/task.entity";
 
 export class CreateTaskDto {
   @IsNotEmpty()

@@ -1,5 +1,5 @@
 // Import polyfill for drag-and-drop
-import './polyfills/dragDropPolyfill';
+// import './polyfills/dragDropPolyfill';
 import { StrictMode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';

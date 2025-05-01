@@ -133,12 +133,13 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
 
   const isAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');
-    return role === 'admin';
+    return typeof role === 'string' && role.toUpperCase() === 'ADMIN';
   }, [user?.role]);
 
   const isManagerOrAdmin = React.useMemo(() => {
     const role = user?.role || localStorage.getItem('user_role');
-    return role === 'admin' || role === 'leadership';
+    const upperRole = typeof role === 'string' ? role.toUpperCase() : '';
+    return upperRole === 'ADMIN' || upperRole === 'LEADERSHIP';
   }, [user?.role]);
 
   const getMenuItemStyles = (isActive: boolean) => ({

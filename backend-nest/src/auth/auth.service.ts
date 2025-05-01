@@ -47,7 +47,7 @@ export class AuthService {
 
   async validateUser(username: string, password: string): Promise<User | null> {
     try {
-      const user = await this.usersService.findOne(username);
+      const user = await this.usersService.findOne(username, ["roles"]);
 
       if (user && (await bcrypt.compare(password, user.password))) {
         this.logger.log(`User validation successful for: ${username}`);
@@ -82,7 +82,8 @@ export class AuthService {
     // --- End CAPTCHA Verification ---
 
     try {
-      const user = await this.usersService.findOne(username);
+      // Load the user WITH the role relation
+      const user = await this.usersService.findOne(username, ["role"]); 
       if (!user) {
         this.logger.warn(`User not found: ${username}`);
         throw new UnauthorizedException("Please check your login credentials");
@@ -114,7 +115,12 @@ export class AuthService {
       this.logger.log(
         `2FA is not enabled for user: ${username}. Generating tokens...`,
       );
-      const payload: JwtPayload = { username: user.username, sub: user.id };
+      // Ensure role name is included in the payload if needed for permissions
+      const payload: JwtPayload = { 
+        username: user.username, 
+        sub: user.id, 
+        role: user.role?.name // Include role name in JWT payload
+      };
       const accessToken = this.jwtService.sign(payload);
       const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
 
@@ -126,8 +132,8 @@ export class AuthService {
           id: user.id,
           username: user.username,
           email: user.email || "",
-          // Add other necessary user fields, excluding sensitive ones like password/secrets
-          role: user.role || "user",
+          // Use role name from the loaded relation, default to 'user' if missing
+          role: user.role?.name || "user", 
         },
       };
     } catch (error) {
@@ -214,7 +220,11 @@ export class AuthService {
     this.logger.log(
       `2FA verification successful for user: ${user.username}. Generating tokens...`,
     );
-    const payload: JwtPayload = { username: user.username, sub: user.id };
+    const payload: JwtPayload = { 
+      username: user.username, 
+      sub: user.id, 
+      role: user.role?.name // Also include role here if needed
+    };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
 
@@ -225,7 +235,8 @@ export class AuthService {
         id: user.id,
         username: user.username,
         email: user.email || "",
-        role: user.role || "user",
+        // Use role name from the loaded relation, default to 'user' if missing
+        role: user.role?.name || "user", 
       },
     };
   }
@@ -237,37 +248,30 @@ export class AuthService {
       // Verify the refresh token
       const payload = this.jwtService.verify(refreshToken);
 
-      // Find the user
-      const user = await this.usersService.findOne(payload.username);
+      // Find the user WITH role to include in new access token payload
+      const user = await this.usersService.findOne(payload.username, ["role"]);
 
       if (!user) {
         throw new UnauthorizedException("Invalid refresh token");
       }
 
-      // Generate a new access token with default expiration (shorter lived)
+      // Generate a new access token including the role
       const accessPayload: JwtPayload = {
         username: user.username,
         sub: user.id,
+        role: user.role?.name // Include role in new access token
       };
-      const accessToken = this.jwtService.sign(accessPayload);
+      const newAccessToken = this.jwtService.sign(accessPayload);
+      // Optionally generate a new refresh token or reuse the old one depending on strategy
+      // For simplicity, let's assume refresh token rotation isn't implemented here
 
-      // Generate a new refresh token with longer expiration (7 days)
-      const refreshPayload: JwtPayload = {
-        username: user.username,
-        sub: user.id,
-      };
-      const newRefreshToken = this.jwtService.sign(refreshPayload, {
-        expiresIn: "7d", // 7 days expiration for refresh token
-      });
-
-      // Return new tokens
       return {
-        access: accessToken,
-        refresh: newRefreshToken,
+        access: newAccessToken,
+        refresh: refreshToken, // Return original refresh token
       };
     } catch (error) {
-      this.logger.error(`Token refresh error: ${error.message}`, error.stack);
-      throw new UnauthorizedException("Invalid refresh token");
+      this.logger.error(`Token refresh failed: ${error.message}`);
+      throw new UnauthorizedException("Invalid or expired refresh token");
     }
   }
 

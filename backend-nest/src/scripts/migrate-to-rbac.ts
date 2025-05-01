@@ -1,11 +1,11 @@
 import { createConnection } from "typeorm";
-import { User } from "../users/entities/user.entity";
-import { Role } from "../rbac/entities/role.entity";
-import { Permission } from "../rbac/entities/permission.entity";
-import { Task } from "../tasks/entities/task.entity";
-import { Department } from "../departments/entities/department.entity";
-import { Note } from "../notes/entities/note.entity";
-import { Province } from "../provinces/entities/province.entity";
+// import { User } from "../users/entities/user.entity";
+// import { Role } from "../rbac/entities/role.entity";
+// import { Permission } from "../rbac/entities/permission.entity";
+// import { Task } from "../tasks/entities/task.entity";
+// import { Department } from "../departments/entities/department.entity";
+// import { Note } from "../notes/entities/note.entity";
+// import { Province } from "../provinces/entities/province.entity";
 import { Logger } from "@nestjs/common";
 import * as dotenv from "dotenv";
 import * as path from "path";

@@ -6,12 +6,11 @@ import {
   Body,
   UseGuards,
   ValidationPipe,
-  ParseEnumPipe,
 } from "@nestjs/common";
 import { EmailTemplatesService } from "./email-templates.service";
 import { UpdateEmailTemplateDto } from "./dto/email-template.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../auth/guards/roles.guard";
+import { RolesGuard } from "../rbac/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import {
   ApiTags,

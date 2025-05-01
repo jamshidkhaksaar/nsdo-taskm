@@ -9,8 +9,6 @@ import {
   UseGuards,
   Req,
   Query,
-  UseInterceptors,
-  Inject,
 } from "@nestjs/common";
 import { DepartmentsService } from "../../departments/departments.service";
 import { CreateDepartmentDto } from "../../departments/dto/create-department.dto";

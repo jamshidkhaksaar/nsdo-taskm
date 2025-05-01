@@ -9,7 +9,6 @@ import {
   Body,
   Put,
   Delete,
-  NotFoundException,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../guards/roles.guard";

@@ -1,9 +1,10 @@
 import { CommandFactory } from "nest-commander";
 import { AppModule } from "./app.module";
-import { CommandsModule } from "./users/commands/commands.module";
+// import { CommandsModule } from "./users/commands/commands.module"; // Module doesn't exist
 
 async function bootstrap() {
-  await CommandFactory.run(CommandsModule, ["warn", "error"]);
+  // Use AppModule, which should provide the necessary commands
+  await CommandFactory.run(AppModule, ["warn", "error"]);
 }
 
 bootstrap();

@@ -68,7 +68,7 @@ export class BackupService {
     if (!backup) {
       throw new NotFoundException(`Backup with ID ${id} not found`);
     }
-    
+
     // This line should technically be unreachable if backup is null due to the throw above,
     // but satisfies TypeScript if the try/catch didn't re-throw.
     return backup;
@@ -282,7 +282,7 @@ export class BackupService {
     // Instead, check if the file exists and throw if not
     if (!backup.file_path || !fs.existsSync(backup.file_path)) {
       throw new NotFoundException(
-        `Backup file not found for backup ID ${id} at path: ${backup.file_path || 'N/A'}`
+        `Backup file not found for backup ID ${id} at path: ${backup.file_path || "N/A"}`,
       );
     }
 

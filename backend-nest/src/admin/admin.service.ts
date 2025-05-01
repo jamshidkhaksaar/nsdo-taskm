@@ -1,21 +1,10 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Like, Repository, Between } from "typeorm";
 import { User } from "../users/entities/user.entity";
 import { Department } from "../departments/entities/department.entity";
 import { Task, TaskStatus } from "../tasks/entities/task.entity";
 import { ActivityLogService } from "./services/activity-log.service";
-
-// Mock activity log entity until we create a real one
-class ActivityLog {
-  id: string;
-  user: string;
-  action: string;
-  target: string;
-  details: string;
-  timestamp: Date;
-  status: "success" | "warning" | "error";
-}
 
 @Injectable()
 export class AdminService {

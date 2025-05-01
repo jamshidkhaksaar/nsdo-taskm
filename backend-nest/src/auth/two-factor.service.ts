@@ -4,7 +4,6 @@ import { Repository } from "typeorm";
 import { User } from "../users/entities/user.entity";
 import * as speakeasy from "speakeasy";
 import * as QRCode from "qrcode";
-import { add } from "date-fns/add";
 
 // Define a minimal interface for the mail service
 interface MailServiceLike {
@@ -207,7 +206,7 @@ export class TwoFactorService {
           }
 
           // Calculate expiration date (90 days from now)
-          const expiresAt = add(new Date(), { days: 90 });
+          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
           // Use a timestamp as a simple fingerprint
           const fingerprint = `browser-${Date.now()}`;
@@ -298,75 +297,6 @@ export class TwoFactorService {
         error.stack,
       );
       throw error;
-    }
-  }
-
-  async checkRememberedBrowser(
-    userId: string,
-    fingerprint: string,
-  ): Promise<boolean> {
-    try {
-      this.logger.log(
-        `Checking remembered browser for user ${userId}, fingerprint: ${fingerprint?.substring(0, 15)}...`,
-      );
-
-      // If no fingerprint is provided, return false
-      if (!fingerprint) {
-        this.logger.warn(`No fingerprint provided for user ${userId}`);
-        return false;
-      }
-
-      const user = await this.usersRepository.findOne({
-        where: { id: userId },
-      });
-      if (!user) {
-        this.logger.warn(`User not found with ID ${userId}`);
-        return false;
-      }
-
-      if (!user.twoFactorEnabled) {
-        this.logger.log(`2FA is not enabled for user ${user.username}`);
-        return false;
-      }
-
-      if (!user.rememberedBrowsers || !Array.isArray(user.rememberedBrowsers)) {
-        this.logger.log(`No remembered browsers for user ${user.username}`);
-        return false;
-      }
-
-      // Check if the browser fingerprint is in the remembered list and not expired
-      const now = new Date();
-      const remembered = user.rememberedBrowsers.find((b) => {
-        if (!b || !b.fingerprint || !b.expiresAt) {
-          return false;
-        }
-
-        try {
-          const expireDate = new Date(b.expiresAt);
-          return b.fingerprint === fingerprint && expireDate > now;
-        } catch (err) {
-          this.logger.error(`Error parsing expiration date: ${err.message}`);
-          return false;
-        }
-      });
-
-      if (remembered) {
-        this.logger.log(
-          `Found remembered browser for user ${user.username}, fingerprint: ${fingerprint?.substring(0, 15)}...`,
-        );
-        return true;
-      }
-
-      this.logger.log(
-        `No matching remembered browser found for user ${user.username}`,
-      );
-      return false;
-    } catch (error) {
-      this.logger.error(
-        `Failed to check remembered browser: ${error.message}`,
-        error.stack,
-      );
-      return false;
     }
   }
 }

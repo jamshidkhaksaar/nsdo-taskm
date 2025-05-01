@@ -3,6 +3,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { Task } from "./entities/task.entity";
 import { TasksController } from "./tasks.controller";
 import { TasksService } from "./tasks.service";
+import { TaskQueryService } from "./task-query.service";
 import { UsersModule } from "../users/users.module";
 import { DepartmentsModule } from "../departments/departments.module";
 import { ProvinceModule } from "../provinces/province.module";
@@ -13,7 +14,7 @@ import { ConfigModule } from "@nestjs/config";
 import { User } from "../users/entities/user.entity";
 import { Department } from "../departments/entities/department.entity";
 import { Province } from "../provinces/entities/province.entity";
-import { NotificationsModule } from "../notifications/notifications.module";
+import { RbacModule } from "../rbac/rbac.module";
 
 @Module({
   imports: [
@@ -24,11 +25,10 @@ import { NotificationsModule } from "../notifications/notifications.module";
     forwardRef(() => AdminModule),
     MailModule,
     ConfigModule,
-    // Temporarily comment out NotificationsModule import
-    // forwardRef(() => NotificationsModule),
+    RbacModule,
   ],
   controllers: [TasksController],
-  providers: [TasksService],
-  exports: [TypeOrmModule, TasksService],
+  providers: [TasksService, TaskQueryService],
+  exports: [TypeOrmModule, TasksService, TaskQueryService],
 })
 export class TasksModule {}

@@ -6,10 +6,10 @@ import {
   forwardRef,
   BadRequestException,
   InternalServerErrorException,
+  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In, FindOneOptions, DeepPartial } from "typeorm";
-import { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
+import { Repository, FindOneOptions, In } from "typeorm";
 import { Department } from "./entities/department.entity";
 import { CreateDepartmentDto } from "./dto/create-department.dto";
 import { UpdateDepartmentDto } from "./dto/update-department.dto";
@@ -17,12 +17,14 @@ import { UsersService } from "../users/users.service";
 import { User } from "../users/entities/user.entity";
 import { ProvinceService } from "../provinces/province.service";
 import { TasksService } from "../tasks/tasks.service";
-import { TaskStatus } from "../tasks/entities/task.entity";
+import { TaskStatus, Task } from "../tasks/entities/task.entity";
 import { ActivityLogService } from "../admin/services/activity-log.service";
-import { Province } from "../provinces/entities/province.entity";
+import { TaskQueryService } from "../tasks/task-query.service";
 
 @Injectable()
 export class DepartmentsService {
+  private readonly logger = new Logger(DepartmentsService.name);
+
   constructor(
     @InjectRepository(Department)
     private departmentsRepository: Repository<Department>,
@@ -32,6 +34,7 @@ export class DepartmentsService {
     @Inject(forwardRef(() => TasksService))
     private tasksService: TasksService,
     private activityLogService: ActivityLogService,
+    private readonly taskQueryService: TaskQueryService,
   ) {}
 
   async findAll(provinceId?: string): Promise<Department[]> {
@@ -485,14 +488,15 @@ export class DepartmentsService {
     departmentId: string,
   ): Promise<{ [key in TaskStatus]?: number } & { total: number }> {
     try {
-      console.log(
+      this.logger.log(
         `[DepartmentsService] Getting task summary for department ${departmentId}`,
       );
       // Ensure department exists (optional, findOne throws NotFoundException if needed)
       // await this.findOne(departmentId);
 
-      const tasks = await this.tasksService.getTasksForDepartment(departmentId);
-      console.log(
+      // Use TaskQueryService
+      const tasks = await this.taskQueryService.getTasksForDepartment(departmentId);
+      this.logger.log(
         `[DepartmentsService] Found ${tasks.length} tasks for department ${departmentId}`,
       );
 
@@ -511,13 +515,13 @@ export class DepartmentsService {
         }
       }
 
-      console.log(
+      this.logger.log(
         `[DepartmentsService] Task summary for ${departmentId}:`,
         summary,
       );
       return summary;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `[DepartmentsService] Error calculating task summary for department ${departmentId}:`,
         error,
       );
@@ -694,6 +698,25 @@ export class DepartmentsService {
       // For now, return an empty array or re-throw the original error
       throw new InternalServerErrorException(
         `Failed to fetch members for department ${departmentId}`,
+      );
+    }
+  }
+
+  // Method to get tasks specifically for a department
+  async getTasksForDepartment(departmentId: string): Promise<Task[]> {
+    this.logger.log(`Fetching tasks for department ID: ${departmentId}`);
+    try {
+      // Use TaskQueryService to fetch tasks
+      const tasks = await this.taskQueryService.getTasksForDepartment(departmentId);
+      this.logger.log(`Found ${tasks.length} tasks for department ${departmentId}`);
+      return tasks;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching tasks for department ${departmentId}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Could not retrieve tasks for department ${departmentId}.`,
       );
     }
   }

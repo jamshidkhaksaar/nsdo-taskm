@@ -16,11 +16,11 @@ import {
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../rbac/guards/roles.guard";
-import { Roles } from "../rbac/decorators/roles.decorator";
 import * as bcrypt from "bcrypt";
 import { ActivityLogService } from "../admin/services/activity-log.service";
 import { TasksService } from "../tasks/tasks.service";
+import { TaskQueryService } from "../tasks/task-query.service";
+import { ApiOperation } from "@nestjs/swagger";
 
 @Controller("users")
 @UseGuards(JwtAuthGuard)
@@ -31,29 +31,13 @@ export class UsersController {
     private readonly usersService: UsersService,
     @Inject(forwardRef(() => ActivityLogService))
     private readonly activityLogService: ActivityLogService,
-    private tasksService: TasksService,
+    private readonly tasksService: TasksService,
+    private readonly taskQueryService: TaskQueryService,
   ) {}
 
   @Get()
-  async getAllUsers(@Request() req) {
+  async getAllUsers() {
     this.logger.log("Getting all users");
-
-    // --- TEMPORARILY COMMENT OUT ACTIVITY LOGGING ---
-    /*
-    try {
-      await this.activityLogService.logFromRequest(
-        req,
-        'view',
-        'users',
-        'User viewed all users',
-      );
-    } catch (logError) {
-        this.logger.error(`Failed to log view all users activity: ${logError.message}`, logError.stack);
-        // Decide if the main request should fail if logging fails.
-        // For now, let's allow it to proceed even if logging fails.
-    }
-    */
-    // -----------------------------------------------
 
     const users = await this.usersService.findAll();
     // Map to only send necessary data without sensitive information
@@ -235,47 +219,20 @@ export class UsersController {
   }
 
   @Get(":id/tasks")
-  async getUserTasks(@Param("id") id: string, @Request() req) {
-    this.logger.log(`Fetching tasks for user with ID: ${id}`);
-
-    // Validate user exists (optional but good practice)
-    try {
-      await this.usersService.findById(id);
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new NotFoundException(`User with ID "${id}" not found.`);
-      }
-      throw error; // Re-throw other errors
-    }
-
-    // Log the activity
-    // Consider logging the specific user ID being queried
-    try {
-      await this.activityLogService.logFromRequest(
-        req,
-        "view",
-        "user_tasks",
-        `Viewed tasks for user ID: ${id}`,
-        id, // Log against the user being viewed
-      );
-    } catch (logError) {
-      console.error(
-        `Failed to log user task view activity: ${logError.message}`,
-      );
-    }
-
-    // Call the correct service method to get tasks *assigned to* the user with the given ID
-    const tasks = await this.tasksService.getTasksForUser(id);
+  @ApiOperation({ summary: "Get tasks associated with a user (assigned or created)" })
+  async getTasksForUser(@Param("id") id: string) {
+    // Use TaskQueryService
+    const tasks = await this.taskQueryService.getTasksForUser(id);
     return tasks;
   }
 
-  @Get("/:id/performance")
-  // @UseGuards(RolesGuard) // Temporarily disabled for data fetching
-  // @Roles('ADMIN', 'LEADERSHIP') // Temporarily disabled for data fetching
-  async getPerformance(@Param("id") id: string, @Request() req) {
-    // TODO: Implement performance fetching logic in usersService
-    console.log(`Fetching performance for user ${id}`);
-    // Placeholder response
-    return { userId: id, performanceData: "Not implemented yet" };
+  @Get(":id/performance")
+  async getPerformance(@Param("id") id: string) {
+    this.logger.log(`Fetching performance data for user with ID: ${id}`);
+    // Dummy data for now
+    return {
+      userId: id,
+      performanceData: "Not implemented yet",
+    };
   }
 }

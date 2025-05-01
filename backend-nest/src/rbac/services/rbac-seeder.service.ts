@@ -6,36 +6,29 @@ import { Role } from "../entities/role.entity";
 
 // Define initial permissions based on implementation-plan.md
 const INITIAL_PERMISSIONS = [
-  // Tasks
-  { name: "task:create", description: "Create new tasks", group: "Tasks" },
-  { name: "task:view:own", description: "View own tasks", group: "Tasks" },
-  {
-    name: "task:view:department",
-    description: "View tasks within own department(s)",
-    group: "Tasks",
-  },
-  { name: "task:view:all", description: "View all tasks", group: "Tasks" },
-  { name: "task:edit:own", description: "Edit own tasks", group: "Tasks" },
-  {
-    name: "task:edit:department",
-    description: "Edit tasks within own department(s)",
-    group: "Tasks",
-  },
-  { name: "task:edit:all", description: "Edit all tasks", group: "Tasks" },
-  { name: "task:delete:own", description: "Delete own tasks", group: "Tasks" },
-  {
-    name: "task:delete:department",
-    description: "Delete tasks within own department(s)",
-    group: "Tasks",
-  },
-  { name: "task:delete:all", description: "Delete all tasks", group: "Tasks" },
-  { name: "task:assign", description: "Assign tasks to users", group: "Tasks" },
-  {
-    name: "task:change_status",
-    description: "Change task status",
-    group: "Tasks",
-  },
-  // Notes
+  // --- Tasks (Refined) ---
+  { name: "task.create", description: "Create new tasks", group: "Tasks" },
+  { name: "task.view.own", description: "View own created/assigned/delegated tasks", group: "Tasks" },
+  { name: "task.view.department", description: "View tasks assigned to own department(s)", group: "Tasks" }, // Keep for potential future use
+  { name: "task.view.all", description: "View all tasks (Admin/Leadership)", group: "Tasks" },
+  { name: "task.view.recyclebin", description: "View deleted tasks in recycle bin (Admin/Leadership)", group: "Tasks" },
+  { name: "task.view.counts.own", description: "View own task counts by status", group: "Tasks" },
+  { name: "task.view.counts.department", description: "View task counts for a specific department", group: "Tasks" }, // Keep for potential future use
+  { name: "task.view.counts.user", description: "View task counts for any user (Admin/Leadership)", group: "Tasks" },
+  { name: "task.update.details.own", description: "Update details (title, desc, due date) of own created tasks", group: "Tasks" },
+  { name: "task.update.details.all", description: "Update details (title, desc, due date) of any task", group: "Tasks" },
+  { name: "task.update.status.own", description: "Update status of own created/assigned tasks", group: "Tasks" },
+  { name: "task.update.status.all", description: "Update status of any task", group: "Tasks" },
+  { name: "task.update.priority.own", description: "Update priority of own created/assigned tasks", group: "Tasks" },
+  { name: "task.update.priority.all", description: "Update priority of any task", group: "Tasks" },
+  { name: "task.delete.soft.own", description: "Move own created tasks to recycle bin", group: "Tasks" },
+  { name: "task.delete.soft.all", description: "Move any task to recycle bin", group: "Tasks" },
+  { name: "task.delete.permanent", description: "Permanently delete tasks (Admin only)", group: "Tasks" },
+  { name: "task.restore", description: "Restore tasks from recycle bin (Admin/Leadership)", group: "Tasks" },
+  { name: "task.delegate.own", description: "Delegate own created/assigned tasks", group: "Tasks" },
+  { name: "task.delegate.all", description: "Delegate any task", group: "Tasks" },
+
+  // --- Notes (Keep existing) ---
   { name: "note:add", description: "Add notes to tasks/items", group: "Notes" },
   { name: "note:view", description: "View notes", group: "Notes" },
   { name: "note:edit:own", description: "Edit own notes", group: "Notes" },
@@ -180,10 +173,36 @@ const INITIAL_ROLES = [
     permissions: INITIAL_PERMISSIONS.map((p) => p.name), // Assign all permissions
   },
   {
-    name: "admin",
+    name: "admin", // Changed from 'Admin'
     description: "Administrator role with full access to the system.",
     isSystemRole: true,
-    permissions: INITIAL_PERMISSIONS.map((p) => p.name), // Also assign all permissions to admin
+    // Explicitly list all permissions for clarity, including new granular ones
+    permissions: [
+      // Tasks
+      "task.create", "task.view.own", "task.view.department", "task.view.all", "task.view.recyclebin",
+      "task.view.counts.own", "task.view.counts.department", "task.view.counts.user",
+      "task.update.details.own", "task.update.details.all",
+      "task.update.status.own", "task.update.status.all",
+      "task.update.priority.own", "task.update.priority.all",
+      "task.delete.soft.own", "task.delete.soft.all", "task.delete.permanent",
+      "task.restore", "task.delegate.own", "task.delegate.all",
+      // Notes
+      "note:add", "note:view", "note:edit:own", "note:delete:own",
+      // Departments
+      "department:create", "department:view", "department:edit", "department:delete", "department:assign_users",
+      // Users
+      "user:create", "user:view:profile", "user:view:list", "user:edit:own_profile", "user:edit:any", "user:delete", "user:assign_role",
+      "user:manage_2fa:own", "user:manage_2fa:any",
+      // Provinces
+      "province:create", "province:view", "province:edit", "province:delete",
+      // Settings
+      "settings:view:system", "settings:edit:system",
+      // Admin Pages
+      "page:view:admin_dashboard", "page:view:user_management", "page:view:department_management",
+      "page:view:role_management", "page:view:activity_logs", "page:view:backup_restore", "page:view:recycle_bin",
+      // RBAC Management
+      "role:create", "role:edit", "role:delete", "permission:assign",
+    ],
   },
   {
     name: "leadership",
@@ -191,70 +210,67 @@ const INITIAL_ROLES = [
       "Leadership role with access to departmental management and reporting.",
     isSystemRole: true,
     permissions: [
-      // Task management permissions
-      "task:create",
-      "task:view:all",
-      "task:edit:all",
-      "task:delete:all",
-      "task:assign",
-      "task:change_status",
-      // Note permissions
-      "note:add",
-      "note:view",
-      "note:edit:own",
-      "note:delete:own",
-      // Department permissions
-      "department:create",
-      "department:view",
-      "department:edit",
-      "department:assign_users",
-      // User permissions
-      "user:view:profile",
-      "user:view:list",
-      "user:edit:own_profile",
+      // Tasks (More granular)
+      "task.create", "task.view.own", "task.view.department", "task.view.all", "task.view.recyclebin", // Can view all/recycle bin
+      "task.view.counts.own", "task.view.counts.department", "task.view.counts.user", // Can view all counts
+      "task.update.details.own", "task.update.details.all", // Can update any details
+      "task.update.status.own", "task.update.status.all", // Can update any status
+      "task.update.priority.own", "task.update.priority.all", // Can update any priority
+      "task.delete.soft.own", "task.delete.soft.all", // Can soft delete any
+      "task.restore", // Can restore
+      "task.delegate.own", "task.delegate.all", // Can delegate any
+      // Notes
+      "note:add", "note:view", "note:edit:own", "note:delete:own",
+      // Departments
+      "department:create", "department:view", "department:edit", "department:assign_users", // Can manage deps, assign users
+      // Users
+      "user:view:profile", "user:view:list", "user:edit:own_profile", // View users, edit own profile
       "user:manage_2fa:own",
-      // Province permissions
+      // Provinces
       "province:view",
       // Admin pages
-      "page:view:admin_dashboard",
-      "page:view:department_management",
+      "page:view:admin_dashboard", "page:view:department_management", // Relevant admin pages
     ],
   },
   {
-    name: "user",
+    name: "user", // Changed from 'User'
     description: "Standard user role with basic access.",
     isSystemRole: true,
     permissions: [
-      "task:view:own",
-      "task:edit:own",
-      "task:create",
-      "note:add",
-      "note:view",
-      "note:edit:own",
-      "note:delete:own",
-      "user:view:profile",
-      "user:edit:own_profile",
+      // Tasks (Own actions)
+      "task.create",
+      "task.view.own",
+      "task.view.counts.own",
+      "task.update.details.own",
+      "task.update.status.own",
+      "task.update.priority.own",
+      "task.delete.soft.own",
+      "task.delegate.own",
+      // Notes
+      "note:add", "note:view", "note:edit:own", "note:delete:own",
+      // Users
+      "user:view:profile", "user:edit:own_profile",
       "user:manage_2fa:own",
     ],
   },
-  {
-    name: "Standard User",
-    description: "Basic access for regular users.",
-    isSystemRole: false,
-    permissions: [
-      "task:view:own",
-      "task:edit:own",
-      "task:create",
-      "note:add",
-      "note:view",
-      "note:edit:own",
-      "note:delete:own",
-      "user:view:profile",
-      "user:edit:own_profile",
-      "user:manage_2fa:own",
-    ],
-  },
-  // Add other roles like 'Department Manager' later if needed
+  // Remove the duplicate 'Standard User' role for now to avoid confusion
+  // {
+  //   name: "Standard User",
+  //   description: "Basic access for regular users.",
+  //   isSystemRole: false,
+  //   permissions: [
+  //     "task:view:own",
+  //     "task:edit:own",
+  //     "task:create",
+  //     "note:add",
+  //     "note:view",
+  //     "note:edit:own",
+  //     "note:delete:own",
+  //     "user:view:profile",
+  //     "user:edit:own_profile",
+  //     "user:manage_2fa:own",
+  //   ],
+  // },
 ];
 
 @Injectable()

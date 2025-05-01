@@ -1,19 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, MoreThan, LessThan, Between, FindOperator } from "typeorm";
+import { Repository } from "typeorm";
 import { Task, TaskStatus, TaskPriority } from "../tasks/entities/task.entity";
-import { User } from "../users/entities/user.entity";
-import { Department } from "../departments/entities/department.entity";
 
 @Injectable()
 export class AnalyticsService {
   constructor(
     @InjectRepository(Task)
     private taskRepository: Repository<Task>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Department)
-    private departmentRepository: Repository<Department>,
   ) {}
 
   async getProductivityMetrics(userId: number) {

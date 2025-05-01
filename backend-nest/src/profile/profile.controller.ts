@@ -15,7 +15,6 @@ import {
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ProfileService } from "./profile.service";
 import { ActivityLogService } from "../admin/services/activity-log.service";
-import * as bcrypt from "bcrypt";
 
 @Controller("profile")
 @UseGuards(JwtAuthGuard)

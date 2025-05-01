@@ -25,7 +25,6 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { clearError, setCredentials } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
 import logo from '../assets/images/logo.png';
@@ -41,7 +40,7 @@ import { AuthService } from '../services/AuthService';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
-// import { Turnstile } from 'react-turnstile'; // Temporarily comment out
+import { Turnstile } from '@marsidev/react-turnstile';
 
 interface LoginFormInputs {
   username: string;
@@ -85,9 +84,9 @@ const Login: React.FC = () => {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [forgotPasswordError, setForgotPasswordError] = useState('');
-  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
-  // const turnstileSiteKey = import.meta.env.VITE_APP_TURNSTILE_SITE_KEY; // Temporarily comment out
+  const turnstileSiteKey = import.meta.env.VITE_APP_TURNSTILE_SITE_KEY;
 
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadFull(engine);
@@ -228,24 +227,16 @@ const Login: React.FC = () => {
   };
 
   const onSubmit = async (data: LoginFormInputs) => {
-    if (!executeRecaptcha) {
-      setError('Recaptcha not available. Please try refreshing the page.');
+    setIsLoading(true);
+    setError('');
+
+    if (!captchaToken) {
+      setError('CAPTCHA verification incomplete. Please wait or refresh.');
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setError('');
-
     try {
-      const captchaToken = await executeRecaptcha('login_action');
-
-      if (!captchaToken) {
-        setError('Failed to get reCAPTCHA token. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-
       if (data.rememberMe) {
         localStorage.setItem('rememberedUsername', data.username);
       } else {
@@ -264,6 +255,8 @@ const Login: React.FC = () => {
 
     } catch (error: any) {
       handleLoginError(error);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -274,24 +267,16 @@ const Login: React.FC = () => {
       return;
     }
     
-    if (!executeRecaptcha) {
-      setError('Recaptcha not available for 2FA. Please try refreshing.');
+    setIsLoading(true);
+    setError('');
+
+    if (!captchaToken) {
+      setError('CAPTCHA verification incomplete. Please wait or refresh.');
       setIsLoading(false);
       return;
     }
 
     try {
-      setIsLoading(true);
-      setError('');
-      
-      const captchaToken = await executeRecaptcha('2fa_verify_action');
-      
-      if (!captchaToken) {
-        setError('Failed to get reCAPTCHA token for 2FA. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-      
       const loginResponse = await AuthService.login(
         loginCredentials.username,
         loginCredentials.password,
@@ -655,29 +640,37 @@ const Login: React.FC = () => {
           </MuiLink>
         </Box>
 
-        {/* Temporarily Commented Out Turnstile Component */}
-        {/* {turnstileSiteKey ? (
-          <Box sx={{ my: 2, display: 'flex', justifyContent: 'center' }}>
-            <Turnstile
+        <Box sx={{ my: 2, display: 'flex', justifyContent: 'center' }}>
+          {turnstileSiteKey ? (
+            <Turnstile 
               siteKey={turnstileSiteKey}
-              onSuccess={(token) => setCaptchaToken(token)}
-              onError={() => { setError('CAPTCHA challenge failed.'); setCaptchaToken(null); }}
-              onExpire={() => { setError('CAPTCHA expired.'); setCaptchaToken(null); }}
-              options={{ theme: theme.palette.mode, size: 'normal' }}
+              onSuccess={setCaptchaToken}
+              onError={() => { 
+                setError('CAPTCHA challenge failed. Please refresh.'); 
+                setCaptchaToken(null);
+              }}
+              onExpire={() => { 
+                setError('CAPTCHA expired. Please refresh.'); 
+                setCaptchaToken(null);
+              }}
+              options={{
+                theme: theme.palette.mode,
+                size: 'normal'
+              }}
             />
-          </Box>
-        ) : (
-          <Alert severity="warning" sx={{ my: 2 }}>
-            CAPTCHA site key not configured.
-          </Alert>
-        )} */}
+          ) : (
+            <Alert severity="warning">
+              CAPTCHA is not configured. Please contact support.
+            </Alert>
+          )}
+        </Box>
 
         <Button
           type="submit"
           fullWidth
           variant="contained"
           sx={glassStyles.button}
-          disabled={isLoading /* || !captchaToken */} // Temporarily remove token check from disabled
+          disabled={isLoading || !captchaToken}
         >
           {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
         </Button>

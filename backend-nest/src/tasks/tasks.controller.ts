@@ -15,26 +15,32 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { TasksService } from "./tasks.service";
-import { Task } from "./entities/task.entity";
+import { TaskQueryService } from "./task-query.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CreateTaskDto } from "./dto/create-task.dto";
 import { UpdateTaskDto } from "./dto/update-task.dto";
-import { TaskStatus, TaskPriority } from "./entities/task.entity";
+import { TaskStatus } from "./entities/task.entity";
 import { UpdateTaskStatusDto } from "./dto/update-task-status.dto";
 import { UpdateTaskPriorityDto } from "./dto/update-task-priority.dto";
 import { DelegateTaskDto } from "./dto/delegate-task.dto";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
-import { RolesGuard } from "../rbac/guards/roles.guard";
-import { Roles } from "../rbac/decorators/roles.decorator";
-import { DashboardTasksResponse, TaskStatusCounts } from "./tasks.service";
+import { Permissions } from "../rbac/decorators/permissions.decorator";
+import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { TaskStatusCounts } from "./tasks.service";
 import { DeleteTaskDto } from "./dto/delete-task.dto";
 import { RecycleBinQueryDto } from "./dto/recycle-bin-query.dto";
+import { ActivityLogService } from "../admin/services/activity-log.service";
+import { Task } from "./entities/task.entity";
 
 @Controller("tasks")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags("Tasks")
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly taskQueryService: TaskQueryService,
+    private readonly activityLogService: ActivityLogService,
+  ) {}
 
   @Post()
   create(@Body() createTaskDto: CreateTaskDto, @Request() req) {
@@ -43,7 +49,7 @@ export class TasksController {
 
   @Get()
   findAll(@Query() query, @Request() req) {
-    return this.tasksService.findAll(query, req.user);
+    return this.taskQueryService.findAll(query, req.user);
   }
 
   @Get("recycle-bin")
@@ -58,38 +64,43 @@ export class TasksController {
     status: 403,
     description: "Forbidden - Insufficient permissions.",
   })
+  @Permissions("task.view.recyclebin")
   async getRecycleBin(@Query() query: RecycleBinQueryDto, @Request() req) {
-    return this.tasksService.findAllDeleted(query, req.user);
+    return this.taskQueryService.findAllDeleted(query, req.user);
   }
 
   @Get("dashboard")
   getDashboardTasks(@Request() req) {
-    return this.tasksService.getDashboardTasks(req.user.userId);
+    return this.taskQueryService.getDashboardTasks(req.user.userId);
   }
 
   @Get("assigned-to-me")
   getTasksAssignedToMe(@Request() req) {
-    return this.tasksService.getTasksAssignedToUser(req.user.userId);
+    return this.taskQueryService.getTasksAssignedToUser(req.user.userId);
   }
 
   @Get("created-by-me")
   getTasksCreatedByMe(@Request() req) {
-    return this.tasksService.getTasksCreatedByUser(req.user.userId);
+    return this.taskQueryService.getTasksCreatedByUser(req.user.userId);
   }
 
   @Get("delegated-by-me")
   getTasksDelegatedByMe(@Request() req) {
-    return this.tasksService.getTasksDelegatedByUser(req.user.userId);
+    return this.taskQueryService.getTasksDelegatedByUser(req.user.userId);
   }
 
   @Get("delegated-to-me")
   getTasksDelegatedToMe(@Request() req) {
-    return this.tasksService.getTasksDelegatedToUser(req.user.userId);
+    return this.taskQueryService.getTasksDelegatedToUser(req.user.userId);
   }
 
   @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.tasksService.findOne(id);
+  @ApiOperation({ summary: 'Get a single task by ID' })
+  @ApiResponse({ status: 200, description: 'Task found', type: Task })
+  @ApiResponse({ status: 404, description: 'Task not found' })
+  @Permissions("task.view.read")
+  async findOne(@Param('id') id: string) {
+    return this.taskQueryService.findOne(id);
   }
 
   @Put(":id")
@@ -117,6 +128,7 @@ export class TasksController {
     status: 400,
     description: "Bad Request (e.g., insufficient deletion reason).",
   })
+  @Permissions("task.delete.soft.own", "task.delete.soft.all")
   remove(
     @Param("id") id: string,
     @Body() deleteTaskDto: DeleteTaskDto,
@@ -152,6 +164,7 @@ export class TasksController {
   @ApiBody({ type: DelegateTaskDto })
   @ApiResponse({ status: 201, description: "Task delegated successfully." })
   @ApiResponse({ status: 400, description: "Invalid input or permissions." })
+  @Permissions("task.delegate.own", "task.delegate.all")
   async delegateTask(
     @Param("id") id: string,
     @Body() delegateTaskDto: DelegateTaskDto,
@@ -177,6 +190,7 @@ export class TasksController {
     description:
       "Bad Request (e.g., trying to cancel a completed task or insufficient reason).",
   })
+  @Permissions("task.update.status.own", "task.update.status.all")
   cancelTask(
     @Param("id") id: string,
     @Body() updateStatusDto: UpdateTaskStatusDto,
@@ -199,7 +213,9 @@ export class TasksController {
   async getTaskCountsByStatusForDepartment(
     @Param("departmentId") departmentId: string,
   ): Promise<TaskStatusCounts> {
-    return this.tasksService.getTaskCountsByStatusForDepartment(departmentId);
+    return this.taskQueryService.getTaskCountsByStatusForDepartment(
+      departmentId,
+    );
   }
 
   @Get("counts/by-status/user/:userId")
@@ -212,25 +228,16 @@ export class TasksController {
     type: "object",
   })
   @ApiResponse({ status: 404, description: "User not found." })
+  @Permissions("task.view.counts.user", "task.view.counts.own")
   async getTaskCountsByStatusForUser(
     @Param("userId") userId: string,
     @Request() req,
   ): Promise<TaskStatusCounts> {
-    const requestingUser = req.user;
-    if (
-      requestingUser.role?.name !== "ADMIN" &&
-      requestingUser.role?.name !== "LEADERSHIP" &&
-      requestingUser.userId !== userId
-    ) {
-      throw new ForbiddenException(
-        "You do not have permission to view task counts for this user.",
-      );
-    }
-    return this.tasksService.getTaskCountsByStatusForUser(userId);
+    return this.taskQueryService.getTaskCountsByStatusForUser(userId);
   }
 
   @Post(":id/restore")
-  @Roles("ADMIN", "LEADERSHIP")
+  @Permissions("task.restore")
   @ApiOperation({
     summary: "Restore task from recycle bin (admin/leadership only)",
   })
@@ -245,7 +252,7 @@ export class TasksController {
   }
 
   @Delete(":id/permanent")
-  @Roles("ADMIN")
+  @Permissions("task.delete.permanent")
   @ApiOperation({ summary: "Permanently delete task (admin only)" })
   @ApiResponse({ status: 200, description: "Task permanently deleted." })
   @ApiResponse({

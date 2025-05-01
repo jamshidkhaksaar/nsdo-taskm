@@ -8,10 +8,9 @@ import {
   Param,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../../auth/guards/roles.guard";
-import { Roles } from "../../auth/decorators/roles.decorator";
+import { RolesGuard } from "../../rbac/guards/roles.guard";
+import { Roles } from "../../rbac/decorators/roles.decorator";
 import { ActivityLogService } from "../services/activity-log.service";
-import { ActivityLog } from "../entities/activity-log.entity";
 
 // Interface for formatted response
 interface FormattedActivityLog {

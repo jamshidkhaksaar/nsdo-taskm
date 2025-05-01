@@ -1,7 +1,6 @@
 import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
 import { AnalyticsService } from "./analytics.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { Request } from "express";
 
 interface RequestWithUser extends Request {
   user: { id: number; [key: string]: any };

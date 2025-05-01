@@ -1,11 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-  Inject,
-  forwardRef,
-} from "@nestjs/common";
+import { Injectable, Logger, Inject, forwardRef } from "@nestjs/common";
 import { UsersService } from "../users/users.service";
 import * as bcrypt from "bcrypt";
 
@@ -94,7 +87,9 @@ export class ProfileService {
       }
 
       // Update the user with the sanitized data
-      const updatedUser = await this.usersService.updateUser(
+      // const updatedUser = await this.usersService.updateUser( <-- COMMENT OUT
+      await this.usersService.updateUser(
+        // <-- MODIFY
         userId,
         updateData,
       );

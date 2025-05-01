@@ -26,21 +26,22 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user: User = request.user; // Assumes user object is attached by AuthGuard
 
-    if (!user || !user.role) {
-      // Or handle as unauthorized if preferred
+    if (!user || !user.role || !user.role.name) {
+      // Added check for user.role.name
       throw new ForbiddenException(
-        "User or user role not found in request for role check.",
+        "User, user role, or role name not found in request for role check.",
       );
     }
 
-    // Check if the user's role name is included in the required roles
+    // Perform case-insensitive comparison
+    const userRoleNameUpper = user.role.name.toUpperCase();
     const hasRole = requiredRoles.some(
-      (roleName) => user.role.name === roleName,
+      (requiredRoleName) => userRoleNameUpper === requiredRoleName.toUpperCase(),
     );
 
     if (!hasRole) {
       throw new ForbiddenException(
-        `User role \"${user.role.name}\" is not authorized. Required roles: ${requiredRoles.join(", ")}`,
+        `User role "${user.role.name}" is not authorized. Required roles: ${requiredRoles.join(", ")}`,
       );
     }
 

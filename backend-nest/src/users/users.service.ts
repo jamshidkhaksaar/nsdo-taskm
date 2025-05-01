@@ -12,7 +12,6 @@ import * as bcrypt from "bcrypt";
 import { ActivityLogService } from "../admin/services/activity-log.service";
 import { MailService } from "../mail/mail.service";
 import { ConfigService } from "@nestjs/config";
-import { Role } from "../rbac/entities/role.entity";
 import { RoleService } from "../rbac/services/role.service";
 
 @Injectable()
@@ -29,13 +28,13 @@ export class UsersService {
     private readonly roleService: RoleService,
   ) {}
 
-  async findOne(username: string): Promise<User> {
+  async findOne(username: string, relations: string[] = []): Promise<User> {
     try {
       this.logger.log(`Looking for user with username: ${username}`);
 
       const user = await this.usersRepository.findOne({
         where: { username },
-        relations: ["departments"],
+        relations: relations,
       });
       this.logger.log(
         `[DEBUG] findOne result for username=${username}: ${user ? "found" : "not found"}`,

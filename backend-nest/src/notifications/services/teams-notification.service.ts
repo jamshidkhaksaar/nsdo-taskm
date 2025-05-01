@@ -1,10 +1,8 @@
-import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
 import { AxiosError } from "axios";
 import { firstValueFrom } from "rxjs";
-import Redis from "ioredis";
-import { REDIS_SUBSCRIBER } from "../notifications.module";
 
 @Injectable()
 export class TeamsNotificationService implements OnModuleInit {
@@ -12,8 +10,6 @@ export class TeamsNotificationService implements OnModuleInit {
   private readonly teamsWebhookUrl: string | undefined;
 
   constructor(
-    // Temporarily comment out Redis Subscriber injection decorator
-    // @Inject(REDIS_SUBSCRIBER) private readonly redisSubscriber: Redis,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
