@@ -1,13 +1,79 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Like, Repository, Between } from "typeorm";
+import { Like, Repository, Between, LessThan, Not, In } from "typeorm";
 import { User } from "../users/entities/user.entity";
 import { Department } from "../departments/entities/department.entity";
 import { Task, TaskStatus } from "../tasks/entities/task.entity";
 import { ActivityLogService } from "./services/activity-log.service";
+import { Province } from "../provinces/entities/province.entity";
+
+// Define structure for the overview stats (DTOs)
+// Export these interfaces
+export interface OverallCountsDto {
+  totalTasks: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+  delegated: number;
+  overdue: number;
+  dueToday: number;
+  activeUsers: number;
+  totalDepartments: number;
+}
+
+// Define structure for department-specific stats
+export interface DepartmentStatsDto {
+  departmentId: string;
+  departmentName: string;
+  counts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+  };
+}
+
+// Define structure for user-specific stats
+export interface UserTaskStatsDto {
+  userId: string;
+  username: string;
+  // Add department/province info if needed later
+  counts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    totalAssigned: number; // Count of tasks where this user is an assignee
+  };
+}
+
+// Define structure for province-specific stats
+export interface ProvinceStatsDto {
+  provinceId: string;
+  provinceName: string;
+  counts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+  };
+}
+
+export interface TaskOverviewStatsDto {
+  overallCounts: OverallCountsDto;
+  departmentStats: DepartmentStatsDto[]; 
+  userStats: UserTaskStatsDto[]; // Use the specific DTO
+  provinceStats: ProvinceStatsDto[]; // Use the specific DTO
+  overdueTasks: Task[]; // Fetch limited list later
+}
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -16,6 +82,8 @@ export class AdminService {
     @InjectRepository(Task)
     private tasksRepository: Repository<Task>,
     private activityLogService: ActivityLogService,
+    @InjectRepository(Province)
+    private provincesRepository: Repository<Province>
   ) {}
 
   async getDashboardStats(requestingUser: User) {
@@ -1153,5 +1221,295 @@ export class AdminService {
         message: error.message,
       };
     }
+  }
+
+  // Method for Task Overview Stats
+  async getTasksOverviewStats(requestingUser: User): Promise<TaskOverviewStatsDto> {
+    this.logger.log(`User ${requestingUser.id} (${requestingUser.role?.name}) requested Task Overview Stats`);
+
+    // --- Fetch Overall Counts --- 
+    const now = new Date();
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+
+    const [ 
+      totalTasks, 
+      pending, 
+      inProgress, 
+      completed, 
+      cancelled,
+      delegated,
+      overdue, 
+      dueToday, 
+      activeUsers, 
+      totalDepartments 
+    ] = await Promise.all([
+      this.tasksRepository.count({ where: { isDeleted: false } }), // Total non-deleted tasks
+      this.tasksRepository.count({ where: { status: TaskStatus.PENDING, isDeleted: false } }),
+      this.tasksRepository.count({ where: { status: TaskStatus.IN_PROGRESS, isDeleted: false } }),
+      this.tasksRepository.count({ where: { status: TaskStatus.COMPLETED, isDeleted: false } }),
+      this.tasksRepository.count({ where: { status: TaskStatus.CANCELLED, isDeleted: false } }),
+      this.tasksRepository.count({ where: { status: TaskStatus.DELEGATED, isDeleted: false } }),
+      this.tasksRepository.count({ 
+        where: { 
+          dueDate: LessThan(todayStart), // Due date was before today
+          status: Not(In([TaskStatus.COMPLETED, TaskStatus.CANCELLED])), // And not completed or cancelled
+          isDeleted: false
+        } 
+      }),
+      this.tasksRepository.count({ 
+        where: { 
+          dueDate: Between(todayStart, todayEnd), // Due date is today
+          isDeleted: false
+        } 
+      }),
+      this.usersRepository.count({ where: { isActive: true } }),
+      this.departmentsRepository.count(),
+    ]);
+
+    const overallCounts: OverallCountsDto = {
+      totalTasks,
+      pending,
+      inProgress,
+      completed,
+      cancelled,
+      delegated,
+      overdue,
+      dueToday,
+      activeUsers,
+      totalDepartments,
+    };
+
+    // --- Fetch Department Stats --- 
+    const departmentStats: DepartmentStatsDto[] = await this.calculateDepartmentTaskStats();
+
+    // --- Fetch User Stats --- 
+    const userStats: UserTaskStatsDto[] = await this.calculateUserTaskStats(requestingUser);
+
+    // --- Fetch Province Stats --- 
+    const provinceStats: ProvinceStatsDto[] = await this.calculateProvinceTaskStats(departmentStats);
+
+    // Fetch limited list of overdue tasks
+    const overdueTasksList = await this.fetchOverdueTasksList(10);
+
+    this.logger.log(`Returning Task Overview Stats for user ${requestingUser.id}`);
+
+    return {
+      overallCounts,
+      departmentStats,
+      userStats,
+      provinceStats,
+      overdueTasks: overdueTasksList,
+    };
+  }
+
+  // --- Helper Method for Department Task Stats --- 
+  private async calculateDepartmentTaskStats(): Promise<DepartmentStatsDto[]> {
+    const now = new Date();
+    const todayStart = new Date(new Date(now).setHours(0, 0, 0, 0));
+
+    try {
+      const rawStats = await this.tasksRepository
+        .createQueryBuilder("task")
+        .select("dept.id", "departmentId")
+        .addSelect("dept.name", "departmentName")
+        .addSelect("task.status", "status")
+        // Calculate overdue status directly in the query
+        .addSelect(
+          `CASE WHEN task.dueDate < :todayStart AND task.status NOT IN (:...excludedStatuses) THEN 1 ELSE 0 END`,
+          "isOverdue"
+        )
+        .addSelect("COUNT(task.id)", "count")
+        .innerJoin("task.assignedToDepartments", "dept")
+        .where("task.isDeleted = :isDeleted", { isDeleted: false })
+        .setParameters({ 
+            todayStart: todayStart.toISOString(), 
+            excludedStatuses: [TaskStatus.COMPLETED, TaskStatus.CANCELLED]
+        })
+        .groupBy("dept.id, dept.name, task.status, isOverdue")
+        .getRawMany();
+        
+      // Process raw stats into the desired DTO structure
+      const departmentMap = new Map<string, DepartmentStatsDto>();
+
+      rawStats.forEach(row => {
+        const { departmentId, departmentName, status, isOverdue, count } = row;
+        const taskCount = parseInt(count, 10);
+
+        if (!departmentMap.has(departmentId)) {
+          departmentMap.set(departmentId, {
+            departmentId,
+            departmentName,
+            counts: { pending: 0, inProgress: 0, completed: 0, overdue: 0, total: 0 }
+          });
+        }
+
+        const deptStats = departmentMap.get(departmentId)!;
+        deptStats.counts.total += taskCount;
+
+        if (parseInt(isOverdue, 10) === 1) {
+            deptStats.counts.overdue += taskCount;
+        }
+
+        // Add to status counts (excluding completed/cancelled from specific statuses if already counted)
+        if (status === TaskStatus.PENDING && parseInt(isOverdue, 10) === 0) deptStats.counts.pending += taskCount;
+        else if (status === TaskStatus.IN_PROGRESS) deptStats.counts.inProgress += taskCount;
+        else if (status === TaskStatus.COMPLETED) deptStats.counts.completed += taskCount;
+        // We don't count CANCELLED or DELEGATED separately here, but they contribute to total
+      });
+
+      return Array.from(departmentMap.values());
+
+    } catch (error) {
+      this.logger.error("Failed to calculate department task stats:", error);
+      return []; // Return empty array on error
+    }
+  }
+
+  // --- Helper Method for User Task Stats --- 
+  private async calculateUserTaskStats(requestingUser: User): Promise<UserTaskStatsDto[]> {
+    const now = new Date();
+    const todayStart = new Date(new Date(now).setHours(0, 0, 0, 0));
+    const userMap = new Map<string, UserTaskStatsDto>();
+
+    try {
+        const queryBuilder = this.tasksRepository
+            .createQueryBuilder("task")
+            .select("assignee.id", "userId")
+            .addSelect("assignee.username", "username")
+            .addSelect("task.status", "status")
+            .addSelect(
+                `CASE WHEN task.dueDate < :todayStart AND task.status NOT IN (:...excludedStatuses) THEN 1 ELSE 0 END`,
+                "isOverdue"
+            )
+            .addSelect("COUNT(task.id)", "count")
+            .innerJoin("task.assignedToUsers", "assignee") // Join with assigned users
+            .where("task.isDeleted = :isDeleted", { isDeleted: false })
+            .setParameters({ 
+                todayStart: todayStart.toISOString(), 
+                excludedStatuses: [TaskStatus.COMPLETED, TaskStatus.CANCELLED]
+            });
+
+        // --- Permission Filtering --- 
+        // If requesting user is 'leadership', filter by their departments
+        // Note: Assumes requestingUser object has 'role' and 'departments' loaded
+        if (requestingUser.role?.name === 'leadership') {
+            const leaderDepartmentIds = requestingUser.departments?.map(d => d.id) || [];
+            if (leaderDepartmentIds.length > 0) {
+                this.logger.log(`Leadership user ${requestingUser.id} detected. Filtering user stats by departments: ${leaderDepartmentIds.join(', ')}`);
+                // We need to ensure the assignee belongs to one of the leader's departments.
+                // This requires joining User with Department again.
+                queryBuilder
+                    .innerJoin("assignee.departments", "userDept") 
+                    .andWhere("userDept.id IN (:...leaderDepartmentIds)", { leaderDepartmentIds });
+            } else {
+                 this.logger.warn(`Leadership user ${requestingUser.id} has no departments associated. Returning empty user stats.`);
+                 return []; // Leader with no departments sees no user stats?
+            }
+        } // Admins/Super Admins see all users implicitly by not adding the department filter.
+
+        queryBuilder.groupBy("assignee.id, assignee.username, task.status, isOverdue");
+
+        const rawStats = await queryBuilder.getRawMany();
+
+      // Process raw stats
+      rawStats.forEach(row => {
+        const { userId, username, status, isOverdue, count } = row;
+        const taskCount = parseInt(count, 10);
+
+        if (!userMap.has(userId)) {
+          userMap.set(userId, {
+            userId,
+            username,
+            counts: { pending: 0, inProgress: 0, completed: 0, overdue: 0, totalAssigned: 0 }
+          });
+        }
+
+        const userStats = userMap.get(userId)!;
+        userStats.counts.totalAssigned += taskCount;
+
+        if (parseInt(isOverdue, 10) === 1) {
+          userStats.counts.overdue += taskCount;
+        }
+
+        if (status === TaskStatus.PENDING && parseInt(isOverdue, 10) === 0) userStats.counts.pending += taskCount;
+        else if (status === TaskStatus.IN_PROGRESS) userStats.counts.inProgress += taskCount;
+        else if (status === TaskStatus.COMPLETED) userStats.counts.completed += taskCount;
+      });
+
+      return Array.from(userMap.values());
+
+    } catch (error) {
+      this.logger.error("Failed to calculate user task stats:", error);
+      return []; // Return empty array on error
+    }
+  }
+
+  // --- Helper Method for Overdue Tasks List --- 
+  private async fetchOverdueTasksList(limit: number): Promise<Task[]> {
+      const now = new Date();
+      const todayStart = new Date(new Date(now).setHours(0, 0, 0, 0));
+
+      try {
+          return await this.tasksRepository.find({
+              where: {
+                  dueDate: LessThan(todayStart),
+                  status: Not(In([TaskStatus.COMPLETED, TaskStatus.CANCELLED])),
+                  isDeleted: false
+              },
+              relations: [ // Include relations needed for display
+                  "createdBy", 
+                  "assignedToUsers", 
+                  "assignedToDepartments",
+                  "assignedToProvince"
+              ],
+              order: { dueDate: "ASC" }, // Show oldest overdue first
+              take: limit 
+          });
+      } catch (error) {
+          this.logger.error("Failed to fetch overdue tasks list:", error);
+          return [];
+      }
+  }
+
+  // --- Helper Method for Province Task Stats --- 
+  private async calculateProvinceTaskStats(departmentStats: DepartmentStatsDto[]): Promise<ProvinceStatsDto[]> {
+      // We already have counts per department. Now aggregate by province.
+      const provinceMap = new Map<string, ProvinceStatsDto>();
+      const allProvinces = await this.provincesRepository.find();
+      const provinceNameMap = new Map(allProvinces.map(p => [p.id, p.name]));
+      const departmentProvinceMap = new Map<string, string>(); // DeptId -> ProvinceId
+      
+      // Need to fetch departments to get their province mapping if not readily available
+      // Optimization: If departmentStats included provinceId, we wouldn't need this fetch.
+      // For now, fetch all departments with their province relation.
+      const departments = await this.departmentsRepository.find({ relations: ["province"] });
+      departments.forEach(d => {
+          if (d.province?.id) { // Ensure province relationship is loaded and has an ID
+              departmentProvinceMap.set(d.id, d.province.id);
+          }
+      });
+      
+      departmentStats.forEach(deptStat => {
+          const provinceId = departmentProvinceMap.get(deptStat.departmentId);
+          if (provinceId) { // Only include departments linked to a province
+              const provinceName = provinceNameMap.get(provinceId) || 'Unknown Province';
+              if (!provinceMap.has(provinceId)) {
+                  provinceMap.set(provinceId, {
+                      provinceId,
+                      provinceName,
+                      counts: { pending: 0, inProgress: 0, completed: 0, overdue: 0, total: 0 }
+                  });
+              }
+              const provinceDto = provinceMap.get(provinceId)!;
+              provinceDto.counts.total += deptStat.counts.total;
+              provinceDto.counts.pending += deptStat.counts.pending;
+              provinceDto.counts.inProgress += deptStat.counts.inProgress;
+              provinceDto.counts.completed += deptStat.counts.completed;
+              provinceDto.counts.overdue += deptStat.counts.overdue;
+          }
+      });
+
+      return Array.from(provinceMap.values());
   }
 }

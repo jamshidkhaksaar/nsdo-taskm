@@ -15,6 +15,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../rbac/guards/roles.guard";
 import { Roles } from "../rbac/decorators/roles.decorator";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { User } from "../users/entities/user.entity";
 
 @ApiTags("Admin")
 @Controller("admin")
@@ -30,6 +31,18 @@ export class AdminController {
   })
   getDashboardStats(@Request() req) {
     return this.adminService.getDashboardStats(req.user);
+  }
+
+  @Get("dashboard/tasks-overview")
+  @Roles("admin", "Super Admin", "leadership")
+  @ApiOperation({ summary: "Get aggregated task statistics for overview dashboard" })
+  @ApiResponse({
+    status: 200,
+    description: "Task overview statistics retrieved successfully",
+  })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  getTasksOverviewStats(@Request() req) {
+    return this.adminService.getTasksOverviewStats(req.user as User);
   }
 
   @Get("health")
@@ -63,7 +76,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles("admin")
+  @Roles("admin", "Super Admin")
   @Get("users")
   @ApiOperation({ summary: "Get all users" })
   @ApiResponse({ status: 200, description: "All users retrieved successfully" })
@@ -72,7 +85,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles("admin")
+  @Roles("admin", "Super Admin")
   @Get("departments")
   @ApiOperation({ summary: "Get all departments" })
   @ApiResponse({

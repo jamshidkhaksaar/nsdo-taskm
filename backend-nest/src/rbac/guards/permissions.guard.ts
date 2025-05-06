@@ -84,28 +84,44 @@ export class PermissionsGuard implements CanActivate {
         }
 
         try {
-          // Fetch the resource (Task in this case)
-          // TODO: Make this resource-agnostic if guard is used elsewhere (e.g., based on decorator arg)
-          this.logger.debug(`Fetching task ${resourceId} for ownership check (${requiredPerm})`);
-          const task = await this.taskQueryService.findOne(resourceId);
+          let ownsResource = false;
+          const resourceType = requiredPerm.split(':')[0]; // e.g., 'user' from 'user:edit:own_profile' or 'task' from 'task:view:own'
 
-          if (!task) {
-            this.logger.warn(
-              `PermissionsGuard: Task with ID ${resourceId} not found during ownership check for permission '${requiredPerm}'. Checking next permission...`,
-            );
-            continue; // Task doesn't exist, check next permission
+          if (resourceType === 'user' && requiredPerm === 'user:edit:own_profile') {
+            this.logger.debug(`Checking user ownership for ${requiredPerm}: user ${user.id} vs resource ${resourceId}`);
+            if (user.id === resourceId) {
+              ownsResource = true;
+            }
+          } else if (resourceType === 'task') {
+            // Existing task ownership logic
+            this.logger.debug(`Fetching task ${resourceId} for ownership check (${requiredPerm})`);
+            const task = await this.taskQueryService.findOne(resourceId); // Make sure findOne is available and appropriate
+
+            if (!task) {
+              this.logger.warn(
+                `PermissionsGuard: Task with ID ${resourceId} not found during ownership check for permission '${requiredPerm}'. Checking next permission...`,
+              );
+              continue; 
+            }
+            const isCreator = task.createdById === user.id;
+            const isAssignee = task.assignedToUsers?.some(assignee => assignee.id === user.id);
+            if (isCreator || isAssignee) {
+              ownsResource = true;
+            }
+          } else {
+            this.logger.warn(`PermissionsGuard: Unhandled resource type '${resourceType}' for '.own' permission: ${requiredPerm}. Denying by default for this permission.`);
+            // If resource type is unknown for an '.own' permission, deny access for this specific permission.
+            // The loop will continue to check other requiredPermissions if any.
+            continue;
           }
 
-          // Perform ownership check (adjust as needed for your definition of 'own')
-          const isCreator = task.createdById === user.id;
-          const isAssignee = task.assignedToUsers?.some(assignee => assignee.id === user.id);
-
-          if (isCreator || isAssignee) {
+          if (ownsResource) {
             canAccess = true;
             this.logger.debug(`Access granted via .own permission and ownership: ${requiredPerm}`);
             break; // User has the .own permission AND owns the resource
           } else {
-             this.logger.debug(`Ownership check failed for user ${user.id} on task ${resourceId} (${requiredPerm})`);
+            this.logger.debug(`Ownership check failed for user ${user.id} on resource ${resourceId} for permission ${requiredPerm}`);
+            // Continue to check other permissions; user might have an '.all' version or another qualifying permission.
           }
         } catch (error) {
           // Log error but potentially continue checking other permissions

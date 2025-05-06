@@ -1,13 +1,19 @@
 import axios from '../utils/axios';
 import { CONFIG } from '../utils/config';
+// Remove the internal Role import if not needed elsewhere
+// import { Role } from '@/pages/admin/rbac/types'; 
+// Import the central User type
+import { User } from '@/types/index'; 
 
+/* Remove or comment out the internal User interface definition
 export interface User {
     id: string;
     username: string;
     email: string;
     first_name: string;
     last_name: string;
-    role: 'admin' | 'user' | 'leadership';
+    roleId?: string; 
+    password?: string; 
     department: {
         id: string;
         name: string;
@@ -17,10 +23,11 @@ export interface User {
     date_joined: string;
     last_login: string | null;
 }
+*/
 
 export const UserService = {
     // Get all users
-    getUsers: async () => {
+    getUsers: async (): Promise<User[]> => { // Use imported User type
         try {
             console.log('[UserService] Fetching users from:', `${CONFIG.API_URL}/users/`);
             const response = await axios.get('users/');
@@ -32,7 +39,7 @@ export const UserService = {
     },
 
     // Get user by ID
-    getUserById: async (id: string) => {
+    getUserById: async (id: string): Promise<User> => { // Use imported User type
         try {
             console.log(`[UserService] Fetching user with ID: ${id}`);
             const response = await axios.get(`users/${id}`);
@@ -44,7 +51,7 @@ export const UserService = {
     },
 
     // Get current user
-    getCurrentUser: async () => {
+    getCurrentUser: async (): Promise<User> => { // Use imported User type
         try {
             const response = await axios.get('users/me/');
             return response.data;
@@ -55,7 +62,7 @@ export const UserService = {
     },
 
     // Get users by department
-    getUsersByDepartment: async (departmentId: string) => {
+    getUsersByDepartment: async (departmentId: string): Promise<User[]> => { // Use imported User type
         try {
             const response = await axios.get(`users/by_department/?department_id=${departmentId}`);
             return response.data;
@@ -65,8 +72,8 @@ export const UserService = {
         }
     },
 
-    // Create a user
-    createUser: async (user: Omit<User, 'id' | 'date_joined' | 'last_login'>) => {
+    // Create a user - Use imported User type
+    createUser: async (user: Omit<User, 'id' | 'date_joined' | 'last_login'>): Promise<User> => { 
         try {
             const response = await axios.post('users/', user);
             return response.data;
@@ -76,8 +83,8 @@ export const UserService = {
         }
     },
 
-    // Update a user
-    updateUser: async (id: string, user: Partial<User>) => {
+    // Update a user - Use imported User type
+    updateUser: async (id: string, user: Partial<User>): Promise<User> => { 
         try {
             const response = await axios.put(`users/${id}`, user);
             return response.data;
@@ -88,7 +95,7 @@ export const UserService = {
     },
 
     // Delete a user
-    deleteUser: async (id: string) => {
+    deleteUser: async (id: string): Promise<void> => { // Return void
         try {
             await axios.delete(`users/${id}`);
             // No return needed for successful delete
@@ -99,7 +106,7 @@ export const UserService = {
     },
 
     // Reset user password
-    resetPassword: async (id: string, password: string) => {
+    resetPassword: async (id: string, password: string): Promise<{ newPassword?: string }> => { // Define return type if known
         try {
             const response = await axios.post(`users/${id}/reset-password`, {
                 password
@@ -112,7 +119,7 @@ export const UserService = {
     },
 
     // Toggle user status
-    toggleUserStatus: async (id: string) => {
+    toggleUserStatus: async (id: string): Promise<User> => { // Return updated User
         try {
             const response = await axios.post(`users/${id}/toggle-status`);
             return response.data;
@@ -123,7 +130,7 @@ export const UserService = {
     },
 
     // Search users
-    searchUsers: async (query: string) => {
+    searchUsers: async (query: string): Promise<User[]> => { // Use imported User type
         try {
             const response = await axios.get(`users/search/?q=${query}`);
             return response.data;

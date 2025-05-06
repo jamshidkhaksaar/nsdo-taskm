@@ -191,7 +191,7 @@ const INITIAL_ROLES = [
       // Departments
       "department:create", "department:view", "department:edit", "department:delete", "department:assign_users",
       // Users
-      "user:create", "user:view:profile", "user:view:list", "user:edit:own_profile", "user:edit:any", "user:delete", "user:assign_role",
+      "user:create", "user:view:profile", "user:view:list", "user:edit:any", "user:delete", "user:assign_role",
       "user:manage_2fa:own", "user:manage_2fa:any",
       // Provinces
       "province:create", "province:view", "province:edit", "province:delete",
@@ -224,7 +224,7 @@ const INITIAL_ROLES = [
       // Departments
       "department:create", "department:view", "department:edit", "department:assign_users", // Can manage deps, assign users
       // Users
-      "user:view:profile", "user:view:list", "user:edit:own_profile", // View users, edit own profile
+      "user:view:profile", "user:view:list", // View users, REMOVED edit own profile
       "user:manage_2fa:own",
       // Provinces
       "province:view",

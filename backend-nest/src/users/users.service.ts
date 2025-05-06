@@ -13,6 +13,7 @@ import { ActivityLogService } from "../admin/services/activity-log.service";
 import { MailService } from "../mail/mail.service";
 import { ConfigService } from "@nestjs/config";
 import { RoleService } from "../rbac/services/role.service";
+import { Role } from "../rbac/entities/role.entity";
 
 @Injectable()
 export class UsersService {
@@ -296,37 +297,48 @@ export class UsersService {
     }
   }
 
-  async updateUser(id: string, updateData: Partial<User>): Promise<User> {
+  async updateUser(id: string, updateData: Partial<User> & { roleId?: string }): Promise<User> {
     try {
       this.logger.log(`Updating user with ID: ${id}`);
-
-      // First check if the user exists
       const user = await this.findById(id);
 
-      // Update the user properties
-      // We'll only update the properties that are provided
-      // and we'll exclude sensitive properties like password
-      const allowedFields = [
-        "username",
-        "email",
-        "role",
-        "isActive",
-        "bio",
-        "avatarUrl",
-        "skills",
-        "socialLinks",
-        "preferences",
-      ];
-
-      for (const field of allowedFields) {
-        if (updateData[field] !== undefined) {
-          user[field] = updateData[field];
+      // 1. Handle Role Update
+      if (updateData.roleId && updateData.roleId !== user.role?.id) {
+        this.logger.log(`Updating role for user ${id} to roleId ${updateData.roleId}`);
+        try {
+          const newRole = await this.roleService.findById(updateData.roleId);
+          user.role = newRole;
+        } catch (roleError) {
+          if (roleError instanceof NotFoundException) {
+            throw new NotFoundException(`Role with ID "${updateData.roleId}" not found.`);
+          }
+          throw roleError;
         }
       }
 
-      // Save the updated user
-      const updatedUser = await this.usersRepository.save(user);
+      // 2. Update other allowed fields (match ACTUAL User entity properties)
+      const allowedFields: (keyof User)[] = [
+        'email',
+        'isActive',   // Use this boolean field for status
+        'bio',
+        'avatarUrl',
+        'skills',
+        'socialLinks',
+        'preferences',
+        'position'    // <-- Add position here
+        // Add any other relevant fields from the User entity that should be updatable
+      ];
 
+      for (const field of allowedFields) {
+        // Check if the property exists on updateData before assigning
+        if (field in updateData && updateData[field] !== undefined) {
+          // Type assertion might be needed if TS still struggles with dynamic keys
+          (user as any)[field] = updateData[field];
+        }
+      }
+
+      // 4. Save the updated user
+      const updatedUser = await this.usersRepository.save(user);
       this.logger.log(`Successfully updated user with ID: ${id}`);
       return updatedUser;
     } catch (error) {
@@ -334,6 +346,9 @@ export class UsersService {
         `Error updating user with ID ${id}: ${error.message}`,
         error.stack,
       );
+      if (!(error instanceof NotFoundException)) {
+        throw error;
+      }
       throw error;
     }
   }
@@ -353,7 +368,7 @@ export class UsersService {
         `Error finding user by email ${email}: ${error.message}`,
         error.stack,
       );
-      return null; // Return null on error to avoid crashing the flow
+      return null;
     }
   }
 }

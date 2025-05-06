@@ -103,7 +103,6 @@ export class TaskQueryService {
 
       qb.leftJoinAndSelect("task.assignedToUsers", "assignedUser")
         .leftJoinAndSelect("task.assignedToDepartments", "assignedDept")
-        .leftJoinAndSelect("task.delegatedTo", "delegatedUser")
         .where((subQb) => {
           subQb.where("task.createdById = :userId", { userId });
           subQb.orWhere("assignedUser.id = :userId", { userId });
@@ -112,7 +111,6 @@ export class TaskQueryService {
               departmentIds,
             });
           }
-          subQb.orWhere("delegatedUser.id = :userId", { userId });
         });
     }
 
@@ -124,9 +122,8 @@ export class TaskQueryService {
       .leftJoinAndSelect("task.assignedToUsers", "assignees")
       .leftJoinAndSelect("task.assignedToDepartments", "departments")
       .leftJoinAndSelect("task.assignedToProvince", "province")
-      .leftJoinAndSelect("task.delegatedTo", "delegatedAssignees")
-      .leftJoinAndSelect("task.parentTask", "parent")
-      .leftJoinAndSelect("task.subTasks", "children");
+      .leftJoinAndSelect("task.delegatedFromTask", "parent")
+      .leftJoinAndSelect("task.delegatedToTask", "children");
 
     if (query.sortBy) {
       const order = query.order?.toUpperCase() === "DESC" ? "DESC" : "ASC";

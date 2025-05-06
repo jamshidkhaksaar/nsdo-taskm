@@ -21,6 +21,8 @@ import { ActivityLogService } from "../admin/services/activity-log.service";
 import { TasksService } from "../tasks/tasks.service";
 import { TaskQueryService } from "../tasks/task-query.service";
 import { ApiOperation } from "@nestjs/swagger";
+import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { Permissions } from "../rbac/decorators/permissions.decorator";
 
 @Controller("users")
 @UseGuards(JwtAuthGuard)
@@ -188,6 +190,8 @@ export class UsersController {
     };
   }
 
+  @UseGuards(PermissionsGuard)
+  @Permissions('user:edit:own_profile', 'user:edit:any')
   @Put(":id")
   async updateUser(
     @Param("id") id: string,

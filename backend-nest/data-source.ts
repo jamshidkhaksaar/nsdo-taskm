@@ -13,6 +13,8 @@ import { Setting } from './src/settings/entities/setting.entity';
 import { ActivityLog } from './src/admin/entities/activity-log.entity';
 import { Backup } from './src/backup/entities/backup.entity';
 import { EmailTemplate } from './src/email-templates/entities/email-template.entity';
+import { Role } from './src/rbac/entities/role.entity';
+import { Permission } from './src/rbac/entities/permission.entity';
 
 // Load environment variables if needed (e.g., using dotenv)
 // import * as dotenv from 'dotenv';
@@ -42,6 +44,8 @@ export const dataSourceOptions: DataSourceOptions = {
     ActivityLog,
     Backup,
     EmailTemplate,
+    Role,
+    Permission,
   ],
   migrations: ['src/migrations/*.ts'], // Point to TS migration files
   migrationsTableName: "typeorm_migrations",

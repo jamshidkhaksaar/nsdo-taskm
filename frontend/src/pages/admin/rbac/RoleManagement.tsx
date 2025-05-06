@@ -29,7 +29,7 @@ import {
   ListItemText,
   SelectChangeEvent
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Lock as LockIcon } from '@mui/icons-material';
 import { Role, RoleFormData, Permission } from './types';
 import { usePermissions } from './hooks/usePermissions';
 import axios from '../../../utils/axios';
@@ -266,24 +266,28 @@ const RoleManagement: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenDialog(role)}
-                        sx={{ color: '#2196f3' }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteClick(role)}
-                        sx={{ color: '#f44336' }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    {role.isSystemRole ? (
+                      <Tooltip title="System roles cannot be modified">
+                        <span>
+                          <IconButton disabled size="small" sx={{ color: 'rgba(255, 255, 255, 0.3)' }}>
+                            <LockIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <>
+                        <Tooltip title="Edit Role">
+                          <IconButton onClick={() => handleOpenDialog(role)} size="small" sx={{ color: '#2196f3' }}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Role">
+                          <IconButton onClick={() => handleDeleteClick(role)} size="small" sx={{ color: '#f44336' }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

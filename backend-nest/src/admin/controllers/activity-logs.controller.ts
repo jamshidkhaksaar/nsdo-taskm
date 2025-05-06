@@ -41,7 +41,7 @@ export class ActivityLogsController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles("admin")
+  @Roles("admin", "Super Admin")
   async getLogs(
     @Request() req,
     @Query("startDate") startDate?: string,
@@ -88,7 +88,7 @@ export class ActivityLogsController {
 
   @Get("user/:userId")
   @UseGuards(RolesGuard)
-  @Roles("admin")
+  @Roles("admin", "Super Admin")
   async getUserLogs(
     @Request() req,
     @Param("userId") userId: string,
@@ -124,7 +124,7 @@ export class ActivityLogsController {
 
   @Delete()
   @UseGuards(RolesGuard)
-  @Roles("admin")
+  @Roles("admin", "Super Admin")
   async clearLogs() {
     return this.activityLogService.clearLogs();
   }

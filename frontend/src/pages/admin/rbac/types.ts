@@ -7,6 +7,7 @@ export interface Role {
   permissions: Permission[];
   createdAt: string;
   updatedAt: string;
+  isSystemRole: boolean;
 }
 
 export interface Permission {

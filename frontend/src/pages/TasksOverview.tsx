@@ -8,6 +8,16 @@ import {
   Paper,
   Alert,
   Skeleton,
+  CircularProgress,
+  Grid,
+  Card,
+  CardContent,
+  TableContainer,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
 } from '@mui/material';
 import {
 } from '@mui/icons-material';
@@ -19,18 +29,68 @@ import { DepartmentService } from '@/services/department';
 import Sidebar from '@/components/Sidebar';
 import ModernDashboardLayout from '@/components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '@/components/dashboard/DashboardTopBar';
+import api from '../utils/axios';
+import { format } from 'date-fns';
 
-// Define DashboardSummary interface
-interface DashboardSummary {
+// Define interfaces for the expected data structure from the backend
+interface OverallCountsDto {
   totalTasks: number;
-  pendingTasks: number;
-  inProgressTasks: number;
-  completedTasks: number;
-  overdueTasks: number;
-  tasksDueToday: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+  delegated: number;
+  overdue: number;
+  dueToday: number;
   activeUsers: number;
-  totalUsers: number;
   totalDepartments: number;
+}
+
+// Add DepartmentStatsDto interface matching backend
+interface DepartmentStatsDto {
+  departmentId: string;
+  departmentName: string;
+  counts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+  };
+}
+
+// Add UserTaskStatsDto interface matching backend
+interface UserTaskStatsDto {
+  userId: string;
+  username: string;
+  counts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    totalAssigned: number;
+  };
+}
+
+// Add ProvinceStatsDto interface matching backend
+interface ProvinceStatsDto {
+  provinceId: string;
+  provinceName: string;
+  counts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+  };
+}
+
+interface TaskOverviewStatsDto {
+  overallCounts: OverallCountsDto;
+  departmentStats: DepartmentStatsDto[];
+  userStats: UserTaskStatsDto[];
+  provinceStats: ProvinceStatsDto[];
+  overdueTasks: Task[];
 }
 
 const TasksOverview: React.FC = () => {
@@ -39,6 +99,9 @@ const TasksOverview: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [notifications, setNotifications] = useState(0);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
+  const [stats, setStats] = useState<TaskOverviewStatsDto | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const { data: fetchedUsers = [], isLoading: isLoadingUsers, error: usersError } = useQuery<User[]>({
     queryKey: ['users'],
@@ -56,32 +119,25 @@ const TasksOverview: React.FC = () => {
   });
 
   const isLoading = isLoadingUsers || isLoadingDepartments || isLoadingAllTasks;
-  const error = usersError || departmentsError || allTasksError;
+  const errorCombined = usersError || departmentsError || allTasksError;
 
-  const [summaryData, setSummaryData] = useState<DashboardSummary | null>(null);
   useEffect(() => {
-    if (!isLoading && !error && fetchedUsers && fetchedDepartments && allTasksData) {
-      const totalTasks = allTasksData.length;
-      const pendingTasks = allTasksData.filter(t => t.status === TaskStatus.PENDING).length;
-      const inProgressTasks = allTasksData.filter(t => t.status === TaskStatus.IN_PROGRESS).length;
-      const completedTasks = allTasksData.filter(t => t.status === TaskStatus.COMPLETED).length;
-      const overdueTasks = allTasksData.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== TaskStatus.COMPLETED && t.status !== TaskStatus.CANCELLED).length;
-      const today = new Date().toISOString().split('T')[0];
-      const tasksDueToday = allTasksData.filter(t => t.dueDate?.startsWith(today) && t.status !== TaskStatus.COMPLETED && t.status !== TaskStatus.CANCELLED).length;
+    const fetchOverviewStats = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await api.get<TaskOverviewStatsDto>('/admin/dashboard/tasks-overview');
+        setStats(response.data);
+      } catch (err: any) { // Use any or define a specific AxiosError type
+        console.error("Error fetching task overview stats:", err);
+        setError(err.response?.data?.message || err.message || 'Failed to fetch overview statistics.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      setSummaryData({
-        totalTasks,
-        pendingTasks,
-        inProgressTasks,
-        completedTasks,
-        overdueTasks,
-        tasksDueToday,
-        activeUsers: fetchedUsers.filter(u => u.isActive).length,
-        totalUsers: fetchedUsers.length,
-        totalDepartments: fetchedDepartments.length,
-      });
-    }
-  }, [isLoading, error, allTasksData, fetchedUsers, fetchedDepartments]);
+    fetchOverviewStats();
+  }, []);
 
   const handleToggleSidebar = useCallback(() => {
     setSidebarOpen(prev => !prev);
@@ -95,27 +151,255 @@ const TasksOverview: React.FC = () => {
     setTopWidgetsVisible(prev => !prev);
   }, []);
 
+  // Helper function to format assignees/departments
+  const formatAssignees = (task: Task): string => {
+    let assignees: string[] = [];
+    if (task.assignedToUsers && task.assignedToUsers.length > 0) {
+      assignees.push(...task.assignedToUsers.map(u => u.username));
+    }
+    if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+      assignees.push(...task.assignedToDepartments.map(d => `${d.name} (Dept)`));
+    }
+    // Add province if assigned
+    // if (task.assignedToProvince) { 
+    //   assignees.push(`${task.assignedToProvince.name} (Prov)`);
+    // }
+    return assignees.length > 0 ? assignees.join(', ') : 'Unassigned';
+  };
+
   const renderContent = () => {
-    if (isLoading) {
-      return <Skeleton variant="rectangular" height={400} />;
+    if (loading) {
+      return <CircularProgress sx={{ display: 'block', margin: 'auto' }} />;
     }
     if (error) {
-      return <Alert severity="error">Error loading overview data: {error instanceof Error ? error.message : 'Unknown error'}</Alert>;
+      return <Alert severity="error">{error}</Alert>;
     }
     return (
-      <Box p={2}>
-        <Typography variant="h4">Tasks Overview</Typography>
-        {summaryData && (
-          <Paper sx={{ p: 2, mt: 2 }}>
-            <Typography>Total Tasks: {summaryData.totalTasks}</Typography>
-            <Typography>Pending: {summaryData.pendingTasks}</Typography>
-            <Typography>In Progress: {summaryData.inProgressTasks}</Typography>
-            <Typography>Completed: {summaryData.completedTasks}</Typography>
-            <Typography>Overdue: {summaryData.overdueTasks}</Typography>
-            <Typography>Due Today: {summaryData.tasksDueToday}</Typography>
-            <Typography>Active Users: {summaryData.activeUsers} / {summaryData.totalUsers}</Typography>
-            <Typography>Departments: {summaryData.totalDepartments}</Typography>
-          </Paper>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" gutterBottom sx={{ color: '#fff' }}>
+          Tasks Overview Dashboard
+        </Typography>
+
+        {stats && (
+          <Box>
+            {/* Section A: Overall Summary Cards */}
+            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 2, mb: 2 }}>
+              Overall Summary
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">Total Tasks</Typography>
+                    <Typography variant="h4">{stats.overallCounts.totalTasks}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">Pending</Typography>
+                    <Typography variant="h4">{stats.overallCounts.pending}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">In Progress</Typography>
+                    <Typography variant="h4">{stats.overallCounts.inProgress}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">Completed</Typography>
+                    <Typography variant="h4">{stats.overallCounts.completed}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ color: 'orange' }}>Overdue</Typography>
+                    <Typography variant="h4" sx={{ color: 'orange' }}>{stats.overallCounts.overdue}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">Due Today</Typography>
+                    <Typography variant="h4">{stats.overallCounts.dueToday}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">Active Users</Typography>
+                    <Typography variant="h4">{stats.overallCounts.activeUsers}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                  <CardContent>
+                    <Typography variant="h6">Departments</Typography>
+                    <Typography variant="h4">{stats.overallCounts.totalDepartments}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* Section B: Department Performance Table */}
+            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
+              Department Performance
+            </Typography>
+            {stats.departmentStats && stats.departmentStats.length > 0 ? (
+              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                <Table aria-label="department performance table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Department</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Total</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Pending</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>In Progress</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Completed</TableCell>
+                      <TableCell align="right" sx={{ color: 'orange', fontWeight: 'bold' }}>Overdue</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {stats.departmentStats.map((dept) => (
+                      <TableRow key={dept.departmentId} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
+                          {dept.departmentName}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.total}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.pending}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.inProgress}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.completed}</TableCell>
+                        <TableCell align="right" sx={{ color: dept.counts.overdue > 0 ? 'orange' : '#fff' }}>{dept.counts.overdue}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info">No department task data available.</Alert>
+            )}
+            
+            {/* Section C: User Performance Table */}
+            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
+              User Performance
+            </Typography>
+            {stats.userStats && stats.userStats.length > 0 ? (
+              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                <Table aria-label="user performance table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>User</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Total Assigned</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Pending</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>In Progress</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Completed</TableCell>
+                      <TableCell align="right" sx={{ color: 'orange', fontWeight: 'bold' }}>Overdue</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {stats.userStats.map((userStat) => (
+                      <TableRow key={userStat.userId} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
+                          {userStat.username}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.totalAssigned}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.pending}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.inProgress}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.completed}</TableCell>
+                        <TableCell align="right" sx={{ color: userStat.counts.overdue > 0 ? 'orange' : '#fff' }}>{userStat.counts.overdue}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info">No user task data available.</Alert>
+            )}
+
+            {/* Section D: Province Performance Table */}
+            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
+              Province Performance
+            </Typography>
+            {stats.provinceStats && stats.provinceStats.length > 0 ? (
+              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                <Table aria-label="province performance table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Province</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Total Tasks</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Pending</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>In Progress</TableCell>
+                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Completed</TableCell>
+                      <TableCell align="right" sx={{ color: 'orange', fontWeight: 'bold' }}>Overdue</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {stats.provinceStats.map((provStat) => (
+                      <TableRow key={provStat.provinceId} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
+                          {provStat.provinceName}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.total}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.pending}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.inProgress}</TableCell>
+                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.completed}</TableCell>
+                        <TableCell align="right" sx={{ color: provStat.counts.overdue > 0 ? 'orange' : '#fff' }}>{provStat.counts.overdue}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info">No province task data available.</Alert>
+            )}
+
+            {/* Section E: Overdue Tasks List */}
+            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
+              Overdue Tasks (Oldest First)
+            </Typography>
+            {stats.overdueTasks && stats.overdueTasks.length > 0 ? (
+              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
+                <Table aria-label="overdue tasks table" size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Title</TableCell>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Due Date</TableCell>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Assignee(s)/Dept(s)</TableCell>
+                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Created By</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {stats.overdueTasks.map((task) => (
+                      <TableRow key={task.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
+                          {task.title}
+                        </TableCell>
+                        <TableCell sx={{ color: 'orange' }}>
+                          {task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'N/A'}
+                        </TableCell>
+                        <TableCell sx={{ color: '#fff' }}>{formatAssignees(task)}</TableCell>
+                        <TableCell sx={{ color: '#fff' }}>{task.createdBy?.username ?? 'Unknown'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info">No overdue tasks found.</Alert>
+            )}
+
+          </Box>
         )}
       </Box>
     );

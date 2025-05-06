@@ -1,24 +1,26 @@
 import { Dayjs } from 'dayjs';
+import { Role } from '@/pages/admin/rbac/types';
 
 export interface User {
   id: string;
   username: string;
   email: string;
-  first_name: string;
-  last_name: string;
-  role: 'user' | 'leadership' | 'admin';
-  isActive?: boolean;
-  status?: string;
-  avatar?: string;
+  first_name?: string;
+  last_name?: string;
+  role?: Role;
+  roleId?: string;
+  password?: string;
   department?: {
     id: string;
     name: string;
-  };
+  } | null;
   position?: string;
-  date_joined?: string;
+  status: 'active' | 'inactive';
+  date_joined: string;
   last_login?: string | null;
   created_at: string;
   updated_at: string;
+  [key: string]: any;
 }
 
 export interface APIError {

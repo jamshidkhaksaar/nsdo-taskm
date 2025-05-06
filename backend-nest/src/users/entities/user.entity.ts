@@ -47,6 +47,9 @@ export class User {
   @Exclude({ toPlainOnly: true })
   twoFactorSecret: string;
 
+  @Column({ nullable: true })
+  position: string;
+
   @Column({ default: "app", name: "two_factor_method" })
   twoFactorMethod: string; // 'app' for authenticator app, 'email' for email-based 2FA
 

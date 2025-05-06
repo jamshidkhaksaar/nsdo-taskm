@@ -25,7 +25,7 @@ import { EmailTemplate } from "./entities/email-template.entity";
 @ApiBearerAuth()
 @Controller("email-templates")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("admin")
+@Roles("admin", "Super Admin")
 export class EmailTemplatesController {
   constructor(private readonly emailTemplatesService: EmailTemplatesService) {}
 

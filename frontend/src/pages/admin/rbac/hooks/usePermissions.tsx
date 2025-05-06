@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSnackbar } from 'notistack';
 import axios from '../../../../utils/axios';
 import { Permission, PermissionFormData } from '../types';
@@ -10,7 +10,7 @@ export const usePermissions = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch permissions from API
-  const fetchPermissions = async () => {
+  const fetchPermissions = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.get('/admin/rbac/permissions');
@@ -23,10 +23,10 @@ export const usePermissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enqueueSnackbar, setLoading, setPermissions, setError]);
 
   // Create or update permission
-  const savePermission = async (permissionData: PermissionFormData, editingPermission: Permission | null) => {
+  const savePermission = useCallback(async (permissionData: PermissionFormData, editingPermission: Permission | null) => {
     try {
       setLoading(true);
       if (!permissionData.name.trim()) {
@@ -54,10 +54,10 @@ export const usePermissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [permissions, enqueueSnackbar, setLoading, setPermissions, setError]);
 
   // Delete permission
-  const deletePermission = async (permissionId: string) => {
+  const deletePermission = useCallback(async (permissionId: string) => {
     try {
       setLoading(true);
       await axios.delete(`/admin/rbac/permissions/${permissionId}`);
@@ -72,10 +72,10 @@ export const usePermissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [permissions, enqueueSnackbar, setLoading, setPermissions, setError]);
 
   // Initialize system with default roles and permissions
-  const initializeRbac = async () => {
+  const initializeRbac = useCallback(async () => {
     try {
       setLoading(true);
       await axios.post('/admin/rbac/init');
@@ -89,10 +89,10 @@ export const usePermissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enqueueSnackbar, setLoading, setError]);
 
   // Migrate existing users to RBAC system
-  const migrateToRbac = async () => {
+  const migrateToRbac = useCallback(async () => {
     try {
       setLoading(true);
       await axios.post('/admin/rbac/migrate');
@@ -106,7 +106,7 @@ export const usePermissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enqueueSnackbar, setLoading, setError]);
 
   return {
     permissions,

@@ -141,7 +141,7 @@ const UserList: React.FC<UserListProps> = ({
                 secondary={
                   <Box component="span" sx={{ display: 'block' }}>
                     <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      {user.role}
+                      {user.role?.name}
                     </Typography>
                   </Box>
                 }

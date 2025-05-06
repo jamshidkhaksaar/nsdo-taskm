@@ -30,6 +30,9 @@ import {
   Tooltip,
   Container,
   useTheme,
+  OutlinedInput,
+  ListItemText,
+  Checkbox,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -54,16 +57,17 @@ import { getGlassmorphismStyles } from '@/utils/glassmorphismStyles';
 import { AdminService } from '@/services/admin';
 import TasksSection from '@/components/departments/TasksSection';
 import { User, Department } from '@/types/index';
+import { Role } from '@/pages/admin/rbac/types';
+import axios from '@/utils/axios';
+import { SelectChangeEvent } from '@mui/material';
 
 const DRAWER_WIDTH = 240;
 
 interface UserFormData {
   username: string;
   email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  department: string;
+  roleId: string;
+  departmentIds: string[];
   position: string;
   password?: string;
 }
@@ -91,13 +95,12 @@ const UserManagement: React.FC = () => {
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     email: '',
-    first_name: '',
-    last_name: '',
-    role: 'user',
-    department: '',
+    roleId: '',
+    departmentIds: [],
     position: '',
   });
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [rbacRoles, setRbacRoles] = useState<Role[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState<EditMode>({ isEdit: false, userId: null });
@@ -132,10 +135,8 @@ const UserManagement: React.FC = () => {
         setFormData({
           username: user.username,
           email: user.email,
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
-          role: user.role,
-          department: user.department?.id || '',
+          roleId: user.role?.id || '',
+          departmentIds: [],
           position: user.position || ''
         });
         setEditMode({ isEdit: true, userId });
@@ -215,7 +216,7 @@ const UserManagement: React.FC = () => {
 
   const handleAddUser = async () => {
     try {
-      if (!formData.username.trim() || !formData.email.trim() || !formData.role.trim()) {
+      if (!formData.username.trim() || !formData.email.trim() || !formData.roleId.trim()) {
         setError('Username, email, and role are required.');
         return;
       }
@@ -223,42 +224,43 @@ const UserManagement: React.FC = () => {
         const userData: Partial<User> = {
           username: formData.username,
           email: formData.email,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
           position: formData.position,
-          role: formData.role as UserRole,
         };
         
-        if (formData.department) {
-          userData.department = { id: formData.department, name: departments.find(d => d.id === formData.department)?.name || '' };
+        if (formData.departmentIds.length > 0) {
+          userData.department = { id: formData.departmentIds[0], name: departments.find(d => d.id === formData.departmentIds[0])?.name || '' };
         }
         
-        await UserService.updateUser(editMode.userId, userData as any);
+        const updatePayload = { 
+          ...userData, 
+          roleId: formData.roleId
+        };
+
+        await UserService.updateUser(editMode.userId, updatePayload as Partial<User>);
         toast.success('User updated successfully!');
         handleCloseDialog();
         await fetchUsers();
       } else {
-        const createUserData = {
+        const createUserData: Omit<User, 'id' | 'date_joined' | 'last_login'> = {
           username: formData.username,
           email: formData.email,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          role: formData.role as UserRole,
+          roleId: formData.roleId,
+          password: formData.password,
           position: formData.position,
-          departmentId: formData.department || undefined,
+          departmentIds: formData.departmentIds,
           status: 'active' as const
         };
         
-        const response = await UserService.createUser({
-          ...createUserData,
-          password: formData.password
-        } as any);
-        
-        if (response) {
-          toast.success(`User created! ${formData.password ? 'PW set.' : `Default PW: ${response.default_password}`}`);
-          handleCloseDialog();
-          await fetchUsers();
+        if (!createUserData.password) {
+          setError('Password is required for new users.');
+          toast.error('Password is required for new users.');
+          return;
         }
+
+        await UserService.createUser(createUserData);
+        toast.success('User added successfully!');
+        handleCloseDialog();
+        await fetchUsers();
       }
     } catch (error: any) {
       console.error('Error saving user:', error);
@@ -282,13 +284,13 @@ const UserManagement: React.FC = () => {
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
-        role: typeof user.role === 'object' && user.role !== null ? user.role.name : user.role || 'N/A',
+        role: typeof user.role === 'object' && user.role !== null ? user.role : undefined,
+        roleId: user.role_id || (typeof user.role === 'string' ? user.role : undefined),
         department: user.department,
         status: user.status,
         last_login: user.last_login,
         position: user.position,
-        avatar: user.avatar,
-        isActive: user.isActive,
+        date_joined: user.date_joined,
         created_at: user.created_at,
         updated_at: user.updated_at,
       }));
@@ -303,7 +305,7 @@ const UserManagement: React.FC = () => {
     }
   }, [searchQuery]);
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const departmentData = await AdminService.getDepartments();
       
@@ -314,15 +316,28 @@ const UserManagement: React.FC = () => {
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-
-  useEffect(() => {
-    fetchDepartments();
   }, []);
+
+  const fetchRbacRoles = useCallback(async () => {
+    try {
+      const response = await axios.get<Role[]>('/admin/rbac/roles');
+      console.log("Fetched RBAC Roles:", response.data);
+      setRbacRoles(response.data);
+    } catch (err) {
+      console.error('Error fetching RBAC roles:', err);
+      setError(prev => prev ? prev + '\nFailed to load roles.' : 'Failed to load roles.');
+      toast.error('Failed to load available roles');
+    }
+  }, [setError]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetchUsers(),
+      fetchDepartments(),
+      fetchRbacRoles()
+    ]).finally(() => setLoading(false));
+  }, [fetchUsers, fetchDepartments, fetchRbacRoles]);
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
@@ -330,10 +345,8 @@ const UserManagement: React.FC = () => {
     setFormData({
       username: '',
       email: '',
-      first_name: '',
-      last_name: '',
-      role: 'user',
-      department: '',
+      roleId: '',
+      departmentIds: [],
       position: '',
       password: '',
     });
@@ -349,6 +362,37 @@ const UserManagement: React.FC = () => {
 
   const handleLogout = () => {
     navigate('/login');
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    console.log(`Input Change: name=${name}, value=${value}`);
+    setFormData(prev => {
+      const newState = { ...prev, [name]: value };
+      console.log('New state after input change:', newState);
+      return newState;
+    });
+  };
+
+  const handleRoleChange = (event: SelectChangeEvent<string>) => {
+    const value = event.target.value;
+    console.log(`Role Change: value=${value}`);
+    setFormData(prev => {
+      const newState = { ...prev, roleId: value };
+      console.log('New state after role change:', newState);
+      return newState;
+    });
+  };
+
+  const handleSelectChange = (event: SelectChangeEvent<string | string[]>) => {
+    const { name, value } = event.target;
+    if (name === 'departmentIds') {
+      const newValue = typeof value === 'string' ? value.split(',') : value;
+      setFormData(prev => ({ ...prev, departmentIds: newValue as string[] }));
+    } else {
+      console.warn('handleSelectChange used for unexpected field:', name);
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const mainContent = (
@@ -494,7 +538,7 @@ const UserManagement: React.FC = () => {
                     <TableCell sx={{ color: '#fff' }}>{user.username}</TableCell>
                     <TableCell sx={{ color: '#fff' }}>{user.email}</TableCell>
                     <TableCell sx={{ color: '#fff' }}>
-                      {user.role || 'N/A'}
+                      {user.role?.name || 'N/A'}
                     </TableCell>
                     <TableCell sx={{ color: '#fff' }}>
                       {user.department?.name ?? 'None'}
@@ -578,9 +622,10 @@ const UserManagement: React.FC = () => {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
             <TextField
+              name="username"
               label="Username"
               value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              onChange={handleInputChange}
               fullWidth
               required
               disabled={editMode.isEdit}
@@ -592,10 +637,11 @@ const UserManagement: React.FC = () => {
               }}
             />
             <TextField
+              name="email"
               label="Email"
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={handleInputChange}
               fullWidth
               required
               InputLabelProps={{
@@ -605,71 +651,59 @@ const UserManagement: React.FC = () => {
                 '& .MuiOutlinedInput-root': glassStyles.input,
               }}
             />
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="First Name"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                fullWidth
-                InputLabelProps={{
-                  style: glassStyles.inputLabel
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': glassStyles.input,
-                }}
-              />
-              <TextField
-                label="Last Name"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                fullWidth
-                InputLabelProps={{
-                  style: glassStyles.inputLabel
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': glassStyles.input,
-                }}
-              />
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <FormControl fullWidth required>
-                <InputLabel sx={glassStyles.inputLabel}>Role</InputLabel>
-                <Select
-                  labelId="role-select-label"
-                  id="role-select"
-                  value={formData.role}
-                  label="Role"
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                >
-                  <MenuItem value="admin">Admin</MenuItem>
-                  <MenuItem value="user">User</MenuItem>
-                  <MenuItem value="leadership">Leadership</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel sx={glassStyles.inputLabel}>Department</InputLabel>
-                <Select
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  label="Department"
-                  sx={{
-                    '& .MuiOutlinedInput-root': glassStyles.input,
-                    ...glassStyles.input
-                  }}
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {departments.map((dept) => (
-                    <MenuItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
+            <FormControl fullWidth margin="dense">
+              <InputLabel id="role-select-label">Role</InputLabel>
+              <Select
+                labelId="role-select-label"
+                id="role-select"
+                name="roleId"
+                value={formData.roleId}
+                label="Role"
+                onChange={handleRoleChange}
+              >
+                <MenuItem value="">
+                  <em>Select Role</em>
+                </MenuItem>
+                {rbacRoles.map((role) => (
+                  <MenuItem key={role.id} value={role.id} disabled={role.isSystemRole}>
+                    {role.name} {role.isSystemRole ? '(System)' : ''}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel sx={glassStyles.inputLabel} id="department-multi-select-label">Departments</InputLabel>
+              <Select
+                labelId="department-multi-select-label"
+                id="department-multi-select"
+                name="departmentIds"
+                multiple 
+                value={formData.departmentIds} 
+                onChange={handleSelectChange} 
+                input={<OutlinedInput label="Departments" sx={{ color: '#fff' }} />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {(selected as string[]).map((value) => {
+                      const deptName = departments.find(d => d.id === value)?.name || value;
+                      return <Chip key={value} label={deptName} size="small" sx={{ }} />;
+                    })}
+                  </Box>
+                )}
+                MenuProps={{ }}
+              >
+                {departments.map((dept) => (
+                  <MenuItem key={dept.id} value={dept.id}>
+                    <Checkbox checked={formData.departmentIds.indexOf(dept.id) > -1} />
+                    <ListItemText primary={dept.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
+              name="position" 
               label="Position"
               value={formData.position}
-              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+              onChange={handleInputChange}
               fullWidth
               InputLabelProps={{
                 style: glassStyles.inputLabel
@@ -680,10 +714,11 @@ const UserManagement: React.FC = () => {
             />
             {!editMode.isEdit && (
               <TextField
+                name="password"
                 label="Temporary Password"
                 type={showPassword ? 'text' : 'password'}
                 value={formData.password || ''}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={handleInputChange}
                 fullWidth
                 InputLabelProps={{
                   style: glassStyles.inputLabel
@@ -753,8 +788,9 @@ const UserManagement: React.FC = () => {
             onClick={handleAddUser}
             variant="contained"
             sx={glassStyles.button}
+            disabled={loading}
           >
-            {editMode.isEdit ? 'Update User' : 'Add User'}
+            {loading ? <CircularProgress size={24} /> : (editMode.isEdit ? 'Update User' : 'Add User')}
           </Button>
         </DialogActions>
       </Dialog>
