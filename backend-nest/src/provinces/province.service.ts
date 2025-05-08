@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Province } from "./entities/province.entity";
@@ -12,9 +12,12 @@ import {
 } from "./dto/province-performance.dto";
 import { CreateProvinceDto } from "./dto/create-province.dto";
 import { UpdateProvinceDto } from "./dto/update-province.dto";
+import { In } from "typeorm";
 
 @Injectable()
 export class ProvinceService {
+  private readonly logger = new Logger(ProvinceService.name);
+
   constructor(
     @InjectRepository(Province)
     private provinceRepository: Repository<Province>,
@@ -142,11 +145,111 @@ export class ProvinceService {
   async getMultiProvincePerformance(
     provinceIds: string[],
   ): Promise<MultiProvincePerformanceDto> {
-    const performancePromises = provinceIds.map((id) =>
-      this.getPerformanceStatistics(id),
-    );
-    const provinces = await Promise.all(performancePromises);
+    if (!provinceIds || provinceIds.length === 0) {
+      return { provinces: [] };
+    }
 
-    return { provinces };
+    const provincesMap = new Map<string, ProvincePerformanceDto>();
+
+    // 1. Fetch all relevant provinces at once
+    const allProvinces = await this.provinceRepository.find({
+      where: { id: In(provinceIds) },
+      // relations: ["departments"], // Departments not directly used in the final DTO structure here, tasks are key
+    });
+
+    if (allProvinces.length === 0) {
+        return { provinces: [] };
+    }
+
+    // Initialize map with basic province info
+    allProvinces.forEach(p => {
+      provincesMap.set(p.id, {
+        provinceId: p.id,
+        provinceName: p.name,
+        statusDistribution: Object.values(TaskStatus).map(status => ({ status, count: 0 })),
+        metrics: {
+          avgCompletionTime: 0,
+          onTimeCompletionRate: 0,
+          overdueRate: 0,
+          taskVolume: 0,
+        },
+      });
+    });
+
+    // 2. Fetch all relevant tasks for these provinces at once
+    const allTasks = await this.tasksRepository
+      .createQueryBuilder("task")
+      .where("task.assignedToProvinceId IN (:...provinceIdsToQuery)", { provinceIdsToQuery: provinceIds })
+      // No need to join departments here if not used in performance metrics directly for province summary
+      // .leftJoinAndSelect("task.assignedToDepartments", "department") 
+      .getMany();
+
+    // 3. Process tasks and aggregate data for each province
+    const tasksByProvince = new Map<string, Task[]>();
+    allTasks.forEach(task => {
+      if (task.assignedToProvinceId) {
+        if (!tasksByProvince.has(task.assignedToProvinceId)) {
+          tasksByProvince.set(task.assignedToProvinceId, []);
+        }
+        tasksByProvince.get(task.assignedToProvinceId)!.push(task);
+      }
+    });
+
+    for (const province of allProvinces) {
+      const provinceId = province.id;
+      const tasksForThisProvince = tasksByProvince.get(provinceId) || [];
+      const currentDto = provincesMap.get(provinceId)!;
+
+      // Calculate status distribution
+      const statusDistributionMap = new Map<TaskStatus, number>();
+      Object.values(TaskStatus).forEach(s => statusDistributionMap.set(s, 0));
+      tasksForThisProvince.forEach(task => {
+        statusDistributionMap.set(task.status, (statusDistributionMap.get(task.status) || 0) + 1);
+      });
+      currentDto.statusDistribution = Array.from(statusDistributionMap.entries()).map(([status, count]) => ({ status, count }));
+
+      // Calculate performance metrics
+      const completedTasks = tasksForThisProvince.filter(
+        (task) => task.status === TaskStatus.COMPLETED,
+      );
+      const totalTasks = tasksForThisProvince.length;
+      currentDto.metrics.taskVolume = totalTasks;
+
+      let avgCompletionTime = 0;
+      if (completedTasks.length > 0) {
+        const completionTimes = completedTasks
+          .filter((task) => task.completedAt && task.createdAt)
+          .map((task) => {
+            const completionTime =
+              task.completedAt!.getTime() - task.createdAt.getTime();
+            return completionTime / (1000 * 60 * 60); // Convert to hours
+          });
+        avgCompletionTime =
+          completionTimes.length > 0
+            ? completionTimes.reduce((sum, time) => sum + time, 0) /
+              completionTimes.length
+            : 0;
+      }
+      currentDto.metrics.avgCompletionTime = avgCompletionTime;
+
+      const onTimeCompletedTasks = completedTasks.filter((task) => {
+        if (!task.dueDate || !task.completedAt) return false;
+        return task.completedAt <= task.dueDate;
+      });
+      currentDto.metrics.onTimeCompletionRate =
+        completedTasks.length > 0
+          ? (onTimeCompletedTasks.length / completedTasks.length) * 100
+          : 0;
+
+      const currentDate = new Date();
+      const overdueTasks = tasksForThisProvince.filter((task) => {
+        if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED || !task.dueDate) return false;
+        return task.dueDate < currentDate;
+      });
+      currentDto.metrics.overdueRate =
+        totalTasks > 0 ? (overdueTasks.length / totalTasks) * 100 : 0;
+    }
+
+    return { provinces: Array.from(provincesMap.values()) };
   }
 }

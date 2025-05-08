@@ -13,6 +13,8 @@ import {
   ForbiddenException,
   NotFoundException,
   Query,
+  ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { DepartmentsService } from "./departments.service";
 import { CreateDepartmentDto } from "./dto/create-department.dto";
@@ -31,6 +33,8 @@ import { ApiOperation } from "@nestjs/swagger";
 @Controller("departments")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DepartmentsController {
+  private readonly logger = new Logger(DepartmentsController.name);
+
   constructor(
     private departmentsService: DepartmentsService,
     @Inject(forwardRef(() => ActivityLogService))
@@ -40,6 +44,7 @@ export class DepartmentsController {
   ) {}
 
   @Get()
+  @Roles("User", "Leadership", "Administrator")
   async getAllDepartments(
     @Request() req,
     @Query("provinceId") provinceId?: string,
@@ -66,7 +71,8 @@ export class DepartmentsController {
   }
 
   @Get("/:id")
-  async getDepartmentById(@Param("id") id: string, @Request() req) {
+  @Roles("User", "Leadership", "Administrator")
+  async getDepartmentById(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
 
     // Log the activity
@@ -83,7 +89,7 @@ export class DepartmentsController {
   }
 
   @Post()
-  @Roles("admin", "leadership")
+  @Roles("Leadership", "Administrator")
   async createDepartment(
     @Body() createDepartmentDto: CreateDepartmentDto,
     @Request() req,
@@ -104,9 +110,9 @@ export class DepartmentsController {
   }
 
   @Put("/:id")
-  @Roles("admin", "leadership")
+  @Roles("Leadership", "Administrator")
   async updateDepartment(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateDepartmentDto: UpdateDepartmentDto,
     @Request() req,
   ) {
@@ -128,8 +134,8 @@ export class DepartmentsController {
   }
 
   @Delete("/:id")
-  @Roles("admin", "leadership")
-  async deleteDepartment(@Param("id") id: string, @Request() req) {
+  @Roles("Leadership", "Administrator")
+  async deleteDepartment(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
 
     // Log the activity before deletion
@@ -145,11 +151,11 @@ export class DepartmentsController {
     return { success: true, message: "Department deleted successfully" };
   }
 
-  @Post("/:id/members/:userId/")
-  @Roles("admin", "leadership")
+  @Post("/:id/members/:userId")
+  @Roles("Leadership", "Administrator")
   async addMember(
-    @Param("id") id: string,
-    @Param("userId") userId: string,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("userId", ParseUUIDPipe) userId: string,
     @Request() req,
   ) {
     const department = await this.departmentsService.addMember(id, userId);
@@ -166,11 +172,11 @@ export class DepartmentsController {
     return await this.formatDepartmentResponse(department);
   }
 
-  @Delete("/:id/members/:userId/")
-  @Roles("admin", "leadership")
+  @Delete("/:id/members/:userId")
+  @Roles("Leadership", "Administrator")
   async removeMember(
-    @Param("id") id: string,
-    @Param("userId") userId: string,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("userId", ParseUUIDPipe) userId: string,
     @Request() req,
   ) {
     const department = await this.departmentsService.removeMember(id, userId);
@@ -189,7 +195,8 @@ export class DepartmentsController {
 
   @Get("/:id/tasks")
   @ApiOperation({ summary: "Get tasks for a specific department" })
-  async getTasksForDepartment(@Param("id") id: string, @Request() req) {
+  @Roles("Leadership", "Administrator")
+  async getTasksForDepartment(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     // Use TaskQueryService
     const tasks = await this.taskQueryService.getTasksForDepartment(id);
 
@@ -204,22 +211,22 @@ export class DepartmentsController {
         id,
       );
     } catch (logError) {
-      console.error(
-        `Failed to log department task view activity: ${logError.message}`,
-      );
+      this.logger.error(`Failed to log department task view activity: ${logError.message}`, logError.stack);
     }
 
     return tasks;
   }
 
   @Get("/:id/performance")
-  getDepartmentPerformance(@Param("id") id: string): Promise<any> {
+  @Roles("Leadership", "Administrator")
+  getDepartmentPerformance(@Param("id", ParseUUIDPipe) id: string): Promise<any> {
     return this.departmentsService.getDepartmentPerformance(id);
   }
 
   @Get("/:id/members")
+  @Roles("Leadership", "Administrator")
   async getDepartmentMembers(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Request() req,
   ): Promise<User[]> {
     const members = await this.departmentsService.getDepartmentMembers(id);
@@ -235,9 +242,7 @@ export class DepartmentsController {
         id,
       );
     } catch (logError) {
-      console.error(
-        `Failed to log department member view activity: ${logError.message}`,
-      );
+      this.logger.error(`Failed to log department member view activity: ${logError.message}`, logError.stack);
     }
 
     return members; // Return the user array directly
@@ -245,13 +250,7 @@ export class DepartmentsController {
 
   // Helper method to format department responses
   private async formatDepartmentResponse(department: Department) {
-    console.log(
-      `Formatting department ${department.id}: head info:`,
-      department.head
-        ? { id: department.head.id, username: department.head.username }
-        : "No head assigned",
-    );
-    console.log(`Department headId: ${department.headId}`);
+    this.logger.debug(`Formatting department ${department.id}, headId: ${department.headId}`);
 
     // Format the head name from head object if it exists
     let head_name = "No Head Assigned";
@@ -265,20 +264,16 @@ export class DepartmentsController {
         );
         if (headUser) {
           head = headUser;
-          console.log(`Loaded head user for formatting: ${head.username}`);
+          this.logger.debug(`Loaded head user for formatting: ${head.username}`);
         }
       } catch (error) {
-        console.error(
-          `Error loading head user for formatting: ${error.message}`,
-        );
+        this.logger.error(`Error loading head user for formatting: ${error.message}`, error.stack);
       }
     }
 
     if (head && head.username) {
       head_name = head.username;
-      console.log(
-        `Set head_name to ${head_name} for department ${department.id}`,
-      );
+      this.logger.debug(`Set head_name to ${head_name} for department ${department.id}`);
     }
 
     // Get members count - first try from the department.members array
@@ -293,12 +288,10 @@ export class DepartmentsController {
         );
         if (memberCountResult > 0) {
           members_count = memberCountResult;
-          console.log(
-            `Updated member count from direct query: ${members_count}`,
-          );
+          this.logger.debug(`Updated member count from direct query: ${members_count}`);
         }
       } catch (error) {
-        console.error(`Error getting direct member count: ${error.message}`);
+        this.logger.error(`Error getting direct member count: ${error.message}`, error.stack);
       }
     }
 
@@ -314,12 +307,7 @@ export class DepartmentsController {
         })
       : [];
 
-    console.log(
-      `Department ${department.id} has ${members_count} members:`,
-      members.length > 0
-        ? members.map((m) => `${m.name} (${m.id})`).join(", ")
-        : "None",
-    );
+    this.logger.debug(`Department ${department.id} has ${members_count} members.`);
 
     // Get tasks count for active projects (simplified)
     const active_projects = department.assignedTasks
@@ -359,13 +347,7 @@ export class DepartmentsController {
       updatedAt: department.updatedAt,
     };
 
-    console.log("Formatted department result: ", {
-      id: result.id,
-      name: result.name,
-      head_name: result.head_name,
-      members_count: result.members_count,
-      members: members.length,
-    });
+    this.logger.debug(`Formatted department result for ${result.id}: Name=${result.name}, Head=${result.head_name}, Members=${result.members_count}`);
 
     return result;
   }

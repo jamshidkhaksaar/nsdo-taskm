@@ -6,6 +6,7 @@ import {
   UseGuards,
   Inject,
   forwardRef,
+  Logger,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { DepartmentsService } from "../departments.service";
@@ -15,6 +16,8 @@ import { TaskStatus } from "../../tasks/entities/task.entity";
 @Controller("departments")
 @UseGuards(JwtAuthGuard)
 export class DepartmentPerformersController {
+  private readonly logger = new Logger(DepartmentPerformersController.name);
+
   constructor(
     private departmentsService: DepartmentsService,
     @Inject(forwardRef(() => ActivityLogService))
@@ -89,10 +92,7 @@ export class DepartmentPerformersController {
               completion_rate: completionRate,
             };
           } catch (error) {
-            console.error(
-              `Error calculating performance for member ${member.id}:`,
-              error,
-            );
+            this.logger.error(`Error calculating performance for member ${member.id}: ${error.message}`, error.stack);
             return null;
           }
         }),
@@ -103,7 +103,7 @@ export class DepartmentPerformersController {
         .filter((performer) => performer !== null)
         .sort((a, b) => b.completion_rate - a.completion_rate);
     } catch (error) {
-      console.error(`Error getting performers for department ${id}:`, error);
+      this.logger.error(`Error getting performers for department ${id}: ${error.message}`, error.stack);
       return [];
     }
   }

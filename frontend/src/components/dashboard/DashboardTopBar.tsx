@@ -6,12 +6,30 @@ import {
   Typography,
   Box,
   Tooltip,
-  Button
+  Button,
+  Badge
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import SettingsIcon from '@mui/icons-material/Settings';
+import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import { SxProps, Theme } from '@mui/material/styles';
+import { keyframes } from '@mui/system';
+
+// Define keyframes for animation
+const ringAnimation = keyframes`
+  0% { transform: rotate(0); }
+  10% { transform: rotate(30deg); }
+  20% { transform: rotate(-28deg); }
+  30% { transform: rotate(34deg); }
+  40% { transform: rotate(-32deg); }
+  50% { transform: rotate(30deg); }
+  60% { transform: rotate(-28deg); }
+  70% { transform: rotate(34deg); }
+  80% { transform: rotate(-32deg); }
+  90% { transform: rotate(30deg); }
+  100% { transform: rotate(0); }
+`;
 
 interface DashboardTopBarProps {
   username: string;
@@ -47,6 +65,7 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
   rightSidebarVisible,
   onToggleRightSidebar,
   sx,
+  showQuickNotesButton,
 }) => {
   // const theme = useTheme(); // Unused
 
@@ -103,6 +122,7 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
 
         {/* Right section */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {showQuickNotesButton && (
             <Button
               onClick={onToggleQuickNotes ? onToggleQuickNotes : () => {}}
               variant="outlined"
@@ -118,6 +138,26 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
             >
               {showQuickNotes ? 'Hide Quick Notes' : 'Show Quick Notes'}
             </Button>
+          )}
+
+          <Tooltip title="Notifications">
+            <IconButton
+              color="inherit"
+              onClick={onNotificationClick}
+              sx={{
+                transition: 'all 0.2s ease-in-out',
+                animation: notificationCount > 0 ? `${ringAnimation} 1.5s ease-in-out infinite` : 'none',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  transform: 'scale(1.1)',
+                },
+              }}
+            >
+              <Badge badgeContent={notificationCount} color="error" overlap="circular">
+                <NotificationsNoneOutlinedIcon />
+              </Badge>
+            </IconButton>
+          </Tooltip>
 
           <Tooltip title="Profile">
             <IconButton

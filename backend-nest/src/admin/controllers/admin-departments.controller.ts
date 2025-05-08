@@ -9,6 +9,8 @@ import {
   UseGuards,
   Req,
   Query,
+  ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { DepartmentsService } from "../../departments/departments.service";
 import { CreateDepartmentDto } from "../../departments/dto/create-department.dto";
@@ -20,10 +22,11 @@ import { Department } from "../../departments/entities/department.entity";
 import { ActivityLogService } from "../services/activity-log.service";
 
 @Controller("admin/departments")
-@UseGuards(JwtAuthGuard)
-// @UseGuards(RolesGuard)
-// @Roles('ADMIN')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("Administrator")
 export class AdminDepartmentsController {
+  private readonly logger = new Logger(AdminDepartmentsController.name);
+
   constructor(
     private readonly departmentsService: DepartmentsService,
     private readonly activityLogService: ActivityLogService,
@@ -54,7 +57,7 @@ export class AdminDepartmentsController {
   }
 
   @Get(":id")
-  findOne(@Param("id") id: string, @Req() req): Promise<Department> {
+  findOne(@Param("id", ParseUUIDPipe) id: string, @Req() req): Promise<Department> {
     this.activityLogService.logFromRequest(
       req,
       "view",
@@ -67,7 +70,7 @@ export class AdminDepartmentsController {
 
   @Patch(":id")
   update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateDepartmentDto: UpdateDepartmentDto,
     @Req() req,
   ) {
@@ -83,7 +86,7 @@ export class AdminDepartmentsController {
   }
 
   @Delete(":id")
-  remove(@Param("id") id: string, @Req() req) {
+  remove(@Param("id", ParseUUIDPipe) id: string, @Req() req) {
     const result = this.departmentsService.remove(id);
     this.activityLogService.logFromRequest(
       req,
@@ -97,8 +100,8 @@ export class AdminDepartmentsController {
 
   @Post(":id/members/:userId")
   addMember(
-    @Param("id") id: string,
-    @Param("userId") userId: string,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("userId", ParseUUIDPipe) userId: string,
     @Req() req,
   ) {
     const result = this.departmentsService.addMember(id, userId);
@@ -114,8 +117,8 @@ export class AdminDepartmentsController {
 
   @Delete(":id/members/:userId")
   removeMember(
-    @Param("id") id: string,
-    @Param("userId") userId: string,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("userId", ParseUUIDPipe) userId: string,
     @Req() req,
   ) {
     const result = this.departmentsService.removeMember(id, userId);
@@ -130,7 +133,7 @@ export class AdminDepartmentsController {
   }
 
   @Get(":id/members")
-  getDepartmentMembers(@Param("id") id: string, @Req() req) {
+  getDepartmentMembers(@Param("id", ParseUUIDPipe) id: string, @Req() req) {
     this.activityLogService.logFromRequest(
       req,
       "view",

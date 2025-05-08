@@ -27,9 +27,16 @@ import {
   OutlinedInput,
   Checkbox,
   ListItemText,
-  SelectChangeEvent
+  SelectChangeEvent,
+  List,
+  ListItem,
+  ListSubheader,
+  Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Lock as LockIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Lock as LockIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { Role, RoleFormData, Permission } from './types';
 import { usePermissions } from './hooks/usePermissions';
 import axios from '../../../utils/axios';
@@ -37,23 +44,19 @@ import axios from '../../../utils/axios';
 const RoleManagement: React.FC = () => {
   // States
   const [roles, setRoles] = useState<Role[]>([]);
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
-  const [formData, setFormData] = useState<RoleFormData>({
-    name: '',
-    description: '',
-    permissionIds: [],
-  });
+  const [formData, setFormData] = useState<Omit<RoleFormData, 'permissionIds'>>({ name: '', description: '' });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionSearchTerm, setPermissionSearchTerm] = useState('');
 
   // Get permissions from the usePermissions hook
-  const { permissions, fetchPermissions } = usePermissions();
+  const { permissions: systemPermissions, fetchPermissions: fetchSystemPermissions, loading: permissionsLoading } = usePermissions();
 
-  // Moved fetchRoles function definition before useEffect and wrap in useCallback
   const fetchRoles = useCallback(async () => {
     try {
       setLoading(true);
@@ -66,15 +69,13 @@ const RoleManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [setLoading, setRoles, setError]); // Added dependencies
+  }, [setLoading, setRoles, setError]);
 
-  // Fetch data on component mount
   useEffect(() => {
     fetchRoles();
-    fetchPermissions();
-  }, [fetchRoles, fetchPermissions]);
+    fetchSystemPermissions();
+  }, [fetchRoles, fetchSystemPermissions]);
 
-  // Create or update role
   const saveRole = async () => {
     try {
       setLoading(true);
@@ -83,31 +84,30 @@ const RoleManagement: React.FC = () => {
         return false;
       }
 
-      const roleData = {
+      const roleData: RoleFormData = {
         ...formData,
-        permissionIds: selectedPermissions
+        permissionIds: selectedPermissionIds,
       };
 
       if (editingRole) {
-        // Update existing role
         const response = await axios.put(`/admin/rbac/roles/${editingRole.id}`, roleData);
         setRoles(roles.map(r => r.id === editingRole.id ? response.data : r));
       } else {
-        // Create new role
         const response = await axios.post('/admin/rbac/roles', roleData);
         setRoles([...roles, response.data]);
       }
+      fetchRoles();
       return true;
     } catch (err: any) {
       console.error('Error saving role:', err);
-      setError('Failed to save role: ' + (err.response?.data?.message || err.message));
+      const errorMsg = 'Failed to save role: ' + (err.response?.data?.message || err.message);
+      setError(errorMsg);
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete role
   const deleteRole = async (roleId: string) => {
     try {
       setLoading(true);
@@ -123,22 +123,16 @@ const RoleManagement: React.FC = () => {
     }
   };
 
-  // Dialog handlers
   const handleOpenDialog = (role?: Role) => {
+    setPermissionSearchTerm('');
     if (role) {
       setEditingRole(role);
-      setFormData({
-        name: role.name,
-        description: role.description,
-      });
-      setSelectedPermissions(role.permissions.map(p => p.id));
+      setFormData({ name: role.name, description: role.description || '' });
+      setSelectedPermissionIds(role.permissions.map(p => p.id));
     } else {
       setEditingRole(null);
-      setFormData({
-        name: '',
-        description: '',
-      });
-      setSelectedPermissions([]);
+      setFormData({ name: '', description: '' });
+      setSelectedPermissionIds([]);
     }
     setOpenDialog(true);
   };
@@ -149,20 +143,20 @@ const RoleManagement: React.FC = () => {
     setError(null);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handlePermissionChange = (event: SelectChangeEvent<string[]>) => {
-    const { value } = event.target;
-    setSelectedPermissions(typeof value === 'string' ? value.split(',') : value);
+  const handlePermissionToggle = (permissionId: string) => {
+    setSelectedPermissionIds(prev =>
+      prev.includes(permissionId)
+        ? prev.filter(id => id !== permissionId)
+        : [...prev, permissionId]
+    );
   };
 
-  const handleSubmit = async () => {
+  const handleSubmitDialog = async () => {
     const success = await saveRole();
     if (success) {
       handleCloseDialog();
@@ -181,6 +175,25 @@ const RoleManagement: React.FC = () => {
       setRoleToDelete(null);
     }
   };
+
+  const filteredAndGroupedPermissions = useCallback(() => {
+    const lowerSearchTerm = permissionSearchTerm.toLowerCase();
+    const filtered = (systemPermissions || []).filter(permission =>
+      permission.name.toLowerCase().includes(lowerSearchTerm) ||
+      (permission.description && permission.description.toLowerCase().includes(lowerSearchTerm)) ||
+      (permission.resource && permission.resource.toLowerCase().includes(lowerSearchTerm)) ||
+      (permission.action && permission.action.toLowerCase().includes(lowerSearchTerm)) ||
+      (permission.group && permission.group.toLowerCase().includes(lowerSearchTerm))
+    );
+    return filtered.reduce((acc, permission) => {
+      const group = permission.group || 'Uncategorized';
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(permission);
+      return acc;
+    }, {} as Record<string, Permission[]>);
+  }, [systemPermissions, permissionSearchTerm]);
+
+  const currentDialogPermissions = filteredAndGroupedPermissions();
 
   return (
     <Box>
@@ -296,122 +309,136 @@ const RoleManagement: React.FC = () => {
         </Table>
       </TableContainer>
 
-      {/* Add/Edit Role Dialog */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
-        PaperProps={{
-          sx: {
-            background: 'rgba(25, 32, 45, 0.9)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            minWidth: '500px'
-          }
-        }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { minHeight: '80vh' } }}
       >
-        <DialogTitle sx={{ color: '#fff' }}>
-          {editingRole ? 'Edit Role' : 'Add New Role'}
-        </DialogTitle>
-        <DialogContent>
+        <DialogTitle>{editingRole ? 'Edit Role' : 'Create New Role'}</DialogTitle>
+        <DialogContent dividers>
           <TextField
-            margin="dense"
+            label="Role Name"
             name="name"
-            label="Name"
-            type="text"
-            fullWidth
             value={formData.name}
             onChange={handleInputChange}
+            fullWidth
             required
-            sx={{ mb: 2, mt: 1 }}
-            InputLabelProps={{ sx: { color: 'rgba(255, 255, 255, 0.7)' } }}
-            InputProps={{ sx: { color: '#fff' } }}
+            autoFocus
+            margin="normal"
+            disabled={editingRole?.isSystemRole && editingRole.name === 'Super Admin'}
           />
           <TextField
-            margin="dense"
-            name="description"
             label="Description"
-            type="text"
-            fullWidth
-            multiline
-            rows={3}
+            name="description"
             value={formData.description}
             onChange={handleInputChange}
-            sx={{ mb: 2 }}
-            InputLabelProps={{ sx: { color: 'rgba(255, 255, 255, 0.7)' } }}
-            InputProps={{ sx: { color: '#fff' } }}
+            fullWidth
+            multiline
+            rows={2}
+            margin="normal"
           />
-          <FormControl fullWidth sx={{ mb: 1 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Permissions</InputLabel>
-            <Select
-              multiple
-              value={selectedPermissions}
-              onChange={handlePermissionChange}
-              input={<OutlinedInput label="Permissions" sx={{ color: '#fff' }} />}
-              renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {selected.map((value) => {
-                    const permission = permissions.find(p => p.id === value);
-                    return (
-                      <Chip
-                        key={value}
-                        label={permission?.name || value}
-                        size="small"
-                        sx={{
-                          background: 'rgba(33, 150, 243, 0.2)',
-                          color: 'rgba(255, 255, 255, 0.9)',
-                          borderRadius: '4px',
-                        }}
-                      />
-                    );
-                  })}
-                </Box>
-              )}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    background: 'rgba(25, 32, 45, 0.95)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    maxHeight: '300px',
-                  }
-                }
-              }}
-            >
-              {permissions.map((permission: Permission) => (
-                <MenuItem key={permission.id} value={permission.id}>
-                  <Checkbox checked={selectedPermissions.indexOf(permission.id) > -1} />
-                  <ListItemText 
-                    primary={permission.name} 
-                    secondary={permission.description}
-                    primaryTypographyProps={{ sx: { color: '#fff' } }}
-                    secondaryTypographyProps={{ sx: { color: 'rgba(255, 255, 255, 0.7)' } }}
-                  />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          
+          <Divider sx={{ my: 2 }}>Permissions</Divider>
+
+          <TextField
+            placeholder="Search permissions (by name, description, group, resource, action)..."
+            value={permissionSearchTerm}
+            onChange={(e) => setPermissionSearchTerm(e.target.value)}
+            fullWidth
+            margin="normal"
+            variant="outlined"
+            size="small"
+            sx={{ mb: 1 }}
+          />
+          <Paper variant="outlined" sx={{ maxHeight: 'calc(80vh - 320px)', minHeight: 200, overflow: 'auto' }}>
+            {permissionsLoading && !Object.keys(currentDialogPermissions).length ? (
+              <Box sx={{ p: 2, textAlign: 'center' }}><CircularProgress size={24} /> Loading permissions...</Box>
+            ) : Object.keys(currentDialogPermissions).length === 0 ? (
+              <Typography sx={{ p: 2, textAlign: 'center' }}>
+                {permissionSearchTerm 
+                  ? 'No permissions match your search.' 
+                  : (systemPermissions.length === 0 ? 'No permissions defined in the system.' : 'No permissions found.')}
+              </Typography>
+            ) : (
+              <Box sx={{ border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 1 }}>
+                {Object.entries(currentDialogPermissions).map(([groupName, groupPermissions]) => (
+                  <Accordion 
+                    key={groupName} 
+                    defaultExpanded={groupName === 'Tasks' || groupPermissions.some(p => selectedPermissionIds.includes(p.id))} 
+                    sx={{ 
+                      backgroundImage: 'none',
+                      boxShadow: 'none', 
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                      '&:last-of-type': {
+                        borderBottom: 0,
+                      },
+                      '&:before': { 
+                        display: 'none'
+                      }, 
+                      backgroundColor: 'transparent'
+                    }}
+                    disableGutters
+                  >
+                    <AccordionSummary
+                      expandIcon={<ExpandMoreIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />}
+                      aria-controls={`panel-${groupName}-content`}
+                      id={`panel-${groupName}-header`}
+                      sx={{ 
+                        minHeight: '48px',
+                        paddingX: 2,
+                        '&.Mui-expanded': {
+                          minHeight: '48px',
+                        },
+                        '& .MuiAccordionSummary-content': {
+                          margin: '12px 0',
+                          '&.Mui-expanded': {
+                            margin: '12px 0',
+                          }
+                        }
+                      }}
+                    >
+                      <Typography variant="subtitle1" component="div" sx={{ fontWeight: 'bold', flexGrow: 1 }}>
+                        {groupName}
+                        <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                          ({groupPermissions.length} permissions)
+                        </Typography>
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ p: 0, backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
+                      <List dense disablePadding component="div">
+                        {groupPermissions.map((permission) => (
+                          <ListItem key={permission.id} dense sx={{ pl: 2 }} button onClick={() => handlePermissionToggle(permission.id)}>
+                            <Checkbox
+                              edge="start"
+                              checked={selectedPermissionIds.includes(permission.id)}
+                              tabIndex={-1}
+                              disableRipple
+                              size="small"
+                            />
+                            <Box sx={{ ml: 1 }}>
+                              <Typography variant="body2">{permission.name}</Typography>
+                              {permission.description && <Typography variant="caption" color="text.secondary">{permission.description}</Typography>}
+                            </Box>
+                          </ListItem>
+                        ))}
+                      </List>
+                    </AccordionDetails>
+                  </Accordion>
+                ))}
+              </Box>
+            )}
+          </Paper>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseDialog} sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            disabled={loading}
-            sx={{
-              background: 'rgba(33, 150, 243, 0.8)',
-              '&:hover': {
-                background: 'rgba(33, 150, 243, 1)',
-              }
-            }}
-          >
-            {loading ? <CircularProgress size={24} /> : (editingRole ? 'Update' : 'Create')}
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={handleCloseDialog} color="inherit">Cancel</Button>
+          <Button onClick={handleSubmitDialog} variant="contained" color="primary" disabled={loading || (!editingRole && !formData.name.trim())}>
+            {editingRole ? 'Save Changes' : 'Create Role'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}

@@ -47,6 +47,13 @@ export class User {
   @Exclude({ toPlainOnly: true })
   twoFactorSecret: string;
 
+  @Column({ type: "varchar", length: 128, nullable: true, name: "reset_password_token" })
+  @Exclude({ toPlainOnly: true })
+  resetPasswordToken: string | null;
+
+  @Column({ nullable: true, type: "timestamp", name: "reset_password_expires" })
+  resetPasswordExpires: Date | null;
+
   @Column({ nullable: true })
   position: string;
 

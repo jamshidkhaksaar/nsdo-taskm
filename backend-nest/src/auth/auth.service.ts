@@ -82,8 +82,17 @@ export class AuthService {
     // --- End CAPTCHA Verification ---
 
     try {
-      // Load the user WITH the role relation
-      const user = await this.usersService.findOne(username, ["role"]); 
+      // Load the user WITH the role relation AND its permissions
+      const user = await this.usersService.findOne(username, ["role", "role.permissions"]); 
+      
+      // DETAILED LOGGING HERE
+      this.logger.debug(`[AuthService.signIn] User fetched: ${JSON.stringify(user, null, 2)}`);
+      if (user && user.role) {
+        this.logger.debug(`[AuthService.signIn] User Role: ${JSON.stringify(user.role, null, 2)}`);
+        this.logger.debug(`[AuthService.signIn] User Role Permissions: ${JSON.stringify(user.role.permissions, null, 2)}`);
+      }
+      // END DETAILED LOGGING
+
       if (!user) {
         this.logger.warn(`User not found: ${username}`);
         throw new UnauthorizedException("Please check your login credentials");
@@ -119,7 +128,7 @@ export class AuthService {
       const payload: JwtPayload = { 
         username: user.username, 
         sub: user.id, 
-        role: user.role?.name // Include role name in JWT payload
+        role: user.role?.name // Keep role name in JWT payload for brevity
       };
       const accessToken = this.jwtService.sign(payload);
       const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
@@ -132,8 +141,8 @@ export class AuthService {
           id: user.id,
           username: user.username,
           email: user.email || "",
-          // Use role name from the loaded relation, default to 'user' if missing
-          role: user.role?.name || "user", 
+          // Pass the entire role object, not just the name
+          role: user.role || null, 
         },
       };
     } catch (error) {
@@ -157,7 +166,8 @@ export class AuthService {
   ): Promise<LoginSuccessResponse> {
     this.logger.log(`Attempting 2FA login for userId: ${userId}`);
 
-    const user = await this.usersService.findById(userId);
+    // Load user with role and its permissions
+    const user = await this.usersService.findById(userId, ["role", "role.permissions"]);
     if (!user) {
       this.logger.error(`login2FA: User not found for ID: ${userId}`);
       throw new UnauthorizedException("Invalid user or session for 2FA.");
@@ -223,7 +233,7 @@ export class AuthService {
     const payload: JwtPayload = { 
       username: user.username, 
       sub: user.id, 
-      role: user.role?.name // Also include role here if needed
+      role: user.role?.name // Keep role name in JWT payload
     };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
@@ -235,8 +245,8 @@ export class AuthService {
         id: user.id,
         username: user.username,
         email: user.email || "",
-        // Use role name from the loaded relation, default to 'user' if missing
-        role: user.role?.name || "user", 
+        // Pass the entire role object
+        role: user.role || null, 
       },
     };
   }
@@ -248,26 +258,31 @@ export class AuthService {
       // Verify the refresh token
       const payload = this.jwtService.verify(refreshToken);
 
-      // Find the user WITH role to include in new access token payload
-      const user = await this.usersService.findOne(payload.username, ["role"]);
+      // Optionally, re-fetch user from DB to ensure freshness of roles/permissions
+      const user = await this.usersService.findById(payload.sub, ["role", "role.permissions"]);
+      if (!user) throw new UnauthorizedException('User not found during refresh');
 
-      if (!user) {
-        throw new UnauthorizedException("Invalid refresh token");
-      }
-
-      // Generate a new access token including the role
-      const accessPayload: JwtPayload = {
-        username: user.username,
-        sub: user.id,
-        role: user.role?.name // Include role in new access token
+      // Create a new access token payload (ensure it has the role name)
+      const accessPayload: JwtPayload = { 
+        username: user.username, // Use fresh username
+        sub: user.id,            // Use fresh sub/id
+        role: user.role?.name    // Use fresh role name
       };
       const newAccessToken = this.jwtService.sign(accessPayload);
-      // Optionally generate a new refresh token or reuse the old one depending on strategy
-      // For simplicity, let's assume refresh token rotation isn't implemented here
+
+      // Optionally, generate a new refresh token as well for better security (token rotation)
+      // For simplicity, we are re-using the old refresh token's original payload structure for a new refresh token
+      // but ideally, the refresh token payload might also be updated or have its own structure.
+      const refreshPayload: JwtPayload = {
+        username: user.username,
+        sub: user.id,
+        role: user.role?.name,
+      };
+      const newRefreshToken = this.jwtService.sign(refreshPayload, { expiresIn: "7d" });
 
       return {
         access: newAccessToken,
-        refresh: refreshToken, // Return original refresh token
+        refresh: newRefreshToken, // Return the new refresh token
       };
     } catch (error) {
       this.logger.error(`Token refresh failed: ${error.message}`);
@@ -315,66 +330,20 @@ export class AuthService {
     }
   }
 
+  // The functionality of this method has been moved to UsersService.initiatePasswordReset
+  // and is called directly from UsersController. It can be removed.
+  /*
   async handleForgotPasswordRequest(
     email: string,
   ): Promise<{ message: string }> {
-    this.logger.log(`Forgot password request received for email: ${email}`);
-    try {
-      const user = await this.usersService.findByEmail(email);
-      if (!user) {
-        // Don't reveal if email exists - security best practice
-        this.logger.warn(
-          `Forgot password request for non-existent email: ${email}`,
-        );
-        return {
-          message:
-            "If an account with this email exists, a password reset link has been sent.",
-        };
-      }
-
-      // Generate a secure, unique, time-limited reset token (implement proper storage/validation)
-      // For demo purposes, using a simple UUID - **REPLACE with secure implementation**
-      const resetToken = uuidv4();
-      const expiryMinutes = 30; // Token expiry time
-      const expiryTime = new Date(Date.now() + expiryMinutes * 60000);
-
-      // TODO: Securely store the resetToken and expiryTime associated with user.id
-      // Example: await this.passwordResetTokenRepository.save({ userId: user.id, token: hashedToken, expiresAt: expiryTime });
-      this.logger.log(
-        `Generated reset token ${resetToken} for user ${user.username} (expires: ${expiryTime.toISOString()}) - **STORE SECURELY**`,
-      );
-
-      const frontendUrl =
-        this.configService.get<string>("FRONTEND_URL") ||
-        "http://localhost:5173";
-      const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
-
-      this.logger.log(
-        `Sending password reset email to ${user.email} for user ${user.username}`,
-      );
-      await this.mailService.sendTemplatedEmail(
-        user.email,
-        "PASSWORD_RESET_REQUEST",
-        {
-          username: user.username,
-          resetLink: resetLink,
-        },
-      );
-
-      return {
-        message:
-          "If an account with this email exists, a password reset link has been sent.",
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error handling forgot password request for ${email}: ${error.message}`,
-        error.stack,
-      );
-      // Return a generic message even on internal errors
-      return {
-        message:
-          "An error occurred while processing your request. Please try again later.",
-      };
-    }
+    this.logger.log(`Handling forgot password request for email: ${email}`);
+    // This now directly calls the new UsersService method
+    // In a real app, you might add more logic here like rate limiting
+    await this.usersService.initiatePasswordReset(email);
+    return {
+      message:
+        "If your email address is in our database, you will receive a password recovery link at your email address in a few minutes.",
+    };
   }
+  */
 }

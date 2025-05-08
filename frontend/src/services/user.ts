@@ -139,4 +139,27 @@ export const UserService = {
             throw error; // Re-throw the error
         }
     },
+
+    // Initiate Password Reset
+    initiatePasswordReset: async (email: string): Promise<{ message: string }> => {
+        try {
+            const response = await axios.post('users/initiate-password-reset', { email });
+            return response.data;
+        } catch (error: unknown) {
+            console.error('[UserService] Error initiating password reset:', error);
+            throw error;
+        }
+    },
+
+    // Confirm Password Reset (using token)
+    confirmPasswordReset: async (token: string, newPassword: string): Promise<{ message: string }> => {
+        try {
+            // Note: Backend endpoint is /auth/reset-password
+            const response = await axios.post('auth/reset-password', { token, newPassword });
+            return response.data;
+        } catch (error: unknown) {
+            console.error('[UserService] Error confirming password reset:', error);
+            throw error;
+        }
+    },
 };

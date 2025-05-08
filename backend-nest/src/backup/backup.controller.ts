@@ -8,14 +8,21 @@ import {
   Res,
   Logger,
   Req,
+  UseGuards,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { BackupService } from "./backup.service";
 import { BackupOptionsDto } from "./dto/backup-options.dto";
 import { Response, Request } from "express";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../rbac/guards/roles.guard";
+import { Roles } from "../rbac/decorators/roles.decorator";
 
 @ApiTags("Backups")
 @Controller("backups")
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("Super Admin")
 export class BackupController {
   private readonly logger = new Logger(BackupController.name);
 
@@ -35,7 +42,7 @@ export class BackupController {
   @ApiOperation({ summary: "Get a specific backup" })
   @ApiResponse({ status: 200, description: "Return the backup" })
   @ApiResponse({ status: 404, description: "Backup not found" })
-  async getBackup(@Param("id") id: string) {
+  async getBackup(@Param("id", ParseUUIDPipe) id: string) {
     this.logger.log(`Getting backup with ID: ${id}`);
     return this.backupService.getBackup(id);
   }
@@ -44,7 +51,7 @@ export class BackupController {
   @ApiOperation({ summary: "Check backup status" })
   @ApiResponse({ status: 200, description: "Return the backup status" })
   @ApiResponse({ status: 404, description: "Backup not found" })
-  async checkBackupStatus(@Param("id") id: string) {
+  async checkBackupStatus(@Param("id", ParseUUIDPipe) id: string) {
     this.logger.log(`Checking status of backup with ID: ${id}`);
     const backup = await this.backupService.getBackup(id);
     return {
@@ -59,74 +66,18 @@ export class BackupController {
   @Post("create_backup")
   @ApiOperation({ summary: "Create a new backup" })
   @ApiResponse({ status: 201, description: "Backup created successfully" })
-  async createBackup(@Body() backupOptions: any) {
-    // Log the raw data to help debug the 400 error
+  async createBackup(@Body() backupOptions: BackupOptionsDto) {
     this.logger.log(
-      `Raw backup options received: ${JSON.stringify(backupOptions)}`,
+      `Received backup options via DTO: ${JSON.stringify(backupOptions)}`,
     );
-
-    // Create a properly formatted BackupOptionsDto
-    let formattedOptions: BackupOptionsDto;
-
-    try {
-      // Determine if we're receiving form data or JSON
-      if (typeof backupOptions.type === "string") {
-        // Direct JSON data
-        formattedOptions = {
-          type: backupOptions.type === "full" ? "full" : ("partial" as any),
-          includeDatabases:
-            backupOptions.includeDatabases === "true" ||
-            backupOptions.includeDatabases === true,
-          includeMedia:
-            backupOptions.includeMedia === "true" ||
-            backupOptions.includeMedia === true,
-          includeSettings:
-            backupOptions.includeSettings === "true" ||
-            backupOptions.includeSettings === true,
-          location: backupOptions.location,
-          customPath: backupOptions.customPath,
-        };
-      } else {
-        // Something's wrong with the data, create a default
-        this.logger.warn(
-          `Invalid backup options format received. Creating default backup instead.`,
-        );
-        formattedOptions = {
-          type: "full" as any,
-          includeDatabases: true,
-          includeMedia: false,
-          includeSettings: false,
-        };
-      }
-
-      this.logger.log(
-        `Formatted backup options: ${JSON.stringify(formattedOptions)}`,
-      );
-      return this.backupService.createBackup(formattedOptions);
-    } catch (error) {
-      this.logger.error(`Error formatting backup options: ${error.message}`);
-      this.logger.error(`Received options: ${JSON.stringify(backupOptions)}`);
-
-      // Create a default backup rather than failing
-      formattedOptions = {
-        type: "full" as any,
-        includeDatabases: true,
-        includeMedia: false,
-        includeSettings: false,
-      };
-
-      this.logger.log(
-        `Using default backup options instead: ${JSON.stringify(formattedOptions)}`,
-      );
-      return this.backupService.createBackup(formattedOptions);
-    }
+    return this.backupService.createBackup(backupOptions);
   }
 
   @Post(":id/restore")
   @ApiOperation({ summary: "Restore from a backup" })
   @ApiResponse({ status: 200, description: "System restored successfully" })
   @ApiResponse({ status: 404, description: "Backup not found" })
-  async restoreBackup(@Param("id") id: string) {
+  async restoreBackup(@Param("id", ParseUUIDPipe) id: string) {
     this.logger.log(`Restoring backup with ID: ${id}`);
     return this.backupService.restoreBackup(id);
   }
@@ -135,7 +86,7 @@ export class BackupController {
   @ApiOperation({ summary: "Delete a backup" })
   @ApiResponse({ status: 200, description: "Backup deleted successfully" })
   @ApiResponse({ status: 404, description: "Backup not found" })
-  async deleteBackup(@Param("id") id: string) {
+  async deleteBackup(@Param("id", ParseUUIDPipe) id: string) {
     this.logger.log(`Deleting backup with ID: ${id}`);
     return this.backupService.deleteBackup(id);
   }
@@ -145,7 +96,7 @@ export class BackupController {
   @ApiResponse({ status: 200, description: "Return the backup file" })
   @ApiResponse({ status: 404, description: "Backup not found" })
   async downloadBackup(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Res() res: Response,
     @Req() req: Request,
   ) {

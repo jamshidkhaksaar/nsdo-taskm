@@ -7,6 +7,7 @@ import { ValidationPipe } from "@nestjs/common";
 import { AllExceptionsFilter } from "./all-exceptions.filter";
 import { ConfigService } from "@nestjs/config";
 import { SettingsService } from "./settings/settings.service";
+import { PrefixedIoAdapter } from './common/adapters/prefixed-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -69,6 +70,10 @@ async function bootstrap() {
     const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup("api-docs", app, swaggerDocument);
   }
+
+  // Enable WebSocket adapter using the custom PrefixedIoAdapter
+  const globalPrefix = configService.get<string>('API_PREFIX', 'api/v1'); // Get global prefix from config or default
+  app.useWebSocketAdapter(new PrefixedIoAdapter(app.getHttpServer(), globalPrefix));
 
   // Use port from config
   const port = configService.get("PORT") || 3001;

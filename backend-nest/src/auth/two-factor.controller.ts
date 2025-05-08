@@ -15,20 +15,9 @@ import { TwoFactorService } from "./two-factor.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { UsersService } from "../users/users.service";
-
-class SetupTwoFactorDto {
-  enabled: boolean;
-  method?: string;
-}
-
-class VerifyTwoFactorDto {
-  verification_code: string;
-  remember_browser?: boolean;
-}
-
-class SendEmailCodeDto {
-  email: string;
-}
+import { SetupTwoFactorDto } from "./dto/setup-two-factor.dto";
+import { VerifyTwoFactorDto } from "./dto/verify-two-factor.dto";
+import { SendEmailCodeDto } from "./dto/send-email-code.dto";
 
 @ApiTags("Two Factor Authentication")
 @Controller("settings")
@@ -73,14 +62,6 @@ export class TwoFactorController {
         `Setup 2FA request received with raw payload: ${rawBody}`,
       );
 
-      if (
-        setupTwoFactorDto === undefined ||
-        setupTwoFactorDto.enabled === undefined
-      ) {
-        this.logger.error(`Invalid 2FA setup request payload: ${rawBody}`);
-        throw new BadRequestException("Enabled status must be provided");
-      }
-
       const userId = req.user.id;
       const method = setupTwoFactorDto.method || "app"; // Default to app method if not specified
       this.logger.log(
@@ -116,10 +97,6 @@ export class TwoFactorController {
       this.logger.log(
         `Verify 2FA request received with code: ${verifyTwoFactorDto.verification_code?.substring(0, 2)}***`,
       );
-
-      if (!verifyTwoFactorDto.verification_code) {
-        throw new BadRequestException("Verification code must be provided");
-      }
 
       const userId = req.user.id;
       const rememberBrowser = verifyTwoFactorDto.remember_browser === true;
@@ -167,16 +144,15 @@ export class TwoFactorController {
       const userId = req.user.id;
       this.logger.log(`Sending 2FA code via email for user ${userId}`);
 
-      // If email is not provided, use the user's email from their account
       const email =
         sendEmailCodeDto.email ||
         (await this.usersService.findById(userId)).email;
 
       if (!email) {
-        throw new BadRequestException("Email is required");
+        throw new BadRequestException("Email is required and could not be determined");
       }
 
-      const result = await this.twoFactorService.sendEmailCode(userId, email);
+      await this.twoFactorService.sendEmailCode(userId, email);
       return { success: true, message: "Verification code sent to your email" };
     } catch (error) {
       this.logger.error(

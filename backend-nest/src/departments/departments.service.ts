@@ -45,9 +45,7 @@ export class DepartmentsService {
       let whereClause = {};
 
       if (provinceId) {
-        console.log(
-          `[DepartmentsService] Filtering departments by provinceId: ${provinceId}`,
-        );
+        this.logger.log(`[DepartmentsService] Filtering departments by provinceId: ${provinceId}`);
         whereClause = { ...whereClause, provinceId: provinceId };
       }
 
@@ -57,7 +55,7 @@ export class DepartmentsService {
         order: { name: "ASC" },
       });
     } catch (error) {
-      console.error("Error finding departments:", error);
+      this.logger.error(`Error finding departments: ${error.message}`, error.stack);
       // Throw a more specific NestJS exception
       throw new InternalServerErrorException(
         `Could not retrieve departments: ${error.message}`,
@@ -87,16 +85,14 @@ export class DepartmentsService {
         (!department.head || !department.head.username)
       ) {
         try {
-          console.log(
-            `Loading head for department ${id} with headId ${department.headId}`,
-          );
+          this.logger.debug(`Loading head for department ${id} with headId ${department.headId}`);
           const headUser = await this.usersService.findById(department.headId);
           if (headUser) {
             department.head = headUser;
-            console.log(`Successfully loaded head user: ${headUser.username}`);
+            this.logger.debug(`Successfully loaded head user: ${headUser.username}`);
           }
         } catch (error) {
-          console.error(`Error loading head user: ${error.message}`);
+          this.logger.error(`Error loading head user: ${error.message}`, error.stack);
           // Don't throw here, just log the error and continue
         }
       }
@@ -114,30 +110,25 @@ export class DepartmentsService {
             await this.usersService.findUsersByDepartment(id);
 
           if (memberResults && memberResults.length > 0) {
-            console.log(
-              `Loaded ${memberResults.length} members for department ${id}`,
-            );
+            this.logger.debug(`Loaded ${memberResults.length} members for department ${id}`);
             department.members = memberResults;
           }
         } catch (error) {
-          console.error(`Error loading members: ${error.message}`);
+          this.logger.error(`Error loading members: ${error.message}`, error.stack);
           department.members = [];
         }
       }
 
       return department;
     } catch (error) {
-      console.error(`Error fetching department ${id}:`, error);
+      this.logger.error(`Error fetching department ${id}:`, error);
       throw error;
     }
   }
 
   async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
     try {
-      console.log(
-        "Creating department with DTO:",
-        JSON.stringify(createDepartmentDto, null, 2),
-      );
+      this.logger.log("Creating department with DTO:", createDepartmentDto);
 
       // Create new department entity
       const department = new Department();
@@ -153,14 +144,10 @@ export class DepartmentsService {
           // Validate province exists
           await this.provinceService.findOne(createDepartmentDto.provinceId);
           department.provinceId = createDepartmentDto.provinceId;
-          console.log(
-            `Assigning department to province: ${department.provinceId}`,
-          );
+          this.logger.log(`Assigning department to province: ${department.provinceId}`);
         } catch (error) {
           // Handle case where province validation fails (e.g., province not found)
-          console.error(
-            `Error validating province ${createDepartmentDto.provinceId} during department creation: ${error.message}`,
-          );
+          this.logger.error(`Error validating province ${createDepartmentDto.provinceId} during department creation: ${error.message}`, error.stack);
           // Depending on requirements, you might throw a BadRequestException here
           // throw new BadRequestException(`Province with ID "${createDepartmentDto.provinceId}" not found.`);
           // For now, let's just log the error and proceed without assigning the province
@@ -173,14 +160,12 @@ export class DepartmentsService {
 
       // Save department to get an ID
       const savedDepartment = await this.departmentsRepository.save(department);
-      console.log(`Created department with ID: ${savedDepartment.id}`);
+      this.logger.log(`Created department with ID: ${savedDepartment.id}`);
 
       // If head is provided, set the department head
       if (createDepartmentDto.head) {
         try {
-          console.log(
-            `Setting head for department ${savedDepartment.id} to user with ID: ${createDepartmentDto.head}`,
-          );
+          this.logger.debug(`Setting head for department ${savedDepartment.id} to user with ID: ${createDepartmentDto.head}`);
           const headUser = await this.usersService.findById(
             createDepartmentDto.head,
           );
@@ -191,9 +176,7 @@ export class DepartmentsService {
 
             // Save the department with the head
             await this.departmentsRepository.save(savedDepartment);
-            console.log(
-              `Set head for department ${savedDepartment.id} to user: ${headUser.username}`,
-            );
+            this.logger.debug(`Set head for department ${savedDepartment.id} to user: ${headUser.username}`);
 
             // Add head as a member of the department if not already
             const isDepartmentMember = await this.isDepartmentMember(
@@ -201,25 +184,21 @@ export class DepartmentsService {
               headUser.id,
             );
             if (!isDepartmentMember) {
-              console.log(
-                `Adding head ${headUser.username} as member of department ${savedDepartment.id}`,
-              );
+              this.logger.debug(`Adding head ${headUser.username} as member of department ${savedDepartment.id}`);
               await this.addMember(savedDepartment.id, headUser.id);
             }
           } else {
-            console.warn(
-              `Head user with ID ${createDepartmentDto.head} not found, cannot set as department head`,
-            );
+            this.logger.warn(`Head user with ID ${createDepartmentDto.head} not found, cannot set as department head`);
           }
         } catch (error) {
-          console.error(`Error setting department head: ${error.message}`);
+          this.logger.error(`Error setting department head: ${error.message}`, error.stack);
         }
       }
 
       // Reload department with all relations
       return this.findOne(savedDepartment.id);
     } catch (error) {
-      console.error("Error creating department:", error);
+      this.logger.error(`Error creating department: ${error.message}`, error.stack);
 
       if (error.code === "23505") {
         throw new ConflictException(
@@ -236,10 +215,7 @@ export class DepartmentsService {
     updateDepartmentDto: UpdateDepartmentDto,
   ): Promise<Department> {
     try {
-      console.log(
-        `Updating department ${id} with DTO:`,
-        JSON.stringify(updateDepartmentDto, null, 2),
-      );
+      this.logger.log(`Updating department ${id} with DTO:`, updateDepartmentDto);
 
       // Fetch the existing department first
       const department = await this.findOne(id);
@@ -274,84 +250,63 @@ export class DepartmentsService {
         const newHeadId = updateDepartmentDto.headId;
 
         if (!newHeadId) {
-          console.log(`Preparing to remove head from department ${id}`);
+          this.logger.debug(`Preparing to remove head from department ${id}`);
           department.head = null;
           newHeadUser = null;
         } else {
           try {
-            console.log(
-              `Attempting to set head for department ${id} to user ID: ${newHeadId}`,
-            );
+            this.logger.debug(`Attempting to set head for department ${id} to user ID: ${newHeadId}`);
             const headUser = await this.usersService.findById(newHeadId);
             if (headUser) {
               department.head = headUser; // Set the related entity
               newHeadUser = headUser; // Store for potentially adding as member later
-              console.log(
-                `Prepared head for department ${id} to user: ${headUser.username}`,
-              );
+              this.logger.debug(`Prepared head for department ${id} to user: ${headUser.username}`);
               shouldAddHeadAsMember = true; // Flag to add member later
             } else {
-              console.warn(`Head user with ID ${newHeadId} not found.`);
+              this.logger.warn(`Head user with ID ${newHeadId} not found.`);
               throw new NotFoundException(
                 `User with ID "${newHeadId}" not found to be set as head.`,
               );
             }
           } catch (error) {
-            console.error(
-              `Error preparing department head update: ${error.message}`,
-            );
+            this.logger.error(`Error preparing department head update: ${error.message}`, error.stack);
             throw error;
           }
         }
       }
 
       // *** Single save call for all updates ***
-      console.log(
-        "Saving all department updates...",
-        JSON.stringify(department, null, 2),
-      ); // Log the state before save
+      this.logger.log(`Saving all department updates...`, JSON.stringify(department, null, 2)); // Log the state before save
       try {
         await this.departmentsRepository.save(department);
-        console.log("Department updates saved successfully.");
+        this.logger.log("Department updates saved successfully.");
       } catch (saveError) {
-        console.error("******** ERROR DURING SAVE ********", saveError); // Log the specific save error
+        this.logger.error(`******** ERROR DURING SAVE ********`, saveError); // Log the specific save error
         throw saveError; // Re-throw to be caught by outer catch
       }
 
       // *** Add head as member AFTER successful save ***
       if (shouldAddHeadAsMember && newHeadUser) {
-        console.log(
-          `Checking if head ${newHeadUser.username} (${newHeadUser.id}) is already a member...`,
-        );
+        this.logger.debug(`Checking if head ${newHeadUser.username} (${newHeadUser.id}) is already a member...`);
         const isMember = await this.isDepartmentMember(id, newHeadUser.id);
-        console.log(`Is head already a member? ${isMember}`);
+        this.logger.debug(`Is head already a member? ${isMember}`);
         if (!isMember) {
-          console.log(
-            `Attempting to add head ${newHeadUser.username} as member post-save.`,
-          );
+          this.logger.debug(`Attempting to add head ${newHeadUser.username} as member post-save.`);
           try {
             await this.addMember(id, newHeadUser.id);
-            console.log(
-              `Successfully added head ${newHeadUser.username} as member.`,
-            );
+            this.logger.debug(`Successfully added head ${newHeadUser.username} as member.`);
           } catch (addMemberError) {
             // Log error but don't fail the whole update if only adding member fails
-            console.error(
-              `Failed to add head ${newHeadUser.username} as member after update: ${addMemberError.message}`,
-              addMemberError,
-            );
+            this.logger.error(`Failed to add head ${newHeadUser.username} as member after update: ${addMemberError.message}`, addMemberError);
           }
         }
       }
 
       // Reload department with potentially updated relations
-      console.log(`Update successful for department ${id}, reloading...`);
+      this.logger.log(`Update successful for department ${id}, reloading...`);
       return this.findOne(id);
     } catch (error) {
-      console.error(
-        `******** TOP LEVEL ERROR in update department ${id}: ********`,
-        error,
-      ); // Log the full error object here
+      this.logger.error(`******** TOP LEVEL ERROR in update department ${id}: ********`, error); // Log the full error object here
 
       if (error.code === "23505") {
         throw new ConflictException(
@@ -368,9 +323,7 @@ export class DepartmentsService {
 
   async addMember(id: string, userId: string): Promise<Department> {
     try {
-      console.log(
-        `[addMember-SQL] Adding member ${userId} to department ${id}`,
-      );
+      this.logger.log(`[addMember-SQL] Adding member ${userId} to department ${id}`);
 
       // Fetching entities is still needed for validation and context
       const department = await this.departmentsRepository.findOneBy({ id });
@@ -394,50 +347,34 @@ export class DepartmentsService {
       );
       const isAlreadyMember =
         parseInt(existingRelation[0]?.count || "0", 10) > 0;
-      console.log(
-        `[addMember-SQL] Is user ${userId} already in user_departments for ${id}? ${isAlreadyMember}`,
-      );
+      this.logger.debug(`[addMember-SQL] Is user ${userId} already in user_departments for ${id}? ${isAlreadyMember}`);
 
       if (!isAlreadyMember) {
-        console.log(
-          `[addMember-SQL] Relationship does not exist, attempting direct INSERT...`,
-        );
+        this.logger.debug(`[addMember-SQL] Relationship does not exist, attempting direct INSERT...`);
         try {
           // Use raw SQL to insert directly into the join table
           await this.departmentsRepository.manager.query(
             `INSERT INTO user_departments (department_id, user_id) VALUES (?, ?)`,
             [id, userId],
           );
-          console.log(
-            `[addMember-SQL] Successfully INSERTED relation for dept ${id} and user ${userId}.`,
-          );
+          this.logger.debug(`[addMember-SQL] Successfully INSERTED relation for dept ${id} and user ${userId}.`);
         } catch (insertError) {
-          console.error(
-            `[addMember-SQL] ********* ERROR DURING DIRECT SQL INSERT *********`,
-            insertError,
-          );
+          this.logger.error(`[addMember-SQL] ********* ERROR DURING DIRECT SQL INSERT *********`, insertError);
           // If the raw SQL fails, re-throw the specific error
           throw new InternalServerErrorException(
             `Database error adding member relation: ${insertError.message}`,
           );
         }
       } else {
-        console.log(
-          `[addMember-SQL] User ${userId} relation already exists. No INSERT needed.`,
-        );
+        this.logger.debug(`[addMember-SQL] User ${userId} relation already exists. No INSERT needed.`);
       }
 
       // Return the department (refetch to get potentially updated state if needed elsewhere)
-      console.log(
-        `[addMember-SQL] Operation complete, refetching department ${id}...`,
-      );
+      this.logger.debug(`[addMember-SQL] Operation complete, refetching department ${id}...`);
       return this.findOne(id);
     } catch (error) {
       // Catch errors from findOne, findById, or the re-thrown insertError
-      console.error(
-        `[addMember-SQL] Error in addMember for dept ${id}, user ${userId}:`,
-        error,
-      );
+      this.logger.error(`[addMember-SQL] Error in addMember for dept ${id}, user ${userId}:`, error);
       // Ensure a standard error format is thrown
       if (
         error instanceof NotFoundException ||
@@ -464,10 +401,7 @@ export class DepartmentsService {
       );
       return await this.departmentsRepository.save(department);
     } catch (error) {
-      console.error(
-        `Error removing member ${userId} from department ${id}:`,
-        error,
-      );
+      this.logger.error(`Error removing member ${userId} from department ${id}:`, error);
       throw error;
     }
   }
@@ -548,7 +482,7 @@ export class DepartmentsService {
         // Add more metrics as needed
       };
     } catch (error) {
-      console.error(`Error getting performance for department ${id}:`, error);
+      this.logger.error(`Error getting performance for department ${id}:`, error);
       throw error;
     }
   }
@@ -558,7 +492,7 @@ export class DepartmentsService {
     try {
       return await this.usersService.findById(id);
     } catch (error) {
-      console.error(`Error getting user by ID ${id}: ${error.message}`);
+      this.logger.error(`Error getting user by ID ${id}: ${error.message}`);
       return null;
     }
   }
@@ -572,7 +506,7 @@ export class DepartmentsService {
       }
       return 0;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error getting member count for department ${departmentId}: ${error.message}`,
       );
       return 0;
@@ -592,7 +526,7 @@ export class DepartmentsService {
 
       return parseInt(count[0]?.count || "0", 10) > 0;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error checking if user ${userId} is member of department ${departmentId}: ${error.message}`,
       );
       return false;
@@ -605,7 +539,7 @@ export class DepartmentsService {
     departmentIds: string[],
   ) {
     try {
-      console.log(
+      this.logger.log(
         `Assigning departments [${departmentIds.join(", ")}] to province ${provinceId}`,
       );
       // Validate province exists
@@ -630,12 +564,12 @@ export class DepartmentsService {
         { id: In(departmentIds) },
         { provinceId: provinceId },
       );
-      console.log(`Successfully updated provinceId for departments.`);
+      this.logger.log(`Successfully updated provinceId for departments.`);
 
       // Return the updated province entity with its departments
       return this.provinceService.findOne(provinceId);
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error assigning departments to province ${provinceId}:`,
         error,
       );
@@ -648,7 +582,7 @@ export class DepartmentsService {
     departmentId: string,
   ): Promise<void> {
     try {
-      console.log(
+      this.logger.log(
         `Removing department ${departmentId} from province ${provinceId}`,
       );
       // Validate province and department exist
@@ -657,7 +591,7 @@ export class DepartmentsService {
 
       // Check if the department is actually assigned to this province
       if (department.provinceId !== provinceId) {
-        console.warn(
+        this.logger.warn(
           `Department ${departmentId} is not assigned to province ${provinceId}. Current province: ${department.provinceId}`,
         );
         return; // Department not assigned to this province, nothing to do
@@ -667,11 +601,11 @@ export class DepartmentsService {
       await this.departmentsRepository.update(departmentId, {
         provinceId: null,
       });
-      console.log(
+      this.logger.log(
         `Successfully removed department ${departmentId} from province ${provinceId}`,
       );
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error removing department ${departmentId} from province ${provinceId}:`,
         error,
       );
@@ -690,7 +624,7 @@ export class DepartmentsService {
         await this.usersService.findUsersByDepartment(departmentId);
       return members || []; // Return members or an empty array if null/undefined
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error fetching members for department ${departmentId}:`,
         error,
       );

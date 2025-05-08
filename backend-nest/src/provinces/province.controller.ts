@@ -13,6 +13,7 @@ import {
   Request,
   NotFoundException,
   Query,
+  Logger,
 } from "@nestjs/common";
 import { ProvinceService } from "./province.service";
 import { Province } from "./entities/province.entity";
@@ -25,7 +26,10 @@ import { TasksService } from "../tasks/tasks.service";
 import { ActivityLogService } from "../admin/services/activity-log.service";
 import { TaskQueryService } from "../tasks/task-query.service";
 // Auth related imports
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"; // Assuming JWT guard for auth
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../rbac/guards/roles.guard";
+import { Roles } from "../rbac/decorators/roles.decorator";
+import { GetMultiProvincePerformanceDto } from "./dto/get-multi-province-performance.dto";
 import {
   ApiTags,
   ApiOperation,
@@ -39,6 +43,8 @@ import {
 @UseGuards(JwtAuthGuard)
 @Controller("provinces")
 export class ProvinceController {
+  private readonly logger = new Logger(ProvinceController.name);
+
   constructor(
     private readonly provinceService: ProvinceService,
     private readonly departmentsService: DepartmentsService,
@@ -57,11 +63,14 @@ export class ProvinceController {
     type: [Province],
   })
   @ApiResponse({ status: 401, description: "Unauthorized." })
+  @Roles("User", "Leadership", "Administrator")
   async findAccessibleProvinces(): Promise<Province[]> {
     return this.provinceService.findAll();
   }
 
   @Post("admin")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Create a new province (Admin Only)" })
   @ApiResponse({
     status: 201,
@@ -77,6 +86,8 @@ export class ProvinceController {
   }
 
   @Get("admin")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Get all provinces (Admin Only)" })
   @ApiResponse({
     status: 200,
@@ -89,6 +100,8 @@ export class ProvinceController {
   }
 
   @Get("admin/:id")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Get a specific province by ID (Admin Only)" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({
@@ -105,6 +118,8 @@ export class ProvinceController {
   }
 
   @Put("admin/:id")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Update a province by ID (Admin Only)" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({
@@ -123,6 +138,8 @@ export class ProvinceController {
   }
 
   @Delete("admin/:id")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Delete a province by ID (Admin Only)" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({ status: 204, description: "Province deleted successfully." })
@@ -134,6 +151,8 @@ export class ProvinceController {
   }
 
   @Get("admin/:provinceId/departments")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({
     summary: "Get departments assigned to a province (Admin Only)",
   })
@@ -153,6 +172,8 @@ export class ProvinceController {
   }
 
   @Post("admin/:provinceId/departments")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Assign department(s) to a province (Admin Only)" })
   @ApiParam({ name: "provinceId", description: "Province UUID", type: String })
   @ApiResponse({
@@ -180,6 +201,8 @@ export class ProvinceController {
   }
 
   @Delete("admin/:provinceId/departments/:departmentId")
+  @UseGuards(RolesGuard)
+  @Roles("Administrator")
   @ApiOperation({ summary: "Remove a department from a province (Admin Only)" })
   @ApiParam({ name: "provinceId", description: "Province UUID", type: String })
   @ApiParam({
@@ -210,15 +233,19 @@ export class ProvinceController {
   @ApiResponse({ status: 200, description: "List of tasks for the province." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   @ApiResponse({ status: 404, description: "Province not found." })
-  async getTasksForProvince(@Param("id") id: string) {
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "Administrator")
+  async getTasksForProvince(@Param("id", ParseUUIDPipe) id: string) {
     const tasks = await this.taskQueryService.getTasksForProvince(id);
     return tasks;
   }
 
   @Get(":id/performance")
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "Administrator")
   @ApiOperation({
     summary:
-      "Get performance statistics for a province (Admin/Leadership Only)",
+      "Get performance statistics for a province (Leadership/Admin Only)",
   })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({
@@ -252,37 +279,35 @@ export class ProvinceController {
     return performanceStats;
   }
 
-  @Get("performance")
+  @Post("/multi-performance")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "Administrator")
   @ApiOperation({
     summary:
-      "Get performance statistics for multiple provinces (Admin/Leadership Only)",
+      "Get performance statistics for multiple provinces (Leadership/Admin Only)",
   })
   @ApiResponse({
     status: 200,
     description: "Performance statistics for the provinces.",
   })
   @ApiResponse({ status: 403, description: "Forbidden." })
+  @ApiResponse({ status: 404, description: "One or more provinces not found." })
   async getMultiProvincePerformance(
-    @Query("ids") provinceIds: string,
+    @Body() query: GetMultiProvincePerformanceDto,
     @Request() req,
   ) {
-    if (!provinceIds) {
-      throw new NotFoundException(
-        "Province IDs must be provided as a comma-separated list",
-      );
-    }
-
-    const ids = provinceIds.split(",");
-    const performanceStats =
-      await this.provinceService.getMultiProvincePerformance(ids);
+    const performanceStats = await this.provinceService.getMultiProvincePerformance(query.ids);
 
     // Log the activity
     try {
       await this.activityLogService.logFromRequest(
         req,
         "view",
-        "provinces_performance",
-        `Viewed performance statistics for multiple provinces: ${ids.length} provinces`,
+        "multi_province_performance",
+        `Viewed performance statistics for provinces: ${query.ids.join(", ")}`,
+        undefined,
+        "success"
       );
     } catch (logError) {
       console.error(

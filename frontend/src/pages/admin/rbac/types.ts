@@ -16,6 +16,7 @@ export interface Permission {
   description: string;
   resource: string;
   action: string;
+  group?: string;
   createdAt: string;
   updatedAt: string;
 }

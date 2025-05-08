@@ -9,6 +9,9 @@ import {
   Body,
   Put,
   Delete,
+  ValidationPipe,
+  ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../guards/roles.guard";
@@ -19,23 +22,16 @@ import { PermissionService } from "../services/permission.service";
 import { Role } from "../entities/role.entity";
 import { Permission } from "../entities/permission.entity";
 import { RbacSeederService } from "../services/rbac-seeder.service";
-
-// Simple DTOs for request validation
-class CreateRoleDto {
-  name: string;
-  description?: string;
-  permissionIds?: string[];
-}
-
-class UpdateRoleDto {
-  name?: string;
-  description?: string;
-  permissionIds?: string[];
-}
+import { CreateRoleDto } from "../dto/create-role.dto";
+import { UpdateRoleDto } from "../dto/update-role.dto";
+import { CreatePermissionDto } from "../dto/create-permission.dto";
+import { UpdatePermissionDto } from "../dto/update-permission.dto";
 
 @Controller("admin/rbac")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RbacAdminController {
+  private readonly logger = new Logger(RbacAdminController.name);
+
   constructor(
     private readonly roleService: RoleService,
     private readonly permissionService: PermissionService,
@@ -43,7 +39,7 @@ export class RbacAdminController {
   ) {}
 
   @Post("migrate")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   @HttpCode(HttpStatus.OK)
   async runMigration() {
     try {
@@ -53,6 +49,7 @@ export class RbacAdminController {
         message: "RBAC migration completed successfully",
       };
     } catch (error) {
+      this.logger.error(`RBAC migration failed: ${error.message}`, error.stack);
       return {
         success: false,
         message: "RBAC migration failed",
@@ -62,20 +59,18 @@ export class RbacAdminController {
   }
 
   @Post("init")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   @HttpCode(HttpStatus.OK)
   async initializeRbac() {
     try {
-      // First, seed the permissions and roles
       await this.rbacSeederService.seedPermissions();
       await this.rbacSeederService.seedRoles();
-
       return {
         success: true,
-        message:
-          "RBAC system initialized successfully. Now run the migration endpoint to update users.",
+        message: "RBAC system initialized successfully. Now run the migration endpoint to update users.",
       };
     } catch (error) {
+      this.logger.error(`RBAC initialization failed: ${error.message}`, error.stack);
       return {
         success: false,
         message: "RBAC initialization failed",
@@ -86,67 +81,92 @@ export class RbacAdminController {
 
   // Role Management Endpoints
   @Get("roles")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async getAllRoles(): Promise<Role[]> {
     return this.roleService.findAll();
   }
 
   @Get("roles/:id")
-  @Roles("admin", "Super Admin")
-  async getRoleById(@Param("id") id: string): Promise<Role> {
+  @Roles("Administrator")
+  async getRoleById(@Param("id", ParseUUIDPipe) id: string): Promise<Role> {
     return this.roleService.findById(id);
   }
 
   @Post("roles")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async createRole(@Body() createRoleDto: CreateRoleDto): Promise<Role> {
     return this.roleService.create(createRoleDto);
   }
 
   @Put("roles/:id")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async updateRole(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateRoleDto: UpdateRoleDto,
   ): Promise<Role> {
     return this.roleService.update(id, updateRoleDto);
   }
 
   @Delete("roles/:id")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteRole(@Param("id") id: string): Promise<void> {
+  async deleteRole(@Param("id", ParseUUIDPipe) id: string): Promise<void> {
     return this.roleService.delete(id);
   }
 
   // Permission Management Endpoints
   @Get("permissions")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async getAllPermissions(): Promise<Permission[]> {
     return this.permissionService.findAll();
   }
 
   @Get("permissions/:id")
-  @Roles("admin", "Super Admin")
-  async getPermissionById(@Param("id") id: string): Promise<Permission> {
+  @Roles("Administrator")
+  async getPermissionById(@Param("id", ParseUUIDPipe) id: string): Promise<Permission> {
     return this.permissionService.findById(id);
+  }
+
+  @Post("permissions")
+  @Roles("Administrator")
+  @HttpCode(HttpStatus.CREATED)
+  async createPermission(
+    @Body() createPermissionDto: CreatePermissionDto,
+  ): Promise<Permission> {
+    return this.permissionService.create(createPermissionDto);
+  }
+
+  @Put("permissions/:id")
+  @Roles("Administrator")
+  async updatePermission(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() updatePermissionDto: UpdatePermissionDto,
+  ): Promise<Permission> {
+    return this.permissionService.update(id, updatePermissionDto);
+  }
+
+  @Delete("permissions/:id")
+  @Roles("Administrator")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deletePermission(@Param("id", ParseUUIDPipe) id: string): Promise<void> {
+    return this.permissionService.remove(id);
   }
 
   // Role-Permission Management
   @Post("roles/:roleId/permissions/:permissionId")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async addPermissionToRole(
-    @Param("roleId") roleId: string,
-    @Param("permissionId") permissionId: string,
+    @Param("roleId", ParseUUIDPipe) roleId: string,
+    @Param("permissionId", ParseUUIDPipe) permissionId: string,
   ): Promise<Role> {
     return this.roleService.addPermissionToRole(roleId, permissionId);
   }
 
   @Delete("roles/:roleId/permissions/:permissionId")
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async removePermissionFromRole(
-    @Param("roleId") roleId: string,
-    @Param("permissionId") permissionId: string,
+    @Param("roleId", ParseUUIDPipe) roleId: string,
+    @Param("permissionId", ParseUUIDPipe) permissionId: string,
   ): Promise<Role> {
     return this.roleService.removePermissionFromRole(roleId, permissionId);
   }

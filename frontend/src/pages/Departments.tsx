@@ -15,7 +15,7 @@ import {
   People as PeopleIcon,
 } from '@mui/icons-material';
 import { RootState } from '@/store';
-import { Department, Task } from '@/types/index';
+import { Department, Task, TaskType } from '@/types/index';
 import { DepartmentService } from '@/services/department';
 import { TaskService } from '@/services/task';
 import DepartmentList from '@/components/departments/DepartmentList';
@@ -184,6 +184,8 @@ const Departments: React.FC = () => {
         onClose={() => setCreateTaskDialogOpen(false)}
         onTaskCreated={handleTaskCreated}
         dialogType="assign"
+        initialType={TaskType.DEPARTMENT}
+        initialAssignedDepartmentIds={selectedDepartment ? [selectedDepartment] : []}
       />
     </Container>
   );

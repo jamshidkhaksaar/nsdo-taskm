@@ -172,6 +172,7 @@ const ProvincesPage: React.FC = () => {
                 onTaskCreated={handleTaskCreated}
                 initialType={TaskType.PROVINCE_DEPARTMENT}
                 dialogType="assign"
+                initialAssignedDepartmentIds={selectedDepartments}
             />
         </Box>
     );

@@ -18,9 +18,10 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  Container,
+  Button,
 } from '@mui/material';
-import {
-} from '@mui/icons-material';
+import GppBadOutlinedIcon from '@mui/icons-material/GppBadOutlined';
 import { Task, TaskStatus, User, Department } from '@/types/index';
 import { RootState } from '@/store';
 import { TaskService } from '@/services/task';
@@ -93,15 +94,21 @@ interface TaskOverviewStatsDto {
   overdueTasks: Task[];
 }
 
+const REQUIRED_PERMISSION = "page:view:tasks_overview";
+
 const TasksOverview: React.FC = () => {
   const navigate = useNavigate();
-  const { user: currentUser } = useSelector((state: RootState) => state.auth);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user: currentUser, token } = useSelector((state: RootState) => state.auth);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('sidebarOpenState');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [notifications, setNotifications] = useState(0);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   const [stats, setStats] = useState<TaskOverviewStatsDto | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingStats, setLoadingStats] = useState<boolean>(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const { data: fetchedUsers = [], isLoading: isLoadingUsers, error: usersError } = useQuery<User[]>({
     queryKey: ['users'],
@@ -122,25 +129,50 @@ const TasksOverview: React.FC = () => {
   const errorCombined = usersError || departmentsError || allTasksError;
 
   useEffect(() => {
+    if (!currentUser || !token) {
+      navigate('/login');
+      return;
+    }
+
+    let userPermissions: string[] = [];
+    if (currentUser.role && typeof currentUser.role === 'object' && Array.isArray(currentUser.role.permissions)) {
+        userPermissions = currentUser.role.permissions.map(p => p.name);
+    }
+    
+    if (userPermissions.includes(REQUIRED_PERMISSION)) {
+      setHasAccess(true);
+    } else {
+      console.warn(`User ${currentUser.username} (Role: ${typeof currentUser.role === 'object' ? currentUser.role.name : currentUser.role}) does not have permission: ${REQUIRED_PERMISSION}`);
+      setHasAccess(false);
+    }
+  }, [currentUser, token, navigate]);
+
+  useEffect(() => {
+    if (hasAccess !== true) return;
+
     const fetchOverviewStats = async () => {
-      setLoading(true);
-      setError(null);
+      setLoadingStats(true);
+      setStatsError(null);
       try {
         const response = await api.get<TaskOverviewStatsDto>('/admin/dashboard/tasks-overview');
         setStats(response.data);
-      } catch (err: any) { // Use any or define a specific AxiosError type
+      } catch (err: any) {
         console.error("Error fetching task overview stats:", err);
-        setError(err.response?.data?.message || err.message || 'Failed to fetch overview statistics.');
+        setStatsError(err.response?.data?.message || err.message || 'Failed to fetch overview statistics.');
       } finally {
-        setLoading(false);
+        setLoadingStats(false);
       }
     };
 
     fetchOverviewStats();
-  }, []);
+  }, [hasAccess]);
 
   const handleToggleSidebar = useCallback(() => {
-    setSidebarOpen(prev => !prev);
+    setSidebarOpen(prev => {
+      const newState = !prev;
+      localStorage.setItem('sidebarOpenState', JSON.stringify(newState));
+      return newState;
+    });
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -151,7 +183,6 @@ const TasksOverview: React.FC = () => {
     setTopWidgetsVisible(prev => !prev);
   }, []);
 
-  // Helper function to format assignees/departments
   const formatAssignees = (task: Task): string => {
     let assignees: string[] = [];
     if (task.assignedToUsers && task.assignedToUsers.length > 0) {
@@ -160,20 +191,20 @@ const TasksOverview: React.FC = () => {
     if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
       assignees.push(...task.assignedToDepartments.map(d => `${d.name} (Dept)`));
     }
-    // Add province if assigned
-    // if (task.assignedToProvince) { 
-    //   assignees.push(`${task.assignedToProvince.name} (Prov)`);
-    // }
     return assignees.length > 0 ? assignees.join(', ') : 'Unassigned';
   };
 
-  const renderContent = () => {
-    if (loading) {
-      return <CircularProgress sx={{ display: 'block', margin: 'auto' }} />;
+  const renderActualContent = () => {
+    if (loadingStats) {
+      return <Box sx={{ p: 3, textAlign: 'center'}}><CircularProgress /></Box>;
     }
-    if (error) {
-      return <Alert severity="error">{error}</Alert>;
+    if (statsError) {
+      return <Alert severity="error" sx={{ m: 3 }}>{statsError}</Alert>;
     }
+    if (!stats) {
+        return <Typography sx={{p: 3, color: 'text.secondary'}}>No statistics available.</Typography>;
+    }
+    
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h4" gutterBottom sx={{ color: '#fff' }}>
@@ -405,6 +436,69 @@ const TasksOverview: React.FC = () => {
     );
   };
 
+  if (hasAccess === null) {
+    return (
+      <ModernDashboardLayout
+        sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={240} />}
+        topBar={<DashboardTopBar 
+                  username={currentUser?.username ?? 'User'} 
+                  notificationCount={notifications}
+                  onToggleSidebar={handleToggleSidebar}
+                  onNotificationClick={() => setNotifications(0)}
+                  onProfileClick={() => navigate('/profile')}
+                  onSettingsClick={() => navigate('/settings')}
+                  onHelpClick={() => console.log('Help clicked')}
+                  onLogout={handleLogout}
+                  onToggleTopWidgets={handleToggleTopWidgets}
+                  topWidgetsVisible={topWidgetsVisible}
+                />}
+        mainContent={
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+            <CircularProgress />
+          </Box>
+        }
+        sidebarOpen={sidebarOpen}
+        drawerWidth={240}
+      />
+    );
+  }
+
+  if (hasAccess === false) {
+    return (
+      <ModernDashboardLayout
+        sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={240} />}
+        topBar={<DashboardTopBar 
+                  username={currentUser?.username ?? 'User'} 
+                  notificationCount={notifications}
+                  onToggleSidebar={handleToggleSidebar}
+                  onNotificationClick={() => setNotifications(0)}
+                  onProfileClick={() => navigate('/profile')}
+                  onSettingsClick={() => navigate('/settings')}
+                  onHelpClick={() => console.log('Help clicked')}
+                  onLogout={handleLogout}
+                  onToggleTopWidgets={handleToggleTopWidgets}
+                  topWidgetsVisible={topWidgetsVisible}
+                />}
+        mainContent={
+          <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
+            <GppBadOutlinedIcon sx={{ fontSize: 80, color: 'error.main' }} />
+            <Typography variant="h4" component="h1" gutterBottom sx={{ color: 'error.main' }}>
+              Access Denied
+            </Typography>
+            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+              You do not have the required permission ({REQUIRED_PERMISSION}) to view this page.
+            </Typography>
+            <Button variant="contained" onClick={() => navigate('/dashboard')} sx={{ mt: 3 }}>
+              Go to Dashboard
+            </Button>
+          </Container>
+        }
+        sidebarOpen={sidebarOpen}
+        drawerWidth={240}
+      />
+    );
+  }
+
   return (
     <ModernDashboardLayout
       sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={240} />}
@@ -420,7 +514,7 @@ const TasksOverview: React.FC = () => {
                 onToggleTopWidgets={handleToggleTopWidgets}
                 topWidgetsVisible={topWidgetsVisible}
               />}
-      mainContent={renderContent()}
+      mainContent={renderActualContent()}
       sidebarOpen={sidebarOpen}
       drawerWidth={240}
     />

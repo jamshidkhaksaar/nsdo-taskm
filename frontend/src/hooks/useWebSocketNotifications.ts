@@ -43,26 +43,38 @@ export const useWebSocketNotifications = () => {
     }
 
     console.log('WebSocket: Attempting to connect...');
-    // Initialize socket connection with namespace and auth token
-    socketRef.current = io(`${SOCKET_URL}${SOCKET_NAMESPACE}`, {
+    // Initialize socket connection with namespace, path, and auth token
+    const connectionUrl = `${SOCKET_URL}${SOCKET_NAMESPACE}`;
+    const connectionOptions = {
+      path: '/api/v1/socket.io',
       auth: {
         token: token,
       },
       reconnectionAttempts: 5, // Optional: Limit reconnection attempts
       reconnectionDelay: 3000, // Optional: Delay between attempts
-    });
+    };
+    console.log('WebSocket Connection URL:', connectionUrl);
+    console.log('WebSocket Connection Options:', JSON.stringify(connectionOptions));
+
+    socketRef.current = io(connectionUrl, connectionOptions);
 
     const socket = socketRef.current;
 
     // Connection Events
     socket.on('connect', () => {
       console.log(`WebSocket: Connected successfully with id ${socket.id}`);
-      setIsConnected(true);
+      setIsConnected(prev => {
+        if (!prev) console.log('WebSocket state: Connected');
+        return true;
+      });
     });
 
     socket.on('disconnect', (reason) => {
       console.log(`WebSocket: Disconnected. Reason: ${reason}`);
-      setIsConnected(false);
+      setIsConnected(prev => {
+        if (prev) console.log('WebSocket state: Disconnected');
+        return false;
+      });
       // Handle potential cleanup or permanent disconnect reasons
       if (reason === 'io server disconnect') {
         // The server forced disconnection, maybe auth failed?
@@ -72,7 +84,10 @@ export const useWebSocketNotifications = () => {
 
     socket.on('connect_error', (error) => {
       console.error(`WebSocket: Connection Error: ${error.message}`, error);
-      setIsConnected(false);
+      setIsConnected(prev => {
+        if (prev) console.log('WebSocket state: Connection Error - Disconnected');
+        return false;
+      });
       // Potentially handle auth errors specifically if server emits them
     });
 
@@ -103,10 +118,18 @@ export const useWebSocketNotifications = () => {
         console.log('WebSocket: Disconnecting due to cleanup...');
         socket.disconnect();
         socketRef.current = null;
-        setIsConnected(false);
+        // Don't set isConnected here in cleanup if component is unmounting,
+        // let the disconnect event handler do it if it fires before unmount.
+        // However, if the effect reruns due to token change, a fresh setIsConnected
+        // will be called by the event handlers of the *new* socket instance.
+        // For robustness on fast token changes/re-renders leading to effect re-run:
+        setIsConnected(prev => {
+          // if (prev) console.log('WebSocket state: Disconnected (cleanup)'); // Optional logging
+          return false; // Ensure disconnected state on cleanup/re-run before new connection attempt
+        });
       }
     };
-  }, [token]);
+  }, [token]); // Keep only token as dependency, as socket instance changes with token
 
   // Optionally expose a function to manually send messages if needed
   // const sendMessage = (event: string, data: any) => {

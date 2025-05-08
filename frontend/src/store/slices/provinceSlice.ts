@@ -32,14 +32,23 @@ export const fetchProvinces = createAsyncThunk<
     console.log("[fetchProvinces] Thunk started");
     try {
       const state = getState();
-      const userRole = state.auth.user?.role;
+      const userAuthRole = state.auth.user?.role; // userRole can be a string or an object
 
       let provinces: Province[];
-      if (userRole?.toLowerCase() === 'admin') {
+      let roleNameString: string | undefined;
+
+      if (typeof userAuthRole === 'string') {
+        roleNameString = userAuthRole.toLowerCase();
+      } else if (userAuthRole && typeof userAuthRole === 'object' && 'name' in userAuthRole && typeof (userAuthRole as any).name === 'string') {
+        // Ensures 'name' exists as a property and is a string before accessing
+        roleNameString = (userAuthRole as any).name.toLowerCase();
+      }
+
+      if (roleNameString === 'admin') {
         console.log("[fetchProvinces] User is ADMIN, calling getAdminProvinces...");
         provinces = await getAdminProvinces();
       } else {
-        console.log("[fetchProvinces] User is not ADMIN, calling getPublicProvinces...");
+        console.log("[fetchProvinces] User is not ADMIN (or role name indeterminate), calling getPublicProvinces...");
         provinces = await getPublicProvinces();
       }
 

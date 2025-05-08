@@ -4,11 +4,14 @@ import {
   Logger,
   Inject,
   forwardRef,
+  UnauthorizedException,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { User } from "./entities/user.entity";
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 import { ActivityLogService } from "../admin/services/activity-log.service";
 import { MailService } from "../mail/mail.service";
 import { ConfigService } from "@nestjs/config";
@@ -35,7 +38,7 @@ export class UsersService {
 
       const user = await this.usersRepository.findOne({
         where: { username },
-        relations: relations,
+        relations: ["role", "role.permissions"],
       });
       this.logger.log(
         `[DEBUG] findOne result for username=${username}: ${user ? "found" : "not found"}`,
@@ -56,13 +59,13 @@ export class UsersService {
     }
   }
 
-  async findById(id: string): Promise<User> {
+  async findById(id: string, relations: string[] = []): Promise<User> {
     try {
-      this.logger.log(`Looking for user with ID: ${id}`);
+      this.logger.log(`Looking for user with ID: ${id}, loading relations: ${relations.join(', ')}`);
 
       const user = await this.usersRepository.findOne({
         where: { id },
-        relations: ["departments"],
+        relations: ["role", "role.permissions"],
       });
 
       if (!user) {
@@ -125,7 +128,7 @@ export class UsersService {
     username: string,
     email: string,
     password: string,
-    roleName: string = "USER",
+    roleName: string = "User",
   ): Promise<User> {
     this.logger.log(
       `Creating new user with username: ${username}, email: ${email}, role: ${roleName}`,
@@ -199,7 +202,7 @@ export class UsersService {
     this.logger.log(
       `Creating new admin user with username: ${username}, email: ${email}`,
     );
-    return this.create(username, email, password, "ADMIN"); // Pass the role name string
+    return this.create(username, email, password, "Administrator");
   }
 
   async findByRole(roleName: string): Promise<User[]> {
@@ -354,21 +357,90 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    try {
-      this.logger.log(`Looking for user with email: ${email}`);
-      const user = await this.usersRepository.findOneBy({ email });
-      if (user) {
-        this.logger.log(`Found user with email ${email}, ID: ${user.id}`);
-      } else {
-        this.logger.log(`User with email ${email} not found.`);
-      }
-      return user;
-    } catch (error) {
-      this.logger.error(
-        `Error finding user by email ${email}: ${error.message}`,
-        error.stack,
-      );
+    this.logger.log(`Finding user by email: ${email}`);
+    const user = await this.usersRepository.findOne({ where: { email } });
+    if (!user) {
+      this.logger.warn(`User with email ${email} not found during findByEmail.`);
       return null;
     }
+    this.logger.log(`User found by email ${email}: ${user.id}`);
+    return user;
+  }
+
+  async initiatePasswordReset(email: string): Promise<void> {
+    this.logger.log(`Initiating password reset for email: ${email}`);
+    const user = await this.findByEmail(email);
+
+    if (!user) {
+      this.logger.warn(`Password reset attempted for non-existent email: ${email}. Silently returning.`);
+      return;
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiryHours = this.configService.get<number>("PASSWORD_RESET_TOKEN_EXPIRY_HOURS", 1);
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = new Date(Date.now() + expiryHours * 3600000);
+
+    try {
+      await this.usersRepository.save(user);
+      this.logger.log(`Password reset token set for user ${user.id}`);
+    } catch (dbError) {
+      this.logger.error(`Failed to save password reset token for user ${user.id}: ${dbError.message}`, dbError.stack);
+      throw new InternalServerErrorException("Could not initiate password reset. Please try again later.");
+    }
+
+    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
+    if (!frontendUrl) {
+        this.logger.error("FRONTEND_URL is not configured in .env. Cannot send password reset email.");
+        throw new InternalServerErrorException("Server configuration error preventing password reset email.");
+    }
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+
+    try {
+      await this.mailService.sendTemplatedEmail(
+        user.email,
+        "PASSWORD_RESET_REQUEST_EMAIL",
+        {
+          username: user.username,
+          resetLink: resetLink,
+          expiryHours: expiryHours,
+        },
+      );
+      this.logger.log(`Password reset email sent to ${user.email} using template.`);
+    } catch (emailError) {
+      this.logger.error(`Failed to send templated password reset email to ${user.email}: ${emailError.message}`, emailError.stack);
+      throw new InternalServerErrorException("Could not send password reset email. Please try again later.");
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<User> {
+    this.logger.log(`Attempting to reset password with token`);
+
+    const users = await this.usersRepository.find({
+      where: { resetPasswordExpires: { $gt: new Date() } as any }, // TypeORM requires $gt or similar for date comparison
+    });
+
+    let userToUpdate: User | null = null;
+
+    for (const user of users) {
+      if (user.resetPasswordToken && await bcrypt.compare(token, user.resetPasswordToken)) {
+        userToUpdate = user;
+        break;
+      }
+    }
+
+    if (!userToUpdate) {
+      this.logger.warn(`Invalid or expired password reset token provided.`);
+      throw new UnauthorizedException("Invalid or expired password reset token.");
+    }
+
+    userToUpdate.password = await bcrypt.hash(newPassword, 10);
+    userToUpdate.resetPasswordToken = null;
+    userToUpdate.resetPasswordExpires = null;
+    // Optionally, invalidate remembered browsers or active sessions here
+
+    const updatedUser = await this.usersRepository.save(userToUpdate);
+    this.logger.log(`Password has been reset for user ID: ${updatedUser.id}`);
+    return updatedUser;
   }
 }

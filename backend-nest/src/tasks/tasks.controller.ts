@@ -13,6 +13,8 @@ import {
   HttpStatus,
   Put,
   ForbiddenException,
+  ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { TasksService } from "./tasks.service";
 import { TaskQueryService } from "./task-query.service";
@@ -31,30 +33,40 @@ import { DeleteTaskDto } from "./dto/delete-task.dto";
 import { RecycleBinQueryDto } from "./dto/recycle-bin-query.dto";
 import { ActivityLogService } from "../admin/services/activity-log.service";
 import { Task } from "./entities/task.entity";
+import { FindAllTasksDto } from "./dto/find-all-tasks.dto";
+import { Roles } from "../rbac/decorators/roles.decorator";
+import { RolesGuard } from "../rbac/guards/roles.guard";
+import { AdminService } from "../admin/admin.service";
+import { TaskOverviewStatsDto } from "../admin/admin.service";
 
 @Controller("tasks")
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags("Tasks")
 export class TasksController {
+  private readonly logger = new Logger(TasksController.name);
+
   constructor(
     private readonly tasksService: TasksService,
     private readonly taskQueryService: TaskQueryService,
     private readonly activityLogService: ActivityLogService,
+    private readonly adminService: AdminService,
   ) {}
 
   @Post()
   create(@Body() createTaskDto: CreateTaskDto, @Request() req) {
+    this.logger.log(`User ${req.user.userId} creating task: ${createTaskDto.title}`);
     return this.tasksService.create(createTaskDto, req.user);
   }
 
   @Get()
-  findAll(@Query() query, @Request() req) {
+  findAll(@Query() query: FindAllTasksDto, @Request() req) {
+    this.logger.log(`User ${req.user.userId} finding tasks with query: ${JSON.stringify(query)}`);
     return this.taskQueryService.findAll(query, req.user);
   }
 
   @Get("recycle-bin")
   @ApiOperation({
-    summary: "Get deleted tasks from recycle bin (admin/leadership only)",
+    summary: "Get deleted tasks from recycle bin (Leadership/Admin only)",
   })
   @ApiResponse({
     status: 200,
@@ -64,13 +76,17 @@ export class TasksController {
     status: 403,
     description: "Forbidden - Insufficient permissions.",
   })
-  @Permissions("task.view.recyclebin")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Leadership", "Administrator")
+  @Permissions("task:read")
   async getRecycleBin(@Query() query: RecycleBinQueryDto, @Request() req) {
+    this.logger.log(`User ${req.user.userId} accessing recycle bin with query: ${JSON.stringify(query)}`);
     return this.taskQueryService.findAllDeleted(query, req.user);
   }
 
   @Get("dashboard")
   getDashboardTasks(@Request() req) {
+    this.logger.log(`User ${req.user.userId} fetching dashboard tasks`);
     return this.taskQueryService.getDashboardTasks(req.user.userId);
   }
 
@@ -98,17 +114,18 @@ export class TasksController {
   @ApiOperation({ summary: 'Get a single task by ID' })
   @ApiResponse({ status: 200, description: 'Task found', type: Task })
   @ApiResponse({ status: 404, description: 'Task not found' })
-  @Permissions("task.view.read")
-  async findOne(@Param('id') id: string) {
-    return this.taskQueryService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+    this.logger.log(`Finding task with ID: ${id} for user ${req.user.userId}`);
+    return this.taskQueryService.findOne(id, req.user);
   }
 
   @Put(":id")
   update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateTaskDto: UpdateTaskDto,
     @Request() req,
   ) {
+    this.logger.log(`User ${req.user.userId} updating task ${id}`);
     return this.tasksService.update(id, updateTaskDto, req.user);
   }
 
@@ -128,30 +145,35 @@ export class TasksController {
     status: 400,
     description: "Bad Request (e.g., insufficient deletion reason).",
   })
-  @Permissions("task.delete.soft.own", "task.delete.soft.all")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Leadership", "Administrator")
+  @Permissions("task:manage")
   remove(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() deleteTaskDto: DeleteTaskDto,
     @Request() req,
   ) {
+    this.logger.log(`User ${req.user.userId} deleting (soft) task ${id}`);
     return this.tasksService.remove(id, deleteTaskDto, req.user);
   }
 
   @Patch(":id/status")
   updateStatus(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateTaskStatusDto: UpdateTaskStatusDto,
     @Request() req,
   ) {
+    this.logger.log(`User ${req.user.userId} updating status for task ${id}`);
     return this.tasksService.updateStatus(id, updateTaskStatusDto, req.user);
   }
 
   @Patch(":id/priority")
   updatePriority(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateTaskPriorityDto: UpdateTaskPriorityDto,
     @Request() req,
   ) {
+    this.logger.log(`User ${req.user.userId} updating priority for task ${id}`);
     return this.tasksService.updatePriority(
       id,
       updateTaskPriorityDto,
@@ -164,12 +186,15 @@ export class TasksController {
   @ApiBody({ type: DelegateTaskDto })
   @ApiResponse({ status: 201, description: "Task delegated successfully." })
   @ApiResponse({ status: 400, description: "Invalid input or permissions." })
-  @Permissions("task.delegate.own", "task.delegate.all")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Leadership", "Administrator")
+  @Permissions("task:manage")
   async delegateTask(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() delegateTaskDto: DelegateTaskDto,
     @Request() req,
   ) {
+    this.logger.log(`User ${req.user.userId} delegating task ${id}`);
     return this.tasksService.delegateTask(id, delegateTaskDto, req.user);
   }
 
@@ -177,7 +202,7 @@ export class TasksController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      "Cancel a task (requires creator, admin, or leadership role and reason)",
+      "Cancel a task (requires creator, Admin, or Leadership role and reason)",
   })
   @ApiResponse({ status: 200, description: "Task cancelled successfully." })
   @ApiResponse({
@@ -190,19 +215,22 @@ export class TasksController {
     description:
       "Bad Request (e.g., trying to cancel a completed task or insufficient reason).",
   })
-  @Permissions("task.update.status.own", "task.update.status.all")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Leadership", "Administrator")
+  @Permissions("task:manage")
   cancelTask(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateStatusDto: UpdateTaskStatusDto,
     @Request() req,
   ) {
+    this.logger.log(`User ${req.user.userId} cancelling task ${id}`);
     updateStatusDto.status = TaskStatus.CANCELLED;
     return this.tasksService.updateStatus(id, updateStatusDto, req.user);
   }
 
   @Get("counts/by-status/department/:departmentId")
   @ApiOperation({
-    summary: "Get task counts grouped by status for a specific department",
+    summary: "Get task counts grouped by status for a specific department (Leadership/Admin)",
   })
   @ApiResponse({
     status: 200,
@@ -210,9 +238,12 @@ export class TasksController {
     type: "object",
   })
   @ApiResponse({ status: 404, description: "Department not found." })
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "Administrator")
   async getTaskCountsByStatusForDepartment(
-    @Param("departmentId") departmentId: string,
+    @Param("departmentId", ParseUUIDPipe) departmentId: string,
   ): Promise<TaskStatusCounts> {
+    this.logger.log(`Fetching task counts by status for department ${departmentId}`);
     return this.taskQueryService.getTaskCountsByStatusForDepartment(
       departmentId,
     );
@@ -220,7 +251,7 @@ export class TasksController {
 
   @Get("counts/by-status/user/:userId")
   @ApiOperation({
-    summary: "Get task counts grouped by status for a specific user",
+    summary: "Get task counts grouped by status for a specific user (Leadership/Admin)",
   })
   @ApiResponse({
     status: 200,
@@ -228,18 +259,23 @@ export class TasksController {
     type: "object",
   })
   @ApiResponse({ status: 404, description: "User not found." })
-  @Permissions("task.view.counts.user", "task.view.counts.own")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Leadership", "Administrator")
+  @Permissions("task:read")
   async getTaskCountsByStatusForUser(
-    @Param("userId") userId: string,
+    @Param("userId", ParseUUIDPipe) userId: string,
     @Request() req,
   ): Promise<TaskStatusCounts> {
+    this.logger.log(`User ${req.user.userId} fetching task counts by status for user ${userId}`);
     return this.taskQueryService.getTaskCountsByStatusForUser(userId);
   }
 
   @Post(":id/restore")
-  @Permissions("task.restore")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Leadership", "Administrator")
+  @Permissions("task:manage")
   @ApiOperation({
-    summary: "Restore task from recycle bin (admin/leadership only)",
+    summary: "Restore task from recycle bin (Leadership/Admin only)",
   })
   @ApiResponse({ status: 200, description: "Task restored successfully." })
   @ApiResponse({
@@ -247,20 +283,39 @@ export class TasksController {
     description: "Forbidden - Insufficient permissions to restore.",
   })
   @ApiResponse({ status: 404, description: "Task not found." })
-  async restoreTask(@Param("id") id: string, @Request() req) {
+  async restoreTask(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
+    this.logger.log(`User ${req.user.userId} restoring task ${id}`);
     return this.tasksService.restoreTask(id, req.user);
   }
 
-  @Delete(":id/permanent")
-  @Permissions("task.delete.permanent")
-  @ApiOperation({ summary: "Permanently delete task (admin only)" })
+  @Delete(":id/permanent-delete")
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Administrator")
+  @Permissions("task:delete:permanent")
+  @ApiOperation({ summary: "Permanently delete task (Admin only)" })
   @ApiResponse({ status: 200, description: "Task permanently deleted." })
   @ApiResponse({
     status: 403,
     description: "Forbidden - Insufficient permissions to delete.",
   })
   @ApiResponse({ status: 404, description: "Task not found." })
-  async permanentDelete(@Param("id") id: string, @Request() req) {
+  async permanentDelete(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
+    this.logger.log(`User ${req.user.userId} permanently deleting task ${id}`);
     return this.tasksService.hardRemove(id, req.user);
+  }
+
+  @Get("overview")
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "Administrator")
+  @ApiOperation({ summary: "Get an overview of task statistics (Leadership/Admin)" })
+  @ApiResponse({
+    status: 200,
+    description: "Task overview statistics retrieved successfully.",
+    type: TaskOverviewStatsDto,
+  })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  async getTasksOverview(@Request() req): Promise<TaskOverviewStatsDto> {
+    this.logger.log(`User ${req.user.userId} (${req.user.role?.name}) requested tasks overview.`);
+    return this.adminService.getTasksOverviewStats(req.user);
   }
 }

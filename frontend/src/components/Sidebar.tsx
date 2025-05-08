@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Drawer,
   List,
@@ -43,12 +43,23 @@ interface MenuItem {
 
 const DRAWER_WIDTH = 240;
 
+// Define required permissions for specific items
+const PERMISSIONS = {
+  TASKS_OVERVIEW: 'page:view:tasks_overview',
+  ADMIN_PANEL: 'page:view:admin_dashboard', // Example for admin panel access
+  // Add other permission keys as needed
+};
+
 const mainMenuItems: MenuItem[] = [
   { title: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { title: 'Departments', path: '/departments', icon: <BusinessIcon /> },
   { title: 'Users', path: '/users', icon: <PeopleIcon /> },
   { title: 'Provinces', path: '/provinces', icon: <AssignmentIcon /> },
 ];
+
+// Separated item that requires specific permission
+const tasksOverviewItem: MenuItem = 
+  { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> };
 
 // Items visible only to Leadership and Admins
 const managerMenuItems: MenuItem[] = [
@@ -131,16 +142,58 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
   const { user } = useSelector((state: RootState) => state.auth);
   const [adminMenuOpen, setAdminMenuOpen] = useState(true);
 
-  const isAdmin = React.useMemo(() => {
-    const role = user?.role || localStorage.getItem('user_role');
-    return typeof role === 'string' && role.toUpperCase() === 'ADMIN';
-  }, [user?.role]);
+  // Memoize user permissions for efficiency (Reverted to simpler check)
+  const userPermissions = React.useMemo(() => {
+    // Check if role and permissions exist and are arrays before mapping
+    if (user?.role && typeof user.role === 'object' && Array.isArray(user.role.permissions)) {
+      return user.role.permissions.map(p => p.name).filter(name => !!name);
+    }
+    return []; // Return empty array if no permissions found
+  }, [user]);
 
-  const isManagerOrAdmin = React.useMemo(() => {
-    const role = user?.role || localStorage.getItem('user_role');
-    const upperRole = typeof role === 'string' ? role.toUpperCase() : '';
-    return upperRole === 'ADMIN' || upperRole === 'LEADERSHIP';
-  }, [user?.role]);
+  // --- DEBUG LOG --- 
+  console.log("[Sidebar] User Permissions Loaded:", userPermissions);
+
+  // Helper function to check permission
+  const userHasPermission = useCallback((permissionName: string) => {
+    const hasPerm = userPermissions.includes(permissionName);
+    // --- DEBUG LOG --- 
+    // console.log(`[Sidebar] Checking permission: ${permissionName} -> ${hasPerm}`); // Log every check (can be verbose)
+    return hasPerm;
+  }, [userPermissions]);
+
+  // Determine if Admin panel itself should be shown
+  const canViewAdminPanel = React.useMemo(() => {
+    const hasAdminDashboardPerm = userHasPermission(PERMISSIONS.ADMIN_PANEL);
+    // --- DEBUG LOG --- 
+    console.log(`[Sidebar] Has '${PERMISSIONS.ADMIN_PANEL}' permission?`, hasAdminDashboardPerm);
+    
+    // Simplify logic: Primarily rely on the specific dashboard permission
+    // We can add more complex logic later if needed, but let's ensure the basic check works.
+    // const hasAnyAdminPagePerm = adminMenuItems.some(item => userHasPermission(item.path.replace('/', ':').replace('/admin', 'page:view')));
+    // console.log(`[Sidebar] Has *any* inferred admin page permission?`, hasAnyAdminPagePerm);
+    
+    return hasAdminDashboardPerm; // Let's ONLY check for the specific admin dashboard permission for now
+
+  }, [userHasPermission]);
+  
+  // --- DEBUG LOG --- 
+  console.log("[Sidebar] Calculated canViewAdminPanel:", canViewAdminPanel);
+
+  // Toggle Admin Menu
+  const handleAdminMenuClick = () => {
+    setAdminMenuOpen(!adminMenuOpen);
+  };
+  
+  // Initialize adminMenuOpen based on whether the current path is within admin
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin')) {
+      setAdminMenuOpen(true);
+    } else {
+      // Optional: close it if navigating away from admin pages
+      // setAdminMenuOpen(false);
+    }
+  }, [location.pathname]);
 
   const getMenuItemStyles = (isActive: boolean) => ({
     minHeight: 48,
@@ -161,6 +214,23 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
 
   const isActive = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
+  const renderMenuItem = (item: MenuItem, key: string | number) => {
+    const active = isActive(item.path);
+    return (
+      <Tooltip title={open ? '' : item.title} placement="right" key={key}>
+        <ListItemButton
+          onClick={() => item.onClick ? item.onClick(navigate) : navigate(item.path)}
+          sx={getMenuItemStyles(active)}
+        >
+          <ListItemIcon sx={{ minWidth: 0, mr: open ? 2 : 'auto', justifyContent: 'center', color: 'inherit' }}>
+            {item.icon}
+          </ListItemIcon>
+          <ListItemText primary={item.title} sx={{ opacity: open ? 1 : 0, color: 'inherit' }} />
+        </ListItemButton>
+      </Tooltip>
+    );
   };
 
   return (
@@ -246,42 +316,14 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
       >
         {/* Main menu items */}
         <List>
-          {mainMenuItems.map((item) => (
-            <ListItem key={item.title} disablePadding>
-              <ListItemButton
-                onClick={() => navigate(item.path)}
-                selected={isActive(item.path)}
-                sx={getMenuItemStyles(isActive(item.path))}
-              >
-                <Tooltip title={!open ? item.title : ''} placement="right">
-                  <ListItemIcon sx={{ 
-                    color: 'inherit', 
-                    minWidth: 0, 
-                    mr: open ? 3 : 'auto',
-                    transition: 'transform 0.2s ease',
-                    transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
-                  }}>
-                    {item.icon}
-                  </ListItemIcon>
-                </Tooltip>
-                {open && (
-                  <ListItemText 
-                    primary={item.title} 
-                    sx={{ 
-                      opacity: 1,
-                      '& .MuiListItemText-primary': {
-                        fontWeight: isActive(item.path) ? 600 : 400,
-                      }
-                    }} 
-                  />
-                )}
-              </ListItemButton>
-            </ListItem>
-          ))}
+          {mainMenuItems.map((item) => renderMenuItem(item, item.title))}
+          
+          {/* Conditionally render Tasks Overview based on permission */}
+          {userHasPermission(PERMISSIONS.TASKS_OVERVIEW) && renderMenuItem(tasksOverviewItem, tasksOverviewItem.title)}
         </List>
 
         {/* Leadership menu section - visible to Leadership and Admins */}
-        {isManagerOrAdmin && (
+        {userHasPermission(PERMISSIONS.TASKS_OVERVIEW) && (
           <>
             <Divider sx={{ 
               my: 1, 
@@ -289,134 +331,33 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
               mx: 2
             }} />
             <List>
-              {managerMenuItems.map((item) => (
-                <ListItem key={item.title} disablePadding>
-                  <ListItemButton
-                    onClick={() => navigate(item.path)}
-                    selected={isActive(item.path)}
-                    sx={getMenuItemStyles(isActive(item.path))}
-                  >
-                    <Tooltip title={!open ? item.title : ''} placement="right">
-                      <ListItemIcon sx={{ 
-                        color: 'inherit', 
-                        minWidth: 0, 
-                        mr: open ? 3 : 'auto',
-                        transition: 'transform 0.2s ease',
-                        transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
-                      }}>
-                        {item.icon}
-                      </ListItemIcon>
-                    </Tooltip>
-                    {open && (
-                      <ListItemText 
-                        primary={item.title} 
-                        sx={{ 
-                          opacity: 1,
-                          '& .MuiListItemText-primary': {
-                            fontWeight: isActive(item.path) ? 600 : 400,
-                          }
-                        }} 
-                      />
-                    )}
-                  </ListItemButton>
-                </ListItem>
-              ))}
+              {managerMenuItems.map((item) => renderMenuItem(item, item.title))}
             </List>
           </>
         )}
 
         {/* Admin menu section */}
-        {isAdmin && (
+        {canViewAdminPanel && (
           <>
             <Divider sx={{ 
               my: 1, 
               borderColor: 'rgba(255, 255, 255, 0.08)',
               mx: 2
             }} />
-            <ListItem disablePadding>
-              <ListItemButton
-                onClick={() => setAdminMenuOpen(!adminMenuOpen)}
-                sx={{
-                  ...getMenuItemStyles(isActive('/admin')),
-                  backgroundColor: adminMenuOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                }}
-              >
-                <ListItemIcon sx={{ 
-                  color: 'inherit', 
-                  minWidth: 0, 
-                  mr: open ? 3 : 'auto',
-                  transition: 'transform 0.2s ease',
-                }}>
-                  <AdminPanelSettingsIcon />
-                </ListItemIcon>
-                {open && (
-                  <>
-                    <ListItemText 
-                      primary="Admin Panel" 
-                      sx={{ 
-                        '& .MuiListItemText-primary': {
-                          fontWeight: adminMenuOpen ? 600 : 400,
-                        }
-                      }} 
-                    />
-                    {adminMenuOpen ? (
-                      <ExpandLess sx={{ transition: 'transform 0.3s ease' }} />
-                    ) : (
-                      <ExpandMore sx={{ transition: 'transform 0.3s ease' }} />
-                    )}
-                  </>
-                )}
-              </ListItemButton>
-            </ListItem>
-            <Collapse in={open && adminMenuOpen} timeout="auto" unmountOnExit>
-              <List component="div" disablePadding>
-                {adminMenuItems.map((item) => (
-                  <ListItem key={item.title} disablePadding>
-                    <ListItemButton
-                      onClick={() => {
-                        console.log('Navigating to:', item.path);
-                        console.log('Menu item clicked:', item.title);
-                        if (item.title === 'Email Configuration') {
-                          console.log('Email Configuration clicked - path:', item.path);
-                        }
-                        if (item.onClick) {
-                          item.onClick(navigate);
-                        } else {
-                          navigate(item.path);
-                        }
-                      }}
-                      selected={isActive(item.path)}
-                      sx={{
-                        ...getMenuItemStyles(isActive(item.path)),
-                        pl: open ? 4 : 2.5,
-                      }}
-                    >
-                      <Tooltip title={!open ? item.title : ''} placement="right">
-                        <ListItemIcon sx={{ 
-                          color: 'inherit', 
-                          minWidth: 0, 
-                          mr: open ? 3 : 'auto',
-                          transition: 'transform 0.2s ease',
-                          transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
-                        }}>
-                          {item.icon}
-                        </ListItemIcon>
-                      </Tooltip>
-                      {open && (
-                        <ListItemText 
-                          primary={item.title} 
-                          sx={{ 
-                            opacity: 1,
-                            '& .MuiListItemText-primary': {
-                              fontWeight: isActive(item.path) ? 600 : 400,
-                            }
-                          }} 
-                        />
-                      )}
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
+            <Tooltip title={open ? '' : 'Admin Panel'} placement="right">
+                <ListItemButton onClick={handleAdminMenuClick} sx={getMenuItemStyles(location.pathname.startsWith('/admin'))}>
+                    <ListItemIcon sx={{ minWidth: 0, mr: open ? 2 : 'auto', justifyContent: 'center', color: 'inherit' }}>
+                        <AdminPanelSettingsIcon />
+                    </ListItemIcon>
+                    <ListItemText primary="Admin Panel" sx={{ opacity: open ? 1 : 0, color: 'inherit' }} />
+                    {open ? (adminMenuOpen ? <ExpandLess /> : <ExpandMore />) : null}
+                </ListItemButton>
+            </Tooltip>
+            <Collapse in={adminMenuOpen && open} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding sx={{ pl: open ? 2 : 0 }}>
+                  {adminMenuItems.map((item) => renderMenuItem(item, item.title))} 
+                  {/* TODO: Add permission checks for individual admin items if needed */}
+                </List>
             </Collapse>
           </>
         )}

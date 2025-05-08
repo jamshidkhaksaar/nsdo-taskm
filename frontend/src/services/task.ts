@@ -5,6 +5,71 @@ import { User } from '@/types/user';
 import { toISOString } from '../utils/dateUtils';
 import dayjs from 'dayjs';
 
+// Frontend interfaces matching backend DTOs for Task Overview
+export interface OverallCounts {
+    totalTasks: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+    cancelled: number;
+    delegated: number;
+    overdue: number;
+    dueToday: number;
+    activeUsers: number;
+    totalDepartments: number;
+}
+
+export interface DepartmentTaskCounts {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+}
+
+export interface DepartmentStats {
+    departmentId: string;
+    departmentName: string;
+    counts: DepartmentTaskCounts;
+}
+
+export interface UserTaskCounts {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    totalAssigned: number;
+}
+
+export interface UserStats {
+    userId: string;
+    username: string;
+    counts: UserTaskCounts;
+}
+
+export interface ProvinceTaskCounts {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+}
+
+export interface ProvinceStats {
+    provinceId: string;
+    provinceName: string;
+    counts: ProvinceTaskCounts;
+}
+
+// Main DTO for the Task Overview endpoint
+export interface TaskOverviewData {
+    overallCounts: OverallCounts;
+    departmentStats: DepartmentStats[];
+    userStats: UserStats[];
+    provinceStats: ProvinceStats[];
+    overdueTasks: Task[]; // Assuming Task type is already defined and imported
+}
+
 // Enhanced interface to support role-based task creation
 interface GetTasksParams {
     task_type?: 'my_tasks' | 'assigned' | 'created' | 'all';
@@ -559,6 +624,20 @@ export const TaskService = {
         } catch (error: any) {
             console.error(`[TaskService] Error fetching task counts for user ${userId}:`, error);
             throw new Error(`Failed to fetch user task counts: ${error.response?.data?.message || error.message}`);
+        }
+    },
+
+    // Add the new service method for fetching task overview data
+    getTasksOverview: async (): Promise<TaskOverviewData> => {
+        try {
+            const response = await apiClient.get<TaskOverviewData>('/tasks/overview');
+            console.log('[TaskService.getTasksOverview] API Response:', response.data);
+            // Assuming the backend already returns data in the correct TaskOverviewData structure
+            // If standardization/mapping is needed similar to getTasks, it would be done here.
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching task overview data:', error);
+            throw error;
         }
     },
 };

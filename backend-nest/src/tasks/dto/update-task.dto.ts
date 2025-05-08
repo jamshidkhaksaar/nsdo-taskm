@@ -1,12 +1,8 @@
 import {
   IsString,
   IsOptional,
-  IsEnum,
   IsDateString,
-  IsArray,
-  IsUUID,
 } from "class-validator";
-import { TaskStatus, TaskPriority, TaskType } from "../entities/task.entity";
 
 export class UpdateTaskDto {
   @IsOptional()
@@ -18,32 +14,10 @@ export class UpdateTaskDto {
   description?: string;
 
   @IsOptional()
-  @IsEnum(TaskStatus)
-  status?: TaskStatus;
-
-  @IsOptional()
-  @IsEnum(TaskPriority)
-  priority?: TaskPriority;
-
-  @IsOptional()
-  @IsEnum(TaskType)
-  type?: TaskType;
-
-  @IsOptional()
   @IsDateString()
   dueDate?: string;
 
-  @IsOptional()
-  @IsArray()
-  @IsUUID("4", { each: true })
-  assignedToUserIds?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsUUID("4", { each: true })
-  assignedToDepartmentIds?: string[];
-
-  @IsOptional()
-  @IsUUID("4")
-  assignedToProvinceId?: string;
+  // Removed status, priority, type, and assignment fields
+  // These should be updated via specific endpoints/DTOs
+  // (e.g., /tasks/:id/status, /tasks/:id/priority, /tasks/:id/delegate)
 }

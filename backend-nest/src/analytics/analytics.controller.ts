@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
 import { AnalyticsService } from "./analytics.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { GetCompletionRateDto, AnalyticsPeriod } from "./dto/get-completion-rate.dto";
 
 interface RequestWithUser extends Request {
   user: { id: number; [key: string]: any };
@@ -20,10 +21,10 @@ export class AnalyticsController {
   @Get("completion-rate")
   async getCompletionRate(
     @Req() req: RequestWithUser,
-    @Query("period") period: "daily" | "weekly" | "monthly" = "weekly",
+    @Query() queryParams: GetCompletionRateDto,
   ) {
     const userId = req.user.id;
-    return await this.analyticsService.getCompletionRate(userId, period);
+    return await this.analyticsService.getCompletionRate(userId, queryParams.period);
   }
 
   @Get("task-distribution")

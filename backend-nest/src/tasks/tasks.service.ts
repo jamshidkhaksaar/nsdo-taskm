@@ -81,16 +81,13 @@ export class TasksService {
   ) {}
 
   async create(createTaskDto: CreateTaskDto, user: any): Promise<Task> {
-    console.log(
-      "Creating task with DTO:",
-      JSON.stringify(createTaskDto, null, 2),
-    );
-    console.log("Creating user:", JSON.stringify(user, null, 2));
+    this.logger.log("Creating task with DTO:", createTaskDto);
+    this.logger.log("Creating user:", user);
 
     try {
       const task = new Task();
       task.title = createTaskDto.title;
-      task.description = createTaskDto.description;
+      task.description = createTaskDto.description ?? '';
       task.priority = createTaskDto.priority || TaskPriority.MEDIUM;
       task.dueDate = createTaskDto.dueDate
         ? new Date(createTaskDto.dueDate)
@@ -140,9 +137,7 @@ export class TasksService {
           );
         }
         task.assignedToUsers = users;
-        console.log(
-          `Task type set to USER, assigned to ${task.assignedToUsers.length} users.`,
-        );
+        this.logger.debug(`Task type set to USER, assigned to ${task.assignedToUsers.length} users.`);
       } else if (hasDepartments && hasProvince) {
         // PROVINCE_DEPARTMENT Assignment
         task.type = TaskType.PROVINCE_DEPARTMENT;
@@ -160,10 +155,12 @@ export class TasksService {
         task.assignedToProvinceId = province.id;
 
         // Validate Departments and their link to the Province
+        // Fetch full department entities once for relation and validation
         const departments = await this.departmentsRepository.find({
           where: { id: In(departmentIds!) },
-          select: ["id", "provinceId"], // Select only necessary fields
+          relations: ["province"], // Include province to check provinceId directly if needed, or rely on province object fetched above
         });
+
         if (departments.length !== departmentIds!.length) {
           const foundIds = departments.map((d) => d.id);
           const notFoundIds = departmentIds!.filter(
@@ -174,20 +171,16 @@ export class TasksService {
           );
         }
         const invalidDepartments = departments.filter(
-          (dept) => dept.provinceId !== province.id,
+          // Ensure dept.province is loaded or dept.provinceId exists on the entity
+          (dept) => (dept.province && dept.province.id !== province.id) || dept.provinceId !== province.id,
         );
         if (invalidDepartments.length > 0) {
           throw new BadRequestException(
             `Departments [${invalidDepartments.map((d) => d.id).join(", ")}] do not belong to province ${province.id}.`,
           );
         }
-        // We need the full department entities for the relation
-        task.assignedToDepartments = await this.departmentsRepository.findBy({
-          id: In(departmentIds!),
-        });
-        console.log(
-          `Task type set to PROVINCE_DEPARTMENT, province ${province.id}, assigned to ${task.assignedToDepartments.length} departments.`,
-        );
+        task.assignedToDepartments = departments; // Assign the fetched full entities
+        this.logger.debug(`Task type set to PROVINCE_DEPARTMENT, province ${province.id}, assigned to ${task.assignedToDepartments.length} departments.`);
       } else if (hasDepartments) {
         // DEPARTMENT Assignment
         task.type = TaskType.DEPARTMENT;
@@ -205,9 +198,7 @@ export class TasksService {
           );
         }
         task.assignedToDepartments = departments;
-        console.log(
-          `Task type set to DEPARTMENT, assigned to ${task.assignedToDepartments.length} departments.`,
-        );
+        this.logger.debug(`Task type set to DEPARTMENT, assigned to ${task.assignedToDepartments.length} departments.`);
       } else {
         // PERSONAL Assignment (Default)
         task.type = TaskType.PERSONAL;
@@ -221,13 +212,13 @@ export class TasksService {
           );
         }
         task.assignedToUsers = [creatorUser];
-        console.log("Task type set to PERSONAL, assigned to creator.");
+        this.logger.debug("Task type set to PERSONAL, assigned to creator.");
       }
       // ----------------------------------------------
 
-      console.log("Task object before save:", JSON.stringify(task, null, 2));
+      this.logger.debug("Task object before save:", task);
       const savedTask = await this.tasksRepository.save(task);
-      console.log("Task saved successfully with ID:", savedTask.id);
+      this.logger.log("Task saved successfully with ID:", savedTask.id);
 
       // --- Send Notifications (Email and In-App/Teams via Redis) ---
       const frontendUrl =
@@ -431,7 +422,7 @@ export class TasksService {
 
       return savedTask;
     } catch (error) {
-      console.error("Error creating task:", error);
+      this.logger.error(`Error creating task: ${error.message}`, error.stack, { createTaskDto, userId: user?.userId });
       if (
         error instanceof BadRequestException ||
         error instanceof NotFoundException ||
@@ -512,7 +503,7 @@ export class TasksService {
       // return this.findOne(updatedTask.id); // Use Query Service
       return this.taskQueryService.findOne(updatedTask.id);
     } else {
-      console.log(`No changes detected for task ${id}. Skipping save.`);
+      this.logger.log(`No changes detected for task ${id}. Skipping save.`);
       // return task; // Return original task if no changes
       return this.taskQueryService.findOne(task.id);
     }
@@ -523,36 +514,34 @@ export class TasksService {
     updateTaskStatusDto: UpdateTaskStatusDto,
     reqUser: any,
   ): Promise<Task> {
-    // const task = await this.findOne(id); // Use Query Service
     const task = await this.taskQueryService.findOne(id);
     const { status, cancellationReason } = updateTaskStatusDto;
     const originalStatus = task.status;
     const originalAssignees = await this.getAssigneesForNotification(task);
 
+    // Fetch the requesting user's full entity with departments for permission checks
+    const requestingUserEntity = await this.usersService.findById(reqUser.userId, ["departments"]);
+    if (!requestingUserEntity) {
+      this.logger.error(`User ${reqUser.userId} performing action not found.`);
+      throw new NotFoundException(`User ${reqUser.userId} not found.`);
+    }
+
     if (originalStatus === status) {
-      console.warn(
-        `Task ${id} is already in status ${status}. No update performed.`,
-      );
+      this.logger.warn(`Task ${id} is already in status ${status}. No update performed.`);
       // return task; // Return task unchanged
       return this.taskQueryService.findOne(task.id);
     }
 
-    // --- Permission Check: REMOVED - Handled by PermissionsGuard ---
-    // const isCreator = task.createdById === reqUser.userId;
-    // const isAssignee = await this.taskQueryService.checkAssigneePermission(
-    //   task,
-    //   reqUser.userId,
-    // );
-    // const isAdminOrLeadership = this.rbacHelper.isAdminOrLeadership(reqUser); // Use helper
-    // let canChangeStatus = false;
-    // Rule: Only creator or admin/leadership can cancel
-    // if (status === TaskStatus.CANCELLED) {
-    //   if (isCreator || isAdminOrLeadership) { ... } else { throw ... }
-    // } else if ( ... ) { // Rule: Assignee or creator (or admin/leadership) can move between PENDING, IN_PROGRESS, COMPLETED
-    //   if (isCreator || isAssignee || isAdminOrLeadership) { ... } else { throw ... }
-    // } else { ... }
-    // if (!canChangeStatus) { throw ... }
-    // --- End Permission Check ---
+    // --- Permission Check: Now uses PermissionsGuard, but internal checks can be more granular or serve as backup
+    const isCreator = task.createdById === reqUser.userId;
+    const isAssignee = await this.taskQueryService.checkAssigneePermission(
+      task,
+      reqUser.userId,
+      requestingUserEntity, // Pass the fetched user entity
+    );
+    // const isAdminOrLeadership = this.rbacHelper.isAdminOrLeadership(requestingUserEntity); // Use helper with full entity
+    // Simplified role check for example, RBAC guard should be primary
+    const isAdminOrLeadership = ["ADMIN", "LEADERSHIP"].includes(requestingUserEntity.role?.name);
 
     // Perform status-specific logic (assuming permissions passed)
     if (status === TaskStatus.CANCELLED) {
@@ -642,32 +631,39 @@ export class TasksService {
     updateTaskPriorityDto: UpdateTaskPriorityDto,
     reqUser: any,
   ): Promise<Task> {
-    // const task = await this.findOne(id);
     const task = await this.taskQueryService.findOne(id);
     const { priority } = updateTaskPriorityDto;
     const originalPriority = task.priority;
     const originalAssignees = await this.getAssigneesForNotification(task);
 
+    // Fetch the requesting user's full entity with departments for permission checks
+    const requestingUserEntity = await this.usersService.findById(reqUser.userId, ["departments"]);
+    if (!requestingUserEntity) {
+      this.logger.error(`User ${reqUser.userId} performing action not found.`);
+      throw new NotFoundException(`User ${reqUser.userId} not found.`);
+    }
+
     if (originalPriority === priority) {
-      console.warn(
-        `Task ${id} already has priority ${priority}. No update performed.`,
-      );
+      this.logger.warn(`Task ${id} already has priority ${priority}. No update performed.`);
       // return task;
       return this.taskQueryService.findOne(task.id);
     }
 
     // --- Permission Check: REMOVED - Handled by PermissionsGuard ---
-    // const isCreator = task.createdById === reqUser.userId;
-    // const isAssignee = await this.taskQueryService.checkAssigneePermission(
-    //   task,
-    //   reqUser.userId,
-    // );
-    // const isAdminOrLeadership = this.rbacHelper.isAdminOrLeadership(reqUser); // Use helper
-    // if (!isCreator && !isAssignee && !isAdminOrLeadership) {
-    //   throw new ForbiddenException(
-    //     "You do not have permission to change the priority of this task.",
-    //   );
-    // }
+    const isCreator = task.createdById === reqUser.userId;
+    const isAssignee = await this.taskQueryService.checkAssigneePermission(
+      task,
+      reqUser.userId,
+      requestingUserEntity, // Pass the fetched user entity
+    );
+    // const isAdminOrLeadership = this.rbacHelper.isAdminOrLeadership(requestingUserEntity); // Use helper
+    const isAdminOrLeadership = ["ADMIN", "LEADERSHIP"].includes(requestingUserEntity.role?.name);
+
+    if (!isCreator && !isAssignee && !isAdminOrLeadership) {
+      throw new ForbiddenException(
+        "You do not have permission to change the priority of this task.",
+      );
+    }
     // --- End Permission Check ---
 
     task.priority = priority;
@@ -861,21 +857,31 @@ export class TasksService {
     const originalAssignees =
       await this.getAssigneesForNotification(originalTask);
 
+    // Fetch the delegator's full entity with departments for permission checks
+    const delegatorUserEntity = await this.usersService.findById(delegatorInfo.userId, ["departments"]);
+    if (!delegatorUserEntity) {
+      this.logger.error(`Delegator user ${delegatorInfo.userId} performing action not found.`);
+      throw new NotFoundException(`Delegator user ${delegatorInfo.userId} not found.`);
+    }
+
     // --- Permission Check: REMOVED - Handled by PermissionsGuard ---
-    // const isCreator = originalTask.createdById === delegatorInfo.userId;
-    // const isAssignee = await this.taskQueryService.checkAssigneePermission(
-    //   originalTask,
-    //   delegatorInfo.userId,
-    // );
-    // const isAdminOrLeadership = this.rbacHelper.isAdminOrLeadership(delegatorInfo); // Use helper
-    // if (!isCreator && !isAssignee && !isAdminOrLeadership) {
-    //   this.logger.warn(
-    //     `Forbidden: User ${delegatorInfo.userId} attempted delegation of task ${id} without permission.`,
-    //   );
-    //   throw new ForbiddenException(
-    //     "You do not have permission to delegate this task.",
-    //   );
-    // }
+    const isCreator = originalTask.createdById === delegatorInfo.userId;
+    const isAssignee = await this.taskQueryService.checkAssigneePermission(
+      originalTask,
+      delegatorInfo.userId,
+      delegatorUserEntity, // Pass the fetched user entity
+    );
+    // const isAdminOrLeadership = this.rbacHelper.isAdminOrLeadership(delegatorUserEntity); // Use helper
+    const isAdminOrLeadership = ["ADMIN", "LEADERSHIP"].includes(delegatorUserEntity.role?.name);
+
+    if (!isCreator && !isAssignee && !isAdminOrLeadership) {
+      this.logger.warn(
+        `Forbidden: User ${delegatorInfo.userId} attempted delegation of task ${id} without permission.`,
+      );
+      throw new ForbiddenException(
+        "You do not have permission to delegate this task.",
+      );
+    }
     // --- End Permission Check ---
 
     // Check if already completed/cancelled
@@ -913,17 +919,16 @@ export class TasksService {
 
     // --- Create Subtasks for each new assignee ---
     const delegatedTasks: Task[] = [];
-    const delegatorUser = await this.usersRepository.findOneBy({
-      id: delegatorInfo.userId,
-    });
+    const delegatorUser = delegatorUserEntity; 
+
     if (!delegatorUser) {
       this.logger.error(
-        `Delegation failed for task ${id}: Delegator user ${delegatorInfo.userId} not found.`,
+        `Delegation failed for task ${id}: Delegator user ${delegatorInfo.userId} not found (this should not happen if fetched above).`,
       );
-      throw new NotFoundException("Delegator user not found");
+      throw new NotFoundException("Delegator user not found"); // Should be caught by the earlier check of delegatorUserEntity
     }
 
-    const delegationTime = new Date(); // Capture time for logging/metadata if needed
+    const delegationTime = new Date();
 
     for (const assignee of newAssignees) {
       // Create subtask by explicitly mapping fields

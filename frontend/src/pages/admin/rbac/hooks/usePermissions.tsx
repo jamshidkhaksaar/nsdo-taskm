@@ -14,7 +14,34 @@ export const usePermissions = () => {
     try {
       setLoading(true);
       const response = await axios.get('/admin/rbac/permissions');
-      setPermissions(response.data);
+      
+      // Refined type assertion for fetched data, allowing group to be null or undefined
+      const fetchedPermissions = response.data as Array<{
+        id: string;
+        name: string;
+        description: string;
+        group?: string | null; // group can be null from DB or undefined if not sent
+        createdAt: string;
+        updatedAt: string;
+        // Include other fields if the backend sends more by default
+      }>;
+
+      const processedPermissions = fetchedPermissions.map(p => {
+        const parts = p.name.split(':');
+        return {
+          // Explicitly map all fields from the Permission type in types.ts
+          // to ensure type consistency and presence of 'group'.
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          group: p.group || undefined, // Ensure it's undefined if falsy, for consistent optional chaining
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+          resource: parts[0] || '',
+          action: parts[1] || '',
+        };
+      });
+      setPermissions(processedPermissions as Permission[]); // Cast to the defined Permission type
       setError(null);
     } catch (err: any) {
       console.error('Error fetching permissions:', err);

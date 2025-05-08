@@ -16,6 +16,7 @@ const userSocketMap = new Map<string, string>(); // Map<userId, socketId>
 
 @Injectable()
 @WebSocketGateway({
+  namespace: '/notifications', // Added namespace to match client
   cors: {
     origin: "*", // Configure allowed origins properly in production
   },

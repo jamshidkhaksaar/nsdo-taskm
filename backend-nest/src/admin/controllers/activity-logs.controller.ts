@@ -6,11 +6,15 @@ import {
   UseGuards,
   Request,
   Param,
+  ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../rbac/guards/roles.guard";
 import { Roles } from "../../rbac/decorators/roles.decorator";
 import { ActivityLogService } from "../services/activity-log.service";
+import { GetActivityLogsDto } from "../dto/get-activity-logs.dto";
+import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
 
 // Interface for formatted response
 interface FormattedActivityLog {
@@ -37,36 +41,18 @@ interface ActivityLogResponse {
 @Controller("activity-logs")
 @UseGuards(JwtAuthGuard)
 export class ActivityLogsController {
+  private readonly logger = new Logger(ActivityLogsController.name);
+
   constructor(private readonly activityLogService: ActivityLogService) {}
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async getLogs(
     @Request() req,
-    @Query("startDate") startDate?: string,
-    @Query("endDate") endDate?: string,
-    @Query("action") action?: string,
-    @Query("target") target?: string,
-    @Query("user_id") user_id?: string,
-    @Query("status") status?: string,
-    @Query("search") search?: string,
-    @Query("page") page?: string,
-    @Query("limit") limit?: string,
+    @Query() queryParams: GetActivityLogsDto,
   ): Promise<ActivityLogResponse> {
-    const filters: any = {};
-
-    if (startDate) filters.startDate = new Date(startDate);
-    if (endDate) filters.endDate = new Date(endDate);
-    if (action) filters.action = action;
-    if (target) filters.target = target;
-    if (user_id) filters.user_id = user_id;
-    if (status) filters.status = status;
-    if (search) filters.search = search;
-    if (page) filters.page = parseInt(page, 10);
-    if (limit) filters.limit = parseInt(limit, 10);
-
-    const result = await this.activityLogService.getLogs(filters, req.user);
+    const result = await this.activityLogService.getLogs(queryParams, req.user);
 
     // Format the logs to ensure user is a string
     const formattedLogs = result.logs.map((log) => {
@@ -74,8 +60,8 @@ export class ActivityLogsController {
         ...log,
         user: log.user
           ? typeof log.user === "object"
-            ? log.user.username
-            : log.user
+            ? (log.user as any).username || "N/A"
+            : String(log.user)
           : "Unknown User",
       } as FormattedActivityLog;
     });
@@ -88,21 +74,18 @@ export class ActivityLogsController {
 
   @Get("user/:userId")
   @UseGuards(RolesGuard)
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async getUserLogs(
     @Request() req,
-    @Param("userId") userId: string,
-    @Query("page") page?: string,
-    @Query("limit") limit?: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Query() paginationQuery: PaginationQueryDto,
   ): Promise<ActivityLogResponse> {
-    const result = await this.activityLogService.getLogs(
-      {
-        user_id: userId,
-        page: page ? parseInt(page, 10) : 0,
-        limit: limit ? parseInt(limit, 10) : 10,
-      },
-      req.user,
-    );
+    const filters = {
+      user_id: userId,
+      page: paginationQuery.page,
+      limit: paginationQuery.limit,
+    };
+    const result = await this.activityLogService.getLogs(filters, req.user);
 
     // Format the logs to ensure user is a string
     const formattedLogs = result.logs.map((log) => {
@@ -110,8 +93,8 @@ export class ActivityLogsController {
         ...log,
         user: log.user
           ? typeof log.user === "object"
-            ? log.user.username
-            : log.user
+            ? (log.user as any).username || "N/A"
+            : String(log.user)
           : "Unknown User",
       } as FormattedActivityLog;
     });
@@ -124,7 +107,7 @@ export class ActivityLogsController {
 
   @Delete()
   @UseGuards(RolesGuard)
-  @Roles("admin", "Super Admin")
+  @Roles("Administrator")
   async clearLogs() {
     return this.activityLogService.clearLogs();
   }

@@ -52,7 +52,7 @@ export const REDIS_SUBSCRIBER = "REDIS_SUBSCRIBER";
     // Temporarily comment out TeamsNotificationService
     // TeamsNotificationService,
     // Temporarily comment out NotificationsGateway
-    // NotificationsGateway,
+    NotificationsGateway,
   ],
   exports: [
     NotificationsService,

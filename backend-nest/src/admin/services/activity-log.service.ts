@@ -143,8 +143,8 @@ export class ActivityLogService {
 
     // --- Role-Based Access Control ---
     // Admins and Leadership can see all logs based on filters
-    const isAdmin = requestingUser.role?.name === "admin";
-    const isLeadership = requestingUser.role?.name === "leadership";
+    const isAdmin = requestingUser.role?.name === "Administrator";
+    const isLeadership = requestingUser.role?.name === "Leadership";
 
     if (isAdmin || isLeadership) {
       this.logger.log(

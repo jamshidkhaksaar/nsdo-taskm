@@ -153,6 +153,17 @@ const INITIAL_PERMISSIONS = [
     description: "View Recycle Bin page",
     group: "Admin Pages",
   }, // Placeholder
+  // General Pages (NEW GROUP)
+  {
+    name: "page:view:dashboard", // Assuming a general dashboard permission
+    description: "Access the main Dashboard",
+    group: "General Pages",
+  },
+  {
+    name: "page:view:tasks_overview", // Added permission
+    description: "Access the main Tasks Overview page",
+    group: "General Pages",
+  },
   // RBAC Management itself
   { name: "role:create", description: "Create new roles", group: "RBAC" },
   { name: "role:edit", description: "Edit existing roles", group: "RBAC" },
@@ -200,12 +211,14 @@ const INITIAL_ROLES = [
       // Admin Pages
       "page:view:admin_dashboard", "page:view:user_management", "page:view:department_management",
       "page:view:role_management", "page:view:activity_logs", "page:view:backup_restore", "page:view:recycle_bin",
+      // General Pages
+      "page:view:dashboard", "page:view:tasks_overview",
       // RBAC Management
       "role:create", "role:edit", "role:delete", "permission:assign",
     ],
   },
   {
-    name: "leadership",
+    name: "Leadership",
     description:
       "Leadership role with access to departmental management and reporting.",
     isSystemRole: true,
@@ -233,17 +246,39 @@ const INITIAL_ROLES = [
     ],
   },
   {
-    name: "user", // Changed from 'User'
-    description: "Standard user role with basic access.",
+    name: "manager",
+    description: "Manager role with access to departmental management and reporting.",
     isSystemRole: true,
     permissions: [
-      // Tasks (Own actions)
-      "task.create",
-      "task.view.own",
-      "task.view.counts.own",
-      "task.update.details.own",
-      "task.update.status.own",
-      "task.update.priority.own",
+      // Tasks
+      "task.create", "task.view.own", "task.view.department", "task.view.all", "task.view.recyclebin",
+      "task.view.counts.own", "task.view.counts.department", "task.view.counts.user",
+      "task.update.details.own", "task.update.details.all",
+      "task.update.status.own", "task.update.status.all",
+      "task.update.priority.own", "task.update.priority.all",
+      "task.delete.soft.own", "task.delete.soft.all",
+      "task.restore",
+      "task.delegate.own", "task.delegate.all",
+      // Notes
+      "note:add", "note:view", "note:edit:own", "note:delete:own",
+      // Departments
+      "department:view", // View own department
+      // Users
+      "user:view:profile", "user:view:list", "user:edit:own_profile",
+      "user:manage_2fa:own",
+      // General Pages
+      "page:view:dashboard", "page:view:tasks_overview", // Added
+    ],
+  },
+  {
+    name: "employee",
+    description: "Standard user role with basic task access.",
+    isSystemRole: false,
+    permissions: [
+      // Tasks
+      "task.create", "task.view.own", // Can only view own
+      "task.view.counts.own", // Can only view own counts
+      "task.update.details.own", "task.update.status.own", "task.update.priority.own",
       "task.delete.soft.own",
       "task.delegate.own",
       // Notes
@@ -251,6 +286,8 @@ const INITIAL_ROLES = [
       // Users
       "user:view:profile", "user:edit:own_profile",
       "user:manage_2fa:own",
+      // General Pages
+      "page:view:dashboard", "page:view:tasks_overview", // Added
     ],
   },
   // Remove the duplicate 'Standard User' role for now to avoid confusion

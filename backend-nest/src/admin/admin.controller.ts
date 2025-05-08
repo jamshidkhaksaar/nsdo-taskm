@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
+  Logger,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -19,8 +20,11 @@ import { User } from "../users/entities/user.entity";
 
 @ApiTags("Admin")
 @Controller("admin")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("Administrator", "Super Admin", "Leadership")
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(private readonly adminService: AdminService) {}
 
   @Get("dashboard")

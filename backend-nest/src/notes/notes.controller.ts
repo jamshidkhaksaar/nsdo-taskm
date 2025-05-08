@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Logger,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { NotesService } from "./notes.service";
 import { CreateNoteDto } from "./dto/create-note.dto";
@@ -48,7 +49,7 @@ export class NotesController {
   @ApiOperation({ summary: "Get a specific note" })
   @ApiResponse({ status: 200, description: "Return the note" })
   @ApiResponse({ status: 404, description: "Note not found" })
-  findOne(@Param("id") id: string, @GetUser() user: User) {
+  findOne(@Param("id", ParseUUIDPipe) id: string, @GetUser() user: User) {
     this.logger.log(`Fetching note ${id} for user ${user.username}`);
     return this.notesService.findOne(id, user.id);
   }
@@ -61,7 +62,7 @@ export class NotesController {
   })
   @ApiResponse({ status: 404, description: "Note not found" })
   update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateNoteDto: UpdateNoteDto,
     @GetUser() user: User,
   ) {
@@ -76,7 +77,7 @@ export class NotesController {
     description: "The note has been successfully deleted.",
   })
   @ApiResponse({ status: 404, description: "Note not found" })
-  remove(@Param("id") id: string, @GetUser() user: User) {
+  remove(@Param("id", ParseUUIDPipe) id: string, @GetUser() user: User) {
     this.logger.log(`Deleting note ${id} for user ${user.username}`);
     return this.notesService.remove(id, user.id);
   }

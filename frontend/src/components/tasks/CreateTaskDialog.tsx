@@ -19,6 +19,7 @@ interface CreateTaskDialogProps {
   initialType?: TaskType;
   dialogType: 'create' | 'assign';
   initialAssignedUserIds?: string[];
+  initialAssignedDepartmentIds?: string[];
 }
 
 const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
@@ -29,6 +30,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   initialType = TaskType.USER,
   dialogType,
   initialAssignedUserIds = [],
+  initialAssignedDepartmentIds = [],
 }) => {
   const { users } = useReferenceData();
   const { error: formError, handleError, clearError: clearFormError } = useErrorHandler();
@@ -42,7 +44,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const derivedInitialType = dialogType === 'assign' && initialAssignedUserIds.length > 0 ? TaskType.USER : initialType;
   const [taskType, setTaskType] = useState<TaskType>(derivedInitialType);
   const [assignedToUserIds, setAssignedToUserIds] = useState<string[]>(initialAssignedUserIds);
-  const [assignedToDepartmentIds, setAssignedToDepartmentIds] = useState<string[]>([]);
+  const [assignedToDepartmentIds, setAssignedToDepartmentIds] = useState<string[]>(initialAssignedDepartmentIds);
   const [assignedToProvinceId, setAssignedToProvinceId] = useState<string | null>(null);
   const [isFormInitialized, setIsFormInitialized] = useState(false);
 
@@ -67,13 +69,13 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           setAssignedToProvinceId(null);
       } else {
           setAssignedToUserIds(initialAssignedUserIds);
-          setAssignedToDepartmentIds([]);
+          setAssignedToDepartmentIds(initialAssignedDepartmentIds);
           setAssignedToProvinceId(null);
       }
       
       setIsFormInitialized(true);
     }
-  }, [open, initialType, clearFormError, initialAssignedUserIds, isAssignmentFixed, isFormInitialized]);
+  }, [open, initialType, clearFormError, initialAssignedUserIds, isAssignmentFixed, isFormInitialized, initialAssignedDepartmentIds]);
 
   useEffect(() => {
     resetForm();

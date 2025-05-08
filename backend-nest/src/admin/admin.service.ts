@@ -6,68 +6,109 @@ import { Department } from "../departments/entities/department.entity";
 import { Task, TaskStatus } from "../tasks/entities/task.entity";
 import { ActivityLogService } from "./services/activity-log.service";
 import { Province } from "../provinces/entities/province.entity";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 // Define structure for the overview stats (DTOs)
-// Export these interfaces
-export interface OverallCountsDto {
+export class OverallCountsDto {
+  @ApiProperty()
   totalTasks: number;
+  @ApiProperty()
   pending: number;
+  @ApiProperty()
   inProgress: number;
+  @ApiProperty()
   completed: number;
+  @ApiProperty()
   cancelled: number;
+  @ApiProperty()
   delegated: number;
+  @ApiProperty()
   overdue: number;
+  @ApiProperty()
   dueToday: number;
+  @ApiProperty()
   activeUsers: number;
+  @ApiProperty()
   totalDepartments: number;
 }
 
-// Define structure for department-specific stats
-export interface DepartmentStatsDto {
+export class DepartmentTaskCountsDto {
+  @ApiProperty()
+  pending: number;
+  @ApiProperty()
+  inProgress: number;
+  @ApiProperty()
+  completed: number;
+  @ApiProperty()
+  overdue: number;
+  @ApiProperty()
+  total: number;
+}
+
+export class DepartmentStatsDto {
+  @ApiProperty()
   departmentId: string;
+  @ApiProperty()
   departmentName: string;
-  counts: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    overdue: number;
-    total: number;
-  };
+  @ApiProperty({ type: DepartmentTaskCountsDto })
+  counts: DepartmentTaskCountsDto;
 }
 
-// Define structure for user-specific stats
-export interface UserTaskStatsDto {
+export class UserTaskCountsDto {
+  @ApiProperty()
+  pending: number;
+  @ApiProperty()
+  inProgress: number;
+  @ApiProperty()
+  completed: number;
+  @ApiProperty()
+  overdue: number;
+  @ApiProperty()
+  totalAssigned: number;
+}
+
+export class UserTaskStatsDto {
+  @ApiProperty()
   userId: string;
+  @ApiProperty()
   username: string;
-  // Add department/province info if needed later
-  counts: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    overdue: number;
-    totalAssigned: number; // Count of tasks where this user is an assignee
-  };
+  @ApiProperty({ type: UserTaskCountsDto })
+  counts: UserTaskCountsDto;
 }
 
-// Define structure for province-specific stats
-export interface ProvinceStatsDto {
+export class ProvinceTaskCountsDto {
+  @ApiProperty()
+  pending: number;
+  @ApiProperty()
+  inProgress: number;
+  @ApiProperty()
+  completed: number;
+  @ApiProperty()
+  overdue: number;
+  @ApiProperty()
+  total: number;
+}
+
+export class ProvinceStatsDto {
+  @ApiProperty()
   provinceId: string;
+  @ApiProperty()
   provinceName: string;
-  counts: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    overdue: number;
-    total: number;
-  };
+  @ApiProperty({ type: ProvinceTaskCountsDto })
+  counts: ProvinceTaskCountsDto;
 }
 
-export interface TaskOverviewStatsDto {
+export class TaskOverviewStatsDto {
+  @ApiProperty({ type: OverallCountsDto })
   overallCounts: OverallCountsDto;
-  departmentStats: DepartmentStatsDto[]; 
-  userStats: UserTaskStatsDto[]; // Use the specific DTO
-  provinceStats: ProvinceStatsDto[]; // Use the specific DTO
-  overdueTasks: Task[]; // Fetch limited list later
+  @ApiProperty({ type: [DepartmentStatsDto] })
+  departmentStats: DepartmentStatsDto[];
+  @ApiProperty({ type: [UserTaskStatsDto] })
+  userStats: UserTaskStatsDto[];
+  @ApiProperty({ type: [ProvinceStatsDto] })
+  provinceStats: ProvinceStatsDto[];
+  @ApiProperty({ type: () => [Task] })
+  overdueTasks: Task[];
 }
 
 @Injectable()
@@ -185,7 +226,7 @@ export class AdminService {
         tasks_by_priority: tasksByPriority,
       };
     } catch (error) {
-      console.error("Error generating dashboard stats:", error);
+      this.logger.error(`Error generating dashboard stats: ${error.message}`, error.stack);
       return {
         stats: {
           users: 0,
@@ -233,7 +274,7 @@ export class AdminService {
         status: log.status,
       }));
     } catch (error) {
-      console.error("Error fetching recent activities:", error);
+      this.logger.error(`Error fetching recent activities: ${error.message}`, error.stack);
       // Fallback to mock data if real data fails
       return this.generateMockActivities();
     }
@@ -249,16 +290,14 @@ export class AdminService {
 
       return departmentEntities.map((department) => {
         const membersCount = department.members ? department.members.length : 0;
-
-        const totalTasks = department.assignedTasks
-          ? department.assignedTasks.length
-          : 0;
         const completedTasks = department.assignedTasks
           ? department.assignedTasks.filter(
               (task) => task.status === TaskStatus.COMPLETED,
             ).length
           : 0;
-
+        const totalTasks = department.assignedTasks
+          ? department.assignedTasks.length
+          : 0;
         const completionRate =
           totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
@@ -266,15 +305,12 @@ export class AdminService {
           id: department.id,
           name: department.name,
           membersCount,
-          totalTasks,
-          completedTasks,
           completionRate,
-          headName: department.head ? department.head.username : "No Head",
-          headId: department.head ? department.head.id : null,
+          headName: department.head ? department.head.username : "N/A",
         };
       });
     } catch (error) {
-      console.error("Error fetching department stats:", error);
+      this.logger.error(`Error fetching department stats: ${error.message}`, error.stack);
       return [];
     }
   }
@@ -282,41 +318,26 @@ export class AdminService {
   // Get task trend data (tasks created/completed over last 7 days)
   private async getTaskTrendData() {
     try {
-      // Initialize with proper type annotation
-      const result: Array<{
-        date: string;
-        created: number;
-        completed: number;
-      }> = [];
       const today = new Date();
-
-      // Generate data for the last 7 days
+      const trendData: { date: string; count: number }[] = [];
       for (let i = 6; i >= 0; i--) {
-        const date = new Date();
+        const date = new Date(today);
         date.setDate(today.getDate() - i);
-        date.setHours(0, 0, 0, 0);
+        date.setHours(0, 0, 0, 0); // Start of the day
 
         const nextDate = new Date(date);
-        nextDate.setDate(date.getDate() + 1);
+        nextDate.setDate(date.getDate() + 1); // End of the day (start of next)
 
-        // Get tasks created on this day (using dates from DB)
-        // Since we may not have createdAt/updatedAt fields, we'll use createDay counts and completion counts
-        const tasksCreated = await this.tasksRepository.count();
-        const tasksCompleted = await this.tasksRepository.count({
-          where: { status: TaskStatus.COMPLETED },
+        const count = await this.tasksRepository.count({
+          where: {
+            createdAt: Between(date, nextDate),
+          },
         });
-
-        // Add data point for this day
-        result.push({
-          date: date.toISOString().split("T")[0],
-          created: Math.floor(tasksCreated / 7), // Distribute evenly across the week
-          completed: Math.floor(tasksCompleted / 7), // Distribute evenly across the week
-        });
+        trendData.push({ date: date.toISOString().split("T")[0], count });
       }
-
-      return result;
+      return trendData;
     } catch (error) {
-      console.error("Error fetching task trend data:", error);
+      this.logger.error(`Error fetching task trend data: ${error.message}`, error.stack);
       return [];
     }
   }
@@ -324,23 +345,13 @@ export class AdminService {
   // Get recent users
   private async getRecentUsers() {
     try {
-      const users = await this.usersRepository.find({
+      return await this.usersRepository.find({
         order: { createdAt: "DESC" },
         take: 5,
+        select: ["id", "username", "email", "createdAt"], // Select specific fields
       });
-
-      // Return only the necessary properties, not the entire user object with password
-      return users.map((user) => ({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        displayName: user.username, // Add a displayName for UI display
-        role: user.role,
-        isActive: user.isActive,
-        createdAt: user.createdAt ? user.createdAt.toISOString() : null, // Convert Date to string
-      }));
     } catch (error) {
-      console.error("Error fetching recent users:", error);
+      this.logger.error(`Error fetching recent users: ${error.message}`, error.stack);
       // Return empty array with proper structure to avoid rendering errors
       return [];
     }
@@ -349,44 +360,33 @@ export class AdminService {
   // Get tasks by priority
   private async getTasksByPriority() {
     try {
-      // Since we may not have a priority field, we'll substitute with task status
-      const result = {
-        high: await this.tasksRepository.count({
-          where: { status: TaskStatus.PENDING },
-        }),
-        medium: await this.tasksRepository.count({
-          where: { status: TaskStatus.IN_PROGRESS },
-        }),
-        low: await this.tasksRepository.count({
-          where: { status: TaskStatus.COMPLETED },
-        }),
-      };
-
-      return result;
+      return await this.tasksRepository
+        .createQueryBuilder("task")
+        .select("task.priority", "priority")
+        .addSelect("COUNT(task.id)", "count")
+        .groupBy("task.priority")
+        .getRawMany();
     } catch (error) {
-      console.error("Error fetching tasks by priority:", error);
-      return { high: 0, medium: 0, low: 0 };
+      this.logger.error(`Error fetching tasks by priority: ${error.message}`, error.stack);
+      return [];
     }
   }
 
   // Get basic system health metrics
   private async getBasicSystemHealth() {
-    const memoryUsage = process.memoryUsage();
-
-    return {
-      uptime: Math.floor(process.uptime()),
-      memory: {
-        total: Math.round(memoryUsage.heapTotal / 1024 / 1024),
-        used: Math.round(memoryUsage.heapUsed / 1024 / 1024),
-        usage: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100),
-      },
-      databaseConnected: true,
-      services: {
-        auth: "operational",
-        database: "operational",
-        fileStorage: "operational",
-      },
-    };
+    try {
+      // Example basic health checks
+      const dbConnected = await this.tasksRepository.query("SELECT 1"); // Simple query to check DB connection
+      return {
+        database: dbConnected ? "Connected" : "Disconnected",
+        // Add other checks as needed
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching basic system health: ${error.message}`, error.stack);
+      return {
+        database: "Error",
+      };
+    }
   }
 
   async getAllUsers(search?: string) {
@@ -1391,9 +1391,9 @@ export class AdminService {
             });
 
         // --- Permission Filtering --- 
-        // If requesting user is 'leadership', filter by their departments
+        // If requesting user is 'Leadership', filter by their departments
         // Note: Assumes requestingUser object has 'role' and 'departments' loaded
-        if (requestingUser.role?.name === 'leadership') {
+        if (requestingUser.role?.name === 'Leadership') {
             const leaderDepartmentIds = requestingUser.departments?.map(d => d.id) || [];
             if (leaderDepartmentIds.length > 0) {
                 this.logger.log(`Leadership user ${requestingUser.id} detected. Filtering user stats by departments: ${leaderDepartmentIds.join(', ')}`);

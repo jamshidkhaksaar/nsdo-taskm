@@ -146,7 +146,7 @@ export class TaskQueryService {
 
   // Helper to check if a user is considered an assignee (direct, via department, or via province/department)
   // Made public for now, could be private if only used internally
-  async checkAssigneePermission(task: Task, userId: string): Promise<boolean> {
+  async checkAssigneePermission(task: Task, userId: string, userWithDepartments?: User): Promise<boolean> {
     // Check direct user assignment
     if (
       task.assignedToUsers &&
@@ -162,11 +162,11 @@ export class TaskQueryService {
       task.assignedToDepartments.length > 0
     ) {
       // Use UsersService to get user with departments
-      const userWithDepartments = await this.usersService.findById(userId);
-      if (!userWithDepartments || !userWithDepartments.departments)
+      const userForCheck = userWithDepartments || await this.usersService.findById(userId, ["departments"]);
+      if (!userForCheck || !userForCheck.departments)
         return false;
 
-      const userDepartmentIds = userWithDepartments.departments.map(
+      const userDepartmentIds = userForCheck.departments.map(
         (dept) => dept.id,
       );
       const taskDepartmentIds = task.assignedToDepartments.map(
@@ -189,12 +189,12 @@ export class TaskQueryService {
       task.assignedToDepartments.length > 0
     ) {
       // Use UsersService to get user with departments
-      const userWithDepartments = await this.usersService.findById(userId);
-      if (!userWithDepartments || !userWithDepartments.departments)
+      const userForCheck = userWithDepartments || await this.usersService.findById(userId, ["departments"]);
+      if (!userForCheck || !userForCheck.departments)
         return false;
 
       // Filter user's departments to only those belonging to the task's province
-      const userDepartmentIdsInProvince = userWithDepartments.departments
+      const userDepartmentIdsInProvince = userForCheck.departments
         .filter((dept) => dept.provinceId === task.assignedToProvinceId)
         .map((dept) => dept.id);
 
@@ -287,10 +287,16 @@ export class TaskQueryService {
     const sortOrder = query.sortOrder || "DESC";
     queryBuilder.orderBy(`task.${sortBy}`, sortOrder);
 
-    const page = query.page ? parseInt(query.page, 10) : 1;
-    const limit = query.limit ? parseInt(query.limit, 10) : 10;
-    const skip = (page - 1) * limit;
-    queryBuilder.skip(skip).take(limit);
+    // Use number directly, applying default if undefined or null
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    
+    // Ensure page and limit are positive integers
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.max(1, Math.floor(limit));
+
+    const skip = (safePage - 1) * safeLimit;
+    queryBuilder.skip(skip).take(safeLimit);
 
     const [tasks, total] = await queryBuilder.getManyAndCount();
     return [tasks, total];

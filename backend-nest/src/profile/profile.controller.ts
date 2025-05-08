@@ -15,6 +15,9 @@ import {
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ProfileService } from "./profile.service";
 import { ActivityLogService } from "../admin/services/activity-log.service";
+import { UpdateProfileDto } from "./dto/update-profile.dto";
+import { UpdatePasswordDto } from "./dto/update-password.dto";
+import { UpdateUserSettingsDto } from "./dto/update-user-settings.dto";
 
 @Controller("profile")
 @UseGuards(JwtAuthGuard)
@@ -46,7 +49,7 @@ export class ProfileController {
   }
 
   @Put("me")
-  async updateProfile(@Body() profileData: any, @Request() req) {
+  async updateProfile(@Body() profileData: UpdateProfileDto, @Request() req) {
     const userId = req.user.id;
     this.logger.log(`Updating profile for user: ${userId}`);
 
@@ -68,7 +71,7 @@ export class ProfileController {
 
   @Patch("me/password")
   async updatePassword(
-    @Body() passwordData: { currentPassword: string; newPassword: string },
+    @Body() passwordData: UpdatePasswordDto,
     @Request() req,
   ) {
     const userId = req.user.id;
@@ -76,28 +79,29 @@ export class ProfileController {
 
     const { currentPassword, newPassword } = passwordData;
 
-    if (!currentPassword || !newPassword) {
-      throw new BadRequestException(
-        "Both current password and new password are required",
-      );
-    }
-
     const passwordValid = await this.profileService.verifyPassword(
       userId,
       currentPassword,
     );
     if (!passwordValid) {
+      await this.activityLogService.logFromRequest(
+        req,
+        "update_password_attempt",
+        "password",
+        "User failed password update (incorrect current password)",
+        undefined,
+        "warning"
+      );
       throw new UnauthorizedException("Current password is incorrect");
     }
 
     await this.profileService.updatePassword(userId, newPassword);
 
-    // Log the activity
     await this.activityLogService.logFromRequest(
       req,
       "update",
       "password",
-      "User updated their password",
+      "User updated their password successfully",
     );
 
     return {
@@ -106,7 +110,7 @@ export class ProfileController {
   }
 
   @Patch("me/settings")
-  async updateSettings(@Body() settingsData: any, @Request() req) {
+  async updateSettings(@Body() settingsData: UpdateUserSettingsDto, @Request() req) {
     const userId = req.user.id;
     this.logger.log(`Updating settings for user: ${userId}`);
 
