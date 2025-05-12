@@ -35,7 +35,7 @@ interface DashboardTopBarProps {
   username: string;
   notificationCount: number;
   onToggleSidebar: () => void;
-  onNotificationClick: () => void;
+  onNotificationClick: (event: React.MouseEvent<HTMLElement>) => void;
   onLogout: () => void;
   onProfileClick: () => void;
   onSettingsClick: () => void;
@@ -143,7 +143,14 @@ const DashboardTopBar: React.FC<DashboardTopBarProps> = ({
           <Tooltip title="Notifications">
             <IconButton
               color="inherit"
-              onClick={onNotificationClick}
+              onClick={(event: React.MouseEvent<HTMLElement>) => {
+                console.log('[DashboardTopBar] MUI IconButton NATIVE onClick fired!');
+                console.log('[DashboardTopBar] Event target:', event.target, 'Current target:', event.currentTarget);
+                console.log('[DashboardTopBar] Props.onNotificationClick function:', onNotificationClick);
+                if (onNotificationClick) {
+                  onNotificationClick(event);
+                }
+              }}
               sx={{
                 transition: 'all 0.2s ease-in-out',
                 animation: notificationCount > 0 ? `${ringAnimation} 1.5s ease-in-out infinite` : 'none',

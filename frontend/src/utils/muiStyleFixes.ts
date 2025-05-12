@@ -9,21 +9,21 @@
 // Map of incorrect class names to correct MUI v5 class names
 const classNameMapping: Record<string, string> = {
   // Select component corrections
-  'MuiSelect-select': 'MuiSelect-select',
+  // 'MuiSelect-select': 'MuiSelect-select', // Removed redundant
   'MuiSelectSelect': 'MuiSelect-select',
   
   // Input/FormHelperText corrections
-  'MuiInputAdornment-root': 'MuiInputAdornment-root',
+  // 'MuiInputAdornment-root': 'MuiInputAdornment-root', // Removed redundant
   'MuiInputAdornmentRoot': 'MuiInputAdornment-root',
-  'MuiFormHelperText-root': 'MuiFormHelperText-root',
+  // 'MuiFormHelperText-root': 'MuiFormHelperText-root', // Removed redundant
   'MuiFormHelperTextRoot': 'MuiFormHelperText-root',
   
   // Icon corrections
-  'MuiSvgIcon-root': 'MuiSvgIcon-root',
+  // 'MuiSvgIcon-root': 'MuiSvgIcon-root', // Removed redundant
   'MuiSvgIconRoot': 'MuiSvgIcon-root',
   
   // Focus state corrections
-  'Mui-focused': 'Mui-focused',
+  // 'Mui-focused': 'Mui-focused', // Removed redundant
   'MuiFocused': 'Mui-focused'
 };
 

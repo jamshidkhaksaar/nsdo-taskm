@@ -8,7 +8,7 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, In } from "typeorm";
 import { User } from "./entities/user.entity";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
@@ -17,6 +17,7 @@ import { MailService } from "../mail/mail.service";
 import { ConfigService } from "@nestjs/config";
 import { RoleService } from "../rbac/services/role.service";
 import { Role } from "../rbac/entities/role.entity";
+import { Department } from "../departments/entities/department.entity";
 
 @Injectable()
 export class UsersService {
@@ -25,6 +26,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Department)
+    private departmentsRepository: Repository<Department>,
     @Inject(forwardRef(() => ActivityLogService))
     private activityLogService: ActivityLogService,
     private readonly mailService: MailService,
@@ -300,12 +303,14 @@ export class UsersService {
     }
   }
 
-  async updateUser(id: string, updateData: Partial<User> & { roleId?: string }): Promise<User> {
+  async updateUser(id: string, updateData: Partial<User> & { roleId?: string; departmentIds?: string[] }): Promise<User> {
     try {
       this.logger.log(`Updating user with ID: ${id}`);
-      const user = await this.findById(id);
+      const user = await this.usersRepository.findOne({ where: { id }, relations: ["role", "departments"] });
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
 
-      // 1. Handle Role Update
       if (updateData.roleId && updateData.roleId !== user.role?.id) {
         this.logger.log(`Updating role for user ${id} to roleId ${updateData.roleId}`);
         try {
@@ -319,28 +324,42 @@ export class UsersService {
         }
       }
 
-      // 2. Update other allowed fields (match ACTUAL User entity properties)
+      if (updateData.departmentIds) {
+        this.logger.log(`Updating departments for user ${id} with department IDs: ${updateData.departmentIds.join(', ')}`);
+        if (updateData.departmentIds.length === 0) {
+          user.departments = [];
+        } else {
+          const departments = await this.departmentsRepository.findBy({
+            id: In(updateData.departmentIds),
+          });
+          if (departments.length !== updateData.departmentIds.length) {
+            this.logger.warn("Some department IDs provided for user update were not found.");
+          }
+          user.departments = departments;
+        }
+      }
+
       const allowedFields: (keyof User)[] = [
         'email',
-        'isActive',   // Use this boolean field for status
+        'isActive',
         'bio',
         'avatarUrl',
         'skills',
         'socialLinks',
         'preferences',
-        'position'    // <-- Add position here
-        // Add any other relevant fields from the User entity that should be updatable
+        'position',
       ];
 
       for (const field of allowedFields) {
-        // Check if the property exists on updateData before assigning
         if (field in updateData && updateData[field] !== undefined) {
-          // Type assertion might be needed if TS still struggles with dynamic keys
           (user as any)[field] = updateData[field];
         }
       }
+      
+      if (updateData.username && updateData.username !== user.username) {
+          user.username = updateData.username;
+      }
 
-      // 4. Save the updated user
       const updatedUser = await this.usersRepository.save(user);
       this.logger.log(`Successfully updated user with ID: ${id}`);
       return updatedUser;
@@ -350,7 +369,6 @@ export class UsersService {
         error.stack,
       );
       if (!(error instanceof NotFoundException)) {
-        throw error;
       }
       throw error;
     }
@@ -417,7 +435,7 @@ export class UsersService {
     this.logger.log(`Attempting to reset password with token`);
 
     const users = await this.usersRepository.find({
-      where: { resetPasswordExpires: { $gt: new Date() } as any }, // TypeORM requires $gt or similar for date comparison
+      where: { resetPasswordExpires: { $gt: new Date() } as any },
     });
 
     let userToUpdate: User | null = null;
@@ -437,10 +455,47 @@ export class UsersService {
     userToUpdate.password = await bcrypt.hash(newPassword, 10);
     userToUpdate.resetPasswordToken = null;
     userToUpdate.resetPasswordExpires = null;
-    // Optionally, invalidate remembered browsers or active sessions here
 
     const updatedUser = await this.usersRepository.save(userToUpdate);
     this.logger.log(`Password has been reset for user ID: ${updatedUser.id}`);
     return updatedUser;
+  }
+
+  async adminResetPassword(userId: string): Promise<{ user: User; newPassword: string }> {
+    this.logger.log(`Admin initiated password reset for user ID: ${userId}`);
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const newPassword = crypto.randomBytes(9).toString('base64').replace(/[/+=]/g, '').substring(0, 12);
+    this.logger.log(`Generated new temporary password for user ${user.username}`);
+
+    const salt = await bcrypt.genSalt();
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    (user as any).passwordResetToken = null; 
+    (user as any).passwordResetExpires = null;
+
+    await this.usersRepository.save(user);
+    this.logger.log(`Successfully reset password for user ${user.username}`);
+
+    try {
+        const loginLink = this.configService.get<string>("FRONTEND_URL") + "/login";
+        await this.mailService.sendTemplatedEmail(
+            user.email,
+            "ADMIN_PASSWORD_RESET_NOTIFICATION",
+            {
+                username: user.username,
+                temporaryPassword: newPassword,
+                loginLink: loginLink,
+            }
+        );
+        this.logger.log(`Admin password reset notification sent to ${user.email}`);
+    } catch (emailError) {
+        this.logger.error(`Failed to send admin password reset notification to ${user.email}: ${emailError.message}`);
+    }
+
+    return { user, newPassword };
   }
 }

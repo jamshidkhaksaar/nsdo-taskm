@@ -53,6 +53,7 @@ const RoleManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionSearchTerm, setPermissionSearchTerm] = useState('');
+  const [expandedAccordions, setExpandedAccordions] = useState<Record<string, boolean>>({});
 
   // Get permissions from the usePermissions hook
   const { permissions: systemPermissions, fetchPermissions: fetchSystemPermissions, loading: permissionsLoading } = usePermissions();
@@ -194,6 +195,10 @@ const RoleManagement: React.FC = () => {
   }, [systemPermissions, permissionSearchTerm]);
 
   const currentDialogPermissions = filteredAndGroupedPermissions();
+
+  const handleAccordionChange = (group: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedAccordions(prev => ({ ...prev, [group]: isExpanded }));
+  };
 
   return (
     <Box>
@@ -366,7 +371,8 @@ const RoleManagement: React.FC = () => {
                 {Object.entries(currentDialogPermissions).map(([groupName, groupPermissions]) => (
                   <Accordion 
                     key={groupName} 
-                    defaultExpanded={groupName === 'Tasks' || groupPermissions.some(p => selectedPermissionIds.includes(p.id))} 
+                    expanded={expandedAccordions[groupName] || false}
+                    onChange={handleAccordionChange(groupName)}
                     sx={{ 
                       backgroundImage: 'none',
                       boxShadow: 'none', 

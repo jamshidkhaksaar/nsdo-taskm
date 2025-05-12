@@ -160,6 +160,35 @@ export class UsersController {
     return { message: "If an account with that email exists, a password reset link has been sent." };
   }
 
+  @Post(':id/admin-reset-password')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles("Administrator", "Super Admin") // Only admins can do this
+  @Permissions('user:manage') // Requires permission to manage users
+  @ApiOperation({ summary: "Admin resets a user's password" })
+  @ApiResponse({ status: 200, description: "Password reset successfully, returns new temporary password." })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  @ApiResponse({ status: 404, description: "User not found." })
+  async adminResetPassword(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Request() req
+  ): Promise<{ message: string; newPassword?: string }> {
+    this.logger.log(`Admin attempting to reset password for user ID: ${id}`);
+    const { newPassword, user } = await this.usersService.adminResetPassword(id);
+
+    await this.activityLogService.logFromRequest(
+      req,
+      "admin_password_reset",
+      "user",
+      `Admin reset password for user: ${user.username}`,
+      id,
+    );
+
+    return { 
+      message: `Password for user ${user.username} has been reset.`,
+      newPassword: newPassword 
+    };
+  }
+
   @Post(":id/toggle-status")
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles("Leadership", "Administrator")

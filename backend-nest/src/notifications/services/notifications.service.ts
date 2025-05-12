@@ -1,6 +1,6 @@
-import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import { Injectable, Logger, BadRequestException, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, UpdateResult } from "typeorm";
 import {
   Notification,
   NotificationType,
@@ -64,25 +64,81 @@ export class NotificationsService {
 
     const channel = "notifications:new";
     try {
-      // Temporarily comment out publishing
-      // await this.redisPublisher.publish(channel, JSON.stringify(payload));
       this.logger.warn(
         `Redis publishing temporarily disabled. Would publish notification ${savedNotification.id} to ${channel}:`,
         payload,
       );
-      // console.log(`Published notification ${savedNotification.id} to ${channel}:`, payload);
     } catch (error) {
-      // this.logger.error(`Failed to publish notification ${savedNotification.id} to Redis:`, error);
       this.logger.error(
         `Error during temporarily disabled Redis publish step: ${error}`,
-      ); // Log if error still occurs somehow
-      // console.error(`Failed to publish notification ${savedNotification.id} to Redis:`, error);
+      ); 
     }
-
     return savedNotification;
   }
 
-  // TODO: Add methods for retrieving/marking notifications as read later
-  // async getUserNotifications(userId: string): Promise<Notification[]> { ... }
-  // async markNotificationAsRead(notificationId: string): Promise<Notification> { ... }
+  // --- Methods for retrieving/marking notifications as read ---
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    this.logger.log(`Fetching all notifications for user ${userId}`);
+    try {
+      return await this.notificationRepository.find({
+        where: { userId },
+        order: { createdAt: "DESC" },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to fetch notifications for user ${userId}`, error.stack);
+      throw new InternalServerErrorException("Could not fetch notifications.");
+    }
+  }
+
+  async getUnreadUserNotifications(userId: string): Promise<Notification[]> {
+    this.logger.log(`Fetching unread notifications for user ${userId}`);
+    try {
+      return await this.notificationRepository.find({
+        where: { userId, isRead: false },
+        order: { createdAt: "DESC" },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to fetch unread notifications for user ${userId}`, error.stack);
+      throw new InternalServerErrorException("Could not fetch unread notifications.");
+    }
+  }
+
+  async markSpecificNotificationAsRead(notificationId: string, userId: string): Promise<Notification> {
+    this.logger.log(`Marking notification ${notificationId} as read for user ${userId}`);
+    const notification = await this.notificationRepository.findOne({
+      where: { id: notificationId, userId },
+    });
+
+    if (!notification) {
+      this.logger.warn(`Notification ${notificationId} not found for user ${userId}`);
+      throw new NotFoundException(`Notification ${notificationId} not found or does not belong to user.`);
+    }
+
+    if (notification.isRead) {
+      this.logger.log(`Notification ${notificationId} is already read.`);
+      return notification; // Already read, no change needed
+    }
+
+    notification.isRead = true;
+    try {
+      return await this.notificationRepository.save(notification);
+    } catch (error) {
+      this.logger.error(`Failed to mark notification ${notificationId} as read`, error.stack);
+      throw new InternalServerErrorException("Could not mark notification as read.");
+    }
+  }
+
+  async markAllUserNotificationsAsRead(userId: string): Promise<UpdateResult> {
+    this.logger.log(`Marking all notifications as read for user ${userId}`);
+    try {
+      return await this.notificationRepository.update(
+        { userId, isRead: false }, // Condition: only unread notifications for this user
+        { isRead: true },          // Update: set isRead to true
+      );
+    } catch (error) {
+      this.logger.error(`Failed to mark all notifications as read for user ${userId}`, error.stack);
+      throw new InternalServerErrorException("Could not mark all notifications as read.");
+    }
+  }
 }

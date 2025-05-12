@@ -11,7 +11,7 @@ export interface User {
   created_at: string;
   updated_at: string;
   avatar?: string;
-  role?: 'user' | 'leadership' | 'admin';
+  role?: string;
 }
 
 export enum UserRole {

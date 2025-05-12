@@ -10,7 +10,7 @@ interface PrivateRouteProps {
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, allowedRoles }) => {
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const location = useLocation();
+  const location = useLocation(); // Restore useLocation
 
   // 1. Check Authentication
   if (!isAuthenticated) {
@@ -23,9 +23,10 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, allowedRoles }) =
     const isAllowed = allowedRoles.map(role => role.toUpperCase()).includes(userRole);
 
     if (!isAllowed) {
-      console.warn(`User (Role: ${user?.role}) attempted to access route restricted to roles: ${allowedRoles.join(', ')}`);
-      // Redirect users without the required role to the dashboard (or an unauthorized page)
-      return <Navigate to="/dashboard" state={{ from: location }} replace />;
+      console.warn(
+        `User (Role: '${userRole}') attempted to access ${location.pathname} restricted to roles: [${allowedRoles.map(r => r.toUpperCase()).join(', ')}]`
+      );
+      return <Navigate to="/unauthorized" state={{ from: location }} replace />;
     }
   }
 

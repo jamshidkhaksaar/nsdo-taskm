@@ -13,7 +13,7 @@ export class ActivityLog {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: "user_id" })
   user: User;
 

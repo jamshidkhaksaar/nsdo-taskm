@@ -35,7 +35,7 @@ import {
   FilterList as FilterListIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
 import axios from 'axios';
 import { UserRole } from '../../types/user';
@@ -43,6 +43,7 @@ import { useNavigate } from 'react-router-dom';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
+import { useNotificationContext } from '../../context/NotificationContext';
 
 const DRAWER_WIDTH = 240;
 
@@ -112,8 +113,9 @@ const formatRelativeTime = (date: Date): string => {
 const RecycleBin: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
+  const { unreadCount } = useSelector((state: RootState) => state.notifications);
+  const { handleNotificationBellClick } = useNotificationContext();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [notifications, setNotifications] = useState(0);
   
   const [deletedTasks, setDeletedTasks] = useState<DeletedTask[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -139,10 +141,17 @@ const RecycleBin: React.FC = () => {
 
   const isAdmin = user?.role === UserRole.ADMIN;
 
-  // Redirect if not admin
+  // Redirect if not an authorized role
   useEffect(() => {
-    if (user && user.role !== 'admin') {
-      navigate('/dashboard');
+    if (user && user.role) {
+      const upperCaseRole = user.role.toUpperCase();
+      if (!["ADMINISTRATOR", "LEADERSHIP", "SUPER ADMIN"].includes(upperCaseRole)) {
+        console.warn(`[RecycleBin] User role '${user.role}' not authorized. Redirecting to dashboard.`);
+        navigate('/dashboard');
+      }
+    } else if (!user) {
+      // If user object is null (e.g., not logged in), also redirect
+      navigate('/login'); 
     }
   }, [user, navigate]);
 
@@ -170,7 +179,7 @@ const RecycleBin: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchText, filters, page, rowsPerPage, setLoading, setDeletedTasks, setTotalCount]);
+  }, [searchText, filters, page, rowsPerPage]);
 
   const fetchDepartments = useCallback(async () => {
     try {
@@ -278,12 +287,8 @@ const RecycleBin: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Handle logout logic here
+    // Actual logout logic should be dispatched via authSlice
     navigate('/login');
-  };
-
-  const handleNotificationClick = () => {
-    setNotifications(0);
   };
 
   const handleProfileClick = () => {
@@ -630,9 +635,9 @@ const RecycleBin: React.FC = () => {
       topBar={
         <DashboardTopBar
           username={user?.username || 'User'}
-          notificationCount={notifications}
+          notificationCount={unreadCount}
           onToggleSidebar={handleToggleSidebar}
-          onNotificationClick={handleNotificationClick}
+          onNotificationClick={handleNotificationBellClick}
           onProfileClick={handleProfileClick}
           onSettingsClick={handleSettingsClick} 
           onHelpClick={handleHelpClick}

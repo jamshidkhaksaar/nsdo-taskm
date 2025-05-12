@@ -140,13 +140,21 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
+  
+  // --- NEW DEBUG LOG --- 
+  console.log("[Sidebar] Raw user object from Redux store:", JSON.stringify(user, null, 2));
+
   const [adminMenuOpen, setAdminMenuOpen] = useState(true);
 
-  // Memoize user permissions for efficiency (Reverted to simpler check)
+  // Memoize user permissions for efficiency
   const userPermissions = React.useMemo(() => {
-    // Check if role and permissions exist and are arrays before mapping
-    if (user?.role && typeof user.role === 'object' && Array.isArray(user.role.permissions)) {
-      return user.role.permissions.map(p => p.name).filter(name => !!name);
+    // Prioritize the new user.permissions string array
+    if (user && Array.isArray(user.permissions)) {
+      return user.permissions;
+    }
+    // Fallback to the older structure if user.permissions is not available
+    if (user?.role && typeof user.role === 'object' && Array.isArray((user.role as any).permissions)) {
+      return (user.role as any).permissions.map((p: any) => p.name).filter((name:any) => !!name);
     }
     return []; // Return empty array if no permissions found
   }, [user]);

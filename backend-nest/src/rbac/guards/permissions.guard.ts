@@ -12,7 +12,7 @@ import { Reflector } from "@nestjs/core";
 import { User } from "../../users/entities/user.entity"; // Adjust path as needed
 import { PERMISSIONS_KEY } from "../decorators/permissions.decorator";
 import { TaskQueryService } from "../../tasks/task-query.service"; // Import TaskQueryService
-import { Task } from "../../tasks/entities/task.entity"; // Import Task entity
+// import { Task } from "../../tasks/entities/task.entity"; // Task entity not directly used in this snippet
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -36,16 +36,35 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user: User = request.user; // Assumes user object is attached by AuthGuard
+    const user: User = request.user;
 
-    // Ensure user and role with permissions are loaded
-    if (!user || !user.role || !user.role.permissions) {
+    // Ensure user and role are loaded
+    if (!user || !user.role || !user.role.name) { // Check for role.name specifically
       this.logger.error(
-        "PermissionsGuard Error: User, user.role, or user.role.permissions not found on request object. Ensure AuthGuard populates user with role and permissions.",
+        "PermissionsGuard Error: User, user.role, or user.role.name not found on request object.",
       );
       throw new InternalServerErrorException(
-        "User role or permissions information missing.",
+        "User role or name information missing.",
       );
+    }
+
+    // If the user is a Super Admin, grant access immediately.
+    const userRoleNameUpper = user.role.name.toUpperCase();
+    if (userRoleNameUpper === "SUPER ADMIN") {
+      this.logger.log(
+        `PermissionsGuard Granted (Super Admin): User ${user.id} (Role: ${user.role.name}) automatically granted access.`
+      );
+      return true;
+    }
+    
+    // Ensure user role permissions are loaded for non-Super Admins
+    if (!user.role.permissions) {
+        this.logger.error(
+            `PermissionsGuard Error: user.role.permissions not found on request object for non-Super Admin user ${user.id}.`,
+        );
+        throw new InternalServerErrorException(
+            "User permissions information missing.",
+        );
     }
 
     const userPermissions = user.role.permissions.map((perm) => perm.name);
@@ -55,14 +74,12 @@ export class PermissionsGuard implements CanActivate {
     for (const requiredPerm of requiredPermissions) {
       const hasDirectPermission = userPermissions.includes(requiredPerm);
 
-      // Case 1: User has a required non-'.own' permission (e.g., task.view.all)
       if (hasDirectPermission && !requiredPerm.endsWith('.own')) {
         canAccess = true;
         this.logger.debug(`Access granted via direct non-own permission: ${requiredPerm}`);
-        break; // Allow access immediately
+        break;
       }
 
-      // Case 2: Check if user has the corresponding '.all' permission
       if (requiredPerm.endsWith('.own')) {
         const correspondingAllPermission = requiredPerm.replace('.own', '.all');
         if (userPermissions.includes(correspondingAllPermission)) {
@@ -72,31 +89,25 @@ export class PermissionsGuard implements CanActivate {
         }
       }
 
-      // Case 3: User requires an '.own' permission and has it directly.
-      // Now we need to verify ownership of the resource.
       if (hasDirectPermission && requiredPerm.endsWith('.own')) {
-        const resourceId = context.switchToHttp().getRequest().params.id; // Assuming ID is in route params
+        const resourceId = request.params.id;
         if (!resourceId) {
           this.logger.warn(
             `PermissionsGuard: Ownership permission '${requiredPerm}' required, but no resource ID found in request params. Checking next permission...`,
           );
-          continue; // Cannot verify ownership, check next required permission
+          continue;
         }
-
         try {
           let ownsResource = false;
-          const resourceType = requiredPerm.split(':')[0]; // e.g., 'user' from 'user:edit:own_profile' or 'task' from 'task:view:own'
-
+          const resourceType = requiredPerm.split(':')[0];
           if (resourceType === 'user' && requiredPerm === 'user:edit:own_profile') {
             this.logger.debug(`Checking user ownership for ${requiredPerm}: user ${user.id} vs resource ${resourceId}`);
             if (user.id === resourceId) {
               ownsResource = true;
             }
           } else if (resourceType === 'task') {
-            // Existing task ownership logic
             this.logger.debug(`Fetching task ${resourceId} for ownership check (${requiredPerm})`);
-            const task = await this.taskQueryService.findOne(resourceId); // Make sure findOne is available and appropriate
-
+            const task = await this.taskQueryService.findOne(resourceId);
             if (!task) {
               this.logger.warn(
                 `PermissionsGuard: Task with ID ${resourceId} not found during ownership check for permission '${requiredPerm}'. Checking next permission...`,
@@ -110,32 +121,24 @@ export class PermissionsGuard implements CanActivate {
             }
           } else {
             this.logger.warn(`PermissionsGuard: Unhandled resource type '${resourceType}' for '.own' permission: ${requiredPerm}. Denying by default for this permission.`);
-            // If resource type is unknown for an '.own' permission, deny access for this specific permission.
-            // The loop will continue to check other requiredPermissions if any.
             continue;
           }
-
           if (ownsResource) {
             canAccess = true;
             this.logger.debug(`Access granted via .own permission and ownership: ${requiredPerm}`);
-            break; // User has the .own permission AND owns the resource
+            break;
           } else {
             this.logger.debug(`Ownership check failed for user ${user.id} on resource ${resourceId} for permission ${requiredPerm}`);
-            // Continue to check other permissions; user might have an '.all' version or another qualifying permission.
           }
         } catch (error) {
-          // Log error but potentially continue checking other permissions
           this.logger.error(
             `PermissionsGuard Error fetching/checking resource ${resourceId} for permission '${requiredPerm}': ${error.message}`,
             error.stack,
           );
-          // Decide if an error here should deny access completely or just for this permission.
-          // For now, let's be safe and continue (maybe another permission grants access).
           continue;
         }
       }
     }
-    // --- End Refined Check ---
 
     if (!canAccess) {
       this.logger.warn(
@@ -145,9 +148,6 @@ export class PermissionsGuard implements CanActivate {
         `Insufficient permissions for this action.`,
       );
     }
-
-    // Comment out or remove TODO as basic check is implemented
-    // TODO: Implement resource-specific ownership checks here (e.g., for '.own' permissions)
 
     this.logger.log(
       `PermissionsGuard Granted: User ${user.id} (Role: ${user.role.name}) granted access for [${requiredPermissions.join(", ")}]`,

@@ -391,6 +391,7 @@ export class AdminService {
 
   async getAllUsers(search?: string) {
     let users: User[] = [];
+    const relations = ["role", "departments"]; // Ensure relations are loaded
 
     if (search) {
       users = await this.usersRepository.find({
@@ -398,20 +399,24 @@ export class AdminService {
           { username: Like(`%${search}%`) },
           { email: Like(`%${search}%`) },
         ],
+        relations, // Add relations here
       });
     } else {
-      users = await this.usersRepository.find();
+      users = await this.usersRepository.find({ relations }); // Add relations here
     }
 
-    // Return only the necessary properties, not the entire user object with password
     return users.map((user) => ({
       id: user.id,
       username: user.username,
       email: user.email,
-      role: user.role,
-      isActive: user.isActive,
+      role: user.role, // Consider sending a simplified role object if needed
+      isActive: user.isActive, // Keep this for direct boolean access if needed elsewhere
+      status: user.isActive ? "active" : "inactive", // Add string status for UI
+      departments: user.departments, // Include departments array
+      lastLogin: (user as any).lastLogin || null, // Attempt to include lastLogin, fallback to null
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      position: (user as any).position, // Ensure position is included
     }));
   }
 
@@ -1368,27 +1373,35 @@ export class AdminService {
 
   // --- Helper Method for User Task Stats --- 
   private async calculateUserTaskStats(requestingUser: User): Promise<UserTaskStatsDto[]> {
-    const now = new Date();
-    const todayStart = new Date(new Date(now).setHours(0, 0, 0, 0));
-    const userMap = new Map<string, UserTaskStatsDto>();
+    this.logger.log(`Calculating user task stats. Requesting user: ${requestingUser.username}`);
+    const users = await this.usersRepository.find({ where: { isActive: true }, relations: ['role'] });
+    const userStats: UserTaskStatsDto[] = [];
+    this.logger.debug(`Found ${users.length} active users to process for stats.`);
 
-    try {
-        const queryBuilder = this.tasksRepository
-            .createQueryBuilder("task")
-            .select("assignee.id", "userId")
-            .addSelect("assignee.username", "username")
-            .addSelect("task.status", "status")
-            .addSelect(
-                `CASE WHEN task.dueDate < :todayStart AND task.status NOT IN (:...excludedStatuses) THEN 1 ELSE 0 END`,
-                "isOverdue"
-            )
-            .addSelect("COUNT(task.id)", "count")
-            .innerJoin("task.assignedToUsers", "assignee") // Join with assigned users
-            .where("task.isDeleted = :isDeleted", { isDeleted: false })
-            .setParameters({ 
-                todayStart: todayStart.toISOString(), 
-                excludedStatuses: [TaskStatus.COMPLETED, TaskStatus.CANCELLED]
-            });
+    for (const user of users) {
+      this.logger.debug(`Processing user: ${user.username}, ID: ${user.id}, Type of ID: ${typeof user.id}`);
+      if (typeof user.id !== 'string' || user.id.length === 0) {
+        this.logger.error(`User ${user.username} has invalid ID: ${user.id}. Skipping for stats calculation.`);
+        continue; // Skip this user if ID is problematic
+      }
+
+      // Only include actual users, not system roles if any, or filter by specific roles if needed for the overview
+      const queryBuilder = this.tasksRepository
+        .createQueryBuilder("task")
+        .select("assignee.id", "userId")
+        .addSelect("assignee.username", "username")
+        .addSelect("task.status", "status")
+        .addSelect(
+          `CASE WHEN task.dueDate < :todayStart AND task.status NOT IN (:...excludedStatuses) THEN 1 ELSE 0 END`,
+          "isOverdue"
+        )
+        .addSelect("COUNT(task.id)", "count")
+        .innerJoin("task.assignedToUsers", "assignee") // Join with assigned users
+        .where("task.isDeleted = :isDeleted", { isDeleted: false })
+        .setParameters({ 
+          todayStart: new Date().toISOString(), 
+          excludedStatuses: [TaskStatus.COMPLETED, TaskStatus.CANCELLED]
+        });
 
         // --- Permission Filtering --- 
         // If requesting user is 'Leadership', filter by their departments
@@ -1417,32 +1430,28 @@ export class AdminService {
         const { userId, username, status, isOverdue, count } = row;
         const taskCount = parseInt(count, 10);
 
-        if (!userMap.has(userId)) {
-          userMap.set(userId, {
+        if (!userStats.some(us => us.userId === userId)) {
+          userStats.push({
             userId,
             username,
             counts: { pending: 0, inProgress: 0, completed: 0, overdue: 0, totalAssigned: 0 }
           });
         }
 
-        const userStats = userMap.get(userId)!;
-        userStats.counts.totalAssigned += taskCount;
+        const userStatsObj = userStats.find(us => us.userId === userId)!;
+        userStatsObj.counts.totalAssigned += taskCount;
 
         if (parseInt(isOverdue, 10) === 1) {
-          userStats.counts.overdue += taskCount;
+          userStatsObj.counts.overdue += taskCount;
         }
 
-        if (status === TaskStatus.PENDING && parseInt(isOverdue, 10) === 0) userStats.counts.pending += taskCount;
-        else if (status === TaskStatus.IN_PROGRESS) userStats.counts.inProgress += taskCount;
-        else if (status === TaskStatus.COMPLETED) userStats.counts.completed += taskCount;
+        if (status === TaskStatus.PENDING && parseInt(isOverdue, 10) === 0) userStatsObj.counts.pending += taskCount;
+        else if (status === TaskStatus.IN_PROGRESS) userStatsObj.counts.inProgress += taskCount;
+        else if (status === TaskStatus.COMPLETED) userStatsObj.counts.completed += taskCount;
       });
-
-      return Array.from(userMap.values());
-
-    } catch (error) {
-      this.logger.error("Failed to calculate user task stats:", error);
-      return []; // Return empty array on error
     }
+
+    return userStats;
   }
 
   // --- Helper Method for Overdue Tasks List --- 

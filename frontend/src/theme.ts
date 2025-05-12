@@ -65,13 +65,13 @@ const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          '& $notchedOutline': {
+          '& .MuiOutlinedInput-notchedOutline': {
             borderColor: 'rgba(255, 255, 255, 0.23)',
           },
-          '&:hover $notchedOutline': {
+          '&:hover .MuiOutlinedInput-notchedOutline': {
             borderColor: 'rgba(255, 255, 255, 0.5)',
           },
-          '&$focused $notchedOutline': {
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: '#90caf9',
           },
         },
@@ -97,7 +97,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           color: '#b0bec5',
-          '&$focused': {
+          '&.Mui-focused': {
             color: '#90caf9',
           },
         },

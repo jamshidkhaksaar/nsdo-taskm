@@ -1,30 +1,44 @@
 import { useEffect, useState, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'react-toastify';
-import { selectToken as selectAuthToken } from '../store/slices/authSlice';
+import { selectToken as selectAuthToken, logout } from '../store/slices/authSlice';
+import { addIncomingNotification } from '../store/slices/notificationsSlice';
+import { Notification as AppNotification } from '../services/notification'; // Renamed to avoid conflict with socket.on('notification') data
 
 // Use Vite env variable syntax (ensure VITE_WEBSOCKET_URL is in your .env)
 const SOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3001'; // Default WebSocket URL (use ws:// or wss://)
 const SOCKET_NAMESPACE = '/notifications'; // Make sure this matches your backend gateway namespace if you set one
 
-interface NotificationPayload {
-  id: string;
-  userId: string;
-  type: string;
+interface WebSocketNotificationPayload {
+  id: string | number; // Assuming ID from socket can be string or number
+  userId: string;      // Assuming backend sends userId as string
+  type: string;        // Raw type from socket
   message: string;
   isRead: boolean;
   createdAt: string;
   relatedEntityType?: string;
-  relatedEntityId?: string;
-  // Add any other fields sent from the backend payload
+  relatedEntityId?: string | number;
+  link?: string;
+}
+
+// Helper to assert type for notification types from backend
+function isValidNotificationType(type: string): type is AppNotification['type'] {
+  return [
+    'task_created',
+    'task_assigned',
+    'task_status_changed',
+    'collaborator_added',
+    'task_due_soon',
+    'task_overdue'
+  ].includes(type);
 }
 
 export const useWebSocketNotifications = () => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [lastNotification, setLastNotification] = useState<NotificationPayload | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  const token = useSelector(selectAuthToken); // Get token from Redux store
+  const token = useSelector(selectAuthToken);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     if (!token) {
@@ -47,11 +61,9 @@ export const useWebSocketNotifications = () => {
     const connectionUrl = `${SOCKET_URL}${SOCKET_NAMESPACE}`;
     const connectionOptions = {
       path: '/api/v1/socket.io',
-      auth: {
-        token: token,
-      },
-      reconnectionAttempts: 5, // Optional: Limit reconnection attempts
-      reconnectionDelay: 3000, // Optional: Delay between attempts
+      auth: { token },
+      reconnectionAttempts: 5,
+      reconnectionDelay: 3000,
     };
     console.log('WebSocket Connection URL:', connectionUrl);
     console.log('WebSocket Connection Options:', JSON.stringify(connectionOptions));
@@ -63,53 +75,78 @@ export const useWebSocketNotifications = () => {
     // Connection Events
     socket.on('connect', () => {
       console.log(`WebSocket: Connected successfully with id ${socket.id}`);
-      setIsConnected(prev => {
-        if (!prev) console.log('WebSocket state: Connected');
-        return true;
-      });
+      setIsConnected(true);
     });
 
     socket.on('disconnect', (reason) => {
       console.log(`WebSocket: Disconnected. Reason: ${reason}`);
-      setIsConnected(prev => {
-        if (prev) console.log('WebSocket state: Disconnected');
-        return false;
-      });
-      // Handle potential cleanup or permanent disconnect reasons
+      setIsConnected(false);
       if (reason === 'io server disconnect') {
-        // The server forced disconnection, maybe auth failed?
-        socket.connect(); // Attempt to reconnect manually if desired
+        console.warn('WebSocket: Server forced disconnection. Logging out.');
+        dispatch(logout());
       }
     });
 
     socket.on('connect_error', (error) => {
       console.error(`WebSocket: Connection Error: ${error.message}`, error);
-      setIsConnected(prev => {
-        if (prev) console.log('WebSocket state: Connection Error - Disconnected');
-        return false;
-      });
-      // Potentially handle auth errors specifically if server emits them
+      setIsConnected(false);
     });
 
     // Custom Events from Server
-    socket.on('notification', (data: NotificationPayload) => {
-      console.log('WebSocket: Received notification:', data);
-      setLastNotification(data);
-      // Show toast notification
-      toast.info(data.message || 'You have a new notification!', {
-         position: "top-right",
-         autoClose: 5000,
-         hideProgressBar: false,
-         closeOnClick: true,
-         pauseOnHover: true,
-         draggable: true,
-         progress: undefined,
+    socket.on('notification', (payload: WebSocketNotificationPayload) => {
+      console.log('WebSocket: Received notification payload:', payload);
+
+      const parsedId = parseInt(String(payload.id), 10);
+      if (isNaN(parsedId)) {
+        console.error('WebSocket: Received notification with invalid ID:', payload.id);
+        return; // Don't process if ID is not a number
+      }
+
+      const parsedUserId = parseInt(payload.userId, 10);
+      if (isNaN(parsedUserId)) {
+        console.error('WebSocket: Received notification with invalid userId:', payload.userId);
+        return; // Don't process if userId is not a number
+      }
+
+      if (!isValidNotificationType(payload.type)) {
+        console.warn('WebSocket: Received notification with unknown type:', payload.type);
+        // Optionally, still add it with a default type or ignore
+        return; 
+      }
+      
+      let taskId: number | undefined = undefined;
+      if (payload.relatedEntityType === 'task' && payload.relatedEntityId !== undefined) {
+        const parsedTaskId = parseInt(String(payload.relatedEntityId), 10);
+        if (!isNaN(parsedTaskId)) {
+          taskId = parsedTaskId;
+        }
+      }
+
+      const notificationForStore: AppNotification = {
+        id: parsedId,
+        user_id: parsedUserId,
+        type: payload.type, // Already validated by isValidNotificationType
+        message: payload.message,
+        read: payload.isRead,
+        created_at: payload.createdAt,
+        task_id: taskId, 
+      };
+
+      dispatch(addIncomingNotification(notificationForStore));
+
+      toast.info(payload.message || 'You have a new notification!', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
       });
     });
 
     socket.on('connected', (data: { userId: string }) => {
        console.log(`WebSocket: Confirmed connection for user ${data.userId}`);
-       // You could potentially fetch initial notifications here if needed
     });
 
     // Cleanup on component unmount or token change
@@ -118,25 +155,9 @@ export const useWebSocketNotifications = () => {
         console.log('WebSocket: Disconnecting due to cleanup...');
         socket.disconnect();
         socketRef.current = null;
-        // Don't set isConnected here in cleanup if component is unmounting,
-        // let the disconnect event handler do it if it fires before unmount.
-        // However, if the effect reruns due to token change, a fresh setIsConnected
-        // will be called by the event handlers of the *new* socket instance.
-        // For robustness on fast token changes/re-renders leading to effect re-run:
-        setIsConnected(prev => {
-          // if (prev) console.log('WebSocket state: Disconnected (cleanup)'); // Optional logging
-          return false; // Ensure disconnected state on cleanup/re-run before new connection attempt
-        });
       }
     };
-  }, [token]); // Keep only token as dependency, as socket instance changes with token
+  }, [token, dispatch]);
 
-  // Optionally expose a function to manually send messages if needed
-  // const sendMessage = (event: string, data: any) => {
-  //   if (socketRef.current && socketRef.current.connected) {
-  //     socketRef.current.emit(event, data);
-  //   }
-  // };
-
-  return { isConnected, lastNotification };
-}; 
+  return { isConnected };
+};

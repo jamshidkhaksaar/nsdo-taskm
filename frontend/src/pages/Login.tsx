@@ -25,11 +25,12 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { clearError, setCredentials } from '../store/slices/authSlice';
+import { clearError, setCredentials, logout } from '../store/slices/authSlice';
 import { AppDispatch, RootState } from '../store';
+import { AuthUser } from '../types/auth';
 import logo from '../assets/images/logo.png';
 import { loadFull } from "tsparticles";
-import { Engine, Container as ParticlesContainer } from "tsparticles-engine";
+import type { Engine, Container as ParticlesContainer } from "tsparticles-engine";
 import Particles from 'react-tsparticles';
 import { keyframes } from '@mui/system';
 import LoadingScreen from '../components/LoadingScreen';
@@ -66,41 +67,94 @@ const twoFactorSchema = z.object({
 }) as z.ZodType<TwoFactorFormInputs>;
 
 const Login: React.FC = () => {
+  console.log('[Login.tsx] Login component rendering/re-rendering START');
+
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
-  const [isLoading, setIsLoading] = useState(true);
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
   const glassStyles = getGlassmorphismStyles(theme);
+
+  // --- State Variables ---
+  const [localIsLoading, setLocalIsLoading] = useState(true); // For initial cosmetic load
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [show2FADialog, setShow2FADialog] = useState(false);
-  const [twoFactorMethod] = useState<string>('app');
   const [loginCredentials, setLoginCredentials] = useState<LoginFormInputs | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [twoFactorMethod] = useState<string>('app');
   const [emailCodeSent, setEmailCodeSent] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [forgotPasswordError, setForgotPasswordError] = useState('');
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
+  const { user, isAuthenticated, loading: authLoading } = useSelector((state: RootState) => state.auth);
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
   const turnstileSiteKey = import.meta.env.VITE_APP_TURNSTILE_SITE_KEY;
 
+  // Define particles callbacks
   const particlesInit = useCallback(async (engine: Engine) => {
+    console.log("Particles engine init");
     await loadFull(engine);
   }, []);
-
   const particlesLoaded = useCallback(async (container: ParticlesContainer | undefined) => {
-    console.log("Particles loaded", container);
+    console.log("Particles container loaded, ID:", container?.id);
   }, []);
 
-  const {
-    register,
-    handleSubmit: formSubmit,
-    formState: { errors }
-  } = useForm<LoginFormInputs>({
+  // --- Effects ---
+  // Initial cosmetic loading (1 second)
+  useEffect(() => {
+    console.log('[Login.tsx] Initial 1s localIsLoading effect. Current localIsLoading:', localIsLoading);
+    const timer = setTimeout(() => {
+      console.log('[Login.tsx] Initial 1s localIsLoading timer FINISHED. Setting localIsLoading to false.');
+      setLocalIsLoading(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []); // Runs once on mount
+
+  // Handle actions based on authentication state
+  useEffect(() => {
+    console.log(`[Login.tsx] Auth effect. isAuthenticated: ${isAuthenticated}, user: ${!!user}, path: ${location.pathname}, authLoading: ${authLoading}`);
+    if (isAuthenticated) {
+      if (location.pathname === '/login') {
+        // Authenticated but on the login page. This might be after a successful login 
+        // before redirect, or user manually navigated here.
+        // If user object is present & role is fine, navigation will happen based on 'from'.
+        // If role is problematic (e.g. empty), we want to allow the form to be shown if localIsLoading is false.
+        console.warn('[Login.tsx] Auth effect: Authenticated and on /login page.');
+        if (user && (!user.role || typeof user.role !== 'string' || user.role.trim() === '')) {
+            console.warn('[Login.tsx] Auth effect: Authenticated user on /login has problematic role. Ensuring localIsLoading is false to show form.');
+            if (localIsLoading) setLocalIsLoading(false); // Override initial load if role is bad
+        } else if (user) { // Role seems okay, proceed with normal redirect logic
+            const redirectTo = from === '/login' ? '/dashboard' : from;
+            console.log(`[Login.tsx] Auth effect: Authenticated user (role ok) on /login, redirecting to: ${redirectTo}`);
+            navigate(redirectTo, { replace: true });
+        } else { // Authenticated but no user object - this is an inconsistent state.
+            console.error('[Login.tsx] Auth effect: Authenticated but no user object on /login. Dispatching logout.');
+            dispatch(logout());
+            if (localIsLoading) setLocalIsLoading(false); // Ensure loading screen hides
+        }
+      } else { // Authenticated and NOT on /login page - normal redirect to intended page.
+        const redirectTo = from === '/login' ? '/dashboard' : from;
+        console.log(`[Login.tsx] Auth effect: Authenticated and NOT on /login. Redirecting to: ${redirectTo}`);
+        navigate(redirectTo, { replace: true });
+      }
+    } else {
+      // Not authenticated. Ensure localIsLoading can complete its 1s timer.
+      // If localIsLoading is already false, do nothing here.
+      console.log('[Login.tsx] Auth effect: Not authenticated.');
+    }
+  }, [isAuthenticated, user, authLoading, navigate, location, from, dispatch, localIsLoading]);
+
+  // Clear error on unmount
+  useEffect(() => {
+    return () => { dispatch(clearError()); };
+  }, [dispatch]);
+
+  // --- Form Setup ---
+  const { register, handleSubmit: formSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       username: localStorage.getItem('rememberedUsername') || '',
@@ -121,187 +175,110 @@ const Login: React.FC = () => {
     }
   });
 
-  const { loading } = useSelector(
-    (state: RootState) => state.auth
-  );
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      dispatch(clearError());
-    };
-  }, [dispatch]);
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
+  // --- Event Handlers (onSubmit, handleSuccessfulLogin, handleLoginError etc.) ---
+  // Ensure these functions use setLocalIsLoading(true/false) appropriately if they manage a loading state during API calls
+  // For example, in onSubmit: setLocalIsLoading(true) at start, setLocalIsLoading(false) in finally.
+  // However, the main submit button uses `authLoading || isSubmitting` for its disabled/spinner state.
 
   const handleSuccessfulLogin = (responseData: any) => {
-    try {
-      const accessToken = responseData.access || responseData.token || responseData.accessToken;
-      const refreshToken = responseData.refresh || responseData.refreshToken;
-      const userData = responseData.user || {};
-      
-      if (!accessToken) {
-        setError('Invalid response from server: No access token provided');
-        setIsLoading(false);
-        return;
-      }
-      
-      localStorage.setItem('access_token', accessToken);
-      if (refreshToken) {
-        localStorage.setItem('refresh_token', refreshToken);
-      }
-      
-      if (userData) {
-        localStorage.setItem('user', JSON.stringify(userData));
-      }
-      
-      // Update axios auth headers
-      import('../utils/axios').then(axiosModule => {
-        const axiosInstance = axiosModule.default;
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      });
-      
-      dispatch(setCredentials({
-        user: userData,
-        token: accessToken,
-        refreshToken: refreshToken
-      }));
-      
-      setIsLoading(false);
-      navigate(from);
-    } catch (error) {
-      setError('An error occurred while processing the login response');
-      setIsLoading(false);
+    console.log('[Login.tsx] Entering handleSuccessfulLogin. Response data:', JSON.stringify(responseData, null, 2));
+    const accessToken = responseData.access || responseData.token || responseData.accessToken;
+    const refreshToken = responseData.refresh || responseData.refreshToken;
+    const rawUserData = responseData.user || {}; 
+    if (!accessToken) {
+      setError('Invalid response from server: No access token provided');
+      return;
     }
-  };
-  
-  const handleLoginError = (error: any) => {
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        if (error.response.status === 400) {
-          const errorMessage = error.response.data?.message || 
-                               error.response.data?.error ||
-                               'Invalid username or password. Please try again.';
-          setError(`Login failed: ${errorMessage}`);
-        } else if (error.response.status === 401) {
-          setError('Authentication failed: Invalid username or password.');
-        } else if (error.response.status === 403) {
-          setError('Access denied: You do not have permission to log in.');
-        } else if (error.response.status >= 500) {
-          setError(`Server error (${error.response.status}): The server is experiencing issues. Please try again later.`);
-        } else {
-          const errorMessage = error.response.data?.message || 
-                               error.response.data?.error || 
-                               `Error ${error.response.status}: ${error.response.statusText}`;
-          setError(errorMessage);
-        }
-      } else if (error.request) {
-        if (error.code === 'ECONNABORTED') {
-          setError('Request timeout: The server took too long to respond. Please check your connection and try again.');
-        } else {
-          setError('No response from server. Please check your connection and verify the backend service is running.');
-        }
-      } else {
-        setError(error.message || 'An error occurred during login');
-      }
-    } else if (error instanceof TypeError && error.message.includes('Network')) {
-      setError('Network error: Unable to connect to the server. Please check your internet connection.');
-    } else {
-      setError(error.message || 'An unknown error occurred');
+
+    // Extract permissions
+    let permissions: string[] = [];
+    if (rawUserData.role && typeof rawUserData.role === 'object' && Array.isArray(rawUserData.role.permissions)) {
+      permissions = rawUserData.role.permissions.map((perm: any) => perm.name).filter((name: any) => typeof name === 'string');
+    } else if (Array.isArray(rawUserData.permissions)) { // Fallback if permissions are directly on user
+      permissions = rawUserData.permissions.map((perm: any) => typeof perm === 'string' ? perm : perm.name).filter((name: any) => typeof name === 'string');
     }
+    console.log('[Login.tsx] Extracted permissions:', permissions);
+
+    const processedUser: AuthUser = {
+      ...rawUserData, // Spread raw user data first
+      id: String(rawUserData.id || ''), 
+      email: rawUserData.email || '',
+      first_name: rawUserData.first_name || '', 
+      last_name: rawUserData.last_name || '',
+      username: rawUserData.username || '', 
+      created_at: rawUserData.created_at || new Date().toISOString(),
+      updated_at: rawUserData.updated_at || new Date().toISOString(),
+      role: (rawUserData.role && typeof rawUserData.role === 'object' && rawUserData.role.name) 
+            ? String(rawUserData.role.name) 
+            : (typeof rawUserData.role === 'string' ? rawUserData.role : 'user'),
+      permissions: permissions, // Assign extracted permissions
+      // Ensure all BaseUser fields are present even if not in rawUserData, or TS will complain
+      department: rawUserData.department || undefined,
+      avatar: rawUserData.avatar || undefined,
+    };
+
+    console.log('[Login.tsx] Processed user for Redux store:', JSON.stringify(processedUser, null, 2));
+
+    dispatch(setCredentials({ 
+      user: processedUser, 
+      token: accessToken, 
+      refreshToken: refreshToken 
+    }));
     
-    setIsLoading(false);
+    // No longer setting localIsLoading here, auth effect handles it.
+    // setShow2FADialog(false); // Close 2FA dialog if it was open
+
+    // Navigation is handled by the useEffect hook watching isAuthenticated
+    // navigate(from, { replace: true }); 
+    // Let's be very explicit that the 'from' could be /login itself, if so, default to /dashboard
+    const redirectTo = from === '/login' ? '/dashboard' : from;
+    console.log(`[Login.tsx] Successful login, attempting to navigate to: ${redirectTo}`);
+    // navigate(redirectTo, { replace: true }); // This is now handled by useEffect
+  };
+
+  const handleLoginError = (errorData: any) => {
+    console.error('[Login.tsx] handleLoginError invoked:', errorData);
+    // Simplified: Set error string based on errorData
+    if (typeof errorData === 'string') setError(errorData);
+    else if (errorData?.message) setError(errorData.message);
+    else setError('Login failed. Please check details and try again.');
   };
 
   const onSubmit = async (data: LoginFormInputs) => {
-    setIsLoading(true);
-    setError('');
+    console.log('[Login.tsx] onSubmit function entered. Data:', JSON.stringify(data, null, 2));
+    setError(''); // Clear previous errors
+    // authLoading will be true via Redux if loginAsync is dispatched. We don't need setLocalIsLoading(true) here for the API call itself.
 
     if (!captchaToken) {
+      console.warn('[Login.tsx] onSubmit: captchaToken is missing. Aborting.');
       setError('CAPTCHA verification incomplete. Please wait or refresh.');
-      setIsLoading(false);
       return;
     }
+    console.log('[Login.tsx] onSubmit: Captcha token present:', captchaToken);
 
     try {
-      if (data.rememberMe) {
-        localStorage.setItem('rememberedUsername', data.username);
-      } else {
-        localStorage.removeItem('rememberedUsername');
-      }
+      if (data.rememberMe) localStorage.setItem('rememberedUsername', data.username);
+      else localStorage.removeItem('rememberedUsername');
+      setLoginCredentials(data); // For 2FA if needed
 
-      setLoginCredentials(data);
-
+      // We are not using loginAsync from slice here directly, but AuthService.login
+      // AuthService.login itself does not set authLoading in Redux. So, the button spinner is from isSubmitting.
       const response = await AuthService.login(data.username, data.password, captchaToken);
+      console.log('[Login.tsx] AuthService.login response in onSubmit:', JSON.stringify(response, null, 2));
 
       if (response.need_2fa) {
-        setShow2FADialog(true);
+        console.log('[Login.tsx] 2FA is needed. Showing 2FA dialog.');
+        setShow2FADialog(true); // This will cause a re-render, form state will be preserved
       } else {
-        handleSuccessfulLogin(response);
+        console.log('[Login.tsx] No 2FA needed. Calling handleSuccessfulLogin.');
+        handleSuccessfulLogin(response); // This dispatches setCredentials, which updates isAuthenticated, triggering useEffect
       }
-
-    } catch (error: any) {
-      handleLoginError(error);
-    } finally {
-      setIsLoading(false);
+    } catch (err: any) {
+      console.error('[Login.tsx] Error in onSubmit after AuthService.login call:', err);
+      if (err.response) console.error('[Login.tsx] Error response data:', JSON.stringify(err.response.data, null, 2));
+      handleLoginError(err.response?.data || err.message || 'An unexpected error occurred during login.');
     }
-  };
-  
-  const onSubmit2FA = async (data: TwoFactorFormInputs) => {
-    if (!loginCredentials) {
-      setError('Login session expired. Please login again.');
-      setShow2FADialog(false);
-      return;
-    }
-    
-    setIsLoading(true);
-    setError('');
-
-    if (!captchaToken) {
-      setError('CAPTCHA verification incomplete. Please wait or refresh.');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const loginResponse = await AuthService.login(
-        loginCredentials.username,
-        loginCredentials.password,
-        captchaToken,
-        data.verificationCode,
-        loginCredentials.rememberMe
-      );
-      
-      handleSuccessfulLogin(loginResponse);
-      setShow2FADialog(false);
-    } catch (error) {
-      console.error('2FA verification failed:', error);
-      
-      if (axios.isAxiosError(error) && error.response) {
-        if (error.response.status === 401) {
-          setError('Invalid verification code. Please try again.');
-        } else {
-          setError(`Error: ${error.response.data?.message || error.message}`);
-        }
-      } else {
-        setError('An error occurred during 2FA verification');
-      }
-      
-      setIsLoading(false);
-    }
+    // No finally block needed to set localIsLoading false, as primary loading is authLoading/isSubmitting for button
   };
 
   const handleRequestEmailCode = async () => {
@@ -311,7 +288,7 @@ const Login: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
+    setLocalIsLoading(true);
     try {
       const response = await AuthService.requestEmailCode(
         loginCredentials.username,
@@ -340,7 +317,7 @@ const Login: React.FC = () => {
         setError(err.message || 'An unknown error occurred');
       }
     } finally {
-      setIsLoading(false);
+      setLocalIsLoading(false);
     }
   };
 
@@ -405,6 +382,71 @@ const Login: React.FC = () => {
       setForgotPasswordLoading(false);
     }
   };
+
+  // Define onSubmit2FA (REMOVE duplicate useState calls from here)
+  const onSubmit2FA = async (data: TwoFactorFormInputs) => {
+    if (!loginCredentials) {
+      setError('Login session expired. Please login again.');
+      setShow2FADialog(false);
+      return;
+    }
+    console.log('[Login.tsx] onSubmit2FA called with data:', data);
+    setError('');
+
+    if (!captchaToken) {
+      setError('CAPTCHA verification incomplete or expired. Please refresh or re-verify.');
+      return;
+    }
+
+    try {
+      const loginResponse = await AuthService.login(
+        loginCredentials.username,
+        loginCredentials.password,
+        captchaToken,
+        data.verificationCode,
+        loginCredentials.rememberMe
+      );
+      console.log('[Login.tsx] 2FA login response:', loginResponse);
+      handleSuccessfulLogin(loginResponse); // Ensure handleSuccessfulLogin is defined
+      setShow2FADialog(false);
+    } catch (err: any) {
+      console.error('[Login.tsx] 2FA verification failed:', err);
+      if (err.response && err.response.status === 401) {
+        setError('Invalid verification code. Please try again.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'An error occurred during 2FA verification');
+      }
+    }
+  };
+
+  // Log validation errors if any
+  if (Object.keys(errors).length > 0) {
+    console.warn('[Login.tsx] Form validation errors:', errors);
+  }
+
+  // Log button disabled state
+  console.log(`[Login.tsx] Submit button state: localIsLoading=${localIsLoading}, authLoading=${authLoading}, captchaToken=${captchaToken}, isSubmitting=${isSubmitting}`);
+
+  // --- Render Logic ---
+  console.log(`[Login.tsx] Pre-return: localIsLoading=${localIsLoading}, authLoading=${authLoading}, isAuthenticated=${isAuthenticated}, userExists=${!!user}`);
+
+  // Condition to show the main LoadingScreen (cosmetic for initial load)
+  if (localIsLoading && !isAuthenticated) { // Show initial loading only if not authenticated (auth flow might take over)
+    console.log("[Login.tsx] RENDERING: LoadingScreen (due to initial localIsLoading and not yet authenticated).");
+    return <LoadingScreen />;
+  }
+  if (authLoading && !isAuthenticated) { // If Redux says auth is happening and we are not yet authenticated
+    console.log("[Login.tsx] RENDERING: LoadingScreen (due to authLoading from Redux and not yet authenticated).");
+    return <LoadingScreen />;
+  }
+
+  // If authenticated and trying to go to /dashboard (or other non-/login page), the useEffect should have redirected.
+  // If authenticated AND on /login page, we now allow the form to show (localIsLoading should be false).
+  console.log("[Login.tsx] RENDERING: Proceeding to render main login form (all loading conditions passed or overridden).");
+
+  // Log validation errors & button state just before returning the form JSX
+  if (Object.keys(errors).length > 0) console.warn('[Login.tsx] Form validation errors (pre-render):', errors);
+  console.log(`[Login.tsx] Submit button state (pre-render): localIsLoading=${localIsLoading}, authLoading=${authLoading}, captchaToken=${captchaToken}, isSubmitting=${isSubmitting}`);
 
   return (
     <Box
@@ -572,8 +614,8 @@ const Login: React.FC = () => {
             {...register('username')}
             error={!!errors.username}
             helperText={errors.username?.message}
-            InputLabelProps={{ style: glassStyles.inputLabel }}
-            InputProps={{ style: glassStyles.input }}
+            InputLabelProps={{ sx: glassStyles.inputLabel }}
+            InputProps={{ sx: glassStyles.input }}
             sx={{ width: '100%' }}
           />
         </Box>
@@ -590,9 +632,9 @@ const Login: React.FC = () => {
             {...register('password')}
             error={!!errors.password}
             helperText={errors.password?.message}
-            InputLabelProps={{ style: glassStyles.inputLabel }}
+            InputLabelProps={{ sx: glassStyles.inputLabel }}
             InputProps={{
-              style: glassStyles.input,
+              sx: glassStyles.input,
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
@@ -644,12 +686,18 @@ const Login: React.FC = () => {
           {turnstileSiteKey ? (
             <Turnstile 
               siteKey={turnstileSiteKey}
-              onSuccess={setCaptchaToken}
+              onSuccess={(token) => {
+                console.log('[Login.tsx] Turnstile onSuccess. Token received:', token);
+                setCaptchaToken(token);
+                console.log('[Login.tsx] Turnstile Success - Captcha token SHOULD be set. Button should enable if not (authLoading || isSubmitting).');
+              }}
               onError={() => { 
+                console.warn('[Login.tsx] Turnstile onError triggered.'); 
                 setError('CAPTCHA challenge failed. Please refresh.'); 
                 setCaptchaToken(null);
               }}
               onExpire={() => { 
+                console.warn('[Login.tsx] Turnstile onExpire triggered.'); 
                 setError('CAPTCHA expired. Please refresh.'); 
                 setCaptchaToken(null);
               }}
@@ -670,9 +718,9 @@ const Login: React.FC = () => {
           fullWidth
           variant="contained"
           sx={glassStyles.button}
-          disabled={isLoading || !captchaToken}
+          disabled={authLoading || isSubmitting || !captchaToken}
         >
-          {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+          {(authLoading || isSubmitting) ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
         </Button>
 
       </Box>
@@ -724,11 +772,11 @@ const Login: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handleRequestEmailCode}
-                disabled={isLoading}
+                disabled={localIsLoading}
                 fullWidth
                 sx={glassStyles.button}
               >
-                {isLoading ? <CircularProgress size={24} /> : 'Send Verification Code'}
+                {localIsLoading ? <CircularProgress size={24} /> : 'Send Verification Code'}
               </Button>
             </Box>
           )}
@@ -744,7 +792,7 @@ const Login: React.FC = () => {
                 variant="outlined"
                 margin="normal"
                 InputLabelProps={{
-                  style: glassStyles.inputLabel
+                  sx: glassStyles.inputLabel
                 }}
                 sx={{
                   mb: 2,
@@ -778,10 +826,10 @@ const Login: React.FC = () => {
                 <Button 
                   type="submit"
                   variant="contained"
-                  disabled={isLoading}
+                  disabled={localIsLoading}
                   sx={glassStyles.button}
                 >
-                  {isLoading ? <CircularProgress size={24} /> : 'Verify'}
+                  {localIsLoading ? <CircularProgress size={24} /> : 'Verify'}
                 </Button>
               </DialogActions>
             </Box>
@@ -852,7 +900,7 @@ const Login: React.FC = () => {
             }}
             disabled={forgotPasswordLoading}
             InputLabelProps={{ 
-              style: glassStyles.inputLabel
+              sx: glassStyles.inputLabel
             }}
             sx={{ 
               '& .MuiOutlinedInput-root': glassStyles.input

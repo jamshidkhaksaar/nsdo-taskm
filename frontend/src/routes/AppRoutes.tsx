@@ -30,6 +30,7 @@ const SettingsPage = lazyLoad(import("../pages/Settings"));
 const ProfilePage = lazyLoad(import("../pages/Profile"));
 const ResetPasswordRequest = lazyLoad(import('../components/auth/ResetPasswordRequest'));
 const ResetPasswordForm = lazyLoad(import('../components/auth/ResetPasswordForm'));
+const Unauthorized = lazyLoad(import('../pages/Unauthorized'));
 
 // Lazy load Admin components
 const AdminDashboard = lazyLoad(import('../pages/admin/AdminDashboard'));
@@ -59,6 +60,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ResetPasswordRequest />} />
         <Route path="/reset-password" element={<ResetPasswordForm />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
 
         {/* Authenticated Routes */}
         <Route path="/" element={<PrivateRoute><Navigate to="/dashboard" replace /></PrivateRoute>} />

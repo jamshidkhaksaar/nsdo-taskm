@@ -31,6 +31,6 @@ import { ActivityLoggerInterceptorFactory } from "./interceptors/activity-logger
     ActivityLogService,
     ActivityLoggerInterceptorFactory,
   ],
-  exports: [ActivityLogService, TypeOrmModule], // Export TypeOrmModule
+  exports: [AdminService, ActivityLogService, TypeOrmModule], // Export TypeOrmModule
 })
 export class AdminModule {}

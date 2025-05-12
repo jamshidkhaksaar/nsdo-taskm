@@ -77,7 +77,7 @@ export class TasksController {
     description: "Forbidden - Insufficient permissions.",
   })
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "Administrator", "Super Admin")
   @Permissions("task:read")
   async getRecycleBin(@Query() query: RecycleBinQueryDto, @Request() req) {
     this.logger.log(`User ${req.user.userId} accessing recycle bin with query: ${JSON.stringify(query)}`);

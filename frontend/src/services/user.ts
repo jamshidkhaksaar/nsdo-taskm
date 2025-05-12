@@ -27,81 +27,80 @@ export interface User {
 
 export const UserService = {
     // Get all users
-    getUsers: async (): Promise<User[]> => { // Use imported User type
+    getUsers: async (): Promise<User[]> => {
         try {
             console.log('[UserService] Fetching users from:', `${CONFIG.API_URL}/users/`);
             const response = await axios.get('users/');
             return response.data;
         } catch (error: unknown) {
             console.error('[UserService] Error fetching users:', error);
-            throw error; // Re-throw the error
+            throw error; 
         }
     },
 
     // Get user by ID
-    getUserById: async (id: string): Promise<User> => { // Use imported User type
+    getUserById: async (id: string): Promise<User> => { 
         try {
             console.log(`[UserService] Fetching user with ID: ${id}`);
             const response = await axios.get(`users/${id}`);
             return response.data;
         } catch (error: unknown) {
             console.error(`[UserService] Error fetching user with ID ${id}:`, error);
-            throw error; // Re-throw the error
+            throw error; 
         }
     },
 
     // Get current user
-    getCurrentUser: async (): Promise<User> => { // Use imported User type
+    getCurrentUser: async (): Promise<User> => { 
         try {
             const response = await axios.get('users/me/');
             return response.data;
         } catch (error: unknown) {
             console.error('[UserService] Error fetching current user:', error);
-            throw error; // Re-throw the error
+            throw error; 
         }
     },
 
     // Get users by department
-    getUsersByDepartment: async (departmentId: string): Promise<User[]> => { // Use imported User type
+    getUsersByDepartment: async (departmentId: string): Promise<User[]> => { 
         try {
             const response = await axios.get(`users/by_department/?department_id=${departmentId}`);
             return response.data;
         } catch (error: unknown) {
             console.error(`[UserService] Error fetching users by department ${departmentId}:`, error);
-            throw error; // Re-throw the error
+            throw error; 
         }
     },
 
-    // Create a user - Use imported User type
+    // Create a user
     createUser: async (user: Omit<User, 'id' | 'date_joined' | 'last_login'>): Promise<User> => { 
         try {
             const response = await axios.post('users/', user);
             return response.data;
         } catch (error: unknown) {
             console.error('[UserService] Error creating user:', error);
-            throw error; // Re-throw the error
+            throw error; 
         }
     },
 
-    // Update a user - Use imported User type
+    // Update a user
     updateUser: async (id: string, user: Partial<User>): Promise<User> => { 
         try {
             const response = await axios.put(`users/${id}`, user);
             return response.data;
-        } catch (error: unknown) {
-            console.error(`[UserService] Error updating user ${id}:`, error);
-            throw error; // Re-throw the error
+        } catch (error: any) {
+            console.error(`[UserService] Error updating user ${id}:`, error.response?.data || error.message, error);
+            throw error; 
         }
     },
 
     // Delete a user
-    deleteUser: async (id: string): Promise<void> => { // Return void
+    deleteUser: async (id: string): Promise<void> => {
         try {
             await axios.delete(`users/${id}`);
-            // No return needed for successful delete
-        } catch (error: unknown) {
-            console.error(`[UserService] Error deleting user ${id}:`, error);
-            throw error; // Re-throw the error
+        } catch (error: any) {
+            console.error(`[UserService] Error deleting user ${id}:`, error.response?.data || error.message, error);
+            throw error; 
         }
     },
 
@@ -119,28 +118,28 @@ export const UserService = {
     },
 
     // Toggle user status
-    toggleUserStatus: async (id: string): Promise<User> => { // Return updated User
+    toggleUserStatus: async (id: string): Promise<User> => { 
         try {
             const response = await axios.post(`users/${id}/toggle-status`);
             return response.data;
-        } catch (error: unknown) {
-            console.error(`[UserService] Error toggling status for user ${id}:`, error);
-            throw error; // Re-throw the error
+        } catch (error: any) {
+            console.error(`[UserService] Error toggling status for user ${id}:`, error.response?.data || error.message, error);
+            throw error; 
         }
     },
 
     // Search users
-    searchUsers: async (query: string): Promise<User[]> => { // Use imported User type
+    searchUsers: async (query: string): Promise<User[]> => { 
         try {
             const response = await axios.get(`users/search/?q=${query}`);
             return response.data;
         } catch (error: unknown) {
             console.error(`[UserService] Error searching users with query "${query}":`, error);
-            throw error; // Re-throw the error
+            throw error; 
         }
     },
 
-    // Initiate Password Reset
+    // Initiate Password Reset (user flow)
     initiatePasswordReset: async (email: string): Promise<{ message: string }> => {
         try {
             const response = await axios.post('users/initiate-password-reset', { email });
@@ -151,15 +150,27 @@ export const UserService = {
         }
     },
 
-    // Confirm Password Reset (using token)
+    // Confirm Password Reset (user flow, using token)
     confirmPasswordReset: async (token: string, newPassword: string): Promise<{ message: string }> => {
         try {
-            // Note: Backend endpoint is /auth/reset-password
             const response = await axios.post('auth/reset-password', { token, newPassword });
             return response.data;
         } catch (error: unknown) {
             console.error('[UserService] Error confirming password reset:', error);
             throw error;
+        }
+    },
+
+    // Admin initiated password reset for a user
+    adminInitiatedPasswordReset: async (id: string): Promise<{ message: string; newPassword?: string }> => {
+        try {
+            // The backend now generates the password, so no password needs to be sent in the body.
+            // The endpoint was also updated to /admin-reset-password
+            const response = await axios.post(`users/${id}/admin-reset-password`); 
+            return response.data;
+        } catch (error: unknown) {
+            console.error(`[UserService] Error in admin password reset for user ${id}:`, error);
+            throw error; 
         }
     },
 };

@@ -107,23 +107,6 @@ const UserManagement: React.FC = () => {
   const glassStyles = getGlassmorphismStyles(theme);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
-  useEffect(() => {
-    const fetchAssignedTasks = async () => {
-      if (selectedUser) {
-        try {
-          const { TaskService } = await import('../../services/task');
-          const tasks = await TaskService.getAssignedTasks(selectedUser);
-          setAssignedTasks(tasks);
-        } catch (error) {
-          setAssignedTasks([]);
-        }
-      } else {
-        setAssignedTasks([]);
-      }
-    };
-    fetchAssignedTasks();
-  }, [selectedUser]);
-
   const handleUserSelect = (userId: string) => {
     setSelectedUser(userId);
   };
@@ -163,11 +146,21 @@ const UserManagement: React.FC = () => {
 
   const handleResetPassword = async (userId: string) => {
     try {
-      const response = await UserService.resetPassword(userId, '');
-      alert(`Password has been reset. New password: ${response.newPassword}`);
-    } catch (error) {
+      const response = await UserService.adminInitiatedPasswordReset(userId);
+      let successMessage = response.message;
+      if (response.newPassword) {
+        successMessage = `${successMessage} New temporary password: ${response.newPassword}`;
+      }
+      toast.success(successMessage, {
+        autoClose: 15000,
+        closeOnClick: false,
+        draggable: true,
+      });
+    } catch (error: any) {
       console.error('Error resetting password:', error);
-      setError('Failed to reset password');
+      const errorMessage = error.response?.data?.message || 'Failed to reset password';
+      toast.error(errorMessage);
+      setError(errorMessage);
     }
   };
 
@@ -221,22 +214,15 @@ const UserManagement: React.FC = () => {
         return;
       }
       if (editMode.isEdit && editMode.userId) {
-        const userData: Partial<User> = {
+        const updatePayload = { 
           username: formData.username,
           email: formData.email,
           position: formData.position,
-        };
-        
-        if (formData.departmentIds.length > 0) {
-          userData.department = { id: formData.departmentIds[0], name: departments.find(d => d.id === formData.departmentIds[0])?.name || '' };
-        }
-        
-        const updatePayload = { 
-          ...userData, 
-          roleId: formData.roleId
+          roleId: formData.roleId,
+          departmentIds: formData.departmentIds,
         };
 
-        await UserService.updateUser(editMode.userId, updatePayload as Partial<User>);
+        await UserService.updateUser(editMode.userId, updatePayload as any);
         toast.success('User updated successfully!');
         handleCloseDialog();
         await fetchUsers();
@@ -282,15 +268,12 @@ const UserManagement: React.FC = () => {
         id: user.id,
         username: user.username,
         email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
         role: typeof user.role === 'object' && user.role !== null ? user.role : undefined,
         roleId: user.role_id || (typeof user.role === 'string' ? user.role : undefined),
-        department: user.department,
+        departments: user.departments || [],
         status: user.status,
-        last_login: user.last_login,
+        lastLogin: user.lastLogin,
         position: user.position,
-        date_joined: user.date_joined,
         created_at: user.created_at,
         updated_at: user.updated_at,
       }));
@@ -404,34 +387,6 @@ const UserManagement: React.FC = () => {
         Manage system users, roles, and permissions
       </Typography>
 
-      <Box sx={{ mb: 4 }}>
-        {selectedUser && (
-          <Typography 
-            variant="subtitle1" 
-            component="div"
-            sx={{ 
-              color: 'rgba(255, 255, 255, 0.7)', 
-              mt: 1 
-            }}
-          >
-            Selected User: {users.find(u => u.id === selectedUser)?.username}
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1" sx={{ color: '#fff', mb: 1 }}>
-                Assigned Tasks
-              </Typography>
-              <Box>
-                <TasksSection
-                  tasks={assignedTasks}
-                  currentUserId={selectedUser ? Number(selectedUser) : 0}
-                  currentDepartmentId={0}
-                  viewMode="assigned"
-                />
-              </Box>
-            </Box>
-          </Typography>
-        )}
-      </Box>
-
       <Card sx={{
         background: 'rgba(255, 255, 255, 0.1)',
         backdropFilter: 'blur(8px)',
@@ -541,7 +496,9 @@ const UserManagement: React.FC = () => {
                       {user.role?.name || 'N/A'}
                     </TableCell>
                     <TableCell sx={{ color: '#fff' }}>
-                      {user.department?.name ?? 'None'}
+                      {user.departments && user.departments.length > 0 
+                        ? user.departments.map(dept => dept.name).join(', ') 
+                        : 'None'}
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -550,7 +507,11 @@ const UserManagement: React.FC = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell sx={{ color: '#fff' }}>{user.last_login}</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>
+                      {user.lastLogin 
+                        ? new Date(user.lastLogin).toLocaleString() 
+                        : 'N/A'}
+                    </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Tooltip title="Edit user details">

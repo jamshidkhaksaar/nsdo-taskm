@@ -3,6 +3,7 @@ import { User as BaseUser } from './user';
 // Extended User type with role for authentication
 export interface AuthUser extends BaseUser {
   role: string;
+  permissions: string[];
 }
 
 export interface LoginResponse {

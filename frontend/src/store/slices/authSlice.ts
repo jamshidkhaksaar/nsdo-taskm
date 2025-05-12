@@ -153,19 +153,56 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         
-        // Convert user data to AuthUser type
-        const userData = action.payload.user || null;
-        let authUser: AuthUser | null = null;
+        // The user object from action.payload is what loginService returns.
+        // It might not yet have the 'permissions' array processed as a string array.
+        const rawUserData = action.payload.user as any; // Cast to any to access potential role.permissions
+        let processedUser: AuthUser | null = null;
         
-        if (userData) {
-          authUser = {
-            ...userData,
-            role: userData.role || 'user'
-          } as AuthUser;
+        if (rawUserData) {
+          let roleString: string = 'user'; // Default role
+          if (rawUserData.role) {
+            if (typeof rawUserData.role === 'object' && rawUserData.role.name) {
+              roleString = String(rawUserData.role.name);
+            } else if (typeof rawUserData.role === 'string') {
+              roleString = rawUserData.role;
+            }
+          }
+
+          // Extract permissions
+          let permissions: string[] = [];
+          if (rawUserData.role && typeof rawUserData.role === 'object' && Array.isArray(rawUserData.role.permissions)) {
+            permissions = rawUserData.role.permissions.map((perm: any) => perm.name).filter((name: any) => typeof name === 'string');
+          } else if (Array.isArray(rawUserData.permissions)) { // Fallback if permissions are directly on user
+            permissions = rawUserData.permissions.map((perm: any) => typeof perm === 'string' ? perm : perm.name).filter((name: any) => typeof name === 'string');
+          }
+
+          // Reconstruct the AuthUser, ensuring all fields are present
+          processedUser = {
+            id: String(rawUserData.id || ''),
+            username: rawUserData.username || '',
+            first_name: rawUserData.first_name || '',
+            last_name: rawUserData.last_name || '',
+            email: rawUserData.email || '',
+            created_at: rawUserData.created_at || new Date().toISOString(),
+            updated_at: rawUserData.updated_at || new Date().toISOString(),
+            department: rawUserData.department || undefined,
+            avatar: rawUserData.avatar || undefined,
+            role: roleString,
+            permissions: permissions, // Add the processed permissions
+          };
         }
         
-        state.user = authUser;
+        state.user = processedUser;
         state.token = action.payload.token || null;
+
+        // Update localStorage with the processed user and tokens
+        if (processedUser) {
+          localStorage.setItem('user', JSON.stringify(processedUser));
+        }
+        if (action.payload.token) {
+          localStorage.setItem('access_token', action.payload.token);
+        }
+        // Note: loginAsync doesn't typically return refreshToken, setCredentials handles that.
       })
       .addCase(loginAsync.rejected, (state, action) => {
         state.loading = false;
@@ -195,5 +232,8 @@ export const selectAuthUser = (state: { auth: AuthState }) => state.auth.user;
 
 // Selector to get the current auth token
 export const selectToken = (state: { auth: AuthState }): string | null => state.auth.token;
+
+// Selector to check if user is authenticated
+export const selectIsAuthenticated = (state: { auth: AuthState }): boolean => state.auth.isAuthenticated;
 
 export default authSlice.reducer; 

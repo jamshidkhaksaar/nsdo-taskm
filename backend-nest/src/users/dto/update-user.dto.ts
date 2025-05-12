@@ -25,6 +25,16 @@ export class UpdateUserDto {
   @IsUUID()
   roleId?: string;
 
+  @ApiPropertyOptional({
+    description: 'An array of department IDs to assign to the user',
+    example: ['uuid-for-dept1', 'uuid-for-dept2'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  departmentIds?: string[];
+
   // Removed firstName and lastName as they are not direct User entity fields
   // @ApiPropertyOptional({ description: 'Updated user\'s first name', example: 'Jonathan' })
   // @IsOptional()

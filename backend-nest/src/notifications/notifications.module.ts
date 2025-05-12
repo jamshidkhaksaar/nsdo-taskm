@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
 import { NotificationsService } from "./services/notifications.service";
 import { NotificationsGateway } from "./gateways/notifications.gateway";
+import { NotificationsController } from "./notifications.controller";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Notification } from "./entities/notification.entity";
 import { HttpModule } from "@nestjs/axios";
@@ -25,6 +26,7 @@ export const REDIS_SUBSCRIBER = "REDIS_SUBSCRIBER";
     forwardRef(() => AuthModule),
     // Add other modules needed, e.g., TypeOrmModule.forFeature([NotificationEntity])
   ],
+  controllers: [NotificationsController],
   providers: [
     // Define Factory Providers FIRST
     // Temporarily comment out REDIS_PUBLISHER provider

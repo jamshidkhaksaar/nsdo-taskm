@@ -224,8 +224,9 @@ export class TaskQueryService {
       `Fetching deleted tasks for user ${reqUser.userId} (${reqUser.role?.name}) with query:`,
       query,
     );
-    const isAdminOrLeadership = ["ADMIN", "LEADERSHIP"].includes(
-      reqUser.role?.name,
+    const userRoleName = reqUser.role?.name?.toUpperCase(); // Normalize to uppercase
+    const isAdminOrLeadership = ["ADMIN", "LEADERSHIP", "SUPER ADMIN"].includes(
+      userRoleName,
     );
     if (!isAdminOrLeadership) {
       this.logger.warn(
