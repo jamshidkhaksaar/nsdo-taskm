@@ -13,7 +13,6 @@ import { SettingsService } from "./settings.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../rbac/guards/roles.guard";
 import { Roles } from "../rbac/decorators/roles.decorator";
-import { UpdateApiSettingsDto } from "./dto/update-api-settings.dto";
 import { UpdateSecuritySettingsDto } from "./dto/update-security-settings.dto";
 import { UpdateBackupSettingsDto } from "./dto/update-backup-settings.dto";
 import { UpdateNotificationSettingsDto } from "./dto/update-notification-settings.dto";
@@ -61,41 +60,6 @@ export class SettingsController {
   update(@Body(new ValidationPipe()) updateSettingsDto: UpdateSettingsDto) {
     // Add sanitization/validation logic here if needed, especially for API keys
     return this.settingsService.updateSettings(updateSettingsDto);
-  }
-
-  // API Settings endpoints
-  @Get("api-settings/:id")
-  @ApiOperation({ summary: "Get API settings" })
-  @ApiResponse({ status: 200, description: "Return API settings" })
-  async getApiSettings(@Param("id") id: string) {
-    return this.settingsService.getApiSettings(+id);
-  }
-
-  @Patch("api-settings/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("ADMIN")
-  @ApiOperation({ summary: "Update API settings" })
-  @ApiResponse({
-    status: 200,
-    description: "API settings updated successfully",
-  })
-  async updateApiSettings(
-    @Param("id") id: string,
-    @Body() updateApiSettingsDto: UpdateApiSettingsDto,
-  ) {
-    return this.settingsService.updateApiSettings(+id, updateApiSettingsDto);
-  }
-
-  @Post("api-settings/generate-key")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("ADMIN")
-  @ApiOperation({ summary: "Generate new API key" })
-  @ApiResponse({
-    status: 200,
-    description: "New API key generated successfully",
-  })
-  async generateApiKey() {
-    return this.settingsService.generateApiKey();
   }
 
   // Security Settings endpoints

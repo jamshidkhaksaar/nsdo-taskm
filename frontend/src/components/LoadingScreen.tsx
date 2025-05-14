@@ -35,7 +35,11 @@ const float = keyframes`
   }
 `;
 
-const LoadingScreen: React.FC = () => {
+interface LoadingScreenProps {
+  message?: string;
+}
+
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
   return (
     <Box
       sx={{
@@ -108,7 +112,7 @@ const LoadingScreen: React.FC = () => {
           letterSpacing: '0.5px',
         }}
       >
-        Loading...
+        {message || 'Loading...'}
       </Typography>
     </Box>
   );

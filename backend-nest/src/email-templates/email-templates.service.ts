@@ -98,7 +98,30 @@ export class EmailTemplatesService {
           '<p>Hello {{username}},</p><p>Here is your task summary for today:</p><h4>Due Today:</h4><ul>{{dueTodayTasks}}</ul><h4>In Progress:</h4><ul>{{inProgressTasks}}</ul><h4>Overdue:</h4><ul>{{overdueTasks}}</ul><p>Manage your tasks: <a href="{{dashboardLink}}">{{dashboardLink}}</a></p>',
         description: "Daily summary of tasks for a user.",
       },
-      // Add other templates as needed
+      {
+        templateKey: "TWO_FACTOR_CODE_EMAIL",
+        subject: "Verify Your Two-Factor Authentication Setup",
+        bodyHtml:
+          `<p>Hello {{username}},</p>
+          <p>To complete setting up email as your two-factor authentication method, please use the following verification code:</p>
+          <p style="font-size: 24px; font-weight: bold; letter-spacing: 2px; margin: 20px 0;">{{code}}</p>
+          <p>Enter this code in the application to activate email-based 2FA. This code is a Time-based One-Time Password (TOTP) and will change frequently.</p>
+          <p>If you did not request this, please ignore this email or contact support if you have concerns.</p>
+          <p>Thank you,<br/>The TaskM Team</p>`,
+        description: "Sent when a user is setting up email-based 2FA, contains the TOTP code for verification.",
+      },
+      {
+        templateKey: "TWO_FACTOR_LOGIN_CODE",
+        subject: "Your Two-Factor Authentication Code for TaskM",
+        bodyHtml:
+          `<p>Hello {{username}},</p>
+          <p>Please use the following code to complete your login to TaskM:</p>
+          <p style="font-size: 24px; font-weight: bold; letter-spacing: 2px; margin: 20px 0;">{{code}}</p>
+          <p>This code is valid for {{validityMinutes}} minutes.</p>
+          <p>If you did not attempt to log in, please secure your account immediately and contact support.</p>
+          <p>Thank you,<br/>The TaskM Team</p>`,
+        description: "Sent during login when 2FA is enabled and the method is email. Contains the login OTP.",
+      },
     ];
 
     for (const templateData of defaultTemplates) {

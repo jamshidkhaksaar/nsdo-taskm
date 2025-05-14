@@ -35,7 +35,7 @@ export class TwoFactorController {
   @ApiResponse({ status: 200, description: "Return 2FA status" })
   async getStatus(@Request() req) {
     try {
-      const userId = req.user.id;
+      const userId = req.user.userId;
       this.logger.log(`Getting 2FA status for user ${userId}`);
       return await this.twoFactorService.getStatus(userId);
     } catch (error) {
@@ -62,7 +62,7 @@ export class TwoFactorController {
         `Setup 2FA request received with raw payload: ${rawBody}`,
       );
 
-      const userId = req.user.id;
+      const userId = req.user.userId;
       const method = setupTwoFactorDto.method || "app"; // Default to app method if not specified
       this.logger.log(
         `Setting up 2FA for user ${userId} with enabled=${setupTwoFactorDto.enabled}, method=${method}`,
@@ -98,7 +98,7 @@ export class TwoFactorController {
         `Verify 2FA request received with code: ${verifyTwoFactorDto.verification_code?.substring(0, 2)}***`,
       );
 
-      const userId = req.user.id;
+      const userId = req.user.userId;
       const rememberBrowser = verifyTwoFactorDto.remember_browser === true;
       this.logger.log(
         `Verifying 2FA code for user ${userId}, remember browser: ${rememberBrowser}`,
@@ -141,7 +141,7 @@ export class TwoFactorController {
     @Body() sendEmailCodeDto: SendEmailCodeDto,
   ) {
     try {
-      const userId = req.user.id;
+      const userId = req.user.userId;
       this.logger.log(`Sending 2FA code via email for user ${userId}`);
 
       const email =

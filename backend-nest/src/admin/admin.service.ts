@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject, forwardRef } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Like, Repository, Between, LessThan, Not, In } from "typeorm";
 import { User } from "../users/entities/user.entity";
@@ -7,6 +7,7 @@ import { Task, TaskStatus } from "../tasks/entities/task.entity";
 import { ActivityLogService } from "./services/activity-log.service";
 import { Province } from "../provinces/entities/province.entity";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { TwoFactorService } from "../auth/two-factor.service";
 
 // Define structure for the overview stats (DTOs)
 export class OverallCountsDto {
@@ -124,7 +125,9 @@ export class AdminService {
     private tasksRepository: Repository<Task>,
     private activityLogService: ActivityLogService,
     @InjectRepository(Province)
-    private provincesRepository: Repository<Province>
+    private provincesRepository: Repository<Province>,
+    @Inject(forwardRef(() => TwoFactorService))
+    private twoFactorService: TwoFactorService,
   ) {}
 
   async getDashboardStats(requestingUser: User) {
@@ -1520,5 +1523,12 @@ export class AdminService {
       });
 
       return Array.from(provinceMap.values());
+  }
+
+  async adminResetUser2FA(targetUserId: string, adminUser: User): Promise<void> {
+    this.logger.log(`Admin ${adminUser.username} (ID: ${adminUser.id}) attempting to reset 2FA for user ID: ${targetUserId}`);
+    await this.twoFactorService.adminDisableTwoFactor(targetUserId, adminUser.id);
+    // Basic logging is done within adminDisableTwoFactor and by the request logger.
+    // Detailed activity logging can be enhanced here later if needed, e.g., using a more generic log method in ActivityLogService.
   }
 }

@@ -38,6 +38,9 @@ import PeopleIcon from '@mui/icons-material/People';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import BusinessIcon from '@mui/icons-material/Business';
 import LocationCityIcon from '@mui/icons-material/LocationCity';
+import SendIcon from '@mui/icons-material/Send';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -52,6 +55,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   const theme = useTheme();
   const { users, departments, loading: loadingRefData } = useReferenceData();
   const { error: fetchError, handleError, clearError } = useErrorHandler();
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
 
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
@@ -192,12 +196,15 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
       );
     }
 
-    let creatorName = 'N/A';
-    try {
-        creatorName = getUserName(task.createdById); 
-    } catch (e) {
-        console.error("[TaskViewDialog] Error accessing creator name:", e);
-        creatorName = 'Error loading name';
+    let creatorNameNode: React.ReactNode;
+    if (task.createdBy) {
+        if (currentUser && task.createdById === currentUser.id) {
+            creatorNameNode = <Typography variant="body2" component="span" fontWeight="bold">My Task</Typography>;
+        } else {
+            creatorNameNode = getUserName(task.createdById);
+        }
+    } else {
+        creatorNameNode = task.createdById ? `ID: ${task.createdById}` : 'N/A';
     }
 
     let assignmentDetailsNode: React.ReactNode = 'N/A';
@@ -262,45 +269,21 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
                 assignmentDetailsNode = (
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <AccountCircleIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                        <Typography variant="body2">Personal Task for {creatorName}</Typography>
+                        <Typography variant="body2">Personal Task (Assigned to Creator)</Typography>
                     </Box>
                 );
                 break;
 
             default:
-                assignmentDetailsNode = `Unknown Task Type: ${task.type}`;
-                break;
+                assignmentDetailsNode = <Typography variant="body2" color="text.secondary">Assignment type: {task.type || 'Unknown'}</Typography>;
         }
     } catch (e) {
-         console.error("[TaskViewDialog] Error processing assignees:", e);
-         assignmentDetailsNode = <Chip label="Error loading assignees" size="small" color="error" />;
+        console.error("[TaskViewDialog] Error processing assignment details:", e);
+        assignmentDetailsNode = <Typography variant="body2" color="error">Error loading assignment</Typography>;
     }
 
-    let provinceDisplayNode: React.ReactNode = 'N/A';
-    try {
-        if (task.assignedToProvinceId) {
-            provinceDisplayNode = getProvinceName(task.assignedToProvinceId);
-        } else if (task.type === TaskType.PROVINCE_DEPARTMENT) {
-             provinceDisplayNode = <Chip label="Province not assigned" size="small" color="warning" />;
-        }
-    } catch (e) {
-         console.error("[TaskViewDialog] Error processing province:", e);
-         provinceDisplayNode = <Chip label="Error loading province" size="small" color="error" />;
-    }
-    
-    let delegatedFromDisplay: React.ReactNode = null;
-    try {
-        if (task.isDelegated && task.delegatedByUserId) {
-            delegatedFromDisplay = (
-                <Typography variant="caption" color="text.secondary">
-                    Delegated by {getUserName(task.delegatedByUserId)}
-                </Typography>
-            );
-        }
-    } catch (e) {
-         console.error("[TaskViewDialog] Error processing delegation info:", e);
-         delegatedFromDisplay = <Typography variant="caption" color="error">Error loading delegator</Typography>;
-    }
+    // Prepare displayed priority
+    const priorityText = task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'N/A';
 
     const formattedDueDate = task.dueDate ? formatDate(task.dueDate, DATE_FORMATS.DISPLAY_DATE) : 'Not set';
     const formattedCreatedAt = task.createdAt ? formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATE) : 'N/A';
@@ -312,7 +295,6 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
           <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
             {task.title || '[No Title]'}
           </Typography>
-           {delegatedFromDisplay && <Box sx={{ mb: 1 }}>{delegatedFromDisplay}</Box>}
         </Grid>
 
         <Grid item xs={12} md={6}>
@@ -331,37 +313,18 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
               }}
               sx={{ minWidth: 120, ...glassStyles, background: 'transparent' }}
             >
-              {Object.values(TaskStatus).map((status) => (
+              {Object.values(TaskStatus).filter(s => s !== TaskStatus.DELEGATED).map((status) => (
                 <MenuItem key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                  {status.replace('_', ' ').toUpperCase()}
+                  {isUpdatingStatus && task.status === status && <CircularProgress size={16} sx={{ ml: 1 }} />}
                 </MenuItem>
               ))}
             </Select>
-             {isUpdatingStatus && <CircularProgress size={16} sx={{ ml: 1 }} />}
           </Box>
 
           <Box mb={2}>
             <Typography variant="overline" color="text.secondary" display="block">Priority</Typography>
-             <Select
-              value={task.priority}
-              onChange={handlePriorityChange}
-              disabled={!permissions.canChangePriority || isUpdatingPriority}
-              size="small"
-              fullWidth
-              displayEmpty
-              renderValue={(selected) => {
-                if (!selected) return <em>N/A</em>;
-                return selected.charAt(0).toUpperCase() + selected.slice(1);
-              }}
-              sx={{ minWidth: 120, ...glassStyles, background: 'transparent' }}
-            >
-              {Object.values(TaskPriority).map((priority) => (
-                <MenuItem key={priority} value={priority}>
-                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                </MenuItem>
-              ))}
-            </Select>
-             {isUpdatingPriority && <CircularProgress size={16} sx={{ ml: 1 }} />}
+            <Typography variant="body1">{priorityText}</Typography>
           </Box>
 
           <Box mb={2}>
@@ -380,23 +343,12 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
                   {assignmentDetailsNode}
               </Box>
           </Box>
-
-           {(task.type === TaskType.PROVINCE_DEPARTMENT || task.assignedToProvinceId) && (
-               <Box mb={2}>
-                  <Typography variant="overline" color="text.secondary" display="block">Province</Typography>
-                  {typeof provinceDisplayNode === 'string' ? (
-                      <Typography variant="body1">{provinceDisplayNode}</Typography>
-                  ) : (
-                      provinceDisplayNode
-                  )}
-              </Box>
-          )}
         </Grid>
 
         <Grid item xs={12} md={6}>
           <Box mb={2}>
             <Typography variant="overline" color="text.secondary" display="block">Created By</Typography>
-            <Typography variant="body1">{creatorName}</Typography>
+            <Typography variant="body1">{creatorNameNode}</Typography>
           </Box>
           <Box mb={2}>
             <Typography variant="overline" color="text.secondary" display="block">Created At</Typography>
@@ -434,70 +386,47 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
             }
         }}
       >
-        <DialogTitle sx={{ pb: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
-            <Typography variant="h6" component="div">Task Details</Typography>
+        <DialogTitle sx={{ ...glassStyles, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            {task ? task.title : 'Loading Task...'}
+          </Typography>
+          <Button onClick={onClose} sx={{ minWidth: 'auto', p: 0.5 }} aria-label="close dialog">
+            <CloseIcon />
+          </Button>
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 0, borderTop: 'none', borderBottom: 'none' }}>
+        <DialogContent dividers sx={{ ...glassStyles, borderTop: 'none', borderBottom: 'none' }}>
           {renderContent()}
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, justifyContent: 'space-between' }}>
-            <Box>
-                 {permissions.canEdit && task && (
-                    <Button
-                        onClick={() => onEdit && onEdit(task.id.toString())}
-                        variant="contained"
-                        color="primary"
-                        startIcon={<EditIcon />}
-                        sx={{ mr: 1 }}
-                    >
-                        Edit
-                    </Button>
-                )}
-                 {permissions.canDelegate && task && (
-                    <Button
-                        color="secondary"
-                        variant="contained"
-                        startIcon={<PeopleIcon />}
-                        sx={{ mr: 1 }}
-                    >
-                        Delegate
-                    </Button>
-                 )}
-                 {permissions.canCancel && task && (
-                    <Button
-                        onClick={() => setOpenCancelDialog(true)}
-                        variant="outlined"
-                        color="warning"
-                        startIcon={<CancelIcon />}
-                        disabled={loading}
-                        sx={{ mr: 1 }}
-                    >
-                        Cancel Task
-                    </Button>
-                )}
-                 {permissions.canDelete && task && (
-                    <Button
-                        onClick={() => onDelete && onDelete(task.id.toString())}
-                        variant="contained"
-                        color="error"
-                        startIcon={<DeleteIcon />}
-                         sx={{ mr: 1 }}
-                    >
-                        Delete
-                    </Button>
-                )}
-            </Box>
-             <Box>
-                <Button
-                    onClick={onClose}
-                    variant="outlined"
-                    color="inherit"
-                    startIcon={<CloseIcon />}
-                    disabled={loading}
-                >
-                    Close
+        <DialogActions sx={{ ...glassStyles, borderTop: 'none', pt: 1, justifyContent: 'space-between', px: 2, pb: 2 }}>
+          <Box>
+            {task && onEdit && permissions.canEdit && (
+              <Button onClick={() => onEdit(task.id)} startIcon={<EditIcon />} color="primary" variant="outlined" sx={{ mr: 1 }}>
+                Edit
+              </Button>
+            )}
+            {task && permissions.canDelegate && (
+              <Button
+                startIcon={<SendIcon />}
+                color="secondary"
+                variant="outlined"
+                sx={{ mr: 1 }}
+                onClick={() => alert('Delegate Task functionality to be implemented.')}
+              >
+                Delegate
+              </Button>
+            )}
+             {task && permissions.canCancel && task.status !== TaskStatus.CANCELLED && task.status !== TaskStatus.COMPLETED && (
+                <Button onClick={() => setOpenCancelDialog(true)} startIcon={<CancelIcon />} color="warning" variant="outlined" sx={{ mr: 1 }}>
+                    Cancel Task
                 </Button>
-            </Box>
+            )}
+            {task && onDelete && permissions.canDelete && (
+              <Button onClick={() => onDelete(task.id)} startIcon={<DeleteIcon />} color="error" variant="outlined">
+                Delete
+              </Button>
+            )}
+          </Box>
+          <Button onClick={onClose} variant="contained">Close</Button>
         </DialogActions>
       </Dialog>
 

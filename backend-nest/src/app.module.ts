@@ -31,16 +31,15 @@ import { ProvinceModule } from "./provinces/province.module";
 import { EmailTemplatesModule } from "./email-templates/email-templates.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { RbacModule } from "./rbac/rbac.module";
+import { SecuritySettings } from "./settings/entities/security-settings.entity";
+import { BackupSettings } from "./settings/entities/backup-settings.entity";
+import { NotificationSettings } from "./settings/entities/notification-settings.entity";
 
 // Import all entity classes directly
 import { User } from "./users/entities/user.entity";
 import { Department } from "./departments/entities/department.entity";
 import { Task } from "./tasks/entities/task.entity";
 import { Note } from "./notes/entities/note.entity";
-import { ApiSettings } from "./settings/entities/api-settings.entity";
-import { BackupSettings } from "./settings/entities/backup-settings.entity";
-import { NotificationSettings } from "./settings/entities/notification-settings.entity";
-import { SecuritySettings } from "./settings/entities/security-settings.entity";
 import { Setting } from "./settings/entities/setting.entity";
 import { ActivityLog } from "./admin/entities/activity-log.entity";
 import { Backup } from "./backup/entities/backup.entity";
@@ -74,7 +73,6 @@ import { Permission } from "./rbac/entities/permission.entity";
             Department,
             Task,
             Note,
-            ApiSettings,
             BackupSettings,
             NotificationSettings,
             SecuritySettings,

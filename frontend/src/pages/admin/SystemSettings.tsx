@@ -120,55 +120,6 @@ const settingsSections: SettingsSection[] = [
       },
     ],
   },
-  {
-    id: 'api',
-    title: 'API Settings',
-    icon: <IntegrationInstructionsIcon />,
-    settings: [
-      {
-        id: 'apiEnabled',
-        label: 'Enable API Access',
-        type: 'switch',
-        value: true,
-        description: 'Allow external API access',
-      },
-      {
-        id: 'apiKey',
-        label: 'API Key',
-        type: 'text',
-        value: '',
-        description: 'Your API key for external integrations',
-      },
-      {
-        id: 'weatherApiEnabled',
-        label: 'Enable Weather API',
-        type: 'switch',
-        value: true,
-        description: 'Enable WeatherAPI.com integration',
-      },
-      {
-        id: 'weatherApiKey',
-        label: 'Weather API Key',
-        type: 'text',
-        value: '',
-        description: 'Your WeatherAPI.com API key',
-      },
-      {
-        id: 'apiRateLimit',
-        label: 'Rate Limit',
-        type: 'number',
-        value: 100,
-        description: 'Maximum requests per minute',
-      },
-      {
-        id: 'apiAllowedIps',
-        label: 'Allowed IP Addresses',
-        type: 'text',
-        value: '',
-        description: 'Comma-separated list of allowed IP addresses',
-      },
-    ],
-  },
 ];
 
 // Add this interface for snackbar state
@@ -201,30 +152,20 @@ const notificationSettingsMap = {
   emailNotifications: 'email_notifications_enabled',
 };
 
-// Add API settings mapping after the notification settings map
-const apiSettingsMap = {
-  apiEnabled: 'api_enabled',
-  apiKey: 'api_key',
-  weatherApiEnabled: 'weather_api_enabled',
-  weatherApiKey: 'weather_api_key',
-  apiRateLimit: 'api_rate_limit',
-  apiAllowedIps: 'api_allowed_ips'
-};
-
 const SystemSettings: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [notifications, setNotifications] = useState(3);
   
-  const [settings, setSettings] = useState(settingsSections);
+  const [settings, setSettings] = useState(() => settingsSections.filter(section => section.id !== 'api')); // Filter out API section initially
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
     severity: 'success'
   });
-  const [testingEmail] = useState(false);
-  const [generatingApiKey] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [generatingApiKey, setGeneratingApiKey] = useState(false); // Keep state, but button removed
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
   useEffect(() => {
@@ -243,372 +184,126 @@ const SystemSettings: React.FC = () => {
         const notificationSettings = await SettingsService.getNotificationSettings();
         console.log('Notification settings loaded:', notificationSettings);
         
-        // Fetch API settings
-        const apiSettings = await SettingsService.getApiSettings();
-        console.log('API settings loaded:', apiSettings);
-        
         // Map the settings to the UI format
-        const mappedSettings = settingsSections.map(section => {
-          if (section.id === 'security') {
+        const updatedSettings = settingsSections
+          .filter(section => section.id !== 'api') // Filter out API section
+          .map(section => {
+            let settingsData: any = {};
+            let map: any = {};
+            if (section.id === 'security') {
+              settingsData = securitySettings;
+              map = securitySettingsMap;
+            } else if (section.id === 'backup') {
+              settingsData = backupSettings;
+              map = backupSettingsMap;
+            } else if (section.id === 'notifications') {
+              settingsData = notificationSettings;
+              map = notificationSettingsMap;
+            }
+            
             return {
               ...section,
               settings: section.settings.map(setting => {
-                const backendField = securitySettingsMap[setting.id as keyof typeof securitySettingsMap];
-                if (backendField && securitySettings[backendField] !== undefined) {
-                  return { ...setting, value: securitySettings[backendField] };
+                const backendKey = map[setting.id as keyof typeof map];
+                if (backendKey && settingsData && backendKey in settingsData) {
+                  return { ...setting, value: settingsData[backendKey] };
                 }
                 return setting;
               })
             };
-          } else if (section.id === 'backup') {
-            return {
-              ...section,
-              settings: section.settings.map(setting => {
-                const backendField = backupSettingsMap[setting.id as keyof typeof backupSettingsMap];
-                if (backendField && backupSettings[backendField] !== undefined) {
-                  return { ...setting, value: backupSettings[backendField] };
-                }
-                return setting;
-              })
-            };
-          } else if (section.id === 'notifications') {
-            return {
-              ...section,
-              settings: section.settings.map(setting => {
-                const backendField = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
-                if (backendField && notificationSettings[backendField] !== undefined) {
-                  return { ...setting, value: notificationSettings[backendField] };
-                }
-                return setting;
-              })
-            };
-          } else if (section.id === 'api') {
-            return {
-              ...section,
-              settings: section.settings.map(setting => {
-                const backendField = apiSettingsMap[setting.id as keyof typeof apiSettingsMap];
-                if (backendField && apiSettings[backendField] !== undefined) {
-                  return { ...setting, value: apiSettings[backendField] };
-                }
-                return setting;
-              })
-            };
-          }
-          return section;
         });
-        
-        setSettings(mappedSettings);
+
+        setSettings(updatedSettings);
       } catch (error) {
         console.error('Error fetching settings:', error);
+        setSnackbar({ open: true, message: 'Failed to load settings.', severity: 'error' });
       }
     };
-    
+
     fetchSettings();
   }, []);
 
-  const handleSettingChange = async (sectionId: string, settingId: string, value: any) => {
-    try {
-      // Find the section and setting
-      const section = settings.find(s => s.id === sectionId);
-      if (!section) {
-        throw new Error(`Section ${sectionId} not found`);
-      }
-      
-      const setting = section.settings.find(s => s.id === settingId);
-      if (!setting) {
-        throw new Error(`Setting ${settingId} not found in section ${sectionId}`);
-      }
-      
-      // Update the setting value locally
-      setting.value = value;
-      
-      // Trigger re-render
-      setSettings([...settings]);
-      
-      console.log(`Updating ${sectionId} setting ${settingId} to:`, value);
-      
-      // Now update on the server based on the section
-      if (sectionId === 'security') {
-        const backendFieldName = securitySettingsMap[settingId as keyof typeof securitySettingsMap];
-        if (backendFieldName) {
-          // Convert value types appropriately
-          let processedValue = value;
-          if (typeof setting.value === 'number') {
-            processedValue = parseInt(value, 10);
-          }
-
-          const updatedSettings = await SettingsService.updateSecuritySettings({
-            [backendFieldName]: processedValue
-          });
-
-          setSnackbar({
-            open: true,
-            message: 'Security setting updated successfully',
-            severity: 'success'
-          });
-
-          console.log('Security setting updated:', updatedSettings);
-        }
-      }
-      else if (sectionId === 'backup') {
-        const backendFieldName = backupSettingsMap[settingId as keyof typeof backupSettingsMap];
-        if (backendFieldName) {
-          // Convert value types appropriately
-          let processedValue = value;
-          if (typeof setting.value === 'number') {
-            processedValue = parseInt(value, 10);
-          }
-
-          const updatedSettings = await SettingsService.updateBackupSettings({
-            [backendFieldName]: processedValue
-          });
-
-          setSnackbar({
-            open: true,
-            message: 'Backup setting updated successfully',
-            severity: 'success'
-          });
-
-          console.log('Backup setting updated:', updatedSettings);
-        }
-      }
-      else if (sectionId === 'notifications') {
-        const backendFieldName = notificationSettingsMap[settingId as keyof typeof notificationSettingsMap];
-        if (backendFieldName) {
-          // Convert value types appropriately
-          let processedValue = value;
-          if (settingId === 'smtpPort') {
-            processedValue = parseInt(value, 10);
-          }
-
-          const updatedSettings = await SettingsService.updateNotificationSettings({
-            [backendFieldName]: processedValue
-          });
-
-          setSnackbar({
-            open: true,
-            message: 'Notification setting updated successfully',
-            severity: 'success'
-          });
-
-          console.log('Notification setting updated:', updatedSettings);
-        }
-      }
-      else if (sectionId === 'api') {
-        const backendFieldName = apiSettingsMap[settingId as keyof typeof apiSettingsMap];
-        if (backendFieldName) {
-          // Convert value types appropriately
-          let processedValue = value;
-          if (settingId === 'apiRateLimit') {
-            processedValue = parseInt(value, 10);
-          }
-
-          const updatedSettings = await SettingsService.updateApiSettings({
-            [backendFieldName]: processedValue
-          });
-
-          setSnackbar({
-            open: true,
-            message: 'API setting updated successfully',
-            severity: 'success'
-          });
-
-          console.log('API setting updated:', updatedSettings);
-        }
-      }
-    } catch (error) {
-      console.error(`Error updating ${sectionId} settings:`, error);
-      setSnackbar({
-        open: true,
-        message: `Failed to update ${sectionId} setting`,
-        severity: 'error'
-      });
-    }
+  const handleSettingChange = (sectionId: string, settingId: string, value: any) => {
+    setSettings(prevSettings =>
+      prevSettings.map(section =>
+        section.id === sectionId
+          ? {
+              ...section,
+              settings: section.settings.map(setting =>
+                setting.id === settingId ? { ...setting, value } : setting
+              ),
+            }
+          : section
+      )
+    );
   };
 
   const handleSave = async () => {
-    try {
-      setSnackbar({
-        open: true,
-        message: 'Saving settings...',
-        severity: 'info'
-      });
-      
-      // Save security settings
-      const securitySection = settings.find(s => s.id === 'security');
-      if (securitySection) {
-        const securitySettings = securitySection.settings.reduce((acc, setting) => {
-          const backendFieldName = securitySettingsMap[setting.id as keyof typeof securitySettingsMap];
-          if (backendFieldName) {
-            let processedValue = setting.value;
-            if (setting.type === 'number') {
-              processedValue = parseInt(setting.value, 10);
-            }
-            acc[backendFieldName] = processedValue;
-          }
-          return acc;
-        }, {} as Record<string, any>);
+    const updates: Promise<any>[] = [];
+    settings.forEach(section => {
+      // Assuming you have initial fetched settings stored somewhere to compare against
+      // This example just saves everything shown
+      const changedSettings: any = {};
+      section.settings.forEach(s => { changedSettings[s.id] = s.value; });
 
-        await SettingsService.updateSecuritySettings(securitySettings);
+      if (section.id === 'security') {
+        const securityPayload = mapSettingsToPayload(changedSettings, securitySettingsMap);
+        console.log('Updating security settings with payload:', securityPayload);
+        updates.push(SettingsService.updateSecuritySettings(securityPayload));
+      } else if (section.id === 'backup') {
+        const backupPayload = mapSettingsToPayload(changedSettings, backupSettingsMap);
+        console.log('Updating backup settings with payload:', backupPayload);
+        updates.push(SettingsService.updateBackupSettings(backupPayload));
+      } else if (section.id === 'notifications') {
+        const notificationPayload = mapSettingsToPayload(changedSettings, notificationSettingsMap);
+        console.log('Updating notification settings with payload:', notificationPayload);
+        updates.push(SettingsService.updateNotificationSettings(notificationPayload));
       }
+    });
 
-      // Save backup settings
-      const backupSection = settings.find(s => s.id === 'backup');
-      if (backupSection) {
-        const backupSettings = backupSection.settings.reduce((acc, setting) => {
-          const backendFieldName = backupSettingsMap[setting.id as keyof typeof backupSettingsMap];
-          if (backendFieldName) {
-            let processedValue = setting.value;
-            if (setting.type === 'number') {
-              processedValue = parseInt(setting.value, 10);
-            }
-            acc[backendFieldName] = processedValue;
-          }
-          return acc;
-        }, {} as Record<string, any>);
-
-        await SettingsService.updateBackupSettings(backupSettings);
+    if (updates.length > 0) {
+      setGeneratingApiKey(true);
+      try {
+        await Promise.all(updates);
+        setSnackbar({ open: true, message: 'Settings saved successfully!', severity: 'success' });
+      } catch (error) {
+        console.error('Error saving settings:', error);
+        setSnackbar({ open: true, message: 'Failed to save settings.', severity: 'error' });
+      } finally {
+        setGeneratingApiKey(false);
       }
-
-      // Save notification settings
-      const notificationSection = settings.find(s => s.id === 'notifications');
-      if (notificationSection) {
-        const notificationSettings = notificationSection.settings.reduce((acc, setting) => {
-          const backendFieldName = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
-          if (backendFieldName) {
-            let processedValue = setting.value;
-            if (setting.type === 'number') {
-              processedValue = parseInt(setting.value, 10);
-            }
-            acc[backendFieldName] = processedValue;
-          }
-          return acc;
-        }, {} as Record<string, any>);
-
-        await SettingsService.updateNotificationSettings(notificationSettings);
-      }
-
-      // Save API settings
-      const apiSection = settings.find(s => s.id === 'api');
-      if (apiSection) {
-        const apiSettings = apiSection.settings.reduce((acc, setting) => {
-          const backendFieldName = apiSettingsMap[setting.id as keyof typeof apiSettingsMap];
-          if (backendFieldName) {
-            let processedValue = setting.value;
-            if (setting.type === 'number') {
-              processedValue = parseInt(setting.value, 10);
-            }
-            acc[backendFieldName] = processedValue;
-          }
-          return acc;
-        }, {} as Record<string, any>);
-
-        await SettingsService.updateApiSettings(apiSettings);
-      }
-
-      setSnackbar({
-        open: true,
-        message: 'All settings saved successfully',
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to save settings',
-        severity: 'error'
-      });
+    } else {
+      setSnackbar({ open: true, message: 'No changes to save.', severity: 'info' });
     }
   };
+  
+  // Helper function to map frontend state to backend DTO
+  const mapSettingsToPayload = (changedSettings: any, map: any) => {
+    const payload: any = {};
+    for (const key in changedSettings) {
+      if (map[key]) {
+        payload[map[key]] = changedSettings[key];
+      }
+    }
+    return payload;
+  };
 
-  // Add test email function
   const handleTestEmailSettings = async () => {
+    setTestingEmail(true);
     try {
-      // Get notification settings
-      const notificationSection = settings.find(s => s.id === 'notifications');
-      if (!notificationSection) {
-        throw new Error('Notification settings not found');
+      const result = await SettingsService.testEmailSettings();
+      if (result.success) {
+        setSnackbar({ open: true, message: 'Test email sent successfully!', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: result.message || 'Failed to send test email.', severity: 'error' });
       }
-      
-      // Convert to backend format
-      const notificationSettings = notificationSection.settings.reduce((acc, setting) => {
-        const backendFieldName = notificationSettingsMap[setting.id as keyof typeof notificationSettingsMap];
-        if (backendFieldName) {
-          let processedValue = setting.value;
-          if (setting.type === 'number') {
-            processedValue = parseInt(setting.value, 10);
-          }
-          acc[backendFieldName] = processedValue;
-        }
-        return acc;
-      }, {} as Record<string, any>);
-      
-      // Send test email
-      await SettingsService.testEmailSettings(notificationSettings);
-      
-      setSnackbar({
-        open: true,
-        message: 'Test email sent successfully!',
-        severity: 'success'
-      });
-      
-      console.log('Test email sent successfully');
     } catch (error) {
-      console.error('Error sending test email:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to send test email',
-        severity: 'error'
-      });
+      console.error('Error testing email settings:', error);
+      setSnackbar({ open: true, message: 'Failed to send test email.', severity: 'error' });
+    } finally {
+      setTestingEmail(false);
     }
   };
-
-  // Add generate API key function
-  const handleGenerateApiKey = async () => {
-    try {
-      // Generate new API key
-      const newApiKeyData = await SettingsService.generateApiKey();
-      
-      // Update local state
-      setSettings(prevSettings => 
-        prevSettings.map(section => {
-          if (section.id === 'api') {
-            return {
-              ...section,
-              settings: section.settings.map(setting => {
-                if (setting.id === 'apiKey') {
-                  return { ...setting, value: newApiKeyData.apiKey };
-                }
-                return setting;
-              })
-            };
-          }
-          return section;
-        })
-      );
-      
-      setSnackbar({
-        open: true,
-        message: 'New API key generated!',
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error('Error generating API key:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to generate API key',
-        severity: 'error'
-      });
-    }
-  };
-
-  const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
-  }, []);
-
-  const handleToggleTopWidgets = useCallback(() => {
-    setTopWidgetsVisible(prev => !prev);
-  }, []);
 
   const handleLogout = () => {
     // Handle logout logic here
@@ -652,7 +347,7 @@ const SystemSettings: React.FC = () => {
             },
           }}
         >
-          Save All Changes
+          {generatingApiKey ? <CircularProgress size={24} /> : 'Save All Changes'}
         </Button>
       </Box>
 
@@ -787,26 +482,7 @@ const SystemSettings: React.FC = () => {
                     },
                   }}
                 >
-                  {testingEmail ? 'Sending...' : 'Test Email Settings'}
-                </Button>
-              </Box>
-            )}
-            
-            {section.id === 'api' && (
-              <Box sx={{ mt: 2 }}>
-                <Button
-                  variant="outlined"
-                  onClick={handleGenerateApiKey}
-                  disabled={generatingApiKey}
-                  sx={{
-                    color: '#fff',
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                    '&:hover': {
-                      borderColor: 'rgba(255, 255, 255, 0.8)',
-                    },
-                  }}
-                >
-                  {generatingApiKey ? 'Generating...' : 'Generate New API Key'}
+                  {testingEmail ? <CircularProgress size={24} /> : 'Test Email Settings'}
                 </Button>
               </Box>
             )}
@@ -849,7 +525,7 @@ const SystemSettings: React.FC = () => {
       sidebar={
         <Sidebar
           open={isSidebarOpen}
-          onToggleDrawer={handleToggleSidebar}
+          onToggleDrawer={() => setIsSidebarOpen(!isSidebarOpen)}
           onLogout={handleLogout}
           drawerWidth={DRAWER_WIDTH}
         />
@@ -858,13 +534,12 @@ const SystemSettings: React.FC = () => {
         <DashboardTopBar
           username={user?.username || 'Admin'}
           notificationCount={notifications}
-          onToggleSidebar={handleToggleSidebar}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onNotificationClick={handleNotificationClick}
           onLogout={handleLogout}
           onProfileClick={handleProfileClick}
           onSettingsClick={handleSettingsClick}
           onHelpClick={handleHelpClick}
-          onToggleTopWidgets={handleToggleTopWidgets}
           topWidgetsVisible={topWidgetsVisible}
         />
       }

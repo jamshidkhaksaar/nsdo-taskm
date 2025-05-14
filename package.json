@@ -19,9 +19,12 @@
     "backend-nest"
   ],
   "dependencies": {
-    "react-google-recaptcha-v3": "^1.10.1"
+    "axios": "^1.9.0",
+    "react-google-recaptcha-v3": "^1.10.1",
+    "ua-parser-js": "^2.0.3"
   },
   "devDependencies": {
+    "@types/ua-parser-js": "^0.7.39",
     "concurrently": "^8.2.2"
   }
 }

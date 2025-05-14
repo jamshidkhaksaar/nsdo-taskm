@@ -11,7 +11,7 @@ import { join } from "path";
 @Module({
   imports: [
     forwardRef(() => SettingsModule), // Wrap SettingsModule here
-    EmailTemplatesModule, // <-- Add EmailTemplatesModule here
+    forwardRef(() => EmailTemplatesModule), // <-- MODIFIED THIS LINE
     MailerModule.forRootAsync({
       imports: [ConfigModule, forwardRef(() => SettingsModule)], // Use ConfigModule here, not ConfigService
       inject: [ConfigService, SettingsService], // Inject services into factory

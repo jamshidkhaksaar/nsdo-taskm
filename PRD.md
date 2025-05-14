@@ -1,0 +1,343 @@
+# Project Requirements Document (PRD) - NSDO Task Manager
+
+## 1. Overview
+
+This document tracks the analysis, requirements, dependencies, findings, and improvements for the NSDO Task Manager project. It serves as a central reference point for the ongoing debugging and code cleanup process.
+
+## 2. Tech Stack
+
+### 2.1. Backend (`backend-nest`)
+
+*   **Framework:** NestJS (`@nestjs/core`, `@nestjs/common`, etc.)
+*   **Language:** TypeScript
+*   **Database:** MySQL (`mysql2`), PostgreSQL (`pg`) - *Presence of both drivers noted. Needs verification on actual usage.*
+*   **ORM:** TypeORM (`@nestjs/typeorm`, `typeorm`)
+*   **API Documentation:** Swagger (`@nestjs/swagger`)
+*   **Authentication:** Passport (`@nestjs/passport`, `passport`, `passport-jwt`, `passport-local`), JWT (`@nestjs/jwt`), bcrypt
+*   **Real-time:** WebSockets (`@nestjs/platform-socket.io`, `@nestjs/websockets`, `socket.io`)
+*   **Queues:** BullMQ (`@nestjs/bull`, `bullmq`), Redis (`ioredis`)
+*   **Email:** Nodemailer (`@nestjs-modules/mailer`, `nodemailer`), SendGrid (`@sendgrid/mail`)
+*   **Configuration:** `@nestjs/config`, `dotenv`
+*   **Validation:** `class-validator`, `class-transformer`
+*   **Security:** Helmet (`helmet`), CSRF (`csurf`), Throttler (`@nestjs/throttler`)
+*   **HTTP Client:** Axios (`@nestjs/axios`, `axios`)
+*   **CLI:** `nest-commander`
+*   **Other:** Caching (`@nestjs/cache-manager`), Health Checks (`@nestjs/terminus`), QR Code (`qrcode`), 2FA (`speakeasy`), Fingerprinting (`react-turnstile`? - *Seems like a frontend lib, needs investigation; confirmed present in backend-nest/package.json, likely an error*)
+
+### 2.2. Frontend (`frontend`)
+
+*   **Framework/Library:** React (`react`, `react-dom`)
+*   **Language:** TypeScript
+*   **Build Tool:** Vite (`vite`)
+*   **UI Library:** Material UI (`@mui/material`, `@mui/icons-material`), potentially Tailwind CSS (`tailwindcss`, `tailwind-merge`, `clsx`) - *Presence of both needs verification.*
+*   **State Management:** Redux Toolkit (`@reduxjs/toolkit`, `react-redux`)
+*   **Routing:** React Router (`react-router-dom`)
+*   **Data Fetching/Caching:** TanStack Query (`@tanstack/react-query`), Axios (`axios`)
+*   **Forms:** React Hook Form (`react-hook-form`), Zod (`zod`) for validation
+*   **Real-time:** Socket.IO Client (`socket.io-client`)
+*   **Drag & Drop:** `@hello-pangea/dnd`
+*   **Charts:** Chart.js (`chart.js`, `react-chartjs-2`)
+*   **Notifications:** Notistack (`notistack`), React Toastify (`react-toastify`)
+*   **Date/Time:** date-fns (`date-fns`), Day.js (`dayjs`), MUI Date Pickers (`@mui/x-date-pickers`)
+*   **Other:** Fingerprinting (`@fingerprintjs/fingerprintjs`), CAPTCHA (`@marsidev/react-turnstile`, `react-turnstile`), Icons (`lucide-react`), Particles (`react-tsparticles`, `tsparticles`), Heatmap (`react-heatmap-grid`), Grid Layout (`react-grid-layout`)
+
+## 3. Task Management System Features
+
+This section details the core features of the task management system, their current implementation, associated RBAC permissions, and steps for verification.
+
+### 3.1. Task Creation
+- **Description:** Users can create tasks with essential details such as title, description, priority, and due date. Tasks can be personal or assigned to other users, specific departments, or departments within a designated province.
+- **Current Implementation:**
+    - **Backend:**
+        - API Endpoint: `POST /tasks` (handled by `TasksController.create()`).
+        - Service Logic: `TasksService.create()` in `backend-nest/src/tasks/tasks.service.ts`.
+            - Populates `Task` entity fields (`title`, `description`, `priority`, `dueDate`, `createdById`).
+            - Sets default `status` to `PENDING` and `isDelegated` to `false`.
+            - Determines `TaskType` based on provided assignee IDs:
+                - `TaskType.USER`: If `assignedToUserIds` are provided.
+                - `TaskType.DEPARTMENT`: If `assignedToDepartmentIds` are provided.
+                - `TaskType.PROVINCE_DEPARTMENT`: If `assignedToDepartmentIds` and `assignedToProvinceId` are provided.
+                - `TaskType.PERSONAL`: If no assignees are provided (task assigned to creator).
+            - Validates against assigning to both users and departments, or users and a province simultaneously. Province assignment requires department assignment.
+            - Saves the task to the database.
+            - Triggers notifications to assignees.
+        - DTO: `CreateTaskDto` (`backend-nest/src/tasks/dto/create-task.dto.ts`) defines the input structure.
+    - **Frontend:**
+        - UI Components: Expected to be in `frontend/src/components/tasks/CreateTaskDialog.tsx` and/or `frontend/src/components/tasks/TaskForm.tsx`.
+        - Service: API calls likely handled by `addTask` function in `frontend/src/services/task.ts` or `frontend/src/services/tasks.service.ts`.
+- **RBAC Permissions:**
+    - The `POST /tasks` endpoint is protected by `JwtAuthGuard` and `PermissionsGuard` at the `TasksController` class level.
+    - No specific `@Permissions()` decorator is on the `create()` method, suggesting it might rely on a general "task:create" permission checked by `PermissionsGuard`, or be available to any authenticated user if no specific permission is configured for this route by default.
+- **Verification Steps:**
+    - Log in as a user with "task:create" permission (or equivalent).
+        - Create a task with minimum required fields (e.g., title). Verify default values for priority, description.
+        - Create a task with all fields populated.
+        - Create a task assigned to a single user; verify assignee receives a notification.
+        - Create a task assigned to multiple users; verify all assignees receive notifications.
+        - Create a task assigned to a single department.
+        - Create a task assigned to multiple departments in one province.
+        - Create a task assigned to a department within a specific province.
+        - Confirm the newly created task appears in the dashboard (List View and Kanban mode) for the creator and any assignees.
+    - Log in as a user *without* "task:create" permission. Confirm UI options for task creation are disabled/hidden, or the API call fails with a 403 Forbidden error.
+    - Attempt to create a task assigning to both `assignedToUserIds` and `assignedToDepartmentIds`; expect a 400 Bad Request error.
+    - Attempt to create a task assigning to `assignedToUserIds` and an `assignedToProvinceId`; expect a 400 Bad Request error.
+    - Attempt to create a task assigning to an `assignedToProvinceId` without `assignedToDepartmentIds`; expect a 400 Bad Request error.
+
+### 3.2. Task Assignment
+- **Description:** Tasks can be assigned to one or more users, one or more departments, or departments within a specific province. Assignments can be set during task creation or modified later.
+- **Current Implementation:**
+    - **Backend:**
+        - Assignment during creation is handled by `TasksService.create()` as described above.
+        - Assignment updates are handled by `TasksService.update()` (called by `PUT /tasks/:id` endpoint in `TasksController`).
+        - The `Task` entity (`backend-nest/src/tasks/entities/task.entity.ts`) uses `assignedToUsers` (ManyToMany), `assignedToDepartments` (ManyToMany), and `assignedToProvinceId` (string, with `assignedToProvince` relation) to store assignments.
+    - **Frontend:**
+        - Task creation forms (`CreateTaskDialog.tsx`, `TaskForm.tsx`) should provide UI for selecting assignees.
+        - Task editing forms (`EditTaskDialog.tsx`) should allow modification of these assignments.
+- **RBAC Permissions:**
+    - Creation: Governed by "task:create" permission (see Task Creation).
+    - Update: The `PUT /tasks/:id` endpoint is protected by `JwtAuthGuard` and `PermissionsGuard`.
+    - `TasksService.update()` includes internal checks: the requesting user must be the task creator, a current assignee, or have an Admin/Leadership role to modify the task (including assignments). `TaskQueryService.checkAssigneePermission()` is used to verify if a user is an assignee (directly, via department, or via province/department).
+    - A specific "task:assign" or "task:update:assignment" permission might be checked by `PermissionsGuard`.
+- **Verification Steps:**
+    - (Creation assignment steps are covered under Task Creation).
+    - Log in as a user who is the creator of a task. Edit the task to:
+        - Change user assignment from User A to User B.
+        - Add User C as an additional assignee.
+        - Change department assignment.
+        - Change provincial department assignment.
+        - Verify changes are saved and notifications (if configured for updates) are sent.
+    - Log in as a user who is an assignee of a task (but not creator). Attempt to modify assignments. This should be allowed based on `TasksService.update()` logic. Verify.
+    - Log in as an Admin/Leadership role. Modify assignments for any task. Verify.
+    - Log in as a user who is neither creator, assignee, nor admin for a task. Confirm attempts to change assignments are denied.
+
+### 3.3. Task Delegation
+- **Description:** Users can delegate tasks to other users. This typically involves creating a new sub-task assigned to the new user, while the original task's status is updated to "Delegated".
+- **Current Implementation:**
+    - **Backend:**
+        - API Endpoint: `POST /tasks/:id/delegate` (handled by `TasksController.delegateTask()`).
+        - Service Logic: `TasksService.delegateTask()` in `backend-nest/src/tasks/tasks.service.ts`.
+            - Fetches the original task using `TaskQueryService.findOne()`.
+            - Validates `newAssigneeUserIds` from `DelegateTaskDto`.
+            - Creates new `Task` entities (sub-tasks) for each `newAssigneeUserId`.
+                - Sub-task title is prefixed with `(Delegated)`.
+                - Sub-tasks link back to the original task via `delegatedFromTaskId` and `delegatedByUserId`.
+                - Sub-tasks are of `TaskType.USER`.
+            - Sets the original task's `status` to `DELEGATED`.
+            - Sends notifications to the new assignees of the sub-tasks.
+        - DTO: `DelegateTaskDto` (`backend-nest/src/tasks/dto/delegate-task.dto.ts`) includes `newAssigneeUserIds` and `delegationReason`.
+    - **Frontend:**
+        - UI: A "Delegate Task" button is expected in the task details view (e.g., `frontend/src/components/tasks/TaskViewDialog.tsx`).
+        - Service: API calls likely handled by a `delegateTask` function in `frontend/src/services/task.ts`.
+- **RBAC Permissions:**
+    - The `TasksController.delegateTask()` method is decorated with `@Permissions("task:manage")` and `@Roles("Leadership", "Administrator")`. These are strict.
+    - `TasksService.delegateTask()` contains more granular internal permission logic: the delegator must be the task `isCreator`, OR `isAssignee` (checked via `TaskQueryService.checkAssigneePermission`), OR `isAdminOrLeadership`.
+    - **Potential Conflict:** The controller-level RBAC (guards run first) is more restrictive than the service-level logic. If `PermissionsGuard` enforces "task:manage" and the specified roles strictly, only users matching those criteria can access the endpoint, regardless of the service's more permissive checks. This needs clarification or alignment.
+    - The user request specifies:
+        1.  Delegation enabled if task is assigned to current user by someone else. (Partially covered by `isAssignee` in service if controller allows).
+        2.  Delegation enabled if task assigned to user's department and user is a manager. (This specific "department manager" delegation logic is not explicitly present in `TasksService.delegateTask()` unless the manager role maps to "Leadership" or "Administrator" and has "task:manage").
+- **Verification Steps:**
+    - Assuming the controller-level RBAC (`task:manage` permission and Leadership/Administrator role) is the effective gate:
+        - Log in as a "Leadership" or "Administrator" role with "task:manage" permission.
+            - Delegate a task originally assigned to User A to User B. Verify sub-task creation for User B, original task status update, and notifications.
+    - If service-level permissions were reachable (e.g., if controller guards were less strict or "task:manage" was granted more broadly):
+        - Scenario 1 (Task assigned to current user): User A is assigned a task. Log in as User A. Attempt to delegate to User C. Verify outcome based on effective permissions.
+        - Scenario 2 (Department manager): Task assigned to Dept X. User M is manager of Dept X. Log in as User M. Attempt to delegate to User D in Dept X. Verify.
+    - Log in as a user without the "task:manage" permission and relevant role. Confirm "Delegate Task" button is hidden/disabled or API call fails with 403.
+    - Test delegation of a completed or cancelled task; expect a 400 Bad Request.
+
+### 3.4. Task Status Changes
+- **Description:** Users can update the lifecycle status of tasks (e.g., from Pending to In Progress, Completed, or Cancelled).
+- **Current Implementation:**
+    - **Backend:**
+        - API Endpoint: `PATCH /tasks/:id/status` (handled by `TasksController.updateStatus()`).
+        - Service Logic: `TasksService.updateStatus()` in `backend-nest/src/tasks/tasks.service.ts`.
+            - Fetches the task using `TaskQueryService.findOne()`.
+            - Validates status transitions (e.g., cannot cancel an already completed task).
+            - If new status is `CANCELLED`, a `cancellationReason` (min 20 characters from `UpdateTaskStatusDto`) is required.
+            - Updates `task.status`. Sets `task.completedAt` if status is `COMPLETED`. Sets `task.cancelledAt`, `task.cancelledById`, `task.cancellationReason` if `CANCELLED`.
+            - Records an entry in the activity log.
+            - Sends notifications to assignees if status changes to `COMPLETED` or `CANCELLED`.
+        - DTO: `UpdateTaskStatusDto` (`backend-nest/src/tasks/dto/update-task-status.dto.ts`) includes `status` and optional `cancellationReason`.
+        - Available Statuses: Defined in `TaskStatus` enum (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, `DELEGATED`, `DELETED`) in `task.entity.ts`.
+    - **Frontend:**
+        - UI: Task views (`TaskViewDialog.tsx`, `TaskList.tsx` items, `TaskBoard.tsx` columns/cards) should provide means to change task status (e.g., dropdown menus, drag-and-drop functionality).
+        - Service: API calls likely handled by an `updateTaskStatus` function in `frontend/src/services/task.ts`.
+- **RBAC Permissions:**
+    - The `PATCH /tasks/:id/status` endpoint is protected by `JwtAuthGuard` and `PermissionsGuard` at the `TasksController` class level.
+    - `TasksService.updateStatus()` includes internal permission logic: the requesting user must be the task `isCreator`, OR `isAssignee` (checked via `TaskQueryService.checkAssigneePermission`), OR `isAdminOrLeadership`.
+    - A specific "task:update:status" permission might be checked by `PermissionsGuard`.
+- **Verification Steps:**
+    - Log in as a user who is an assignee of a task.
+        - Change task status: Pending -> In Progress. Verify.
+        - Change task status: In Progress -> Completed. Verify `completedAt` is set and notifications sent.
+        - Change task status: Pending -> Cancelled (provide a valid reason). Verify `cancelledAt`, `cancelledById`, `cancellationReason` are set and notifications sent.
+    - Log in as the creator of a task (who may not be a current assignee). Attempt to change status. Verify based on service logic.
+    - Log in as an Admin/Leadership role. Attempt to change status for any task. Verify.
+    - Log in as a user who is neither creator, assignee, nor admin for a task. Confirm attempts to change status are denied.
+    - Attempt to change status to `CANCELLED` without providing a `cancellationReason` (or with a too-short reason); expect a 400 Bad Request.
+    - Attempt to change the status of an already `COMPLETED` task to `CANCELLED`; expect a 400 Bad Request.
+
+### 3.5. Summary of Task Management Features
+- **Task Creation:** Users with "task:create" (or equivalent default) permission can create tasks. Input fields (`title`, `description`, `priority`, `dueDate`) are validated. Tasks can be assigned to users, departments, or provincial departments, triggering notifications. Backend: `POST /tasks`, `TasksService.create()`.
+- **Task Assignment:** Assignment to single/multiple users, departments, or provincial departments is handled during creation (`CreateTaskDto`) or update (`UpdateTaskDto`). Backend logic in `TasksService.create()` and `TasksService.update()` manages `TaskType` and assignee relations. Permissions are tied to task creation/update, with service-level checks for creator/assignee/admin roles.
+- **Task Delegation:** Users with "task:manage" permission and "Leadership"/"Administrator" roles (per controller decorator) can delegate tasks via `POST /tasks/:id/delegate`. `TasksService.delegateTask()` creates sub-tasks for new assignees and sets the original task to "DELEGATED". Service-level permission checks are more granular (creator/assignee/admin) but may be superseded by stricter controller guards.
+- **Task Status Changes:** Users who are creators, assignees, or admins/leadership can update task statuses (Pending, In Progress, Completed, Cancelled) via `PATCH /tasks/:id/status`. `TasksService.updateStatus()` handles logic, including requiring a reason for cancellation and sending notifications for completion/cancellation.
+- **RBAC Integration:** All primary task operations (`create`, `update`, `delegate`, `updateStatus`) in `TasksController` are protected by `JwtAuthGuard` and `PermissionsGuard`. Specific controller methods have `@Permissions` or `@Roles` decorators (e.g., delegation). Service methods (`TasksService`) further implement fine-grained permission checks (e.g., creator, assignee, admin/leadership status) often using `TaskQueryService.checkAssigneePermission()`.
+
+## 4. Function Analysis
+
+*(To be populated after code review)*
+
+## 5. Dependencies Review
+
+*(To be populated after analysis)*
+
+### 5.1. Backend Dependencies
+
+*   **Initial Notes:**
+    *   Both `mysql2` and `pg` are listed. Verify which database is actively used.
+    *   `react-turnstile` appears in backend dependencies, which seems unusual. Verify its usage.
+
+### 5.2. Frontend Dependencies
+
+*   **Initial Notes:**
+    *   Both Material UI and Tailwind CSS dependencies are present. Verify how they are used together or if one is primary.
+    *   Two notification libraries (`notistack`, `react-toastify`). Verify usage.
+    *   `react-turnstile` appears in backend dependencies, which seems unusual. Verify its usage. *Confirmed present, likely an error and should be removed from backend.*
+
+## 6. Project Requirements Implemented
+
+*(To be populated based on function analysis)*
+
+## 7. Findings, Improvements & Actions
+
+### 7.1. Initial Findings
+
+*   **TypeScript Compilation Errors:** Errors found during startup related to missing `api-settings.entity` import in `backend-nest/ormconfig.ts` and `backend-nest/src/app.module.ts`.
+    *   **Status:** Resolved. References removed. (2024-0X-XX)
+*   **Admin 2FA Days Setting:** User reported that the admin-set "2FA days" value doesn't reflect for users.
+    *   **Finding:** The relevant admin setting in `SecuritySettings` is `password_expiry_days`, not directly related to 2FA code validity (which is typically 30-60s for TOTP). There is no server-side setting for "2FA days". This seems to be a misunderstanding of the UI or settings function. Clarification added to PRD.
+    *   **Status:** Analysis Complete. No code change needed for this specific point.
+*   **Authenticator App 2FA Verification Failure (400 Error):** Users encounter a 400 error when trying to verify the code after scanning the QR code.
+    *   **Finding:** The `AuthService.login2FA` method was incomplete. The actual TOTP verification logic was commented out. Furthermore, the check for `user.twoFactorEnabled` and `user.twoFactorSecret` was likely failing because the user setup process (generating secret, saving it, enabling flag) was missing entirely, leading to a `BadRequestException` (400).
+    *   **Status:** Partially Resolved. 2FA Setup (`generateTwoFactorSetupDetails`, `confirmTwoFactorSetup`) and verification (`login2FA` with `speakeasy`) methods added/updated in `AuthService`. Needs controller endpoints and frontend integration.
+*   **Email 2FA Delivery Failure:** Emails for email-based 2FA are not being sent.
+    *   **Finding:** `AuthService` calls `MailService.sendTemplatedEmail` correctly. `MailService` uses `@nestjs-modules/mailer`, which is configured in `MailModule` to use SendGrid via SMTP, fetching the API key from `SettingsService` (which reads the `settings` DB table). The failure is likely due to: missing/incorrect API key/from-address in DB settings, incorrect SendGrid permissions, a missing/malformed `TWO_FACTOR_LOGIN_CODE` email template in the DB, or network issues.
+    *   **Status:** Investigation ongoing. Added logging to `MailService` to help diagnose further. Need to check DB settings, template existence, and potentially test SendGrid key directly.
+*   **Console Error in TaskViewDialog:** A `TypeError: Cannot read properties of null (reading 'title')` was occurring in `frontend/src/components/tasks/TaskViewDialog.tsx`.
+    *   **Finding:** The error happened because the `task` object was accessed in the `DialogTitle` and `DialogActions` before it was fully loaded, or if it failed to load. The `task` state is initialized to `null` and populated asynchronously.
+    *   **Status:** Resolved. (YYYY-MM-DD)
+
+### 7.2. Planned Actions
+
+*   ~~Resolve TypeScript compilation errors.~~ (Done)
+*   **Implement 2FA Backend Flow:**
+    *   Add controller endpoints for `/auth/2fa/setup` and `/auth/2fa/confirm` calling the new `AuthService` methods.
+    *   (Optional) Implement recovery code generation and verification.
+*   **Diagnose & Fix Email 2FA Delivery:**
+    *   Verify `SENDGRID_API_KEY` and `EMAIL_FROM_ADDRESS` in DB settings.
+    *   Verify existence and content of `TWO_FACTOR_LOGIN_CODE` email template in DB.
+    *   Use `testSendGridSettings` or admin panel test feature to check key validity.
+    *   Analyze logs after the added logging in `MailService` for specific errors during `mailerService.sendMail()`.
+    *   **Update:** Email templates for 2FA (`TWO_FACTOR_CODE_EMAIL` for setup, `TWO_FACTOR_LOGIN_CODE` for login) created. SendGrid integration for these emails relies on existing `MailService`. Further testing of SendGrid key and settings is still advised.
+*   Perform detailed function analysis for both backend and frontend.
+*   Analyze dependency usage to identify unused or missing packages.
+*   Document implemented project requirements.
+*   Investigate potential bugs using logs and browser tools.
+
+### 7.3. Implemented 2FA System (Details)
+
+A comprehensive Two-Factor Authentication (2FA) system has been implemented, offering users the choice between an Authenticator App (TOTP) and Email-based codes.
+
+**Key Backend Components & Logic:**
+
+*   **`TwoFactorService` (`backend-nest/src/auth/two-factor.service.ts`):**
+    *   Handles core 2FA logic: generating secrets for app-based 2FA, generating QR codes (using `qrcode`), verifying TOTP codes (using `speakeasy`).
+    *   Manages 2FA status (enabled/disabled, method) for users.
+    *   Sends email codes for 2FA setup verification (using `MailService` and `TWO_FACTOR_CODE_EMAIL` template).
+*   **`AuthService` (`backend-nest/src/auth/auth.service.ts`):**
+    *   Integrates 2FA into the primary login flow (`signIn` method checks if 2FA is required).
+    *   Handles 2FA code verification during login (`login2FA` method).
+    *   Sends login OTP codes via email (`sendLoginTwoFactorEmailCode` using `MailService` and `TWO_FACTOR_LOGIN_CODE` template).
+*   **`TwoFactorController` (`backend-nest/src/auth/two-factor.controller.ts`):**
+    *   Mounted at `/settings`.
+    *   Provides endpoints for frontend settings management:
+        *   `GET /2fa-status`: Fetches the current 2FA status and method for the logged-in user.
+        *   `POST /setup_2fa`: Enables/disables 2FA, sets the method (app/email). Returns QR code for app setup.
+        *   `POST /verify_2fa`: Verifies the TOTP code during 2FA setup.
+*   **`AuthController` (`backend-nest/src/auth/auth.controller.ts`):**
+    *   `POST /login/2fa/resend-code`: New endpoint to allow users to request a new OTP if needed during the login 2FA challenge.
+*   **`EmailTemplatesService` (`backend-nest/src/email-templates/email-templates.service.ts`):**
+    *   Added two new default email templates:
+        *   `TWO_FACTOR_CODE_EMAIL`: For verifying email as a 2FA method during setup.
+        *   `TWO_FACTOR_LOGIN_CODE`: For sending the OTP during login.
+*   **User Entity (`backend-nest/src/users/entities/user.entity.ts`):**
+    *   Updated to include `twoFactorEnabled`, `twoFactorSecret`, `twoFactorMethod`, `loginOtp`, `loginOtpExpiresAt`.
+
+**Key Frontend Components & Logic:**
+
+*   **`Settings.tsx` (`frontend/src/pages/Settings.tsx`):**
+    *   Provides UI in the "Security" tab for users to manage their 2FA settings.
+    *   Allows enabling/disabling 2FA.
+    *   Allows selection between "Authenticator App" and "Email" methods.
+    *   Guides users through the setup process for the chosen method (displaying QR code, prompting for verification code).
+    *   Uses `SettingsService.ts` for backend communication.
+*   **`TwoFactorAuthPopup.tsx` (`frontend/src/components/auth/TwoFactorAuthPopup.tsx`):**
+    *   A reusable modal dialog that prompts the user to enter their 2FA code (from app or email).
+    *   Includes a "Resend Code" option for email-based 2FA during login.
+*   **`Login.tsx` (`frontend/src/pages/Login.tsx`):**
+    *   Integrates the `TwoFactorAuthPopup`.
+    *   When the initial username/password login is successful and the backend indicates 2FA is required, this popup is shown.
+    *   Handles submission of the 2FA code to the backend.
+*   **`AuthService.ts` (`frontend/src/services/AuthService.ts`):**
+    *   `login()`: Updated to handle responses indicating 2FA is required.
+    *   `login2FA()`: Sends the 2FA code to the backend for verification during login.
+    *   `resendLoginOtp()`: New method to request a new login OTP.
+*   **`SettingsService.ts` (`frontend/src/services/settings.ts`):**
+    *   Contains methods to interact with the backend 2FA settings endpoints (`get2FAStatus`, `setup2FA`, `verify2FA`).
+
+## 8. Change Log & Rationales
+
+*   **2024-0X-XX:** Removed references to the non-existent `ApiSettings` entity from `backend-nest/ormconfig.ts` (import only) and `backend-nest/src/app.module.ts` (import and `TypeOrmModule` entities array).
+    *   **Rationale:** Resolved startup compilation errors. Entity confirmed as obsolete.
+*   **2024-0X-XX:** Added 2FA authenticator app setup and verification logic to `AuthService`.
+    *   Installed `speakeasy`.
+    *   Added `generateTwoFactorSetupDetails`, `confirmTwoFactorSetup`, `sendLoginTwoFactorEmailCode`, `disableTwoFactor` methods.
+    *   Implemented TOTP check in `login2FA`.
+    *   Added `loginOtp`, `loginOtpExpiresAt` to `User` entity and made `twoFactorSecret` nullable.
+    *   **Rationale:** Fixes the 400 error during 2FA app verification by implementing the missing setup and verification flow.
+*   **2024-0X-XX:** Added logging to `MailService.sendTemplatedEmail`.
+    *   **Rationale:** To help diagnose failures in email delivery by logging fetched templates and specific errors from the underlying mailer transport.
+*   **2024-05-XX (Current Sprint):** Implemented a comprehensive Two-Factor Authentication (2FA) system.
+    *   **Backend:**
+        *   Added `TwoFactorService` for core 2FA logic (TOTP generation/verification with `speakeasy`, QR codes with `qrcode`).
+        *   Updated `AuthService` to integrate 2FA into login and handle login OTPs.
+        *   Added `TwoFactorController` for 2FA settings management (status, setup, verification) via `/settings/...` endpoints.
+        *   Added `/auth/login/2fa/resend-code` endpoint to `AuthController`.
+        *   Created new email templates (`TWO_FACTOR_CODE_EMAIL`, `TWO_FACTOR_LOGIN_CODE`) in `EmailTemplatesService`.
+        *   Updated `User` entity with necessary 2FA fields.
+        *   Corrected user ID access in `TwoFactorController` (from `req.user.id` to `req.user.userId`) to resolve user context issues.
+    *   **Frontend:**
+        *   Developed `TwoFactorAuthPopup.tsx` for 2FA code entry during login.
+        *   Integrated the popup into `Login.tsx` and updated login flow to handle 2FA.
+        *   Refactored 2FA management UI in `Settings.tsx` for a clearer, step-by-step setup process for app and email methods.
+        *   Updated `AuthService.ts` (frontend) with `login2FA` and `resendLoginOtp` methods.
+        *   Ensured `SettingsService.ts` (frontend) correctly calls backend 2FA settings endpoints.
+    *   **Rationale:** Significantly enhances account security by adding an additional layer of verification for users. Addresses planned action items for 2FA implementation.
+*   **YYYY-MM-DD:** Fixed console error in `TaskViewDialog.tsx` and related linter warning.
+    *   **Issue:** `TypeError: Cannot read properties of null (reading 'title')` caused by accessing `task.title` before `task` data was loaded. A linter warning for `TaskStatus.DELETED` also appeared.
+    *   **Fix:**
+        *   Added null checks for the `task` object in `frontend/src/components/tasks/TaskViewDialog.tsx` before accessing `task.title` in `DialogTitle` and properties of `task` in `DialogActions`. Display 'Loading Task...' if task is null.
+        *   Removed the non-existent `TaskStatus.DELETED` from the status filter in the same component, resolving the linter error.
+    *   **Rationale:** Prevents runtime errors and improves UI stability when task data is loading or unavailable. Corrected enum usage.
+
+## 9. Task Management & Communication Protocol
+
+*   **Task Tracking:** This PRD will serve as the primary task tracking document. Context7 MCP server will be used for fetching up-to-date documentation when needed. (Note: Task Master MCP is not available).
+*   **Data Integrity:** Ensure all data interactions use the real MySQL database via backend APIs. No mock data.
+*   **Change Control:** Detailed rationale will be provided in Section 7 before any code or dependency removal.
+*   **Verification:** Frontend testing confirmation will be requested after implementations/fixes. Proceed only after receiving "great job" or similar approval.
+
+## 10. Bug Tracking
+
+*(To be populated as bugs are identified and resolved)* 

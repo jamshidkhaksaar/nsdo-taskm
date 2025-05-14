@@ -42,6 +42,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { getGlassmorphismStyles } from '../utils/glassmorphismStyles';
 import { standardBackgroundStyleNoPosition } from '../utils/backgroundStyles';
 import { Turnstile } from '@marsidev/react-turnstile';
+import TwoFactorAuthPopup from '../components/auth/TwoFactorAuthPopup';
 
 interface LoginFormInputs {
   username: string;
@@ -81,14 +82,17 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [show2FADialog, setShow2FADialog] = useState(false);
   const [loginCredentials, setLoginCredentials] = useState<LoginFormInputs | null>(null);
+  const [twoFactorUserId, setTwoFactorUserId] = useState<string | null>(null); // Store UserID for 2FA calls
+  const [twoFactorMethod, setTwoFactorMethod] = useState<string | undefined>(undefined); // 'app' or 'email'
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [twoFactorMethod] = useState<string>('app');
   const [emailCodeSent, setEmailCodeSent] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [forgotPasswordError, setForgotPasswordError] = useState('');
+  const [is2FASubmitting, setIs2FASubmitting] = useState(false);
+  const [isResendingCode, setIsResendingCode] = useState(false);
 
   const { user, isAuthenticated, loading: authLoading } = useSelector((state: RootState) => state.auth);
   const from = (location.state as any)?.from?.pathname || '/dashboard';
@@ -265,13 +269,23 @@ const Login: React.FC = () => {
       // AuthService.login itself does not set authLoading in Redux. So, the button spinner is from isSubmitting.
       const response = await AuthService.login(data.username, data.password, captchaToken);
       console.log('[Login.tsx] AuthService.login response in onSubmit:', JSON.stringify(response, null, 2));
+      console.log('[Login.tsx] Raw response.method from AuthService.login:', response.method);
 
-      if (response.need_2fa) {
-        console.log('[Login.tsx] 2FA is needed. Showing 2FA dialog.');
-        setShow2FADialog(true); // This will cause a re-render, form state will be preserved
+      // UPDATED CHECK: Use 'twoFactorRequired' and capture 'userId'
+      if (response.twoFactorRequired && response.userId) {
+        console.log('[Login.tsx] 2FA is needed. Storing userId and showing 2FA dialog. UserId:', response.userId);
+        setLoginCredentials(data); // Keep original credentials
+        setTwoFactorUserId(response.userId); // Store the userId
+        // Set the 2FA method, fallback to 'app' if response.method is undefined
+        setTwoFactorMethod(response.method || 'app'); 
+        setShow2FADialog(true); 
+      } else if (response.access) { // If not 2FA, expect access token for successful login
+        console.log('[Login.tsx] No 2FA needed or already handled. Calling handleSuccessfulLogin.');
+        handleSuccessfulLogin(response);
       } else {
-        console.log('[Login.tsx] No 2FA needed. Calling handleSuccessfulLogin.');
-        handleSuccessfulLogin(response); // This dispatches setCredentials, which updates isAuthenticated, triggering useEffect
+        // Handle unexpected response (neither 2FA required nor tokens)
+        console.error('[Login.tsx] Unexpected login response:', response);
+        handleLoginError('Unexpected response from server during login.');
       }
     } catch (err: any) {
       console.error('[Login.tsx] Error in onSubmit after AuthService.login call:', err);
@@ -282,42 +296,23 @@ const Login: React.FC = () => {
   };
 
   const handleRequestEmailCode = async () => {
-    if (!loginCredentials) {
-      setError('Login credentials lost. Please try again.');
-      setShow2FADialog(false);
+    if (!twoFactorUserId) {
+      setError('User information not available to resend code. Please try logging in again.');
       return;
     }
-
-    setLocalIsLoading(true);
+    setIsResendingCode(true);
+    setError('');
     try {
-      const response = await AuthService.requestEmailCode(
-        loginCredentials.username,
-        loginCredentials.password
-      );
-
-      if (response.success) {
-        setEmailCodeSent(true);
-        setError('');
-      } else {
-        throw new Error(response.message || 'Failed to send email code');
-      }
+      // Use the new service method that only requires userId
+      const response = await AuthService.resendLoginOtp(twoFactorUserId);
+      // Assuming the popup itself will show success/error messages from its own state
+      // Or, we can set a general success message here if needed.
+      console.log(response.message); // Or display it in a snackbar
+      // No need to set success on the main login form, popup handles its feedback.
     } catch (err: any) {
-      console.error('Email code request error:', err);
-      
-      if (axios.isAxiosError(err)) {
-        if (err.response) {
-          const errorMessage = err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
-          setError(errorMessage);
-        } else if (err.request) {
-          setError('No response from server. Please check your connection.');
-        } else {
-          setError(err.message || 'An error occurred requesting email code');
-        }
-      } else {
-        setError(err.message || 'An unknown error occurred');
-      }
+      setError(err.message || 'Failed to resend 2FA code. Please try again.');
     } finally {
-      setLocalIsLoading(false);
+      setIsResendingCode(false);
     }
   };
 
@@ -385,29 +380,39 @@ const Login: React.FC = () => {
 
   // Define onSubmit2FA (REMOVE duplicate useState calls from here)
   const onSubmit2FA = async (data: TwoFactorFormInputs) => {
-    if (!loginCredentials) {
-      setError('Login session expired. Please login again.');
+    if (!twoFactorUserId) {
+      setError('User ID for 2FA not found. Please login again.');
       setShow2FADialog(false);
       return;
     }
-    console.log('[Login.tsx] onSubmit2FA called with data:', data);
+    if (!loginCredentials) {
+        setError('Login session expired (credentials missing). Please login again.');
+        setShow2FADialog(false);
+        return;
+    }
+    console.log('[Login.tsx] onSubmit2FA called with data:', data, 'for userId:', twoFactorUserId);
     setError('');
+    setIs2FASubmitting(true); // Start 2FA submission loading
 
+    // Captcha token is usually for the primary login, not typically re-used for 2FA step.
+    // If your backend AuthService.login2FA *requires* it, ensure it's available or re-fetched.
+    // For now, assuming it's not needed based on typical 2FA flows.
+    /*
     if (!captchaToken) {
       setError('CAPTCHA verification incomplete or expired. Please refresh or re-verify.');
+      setIs2FASubmitting(false);
       return;
     }
+    */
 
     try {
-      const loginResponse = await AuthService.login(
-        loginCredentials.username,
-        loginCredentials.password,
-        captchaToken,
+      const loginResponse = await AuthService.login2FA(
+        twoFactorUserId,
         data.verificationCode,
-        loginCredentials.rememberMe
+        data.rememberDevice 
       );
       console.log('[Login.tsx] 2FA login response:', loginResponse);
-      handleSuccessfulLogin(loginResponse); // Ensure handleSuccessfulLogin is defined
+      handleSuccessfulLogin(loginResponse);
       setShow2FADialog(false);
     } catch (err: any) {
       console.error('[Login.tsx] 2FA verification failed:', err);
@@ -416,6 +421,8 @@ const Login: React.FC = () => {
       } else {
         setError(err.response?.data?.message || err.message || 'An error occurred during 2FA verification');
       }
+    } finally {
+      setIs2FASubmitting(false); // Stop 2FA submission loading
     }
   };
 
@@ -429,24 +436,18 @@ const Login: React.FC = () => {
 
   // --- Render Logic ---
   console.log(`[Login.tsx] Pre-return: localIsLoading=${localIsLoading}, authLoading=${authLoading}, isAuthenticated=${isAuthenticated}, userExists=${!!user}`);
+  console.log(`[Login.tsx] twoFactorMethod state just before main return:`, twoFactorMethod); // Log here
 
-  // Condition to show the main LoadingScreen (cosmetic for initial load)
-  if (localIsLoading && !isAuthenticated) { // Show initial loading only if not authenticated (auth flow might take over)
-    console.log("[Login.tsx] RENDERING: LoadingScreen (due to initial localIsLoading and not yet authenticated).");
-    return <LoadingScreen />;
-  }
-  if (authLoading && !isAuthenticated) { // If Redux says auth is happening and we are not yet authenticated
-    console.log("[Login.tsx] RENDERING: LoadingScreen (due to authLoading from Redux and not yet authenticated).");
-    return <LoadingScreen />;
+  if (localIsLoading && !isAuthenticated) {
+    return <LoadingScreen message="Initializing login..." />;
   }
 
-  // If authenticated and trying to go to /dashboard (or other non-/login page), the useEffect should have redirected.
-  // If authenticated AND on /login page, we now allow the form to show (localIsLoading should be false).
-  console.log("[Login.tsx] RENDERING: Proceeding to render main login form (all loading conditions passed or overridden).");
-
-  // Log validation errors & button state just before returning the form JSX
-  if (Object.keys(errors).length > 0) console.warn('[Login.tsx] Form validation errors (pre-render):', errors);
-  console.log(`[Login.tsx] Submit button state (pre-render): localIsLoading=${localIsLoading}, authLoading=${authLoading}, captchaToken=${captchaToken}, isSubmitting=${isSubmitting}`);
+  // If authenticated and user object exists with a role, useEffect will navigate.
+  // If authenticated but user object is problematic (e.g. no role after login), 
+  // we might fall through here. LoadingScreen for authLoading handles this better.
+  if (authLoading && !error) {
+      return <LoadingScreen message="Authenticating..." />;
+  }
 
   return (
     <Box
@@ -725,117 +726,20 @@ const Login: React.FC = () => {
 
       </Box>
       
-      <Dialog 
-        open={show2FADialog} 
-        onClose={() => setShow2FADialog(false)}
-        PaperComponent={(props) => (
-          <Paper 
-            {...props} 
-            sx={{
-              ...glassStyles.card,
-              maxWidth: '400px',
-              width: '100%',
-            }}
-          />
-        )}
-      >
-        <DialogTitle sx={{ ...glassStyles.text.primary, textAlign: 'center' }}>
-          Two-Factor Authentication
-        </DialogTitle>
-        <DialogContent>
-          {error && (
-            <Alert 
-              severity="error" 
-              sx={{ 
-                mb: 2,
-                backgroundColor: 'rgba(211, 47, 47, 0.15)',
-                backdropFilter: 'blur(10px)',
-                color: '#fff',
-                border: '1px solid rgba(211, 47, 47, 0.3)',
-                '& .MuiAlert-icon': {
-                  color: '#fff'
-                }
-              }}
-            >
-              {error}
-            </Alert>
-          )}
-          
-          <Typography sx={{ ...glassStyles.text.secondary, mb: 2 }}>
-            {twoFactorMethod === 'app' 
-              ? 'Enter the verification code from your authenticator app.' 
-              : 'Enter the verification code sent to your email.'}
-          </Typography>
-          
-          {twoFactorMethod === 'email' && !emailCodeSent && (
-            <Box sx={{ mb: 2 }}>
-              <Button
-                variant="contained"
-                onClick={handleRequestEmailCode}
-                disabled={localIsLoading}
-                fullWidth
-                sx={glassStyles.button}
-              >
-                {localIsLoading ? <CircularProgress size={24} /> : 'Send Verification Code'}
-              </Button>
-            </Box>
-          )}
-          
-          {(twoFactorMethod === 'app' || emailCodeSent) && (
-            <Box component="form" onSubmit={formSubmit2FA(onSubmit2FA)}>
-              <TextField
-                label="Verification Code"
-                fullWidth
-                {...register2FA('verificationCode')}
-                error={!!errors2FA.verificationCode}
-                helperText={errors2FA.verificationCode?.message}
-                variant="outlined"
-                margin="normal"
-                InputLabelProps={{
-                  sx: glassStyles.inputLabel
-                }}
-                sx={{
-                  mb: 2,
-                  '& .MuiOutlinedInput-root': glassStyles.input,
-                }}
-              />
-              
-              <FormControlLabel
-                control={
-                  <Checkbox 
-                    {...register2FA('rememberDevice')} 
-                    defaultChecked
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': {
-                        color: 'rgba(255, 255, 255, 0.9)',
-                      },
-                    }}
-                  />
-                }
-                label={<Typography sx={glassStyles.text.secondary}>Remember this device for 90 days</Typography>}
-              />
-              
-              <DialogActions sx={{ mt: 2, px: 0 }}>
-                <Button 
-                  onClick={() => setShow2FADialog(false)} 
-                  sx={{ ...glassStyles.text.secondary, '&:hover': { color: 'white' } }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit"
-                  variant="contained"
-                  disabled={localIsLoading}
-                  sx={glassStyles.button}
-                >
-                  {localIsLoading ? <CircularProgress size={24} /> : 'Verify'}
-                </Button>
-              </DialogActions>
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+      {console.log('[Login.tsx] twoFactorMethod state before passing to TwoFactorAuthPopup:', twoFactorMethod)}
+      <TwoFactorAuthPopup
+        open={show2FADialog}
+        onClose={() => {
+          setShow2FADialog(false);
+          setError(''); // Clear any 2FA specific errors when closing manually
+        }}
+        onSubmit={onSubmit2FA}
+        loading={is2FASubmitting} // Use dedicated loading state for 2FA
+        error={error} // Pass the general error state, which onSubmit2FA updates
+        twoFactorMethod={twoFactorMethod as 'app' | 'email'} // Pass the determined method
+        onResendEmailCode={handleRequestEmailCode}
+        isResendingEmail={isResendingCode}
+      />
       
       <Dialog open={isForgotPasswordOpen} onClose={handleCloseForgotPassword} 
         PaperProps={{ 

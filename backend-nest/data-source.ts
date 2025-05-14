@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { User } from './src/users/entities/user.entity';
 import { Department } from './src/departments/entities/department.entity';
@@ -5,8 +6,6 @@ import { Task } from './src/tasks/entities/task.entity';
 import { Note } from './src/notes/entities/note.entity';
 import { Province } from './src/provinces/entities/province.entity';
 import { Notification } from './src/notifications/entities/notification.entity';
-import { ApiSettings } from './src/settings/entities/api-settings.entity';
-import { BackupSettings } from './src/settings/entities/backup-settings.entity';
 import { NotificationSettings } from './src/settings/entities/notification-settings.entity';
 import { SecuritySettings } from './src/settings/entities/security-settings.entity';
 import { Setting } from './src/settings/entities/setting.entity';
@@ -15,12 +14,13 @@ import { Backup } from './src/backup/entities/backup.entity';
 import { EmailTemplate } from './src/email-templates/entities/email-template.entity';
 import { Role } from './src/rbac/entities/role.entity';
 import { Permission } from './src/rbac/entities/permission.entity';
+import { BackupSettings } from './src/settings/entities/backup-settings.entity';
 
 // Load environment variables if needed (e.g., using dotenv)
 // import * as dotenv from 'dotenv';
 // dotenv.config(); 
 
-export const dataSourceOptions: DataSourceOptions = {
+export const AppDataSourceOptions: DataSourceOptions = {
   type: 'mysql', // Or process.env.DB_TYPE
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306', 10),
@@ -36,8 +36,6 @@ export const dataSourceOptions: DataSourceOptions = {
     Note,
     Province,
     Notification,
-    ApiSettings,
-    BackupSettings,
     NotificationSettings,
     SecuritySettings,
     Setting,
@@ -46,6 +44,7 @@ export const dataSourceOptions: DataSourceOptions = {
     EmailTemplate,
     Role,
     Permission,
+    BackupSettings,
   ],
   migrations: ['src/migrations/*.ts'], // Point to TS migration files
   migrationsTableName: "typeorm_migrations",
@@ -54,5 +53,5 @@ export const dataSourceOptions: DataSourceOptions = {
   // }
 };
 
-const dataSource = new DataSource(dataSourceOptions);
-export default dataSource; 
+const AppDataSource = new DataSource(AppDataSourceOptions);
+export default AppDataSource; 

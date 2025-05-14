@@ -116,7 +116,7 @@ export class TasksController {
   @ApiResponse({ status: 404, description: 'Task not found' })
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     this.logger.log(`Finding task with ID: ${id} for user ${req.user.userId}`);
-    return this.taskQueryService.findOne(id, req.user);
+    return this.taskQueryService.findOne(id);
   }
 
   @Put(":id")

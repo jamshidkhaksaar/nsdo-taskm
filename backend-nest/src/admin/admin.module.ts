@@ -13,6 +13,7 @@ import { ActivityLogService } from "./services/activity-log.service";
 import { ActivityLogsController } from "./controllers/activity-logs.controller";
 import { AdminDepartmentsController } from "./controllers/admin-departments.controller";
 import { ActivityLoggerInterceptorFactory } from "./interceptors/activity-logger.interceptor";
+import { AuthModule } from "../auth/auth.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ActivityLoggerInterceptorFactory } from "./interceptors/activity-logger
     forwardRef(() => UsersModule),
     forwardRef(() => DepartmentsModule),
     forwardRef(() => TasksModule),
+    forwardRef(() => AuthModule),
   ],
   controllers: [
     AdminController,

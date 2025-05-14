@@ -6,6 +6,7 @@ import {
   Inject,
   forwardRef,
   BadRequestException,
+  NotFoundException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
@@ -18,7 +19,12 @@ import { ConfigService } from "@nestjs/config";
 import { v4 as uuidv4 } from "uuid";
 import { UserContext } from "./interfaces/user-context.interface";
 import { CaptchaService } from "../captcha/captcha.service";
-// TODO: Import speakeasy or otplib for TOTP verification later
+import { randomBytes } from "crypto";
+import * as speakeasy from 'speakeasy';
+import * as QRCode from 'qrcode';
+import { SettingsService } from '../settings/settings.service';
+import { UAParser } from 'ua-parser-js';
+import axios from 'axios';
 
 // Define expected return types
 interface LoginSuccessResponse {
@@ -30,6 +36,7 @@ interface LoginSuccessResponse {
 interface TwoFactorRequiredResponse {
   twoFactorRequired: true;
   userId: string;
+  method: string;
 }
 
 @Injectable()
@@ -43,6 +50,7 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
     private readonly captchaService: CaptchaService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async validateUser(username: string, password: string): Promise<User | null> {
@@ -67,8 +75,10 @@ export class AuthService {
 
   async signIn(
     loginCredentialsDto: LoginCredentialsDto,
+    ipAddress: string,
+    userAgent: string,
   ): Promise<LoginSuccessResponse | TwoFactorRequiredResponse> {
-    this.logger.log(`[DEBUG] Entered signIn`);
+    this.logger.log(`[DEBUG] Entered signIn. IP: ${ipAddress}, User-Agent: ${userAgent}`);
     const { username, password /*, captchaToken */ } = loginCredentialsDto; // captchaToken exists but is unused if commented out
     this.logger.log(`Login attempt for user: ${username}`);
 
@@ -110,19 +120,27 @@ export class AuthService {
       // --- 2FA Check ---
       if (user.twoFactorEnabled) {
         this.logger.log(
-          `2FA is enabled for user: ${username}. Returning 2FA required response.`,
+          `[SignIn Check] 2FA is ENABLED for user: ${username} (ID: ${user.id}). Method: ${user.twoFactorMethod}.`,
         );
+
+        // If 2FA method is email, send the OTP now
+        if (user.twoFactorMethod === 'email') {
+          this.logger.log(`[SignIn Check] Sending login OTP email to user: ${user.username}`);
+          await this.sendLoginTwoFactorEmailCode(user.id); // Proactively send email
+        }
+
         // Do NOT issue tokens yet. Signal frontend that 2FA is needed.
         return {
           twoFactorRequired: true,
           userId: user.id,
+          method: user.twoFactorMethod,
         };
       }
       // --- End 2FA Check ---
 
       // If 2FA is not enabled, proceed with login and token generation
       this.logger.log(
-        `2FA is not enabled for user: ${username}. Generating tokens...`,
+        `[SignIn Check] 2FA is NOT enabled for user: ${username}. Generating tokens...`,
       );
       // Ensure role name is included in the payload if needed for permissions
       const payload: JwtPayload = { 
@@ -132,6 +150,9 @@ export class AuthService {
       };
       const accessToken = this.jwtService.sign(payload);
       const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
+
+      // Handle new login security checks
+      await this.handleNewLoginSecurityChecks(user, ipAddress, userAgent);
 
       this.logger.log(`Login successful (no 2FA) for user: ${username}`);
       return {
@@ -163,8 +184,10 @@ export class AuthService {
   async login2FA(
     userId: string,
     verificationCode: string,
+    ipAddress: string,
+    userAgent: string,
   ): Promise<LoginSuccessResponse> {
-    this.logger.log(`Attempting 2FA login for userId: ${userId}`);
+    this.logger.log(`Attempting 2FA login for userId: ${userId}. IP: ${ipAddress}, User-Agent: ${userAgent}`);
 
     // Load user with role and its permissions
     const user = await this.usersService.findById(userId, ["role", "role.permissions"]);
@@ -178,55 +201,63 @@ export class AuthService {
         `login2FA: 2FA is not enabled or secret is missing for user: ${user.username}`,
       );
       throw new BadRequestException(
-        "Two-Factor Authentication is not enabled for this account.",
+        "Two-Factor Authentication is not properly configured for this account.",
       );
     }
 
     let isCodeValid = false;
 
-    // TODO: Step 1: Verify TOTP code
-    // Use speakeasy or otplib to verify `verificationCode` against `user.twoFactorSecret`
-    // Example (using speakeasy - install it first: npm install speakeasy @types/speakeasy):
-    /*
-    import * as speakeasy from 'speakeasy';
-    isCodeValid = speakeasy.totp.verify({
-      secret: user.twoFactorSecret, // Assuming this is the BASE32 encoded secret
-      encoding: 'base32',
-      token: verificationCode,
-      window: 1 // Allow for a 30-second window variance
-    });
-    */
-    this.logger.log(
-      `TOTP check for user ${user.username}: ${isCodeValid ? "Valid" : "Invalid"}`,
-    );
-
-    // TODO: Step 2: If TOTP failed, check if it's a valid recovery code
-    if (!isCodeValid) {
+    if (user.twoFactorMethod === 'app') {
+      isCodeValid = speakeasy.totp.verify({
+        secret: user.twoFactorSecret, // This should be the BASE32 encoded secret
+        encoding: 'base32',
+        token: verificationCode,
+        window: 1, // Allow for a 30-second window variance (1 step before or after)
+      });
       this.logger.log(
-        `TOTP code invalid, checking recovery codes for user: ${user.username}`,
+        `TOTP app code verification for user ${user.username}: ${isCodeValid ? "Valid" : "Invalid"}`,
       );
-      // Logic to check if `verificationCode` matches one of the user's hashed recovery codes
-      // 1. Retrieve user.hashedRecoveryCodes (assuming it's an array of hashes)
-      // 2. Iterate and compare `bcrypt.compare(verificationCode, hashedCode)`
-      // 3. If a match is found, mark that code as used (e.g., remove it from the array or store used codes)
-      // 4. Set isCodeValid = true;
-      // 5. Update the user entity with the modified recovery codes list.
+    } else if (user.twoFactorMethod === 'email') {
+      // Email 2FA Login - verify against temporary code
+      if (user.loginOtp && user.loginOtpExpiresAt && new Date() < user.loginOtpExpiresAt) {
+        // Convert received code to uppercase for case-insensitive comparison
+        isCodeValid = user.loginOtp === verificationCode.toUpperCase(); 
+        if (isCodeValid) {
+          // Clear the OTP after successful use
+          await this.usersService.updateUser(user.id, { loginOtp: null, loginOtpExpiresAt: null });
+        }
+      }
+      this.logger.log(
+        `Email OTP verification for user ${user.username}: ${isCodeValid ? "Valid" : "Invalid"} (Received: ${verificationCode}, Stored: ${user.loginOtp})`,
+      );
+    } else {
+      this.logger.error(`Unsupported 2FA method: ${user.twoFactorMethod} for user ${user.username}`);
+      throw new InternalServerErrorException('Unsupported 2FA method configured.');
+    }
+    
+
+    // TODO: Step 2: If TOTP failed, check if it's a valid recovery code (Future enhancement)
+    if (!isCodeValid && user.twoFactorMethod === 'app') { // Recovery codes typically for app-based 2FA
+      this.logger.log(
+        `Primary 2FA code invalid, checking recovery codes for user: ${user.username}`
+      );
       // isCodeValid = await this.usersService.verifyAndUseRecoveryCode(userId, verificationCode);
-      // Placeholder:
-      isCodeValid = false; // Assume recovery code check fails for now
-      this.logger.log(`Recovery code check result: ${isCodeValid}`);
+      // For now, assume recovery code check fails if primary fails
+       this.logger.log(`Recovery code check result: ${isCodeValid} (currently not implemented)`);
     }
 
     if (!isCodeValid) {
+      // Increment failed attempts logic here potentially, using SecuritySettings max_login_attempts
+      // For now, just log and throw
       this.logger.warn(
-        `Invalid 2FA code (TOTP or Recovery) for user: ${user.username}`,
+        `Invalid 2FA code for user: ${user.username}`
       );
       throw new UnauthorizedException(
         "Invalid Two-Factor Authentication code.",
       );
     }
 
-    // If code is valid (either TOTP or Recovery), generate tokens
+    // If code is valid, generate tokens
     this.logger.log(
       `2FA verification successful for user: ${user.username}. Generating tokens...`,
     );
@@ -237,6 +268,9 @@ export class AuthService {
     };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
+
+    // Handle new login security checks
+    await this.handleNewLoginSecurityChecks(user, ipAddress, userAgent);
 
     return {
       access: accessToken,
@@ -249,6 +283,174 @@ export class AuthService {
         role: user.role || null, 
       },
     };
+  }
+
+  async generateTwoFactorSetupDetails(userId: string): Promise<{ secret: string; qrCodeUrl: string; otpAuthUrl: string }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const appName = this.configService.get<string>('APP_NAME') || 'NSDO TaskManager';
+    // Ensure a valid name is provided even if email/username are somehow null/empty
+    const issuerName = `${appName} (${user.email || user.username || 'User'})`; 
+    const secret = speakeasy.generateSecret({
+      length: 20,
+      name: issuerName,
+    });
+
+    // secret.base32 is the secret key for the user to save.
+    // secret.otpauth_url is the URL for the QR code.
+    const otpAuthUrl = secret.otpauth_url;
+    if (!otpAuthUrl) {
+      this.logger.error(`Failed to generate otpauth_url for user ${user.username}`);
+      throw new InternalServerErrorException('Could not generate OTP Auth URL');
+    }
+    
+    const qrCodeUrl = await QRCode.toDataURL(otpAuthUrl);
+    
+    this.logger.log(`Generated 2FA setup details for user ${user.username}. Secret: ${secret.base32}, OTPAuthURL: ${otpAuthUrl}`);
+    
+    // DO NOT save the secret to the user yet. It's confirmed in the next step.
+    return {
+      secret: secret.base32, // Send this to the user to manually enter if QR fails
+      qrCodeUrl,
+      otpAuthUrl // Though QR code contains this, sometimes useful to have
+    };
+  }
+
+  async confirmTwoFactorSetup(userId: string, tokenFromUser: string, secretFromSetup: string): Promise<{ success: boolean; recoveryCodes?: string[] }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isValid = speakeasy.totp.verify({
+      secret: secretFromSetup, // The BASE32 secret generated during setup
+      encoding: 'base32',
+      token: tokenFromUser,
+      window: 1,
+    });
+
+    if (!isValid) {
+      this.logger.warn(`2FA setup confirmation failed for user ${user.username}. Invalid token.`);
+      throw new BadRequestException('Invalid verification code. Please try again.');
+    }
+
+    // If valid, save the secret and enable 2FA for the user
+    user.twoFactorSecret = secretFromSetup;
+    user.twoFactorEnabled = true;
+    user.twoFactorMethod = 'app'; // Default to app when setting up via QR/secret
+    
+    // TODO: Generate and store recovery codes (hashed)
+    // const recoveryCodes = this.generateRecoveryCodes();
+    // user.hashedRecoveryCodes = await Promise.all(recoveryCodes.map(code => bcrypt.hash(code, 10)));
+    // await this.usersService.saveUser(user);
+    // For now, just save the main changes
+    await this.usersService.updateUser(user.id, {
+        twoFactorSecret: secretFromSetup,
+        twoFactorEnabled: true,
+        twoFactorMethod: 'app',
+        // hashedRecoveryCodes: user.hashedRecoveryCodes // if implementing recovery codes
+    });
+
+
+    this.logger.log(`2FA setup confirmed and enabled for user ${user.username} with app method.`);
+    return { success: true /*, recoveryCodes */ }; // Return plain text recovery codes to the user ONCE
+  }
+  
+  async sendLoginTwoFactorEmailCode(userId: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.email) {
+      this.logger.error(`Cannot send 2FA email code: User ${userId} not found or has no email.`);
+      throw new NotFoundException('User not found or email missing.');
+    }
+
+    const code = randomBytes(3).toString('hex').toUpperCase(); // Generates a 6-character alphanumeric code
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // Code valid for 10 minutes
+
+    // Attempt to update the user
+    await this.usersService.updateUser(user.id, {
+      loginOtp: code,
+      loginOtpExpiresAt: expiresAt,
+    });
+    this.logger.log(`[AuthService.sendLoginTwoFactorEmailCode] Attempted to set OTP to: ${code} for user ${user.id}`);
+
+    // Diagnostic: Re-fetch user to confirm OTP persistence
+    let otpPersistedCorrectly = false;
+    try {
+      // It's crucial to re-fetch the user entity from the database AFTER the update attempt.
+      const updatedUser = await this.usersService.findById(user.id); 
+      
+      this.logger.log(`[AuthService.sendLoginTwoFactorEmailCode] User ${user.id} after update attempt - DB Stored OTP: ${updatedUser?.loginOtp}, DB Expires: ${updatedUser?.loginOtpExpiresAt}`);
+      
+      // Check if both OTP and its expiry were persisted as expected.
+      // Compare timestamps for dates to ensure accuracy, allowing for a small margin of error (e.g., 2 seconds).
+      const timeDifferenceSeconds = updatedUser?.loginOtpExpiresAt ? Math.abs(updatedUser.loginOtpExpiresAt.getTime() - expiresAt.getTime()) / 1000 : Infinity;
+
+      if (updatedUser?.loginOtp === code && timeDifferenceSeconds <= 2) { // Allow up to a 2-second difference
+        otpPersistedCorrectly = true;
+      } else {
+        this.logger.error(`[AuthService.sendLoginTwoFactorEmailCode] CRITICAL: OTP persistence failure for user ${user.id}. Expected OTP: ${code} (Found: ${updatedUser?.loginOtp}). Expected Expiry: ${expiresAt} (Found: ${updatedUser?.loginOtpExpiresAt}, Difference: ${timeDifferenceSeconds}s).`);
+      }
+    } catch (fetchError) {
+      this.logger.error(`[AuthService.sendLoginTwoFactorEmailCode] CRITICAL: Failed to re-fetch user ${user.id} after OTP update attempt. Error: ${fetchError.message}. Cannot confirm OTP persistence.`);
+      // otpPersistedCorrectly remains false, an error will be thrown below.
+    }
+
+    if (!otpPersistedCorrectly) {
+      // Do not proceed to send an email if we cannot confirm the OTP was stored.
+      // This error indicates a server-side issue with saving the OTP.
+      throw new InternalServerErrorException('Failed to set up 2FA email code due to a server configuration issue. Please try again later or contact support.');
+    }
+
+    // If OTP persistence is confirmed, proceed to send email
+    try {
+      await this.mailService.sendTemplatedEmail(
+        user.email,
+        'TWO_FACTOR_LOGIN_CODE', // Ensure this template exists and is configured
+        {
+          username: user.username,
+          code: code,
+          validityMinutes: 10
+        },
+      );
+      this.logger.log(`2FA login email code sent to ${user.email} for user ${user.username}.`);
+    } catch (error) {
+      this.logger.error(`Failed to send 2FA login email code to ${user.email}: ${error.message}`, error.stack);
+      // Decide if this error should be propagated to the user or handled silently
+      // For now, if email fails, 2FA via email login will also fail.
+      throw new InternalServerErrorException('Failed to send 2FA email code.');
+    }
+  }
+  
+  // Method to disable 2FA for a user
+  async disableTwoFactor(userId: string, currentPassword?: string): Promise<{success: boolean}> {
+      const user = await this.usersService.findById(userId);
+      if (!user) {
+          throw new NotFoundException('User not found');
+      }
+
+      // Optional: Verify password before allowing disabling 2FA if currentPassword is provided
+      if (currentPassword) {
+          const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+          if (!isPasswordValid) {
+              this.logger.warn(`Attempt to disable 2FA for user ${user.username} failed due to invalid password.`);
+              throw new UnauthorizedException('Invalid password.');
+          }
+      }
+      
+      await this.usersService.updateUser(user.id, {
+          twoFactorEnabled: false,
+          twoFactorSecret: null,
+          twoFactorMethod: 'app', // Reset to default or keep previous? Resetting is safer.
+          loginOtp: null,
+          loginOtpExpiresAt: null,
+          // hashedRecoveryCodes: null, // Clear recovery codes
+      });
+
+      this.logger.log(`2FA disabled for user ${user.username}.`);
+      return { success: true };
   }
 
   async refreshToken(
@@ -330,6 +532,55 @@ export class AuthService {
     }
   }
 
+  async requestPasswordReset(email: string): Promise<void> {
+    this.logger.log(`Requesting password reset for email: ${email}`);
+    // Use UsersService to find by email
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      // User not found, but don't reveal this to the client
+      this.logger.warn(`Password reset requested for non-existent email: ${email}`);
+      return; // Silently exit
+    }
+
+    // Generate a secure, unique token
+    const token = randomBytes(32).toString("hex");
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
+
+    // Store the token and expiry on the user record
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = expires;
+
+    try {
+      // Use UsersService to save the updated user
+      await this.usersService.saveUser(user);
+      this.logger.log(`Saved password reset token for user ${user.id}`);
+
+      // Construct the reset URL
+      // TODO: Get frontend URL from config/env variables
+      const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173'; 
+      const resetUrl = `${frontendBaseUrl}/reset-password?token=${token}`;
+
+      // Send the email using MailService (assuming a template exists)
+      await this.mailService.sendTemplatedEmail(
+        user.email,
+        'PASSWORD_RESET_REQUEST', // Key for the password reset email template
+        {
+          username: user.username,
+          resetLink: resetUrl,
+          expiryTime: "1 hour", // Or format the expiry time more precisely
+        },
+      );
+      this.logger.log(`Password reset email sent to ${user.email}`);
+
+    } catch (error) {
+      this.logger.error(`Error during password reset request for ${email}: ${error.message}`, error.stack);
+      // Don't throw error to client to prevent information leakage
+      // Error is logged internally
+    }
+  }
+
   // The functionality of this method has been moved to UsersService.initiatePasswordReset
   // and is called directly from UsersController. It can be removed.
   /*
@@ -346,4 +597,110 @@ export class AuthService {
     };
   }
   */
+
+  // NEW METHOD for handling login security checks
+  private async handleNewLoginSecurityChecks(user: User, ipAddress: string, userAgentString: string): Promise<void> {
+    this.logger.log(`[SecurityCheck] Handling new login for user ${user.username} (ID: ${user.id}) from IP: ${ipAddress}`);
+
+    if (!userAgentString) {
+      this.logger.warn(`[SecurityCheck] User-Agent string is empty for user ${user.id}. Skipping device fingerprinting.`);
+      return;
+    }
+
+    const parser = new UAParser(userAgentString);
+    const uaResult = parser.getResult();
+    const browserName = uaResult.browser.name || 'Unknown Browser';
+    const browserVersion = uaResult.browser.version || 'Unknown Version';
+    const osName = uaResult.os.name || 'Unknown OS';
+    const osVersion = uaResult.os.version || 'Unknown Version';
+
+    const deviceFingerprint = `${browserName}_${osName}_${userAgentString}`;
+    const now = new Date();
+    let isNewDevice = true;
+
+    if (user.rememberedBrowsers && user.rememberedBrowsers.length > 0) {
+      const existingDevice = user.rememberedBrowsers.find(
+        b => b.fingerprint === deviceFingerprint && b.expiresAt > now
+      );
+      if (existingDevice) {
+        isNewDevice = false;
+        this.logger.log(`[SecurityCheck] Recognized device for user ${user.id}: ${deviceFingerprint}`);
+      }
+    }
+
+    if (isNewDevice) {
+      this.logger.log(`[SecurityCheck] New or unrecognized device detected for user ${user.id}: ${deviceFingerprint}`);
+
+      let locationInfo = 'Location details unavailable';
+      // Exclude private/localhost IPs from geolocation lookup
+      const isPrivateIp = /^(::1|127\.0\.0\.1|localhost|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)/.test(ipAddress);
+
+      if (ipAddress && !isPrivateIp) {
+        try {
+          // ip-api.com returns 429 if rate limited (45 reqs/min for free tier)
+          const response = await axios.get(`http://ip-api.com/json/${ipAddress}?fields=status,message,country,city,isp,query`);
+          if (response.data && response.data.status === 'success') {
+            locationInfo = `${response.data.city || ''}, ${response.data.country || ''} (ISP: ${response.data.isp || 'Unknown'})`;
+          } else {
+            this.logger.warn(`[SecurityCheck] Geolocation lookup failed for IP ${ipAddress}: ${response.data.message || 'Unknown reason'}`);
+            locationInfo = `Unable to determine location (IP: ${ipAddress})`;
+          }
+        } catch (geoError) {
+          this.logger.error(`[SecurityCheck] Geolocation API error for IP ${ipAddress}: ${geoError.message}`, geoError.stack);
+          locationInfo = `Error determining location (IP: ${ipAddress})`;
+        }
+      } else if (isPrivateIp) {
+        locationInfo = 'Local Network / Private IP Address';
+        this.logger.log(`[SecurityCheck] IP address ${ipAddress} is private. Skipping public geolocation.`);
+      } else {
+        locationInfo = 'IP Address not available for geolocation.';
+      }
+
+      const appName = this.configService.get<string>('APP_NAME') || 'Our Application';
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      const resetPasswordLink = `${frontendUrl}/reset-password`; // Or a more general security page if you have one
+
+      try {
+        this.logger.log(`[SecurityCheck] Sending 'New Login Notification' email to ${user.email} for user ${user.id}. Details - IP: ${ipAddress}, Location: ${locationInfo}, Browser: ${browserName} ${browserVersion}, OS: ${osName} ${osVersion}`);
+        
+        await this.mailService.sendTemplatedEmail(
+          user.email,
+          'NEW_LOGIN_NOTIFICATION', 
+          {
+            username: user.username,
+            appName: appName,
+            loginTime: now.toLocaleString(), // Consider formatting this more nicely or using a specific timezone
+            ipAddress: ipAddress,
+            location: locationInfo, 
+            browserName: browserName,
+            browserVersion: browserVersion,
+            osName: osName,
+            osVersion: osVersion,
+            resetPasswordLink: resetPasswordLink 
+          }
+        );
+        this.logger.log(`[SecurityCheck] Successfully sent 'New Login Notification' email to ${user.email}`);
+
+      } catch (emailError) {
+        this.logger.error(`[SecurityCheck] Failed to send new login notification for user ${user.id}: ${emailError.message}`, emailError.stack);
+      }
+
+      const newExpiry = new Date();
+      newExpiry.setDate(now.getDate() + 90); // Remember for 90 days
+
+      if (!user.rememberedBrowsers) {
+        user.rememberedBrowsers = [];
+      }
+      // Remove old entry if it exists (e.g., expired or same fingerprint with old expiry)
+      user.rememberedBrowsers = user.rememberedBrowsers.filter(b => b.fingerprint !== deviceFingerprint);
+      user.rememberedBrowsers.push({ fingerprint: deviceFingerprint, expiresAt: newExpiry });
+
+      try {
+        await this.usersService.saveUser(user); // Save the updated user with the new remembered browser
+        this.logger.log(`[SecurityCheck] Successfully remembered new device for user ${user.id}`);
+      } catch (saveError) {
+        this.logger.error(`[SecurityCheck] Failed to save remembered browser for user ${user.id}: ${saveError.message}`, saveError.stack);
+      }
+    }
+  }
 }

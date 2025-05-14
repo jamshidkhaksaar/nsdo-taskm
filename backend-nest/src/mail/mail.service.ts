@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, InternalServerErrorException } from "@nestjs/common";
 import { MailerService } from "@nestjs-modules/mailer";
 import { EmailTemplatesService } from "../email-templates/email-templates.service";
 
@@ -47,8 +47,9 @@ export class MailService {
         this.logger.error(
           `Email template with key "${templateKey}" not found.`,
         );
-        return; // Or throw an error
+        throw new InternalServerErrorException(`Email template '${templateKey}' not found.`);
       }
+      this.logger.debug(`Fetched template "${templateKey}": Subject="${template.subject}"`);
 
       // 2. Render subject and body with context
       const subject = this.renderTemplate(template.subject, context);
@@ -66,10 +67,10 @@ export class MailService {
       this.logger.log(`Sent email using template "${templateKey}" to ${to}`);
     } catch (error) {
       this.logger.error(
-        `Failed to send email using template "${templateKey}" to ${to}: ${error.message}`,
+        `Failed to send email using template "${templateKey}" to ${to}. Error: ${error?.message || error}`,
         error.stack,
       );
-      // Handle error appropriately (e.g., log, retry, notify admin)
+      throw new InternalServerErrorException(`Failed to send email for template '${templateKey}'.`);
     }
   }
 

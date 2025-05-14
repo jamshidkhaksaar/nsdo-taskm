@@ -43,9 +43,16 @@ export class User {
   @Column({ default: false, name: "two_factor_enabled" })
   twoFactorEnabled: boolean;
 
-  @Column({ nullable: true, name: "two_factor_secret" })
+  @Column({ type: 'text', nullable: true, name: "two_factor_secret" })
   @Exclude({ toPlainOnly: true })
-  twoFactorSecret: string;
+  twoFactorSecret: string | null;
+
+  @Column({ type: "varchar", length: 10, nullable: true, name: "login_otp" })
+  @Exclude({ toPlainOnly: true })
+  loginOtp: string | null;
+
+  @Column({ nullable: true, type: "timestamp", name: "login_otp_expires_at" })
+  loginOtpExpiresAt: Date | null;
 
   @Column({ type: "varchar", length: 128, nullable: true, name: "reset_password_token" })
   @Exclude({ toPlainOnly: true })

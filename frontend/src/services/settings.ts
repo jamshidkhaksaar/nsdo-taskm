@@ -37,8 +37,8 @@ export interface ApiSettings {
 
 // Define the missing type
 export interface TwoFactorStatusResponse {
-  isEnabled: boolean;
-  method?: 'TOTP' | 'Email' | 'None'; // Or appropriate values
+  enabled: boolean;
+  method?: 'app' | 'email' | null;
 }
 
 export const SettingsService = {

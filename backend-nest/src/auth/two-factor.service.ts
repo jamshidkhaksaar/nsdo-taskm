@@ -4,15 +4,7 @@ import { Repository } from "typeorm";
 import { User } from "../users/entities/user.entity";
 import * as speakeasy from "speakeasy";
 import * as QRCode from "qrcode";
-
-// Define a minimal interface for the mail service
-interface MailServiceLike {
-  sendVerificationCode(
-    email: string,
-    username: string,
-    code: string,
-  ): Promise<void>;
-}
+import { MailService } from "../mail/mail.service";
 
 @Injectable()
 export class TwoFactorService {
@@ -21,7 +13,7 @@ export class TwoFactorService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    @Optional() private mailService?: MailServiceLike,
+    private mailService: MailService,
   ) {}
 
   async getStatus(
@@ -179,7 +171,7 @@ export class TwoFactorService {
       }
 
       this.logger.log(
-        `Verifying 2FA code for user: ${user.username}, method: ${user.twoFactorMethod}`,
+        `Verifying 2FA code for user: ${user.username}, method: ${user.twoFactorMethod}. Stored Secret: ${user.twoFactorSecret}`,
       );
 
       // Verify the token
@@ -244,59 +236,79 @@ export class TwoFactorService {
       const user = await this.usersRepository.findOne({
         where: { id: userId },
       });
-      if (!user) {
-        throw new Error("User not found");
+      if (!user || !user.twoFactorSecret) {
+        throw new Error("User not found or 2FA secret not generated");
       }
 
-      // Generate a 6-digit verification code
-      const verificationCode = Math.floor(
-        100000 + Math.random() * 900000,
-      ).toString();
+      if (!this.mailService) {
+        this.logger.error(
+          "MailService is not available. Cannot send 2FA email code.",
+        );
+        throw new Error("Email service is not configured.");
+      }
 
-      // Store the verification code as a TOTP secret
-      // This allows us to reuse the existing verification logic
-      const secret = speakeasy.generateSecret({ length: 20 });
-      user.twoFactorSecret = secret.base32;
-      await this.usersRepository.save(user);
+      // Generate the current TOTP code
+      const code = speakeasy.totp({
+        secret: user.twoFactorSecret,
+        encoding: "base32",
+      });
 
-      // In a real implementation, we would send an email with the verification code
       this.logger.log(
-        `Sending verification code ${verificationCode} to ${email} for user ${user.username}`,
+        `Generated 2FA email code for user ${user.username}: ${code}`,
       );
 
-      // Send the email if mail service is available
-      if (this.mailService) {
-        try {
-          await this.mailService.sendVerificationCode(
-            email,
-            user.username,
-            verificationCode,
-          );
-          this.logger.log(
-            `Verification code email sent to ${email} for user ${user.username}`,
-          );
-        } catch (mailError) {
-          this.logger.error(
-            `Failed to send email: ${mailError.message}`,
-            mailError.stack,
-          );
-          // Continue even if mail sending fails - we'll just log the code for testing
-          this.logger.warn(
-            `TEST ONLY - verification code is: ${verificationCode}`,
-          );
-        }
-      } else {
-        // No mail service available, just log the code
-        this.logger.warn(
-          `Mail service not available - TEST ONLY - verification code is: ${verificationCode}`,
-        );
-      }
+      // Use the existing sendTemplatedEmail method
+      await this.mailService.sendTemplatedEmail(
+        email,
+        'TWO_FACTOR_CODE_EMAIL', // Use a specific template key
+        {
+          username: user.username,
+          code: code, // Pass the generated code to the template
+        },
+      );
+
+      this.logger.log(`Sent 2FA verification code email to ${email}`);
     } catch (error) {
       this.logger.error(
-        `Failed to send verification code: ${error.message}`,
+        `Failed to send 2FA verification code email to ${email}: ${error.message}`,
         error.stack,
       );
-      throw error;
+      // Re-throw or handle as appropriate
+      throw new Error("Failed to send 2FA verification code.");
     }
+  }
+
+  async adminDisableTwoFactor(userId: string, adminUserId?: string): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      this.logger.warn(`Admin reset 2FA: User with ID ${userId} not found.`);
+      throw new Error('User not found for 2FA reset.');
+    }
+
+    if (!user.twoFactorEnabled) {
+      this.logger.log(`Admin reset 2FA: 2FA already disabled for user ${user.username} (ID: ${userId}). No action taken.`);
+      // Optionally, still clear other fields if they might be stale
+      // user.twoFactorSecret = '';
+      // user.twoFactorMethod = 'app'; 
+      // user.rememberedBrowsers = [];
+      // await this.usersRepository.save(user);
+      return; // Or throw an error indicating it's already disabled
+    }
+
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = ''; // Clear the secret
+    user.twoFactorMethod = 'app'; // Reset to a default method or null
+    user.loginOtp = null; // Clear any pending login OTP
+    user.loginOtpExpiresAt = null;
+    user.rememberedBrowsers = []; // Clear remembered browsers
+
+    await this.usersRepository.save(user);
+    this.logger.log(
+      `Admin action: 2FA successfully disabled for user ${user.username} (ID: ${userId}) by admin (ID: ${adminUserId || 'Unknown'}).`,
+    );
+  }
+
+  async sendLoginTwoFactorEmailCode(userId: string): Promise<void> {
+    // ... existing code ...
   }
 }

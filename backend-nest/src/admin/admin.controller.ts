@@ -17,6 +17,7 @@ import { RolesGuard } from "../rbac/guards/roles.guard";
 import { Roles } from "../rbac/decorators/roles.decorator";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { User } from "../users/entities/user.entity";
+import { ParseUUIDPipe } from "@nestjs/common";
 
 @ApiTags("Admin")
 @Controller("admin")
@@ -209,5 +210,22 @@ export class AdminController {
   @ApiResponse({ status: 200, description: "Backup deleted successfully" })
   deleteBackup(@Param("backupId") backupId: string) {
     return this.adminService.deleteBackup(backupId);
+  }
+
+  @Post("users/:targetUserId/reset-2fa")
+  @Roles("Administrator", "Super Admin")
+  @ApiOperation({ summary: "Admin: Reset a user\'s Two-Factor Authentication" })
+  @ApiResponse({ status: 200, description: "User 2FA reset successfully." })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  @ApiResponse({ status: 404, description: "Target user not found." })
+  async adminResetUser2FA(
+    @Request() req,
+    @Param("targetUserId", ParseUUIDPipe) targetUserId: string,
+  ) {
+    this.logger.log(
+      `Admin user ${req.user.username} (ID: ${req.user.userId}) requested 2FA reset for user ID: ${targetUserId}`,
+    );
+    await this.adminService.adminResetUser2FA(targetUserId, req.user as User);
+    return { message: "User 2FA has been successfully reset." };
   }
 }

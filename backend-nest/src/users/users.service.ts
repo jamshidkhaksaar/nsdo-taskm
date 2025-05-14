@@ -348,6 +348,9 @@ export class UsersService {
         'socialLinks',
         'preferences',
         'position',
+        'loginOtp',
+        'loginOtpExpiresAt',
+        'rememberedBrowsers',
       ];
 
       for (const field of allowedFields) {
@@ -497,5 +500,10 @@ export class UsersService {
     }
 
     return { user, newPassword };
+  }
+
+  // Added simple method to save user entity state
+  async saveUser(user: User): Promise<User> {
+      return this.usersRepository.save(user);
   }
 }

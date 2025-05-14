@@ -56,6 +56,7 @@
     "mysql2": "^3.12.0",
     "nest-commander": "^3.16.1",
     "nodemailer": "^6.10.1",
+    "nsdo-taskm": "file:..",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",

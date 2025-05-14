@@ -12,6 +12,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "../users/entities/user.entity";
 import { MailModule } from "../mail/mail.module";
 import { CaptchaModule } from "../captcha/captcha.module";
+import { SettingsModule } from "../settings/settings.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { CaptchaModule } from "../captcha/captcha.module";
     }),
     MailModule,
     CaptchaModule,
+    forwardRef(() => SettingsModule),
   ],
   providers: [AuthService, JwtStrategy, TwoFactorService],
   controllers: [AuthController, TwoFactorController],

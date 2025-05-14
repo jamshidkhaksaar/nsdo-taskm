@@ -99,79 +99,48 @@ export const logout = () => {
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
+    console.error('Refresh token not found, logging out.');
     logout();
     return null;
   }
 
   try {
-    // Get the base URL without /api/v1 for auth endpoints
-    const apiUrl = CONFIG.API_URL || 'http://localhost:3001';
-    
-    // Use the correct API URL for the refresh endpoint
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
-    
-    try {
-      // Auth endpoints use the /api/v1 prefix like other endpoints
-      const refreshUrl = `${apiUrl}/api/v1/auth/refresh`;
-      const response = await fetch(refreshUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-        signal: controller.signal,
-        credentials: 'include' // Include cookies if using HTTP-only cookies
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        // Clear auth state on refresh failure
-        logout();
-        return null;
+    // Use the configured axios instance
+    // Note: The interceptor in axios.ts should prevent infinite loops for /auth/refresh
+    const response = await axios.post('/auth/refresh', { 
+      refresh_token: refreshToken 
+    });
+
+    const data = response.data;
+
+    // Handle the response based on the backend's structure
+    let newToken = data.access || data.accessToken;
+    let newRefreshToken = data.refresh || data.refreshToken || refreshToken;
+
+    if (newToken) {
+      storeTokens(newToken, newRefreshToken);
+
+      // Update Redux state
+      try {
+        store.dispatch(updateToken({ 
+          token: newToken, 
+          refreshToken: newRefreshToken 
+        }));
+      } catch (storeError) {
+        console.error('Failed to update Redux store after token refresh:', storeError);
+        // Continue even if Redux update fails
       }
-      
-      const data = await response.json();
-      
-      // Handle the response based on the backend's structure
-      let newToken = null;
-      let newRefreshToken = null;
-      
-      if (data.access || data.accessToken) {
-        // If the backend returns access and refresh tokens
-        newToken = data.access || data.accessToken;
-        newRefreshToken = data.refresh || data.refreshToken || refreshToken;
-      } else if (data.token) {
-        // If the backend returns a token property instead
-        newToken = data.token;
-        newRefreshToken = data.refresh || data.refreshToken || refreshToken;
-      }
-      
-      if (newToken) {
-        storeTokens(newToken, newRefreshToken || refreshToken);
-        
-        // Import store and update Redux state
-        try {
-          store.dispatch(updateToken({ 
-            token: newToken, 
-            refreshToken: newRefreshToken || refreshToken 
-          }));
-        } catch (storeError) {
-          // Continue even if Redux update fails
-        }
-        
-        return newToken;
-      } else {
-        logout();
-        return null;
-      }
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      throw fetchError;
+
+      return newToken;
+    } else {
+      console.error('No new access token received from refresh endpoint.');
+      logout();
+      return null;
     }
-  } catch (error) {
-    logout();
+
+  } catch (error: any) {
+    console.error('Failed to refresh access token:', error.response?.data || error.message);
+    logout(); // Logout on any refresh error
     return null;
   }
 };

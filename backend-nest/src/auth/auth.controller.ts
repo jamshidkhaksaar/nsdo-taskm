@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Req,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { LoginCredentialsDto } from "./dto/auth-credentials.dto";
@@ -19,6 +20,8 @@ import { RequestEmailCodeDto } from "./dto/request-email-code.dto";
 // If linter error persists for ResetPasswordDto, try restarting TypeScript server, deleting node_modules and running npm install.
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { UsersService } from "../users/users.service";
+import { ResendLoginOtpDto } from "./dto/resend-login-otp.dto";
+import { Request } from 'express';
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -43,10 +46,15 @@ export class AuthController {
     status: 401,
     description: "Unauthorized (Invalid Credentials / CAPTCHA / 2FA code).",
   })
-  async signIn(@Body() loginCredentialsDto: LoginCredentialsDto): Promise<any> {
+  async signIn(
+    @Body() loginCredentialsDto: LoginCredentialsDto,
+    @Req() request: Request,
+  ): Promise<any> {
     this.logger.log(`[Controller] POST /auth/signin`);
     try {
-      const result = await this.authService.signIn(loginCredentialsDto);
+      const ipAddress = request.ip || '';
+      const userAgent = request.headers['user-agent'] || '';
+      const result = await this.authService.signIn(loginCredentialsDto, ipAddress, userAgent);
       return result;
     } catch (error) {
       this.logger.error(
@@ -68,19 +76,48 @@ export class AuthController {
     status: 401,
     description: "Unauthorized (Invalid 2FA code or user session).",
   })
-  async login2FA(@Body() loginTwoFactorDto: LoginTwoFactorDto): Promise<any> {
+  async login2FA(
+    @Body() loginTwoFactorDto: LoginTwoFactorDto,
+    @Req() request: Request,
+  ): Promise<any> {
     this.logger.log(
       `[Controller] POST /auth/login/2fa for userId: ${loginTwoFactorDto.userId}`,
     );
     try {
+      const ipAddress = request.ip || '';
+      const userAgent = request.headers['user-agent'] || '';
       const result = await this.authService.login2FA(
         loginTwoFactorDto.userId,
         loginTwoFactorDto.verificationCode,
+        ipAddress,
+        userAgent,
       );
       return result;
     } catch (error) {
       this.logger.error(
         `2FA Login error in controller: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  @Post("/login/2fa/resend-code")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Resend the login OTP code to the user's primary 2FA method (usually email)" })
+  @ApiResponse({ status: 200, description: "Login OTP has been resent." })
+  @ApiResponse({ status: 400, description: "User ID not provided or user not found." })
+  @ApiResponse({ status: 401, description: "User not in a state requiring 2FA for login." })
+  async resendLoginOtp(@Body() resendLoginOtpDto: ResendLoginOtpDto): Promise<{ message: string }> {
+    this.logger.log(
+      `[Controller] POST /auth/login/2fa/resend-code for userId: ${resendLoginOtpDto.userId}`,
+    );
+    try {
+      await this.authService.sendLoginTwoFactorEmailCode(resendLoginOtpDto.userId);
+      return { message: "Login OTP has been resent." };
+    } catch (error) {
+      this.logger.error(
+        `Resend Login OTP error in controller: ${error.message}`,
         error.stack,
       );
       throw error;
@@ -116,6 +153,26 @@ export class AuthController {
         error.stack,
       );
       throw error;
+    }
+  }
+
+  @Post("/forgot-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Request a password reset link" })
+  @ApiResponse({ status: 200, description: "If a user exists with this email, a password reset link will be sent." })
+  @ApiResponse({ status: 400, description: "Invalid email format." })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    this.logger.log(`Forgot password request for email: ${forgotPasswordDto.email}`);
+    try {
+      // Service method will handle finding user and sending email (if user exists)
+      await this.authService.requestPasswordReset(forgotPasswordDto.email);
+      // Always return a success message to prevent email enumeration attacks
+      return { message: "If a user exists with this email, a password reset link has been sent." };
+    } catch (error) {
+       // Log the error internally, but don't expose details to the client
+      this.logger.error(`Forgot password error: ${error.message}`, error.stack);
+      // Still return the generic success message
+      return { message: "If a user exists with this email, a password reset link has been sent." };
     }
   }
 
