@@ -40,7 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Instead of returning the full entity, return essential info including the ID from the token payload (sub)
     // This becomes the `req.user` object in controllers
     const userContext = {
-      userId: sub, // Use 'sub' from the JWT payload as the primary userId
+      id: sub, // CHANGED: Use 'id' to match User entity, from JWT 'sub' payload
       username: username,
       role: user.role, // Role with permissions should be populated now
     };

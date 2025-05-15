@@ -1,35 +1,35 @@
+import { User } from '../../users/entities/user.entity';
 import {
-  Entity,
   Column,
-  ManyToOne,
-  JoinColumn,
   CreateDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
-} from "typeorm";
-import { User } from "../../users/entities/user.entity";
-import { v4 as uuidv4 } from "uuid";
+  JoinColumn,
+} from 'typeorm';
 
-@Entity()
+@Entity('notes')
 export class Note {
-  @Column({ type: "varchar", length: 36, primary: true })
-  id: string = uuidv4();
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column("text")
+  @Column('text')
   content: string;
 
-  @Column({ nullable: true, length: 50 })
+  @Column({ nullable: true, default: 'rgba(25, 118, 210, 0.8)' }) // Default blue color
   color: string;
 
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @ManyToOne(() => User, (user) => user.notes, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
   @Column()
-  userId: string;
+  user_id: string;
 
-  @ManyToOne(() => User, (user) => user.notes)
-  @JoinColumn({ name: "userId" })
-  user: User;
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 }

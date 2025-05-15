@@ -112,68 +112,56 @@ export const BackupService = {
       });
       
       // Create a download link for the file
-      const blob = new Blob([response.data], { type: 'application/sql' });
+      const blob = new Blob([response.data], { type: 'application/sql' }); // Assuming SQL, adjust if other types are possible
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `backup_${id}.sql`);
+
+      // Try to get filename from Content-Disposition header
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `backup_${id}.sql`; // Default filename
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+[^\"])"?/i);
+        if (filenameMatch && filenameMatch.length > 1) {
+          filename = filenameMatch[1];
+        }
+      }
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url); // Clean up object URL
       
       return { success: true, message: 'Backup downloaded successfully' };
     } catch (error: unknown) {
       console.error(`[BackupService] Error downloading backup with ID ${id}:`, error);
-      
-      // Even in production, provide a fallback download if server fails
-      try {
-        console.log('[BackupService] Creating fallback downloadable file');
-        
-        // Create a simple SQL backup file with text content for user to download
-        const currentDate = new Date().toISOString();
-        const fallbackSql = `-- Fallback SQL backup file for backup ID: ${id}
--- Generated at: ${currentDate}
--- This file was generated as a fallback because the server backup download failed.
--- Original error: ${error instanceof Error ? error.message : 'Unknown error'}
+      // Removed fallback download logic, just rethrow the error
+      throw error;
+    }
+  },
 
--- This is a placeholder backup file with minimal structure.
+  // NEW: Restore a backup from an uploaded file
+  restoreBackupFromFile: async (file: File) => {
+    try {
+      console.log(`[BackupService] Restoring backup from file: ${file.name}`);
+      const formData = new FormData();
+      formData.append('file', file); // 'file' should match the field name expected by the backend
 
-SET NAMES utf8;
-SET time_zone = '+00:00';
-SET foreign_key_checks = 0;
+      // Make sure the endpoint matches what will be defined in the backend controller
+      const response = await axios.post('backups/restore-from-file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        // Optional: Add progress tracking if needed for large uploads
+        // onUploadProgress: (progressEvent) => {
+        //   const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        //   console.log(`Upload progress: ${percentCompleted}%`);
+        // },
+      });
 
--- Emergency backup structure
-CREATE TABLE IF NOT EXISTS \`emergency_backup\` (
-  \`id\` varchar(36) NOT NULL,
-  \`backup_id\` varchar(36) NOT NULL,
-  \`created_at\` datetime NOT NULL,
-  \`notes\` text,
-  PRIMARY KEY (\`id\`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Record of this emergency backup
-INSERT INTO \`emergency_backup\` (\`id\`, \`backup_id\`, \`created_at\`, \`notes\`)
-VALUES (UUID(), '${id}', NOW(), 'Emergency backup created due to download failure');
-
--- IMPORTANT: This is not a real backup file. 
--- Please contact system administrator to recover the actual backup data.
-`;
-        
-        // Create a download link for the fallback file
-        const blob = new Blob([fallbackSql], { type: 'application/sql' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `emergency_backup_${id}.sql`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        
-        return { success: true, message: 'Emergency backup file downloaded' };
-      } catch (fallbackError) {
-        console.error('[BackupService] Fallback download also failed:', fallbackError);
-      }
-      
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[BackupService] Error restoring backup from file ${file.name}:`, error);
       throw error;
     }
   }

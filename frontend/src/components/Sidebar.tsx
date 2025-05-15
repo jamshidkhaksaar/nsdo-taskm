@@ -63,7 +63,7 @@ const tasksOverviewItem: MenuItem =
 
 // Items visible only to Leadership and Admins
 const managerMenuItems: MenuItem[] = [
-  { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> },
+  // { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> }, // Removed duplicate
 ];
 
 const adminMenuItems: MenuItem[] = [
@@ -96,6 +96,12 @@ const adminMenuItems: MenuItem[] = [
     path: '/admin/provinces',
     icon: <AssignmentIcon />,
     description: 'Manage provinces and assign departments'
+  },
+  { 
+    title: 'Task Management',
+    path: '/admin/task-management', 
+    icon: <SettingsIcon />,
+    description: 'Manage system tasks, completed tasks, and cleanup operations'
   },
   { 
     title: 'Activity Logs', 

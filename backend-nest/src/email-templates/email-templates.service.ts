@@ -122,6 +122,24 @@ export class EmailTemplatesService {
           <p>Thank you,<br/>The TaskM Team</p>`,
         description: "Sent during login when 2FA is enabled and the method is email. Contains the login OTP.",
       },
+      {
+        templateKey: "NEW_LOGIN_NOTIFICATION",
+        subject: "Security Alert: New Login to Your {{appName}} Account",
+        bodyHtml:
+          `<p>Hello {{username}},</p>
+          <p>We detected a new login to your account on {{appName}}.</p>
+          <ul>
+            <li><strong>Time:</strong> {{loginTime}}</li>
+            <li><strong>IP Address:</strong> {{ipAddress}}</li>
+            <li><strong>Approximate Location:</strong> {{location}}</li>
+            <li><strong>Browser:</strong> {{browserName}} ({{browserVersion}})</li>
+            <li><strong>Operating System:</strong> {{osName}} ({{osVersion}})</li>
+          </ul>
+          <p>If this was you, you can safely ignore this email.</p>
+          <p>If you do not recognize this activity, please secure your account immediately by <a href="{{resetPasswordLink}}">resetting your password</a> and review your account settings. If you need further assistance, contact our support team.</p>
+          <p>Thank you,<br/>The {{appName}} Team</p>`,
+        description: "Sent to a user when a new login is detected from an unrecognized device/browser or under specific security conditions.",
+      },
     ];
 
     for (const templateData of defaultTemplates) {
@@ -172,5 +190,33 @@ export class EmailTemplatesService {
       );
     }
     return this.emailTemplateRepository.save(template);
+  }
+
+  async remove(templateKey: string): Promise<void> {
+    const template = await this.findOne(templateKey); // Reuse findOne to ensure it exists
+    if (!template) {
+      // findOne already throws NotFoundException, but as a safeguard:
+      throw new NotFoundException(
+        `Email template with key "${templateKey}" not found for deletion.`,
+      );
+    }
+    // Prevent deletion of core system templates if necessary (optional)
+    // const coreTemplates = ["WELCOME_EMAIL", "PASSWORD_RESET_REQUEST", ...];
+    // if (coreTemplates.includes(templateKey)) {
+    //   throw new BadRequestException(`Core template "${templateKey}" cannot be deleted.`);
+    // }
+
+    const result = await this.emailTemplateRepository.delete({ templateKey });
+
+    if (result.affected === 0) {
+      // This case should ideally be caught by findOne, but good for robustness
+      this.logger.warn(
+        `Attempted to delete non-existent template key: ${templateKey}`,
+      );
+      throw new NotFoundException(
+        `Email template with key "${templateKey}" not found during delete operation.`,
+      );
+    }
+    this.logger.log(`Successfully deleted email template: ${templateKey}`);
   }
 }

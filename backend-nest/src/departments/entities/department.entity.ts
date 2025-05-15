@@ -32,7 +32,7 @@ export class Department {
   members: User[];
 
   @Column({ name: "head_id", nullable: true })
-  headId: string;
+  headId: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "head_id" })

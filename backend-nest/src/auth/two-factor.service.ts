@@ -160,7 +160,6 @@ export class TwoFactorService {
   async verify(
     userId: string,
     verificationCode: string,
-    rememberBrowser: boolean = false,
   ): Promise<boolean> {
     try {
       const user = await this.usersRepository.findOne({
@@ -185,33 +184,6 @@ export class TwoFactorService {
       if (verified) {
         // Enable 2FA for the user if verification was successful
         user.twoFactorEnabled = true;
-
-        // If remember browser is requested, store the fingerprint
-        if (rememberBrowser) {
-          this.logger.log(
-            `Remember browser requested for user ${user.username}`,
-          );
-
-          // Initialize rememberedBrowsers if it doesn't exist
-          if (!user.rememberedBrowsers) {
-            user.rememberedBrowsers = [];
-          }
-
-          // Calculate expiration date (90 days from now)
-          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-
-          // Use a timestamp as a simple fingerprint
-          const fingerprint = `browser-${Date.now()}`;
-
-          user.rememberedBrowsers.push({
-            fingerprint,
-            expiresAt,
-          });
-
-          this.logger.log(
-            `Added remembered browser for user ${user.username}, expires: ${expiresAt}`,
-          );
-        }
 
         await this.usersRepository.save(user);
         this.logger.log(`2FA verified and enabled for user: ${user.username}`);

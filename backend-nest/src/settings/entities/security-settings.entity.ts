@@ -14,6 +14,12 @@ export class SecuritySettings {
   @Column({ default: false })
   two_factor_enabled: boolean;
 
+  @Column({ default: 30 })
+  two_factor_device_remembrance_days: number;
+
+  @Column({ default: 5 })
+  two_factor_max_failed_attempts: number;
+
   @Column({ default: 90 })
   password_expiry_days: number;
 

@@ -43,6 +43,7 @@ const RecycleBin = lazyLoad(import('../pages/admin/RecycleBin'));
 const SystemSettings = lazyLoad(import('../pages/admin/SystemSettings'));
 const BackupRestore = lazyLoad(import('../pages/admin/BackupRestore'));
 const EmailConfiguration = lazyLoad(import('../pages/admin/EmailConfiguration'));
+const AdminTaskManagementPage = lazyLoad(import('../pages/admin/AdminTaskManagementPage'));
 
 // Define roles constants for readability
 const ROLES = {
@@ -106,6 +107,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/admin/settings" element={<AdminRoute><SystemSettings /></AdminRoute>} />
         <Route path="/admin/backup" element={<AdminRoute><BackupRestore /></AdminRoute>} />
         <Route path="/admin/email-config" element={<AdminRoute><EmailConfiguration /></AdminRoute>} />
+        <Route path="/admin/task-management" element={<AdminRoute><AdminTaskManagementPage /></AdminRoute>} />
 
         {/* Fallback Route */}
         <Route path="*" element={<NotFound />} />

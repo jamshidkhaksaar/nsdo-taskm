@@ -241,3 +241,15 @@ export type { CreateDepartmentPayload } from './index.d'; // Export the missing 
 export type { TaskStatusCountsResponse } from '../services/task';
 
 // Remove the previous incorrect export blocks entirely
+
+// DTO for updating task assignments - mirrors backend DTO
+export interface UpdateTaskAssignmentsDto {
+  assignedToUserIds?: string[];
+  assignedToDepartmentIds?: string[];
+  assignedToProvinceId?: string | null;
+}
+
+// DTO for creator-specific task delegation (re-assignment)
+export interface CreatorDelegateTaskDto {
+  delegatedToUserIds: string[];
+}

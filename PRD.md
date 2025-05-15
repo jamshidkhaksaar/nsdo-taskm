@@ -216,14 +216,30 @@ This section details the core features of the task management system, their curr
 *   **TypeScript Compilation Errors:** Errors found during startup related to missing `api-settings.entity` import in `backend-nest/ormconfig.ts` and `backend-nest/src/app.module.ts`.
     *   **Status:** Resolved. References removed. (2024-0X-XX)
 *   **Admin 2FA Days Setting:** User reported that the admin-set "2FA days" value doesn't reflect for users.
-    *   **Finding:** The relevant admin setting in `SecuritySettings` is `password_expiry_days`, not directly related to 2FA code validity (which is typically 30-60s for TOTP). There is no server-side setting for "2FA days". This seems to be a misunderstanding of the UI or settings function. Clarification added to PRD.
-    *   **Status:** Analysis Complete. No code change needed for this specific point.
+    *   **Finding:** The relevant admin setting in `SecuritySettings` is `password_expiry_days`, not directly related to 2FA code validity (which is typically 30-60s for TOTP). There is a `two_factor_device_remembrance_days` setting (default 30) in `security_settings` table, which is used by the backend to determine how long to "remember" a device after a successful login (including 2FA). This "remembrance" currently triggers "New Login Notification" emails if a login occurs from an unrecognized device. It does not, however, bypass the 2FA challenge on subsequent logins from a remembered device.
+    *   **Status:** Analysis Complete. The system remembers devices for notification purposes but not for skipping 2FA.
 *   **Authenticator App 2FA Verification Failure (400 Error):** Users encounter a 400 error when trying to verify the code after scanning the QR code.
     *   **Finding:** The `AuthService.login2FA` method was incomplete. The actual TOTP verification logic was commented out. Furthermore, the check for `user.twoFactorEnabled` and `user.twoFactorSecret` was likely failing because the user setup process (generating secret, saving it, enabling flag) was missing entirely, leading to a `BadRequestException` (400).
-    *   **Status:** Partially Resolved. 2FA Setup (`generateTwoFactorSetupDetails`, `confirmTwoFactorSetup`) and verification (`login2FA` with `speakeasy`) methods added/updated in `AuthService`. Needs controller endpoints and frontend integration.
+    *   **Status:** Resolved. (YYYY-MM-DD)
+*   **"Remember Device" for 2FA Functionality:** Investigation into the "remember this device" feature for 2FA.
+    *   **Finding:** The "Remember Device" feature for 2FA has been standardized and implemented to provide a true 2FA bypass mechanism.
+        *   **Frontend:** Continues to send `rememberDevice: boolean` from the 2FA dialog during login (`Login.tsx`) and `remember_browser: boolean` from the 2FA setup verification in user settings (`Settings.tsx`).
+        *   **Backend DTOs:** `LoginTwoFactorDto` now includes `rememberDevice?: boolean`. `VerifyTwoFactorDto` (for 2FA setup) now includes `remember_browser?: boolean`.
+        *   **Backend Controllers:**
+            *   `AuthController` (`POST /auth/login/2fa`): Now correctly processes `rememberDevice` from `LoginTwoFactorDto` and passes it to `AuthService.login2FA`.
+            *   `TwoFactorController` (`POST /settings/verify_2fa/`): Now correctly processes `remember_browser` from `VerifyTwoFactorDto`. If 2FA setup verification is successful and `remember_browser` is true, it calls `authService.handleNewLoginSecurityChecks` to register the device.
+        *   **Backend Services:**
+            *   `AuthService.login2FA`: Signature updated to accept `rememberDevice?: boolean`.
+            *   `AuthService.signIn`: Now performs a 2FA bypass check. It generates a device fingerprint, compares it against `user.rememberedBrowsers`, and if the device is recognized and its remembrance period (defined by `two_factor_device_remembrance_days`) has not expired, it bypasses the 2FA code challenge. It still calls `handleNewLoginSecurityChecks` to log the login and potentially update device activity.
+            *   `AuthService.handleNewLoginSecurityChecks`: This method (now public) remains the core logic for device fingerprinting, checking for new devices (triggering notifications), and storing/updating device fingerprints in `user.rememberedBrowsers` with an expiry date based on `security_settings.two_factor_device_remembrance_days`.
+            *   `AuthService.generateDeviceFingerprint`: A new private helper method added for consistent device fingerprint generation.
+    *   **Conclusion:** The system now effectively allows users to have their 2FA challenge bypassed on trusted devices for a duration configured by administrators (`two_factor_device_remembrance_days`). This is achieved by checking the device fingerprint during the initial sign-in phase. Devices can be marked for remembrance during the 2FA prompt at login or during the 2FA setup verification in user settings.
+    *   **Status:** Implemented. The core functionality for 2FA bypass on remembered devices is in place. Fine-tuning of `handleNewLoginSecurityChecks` could be considered if more granular control over device memory is needed when a user *explicitly unchecks* "remember device" (e.g., to not remember it even for notifications in that specific instance).
+    *   **Action:** Monitor and test. Consider further refinement of `AuthService.handleNewLoginSecurityChecks` if explicit "do not remember this specific login instance even for notifications" is required when the user unticks the remember box (current behavior will still log it via `handleNewLoginSecurityChecks` if the 2FA login itself is successful).
 *   **Email 2FA Delivery Failure:** Emails for email-based 2FA are not being sent.
     *   **Finding:** `AuthService` calls `MailService.sendTemplatedEmail` correctly. `MailService` uses `@nestjs-modules/mailer`, which is configured in `MailModule` to use SendGrid via SMTP, fetching the API key from `SettingsService` (which reads the `settings` DB table). The failure is likely due to: missing/incorrect API key/from-address in DB settings, incorrect SendGrid permissions, a missing/malformed `TWO_FACTOR_LOGIN_CODE` email template in the DB, or network issues.
     *   **Status:** Investigation ongoing. Added logging to `MailService` to help diagnose further. Need to check DB settings, template existence, and potentially test SendGrid key directly.
+    *   **Update:** Email templates for 2FA (`TWO_FACTOR_CODE_EMAIL`, `TWO_FACTOR_LOGIN_CODE`) created. SendGrid integration for these emails relies on existing `MailService`. Further testing of SendGrid key and settings is still advised.
 *   **Console Error in TaskViewDialog:** A `TypeError: Cannot read properties of null (reading 'title')` was occurring in `frontend/src/components/tasks/TaskViewDialog.tsx`.
     *   **Finding:** The error happened because the `task` object was accessed in the `DialogTitle` and `DialogActions` before it was fully loaded, or if it failed to load. The `task` state is initialized to `null` and populated asynchronously.
     *   **Status:** Resolved. (YYYY-MM-DD)
@@ -239,7 +255,7 @@ This section details the core features of the task management system, their curr
     *   Verify existence and content of `TWO_FACTOR_LOGIN_CODE` email template in DB.
     *   Use `testSendGridSettings` or admin panel test feature to check key validity.
     *   Analyze logs after the added logging in `MailService` for specific errors during `mailerService.sendMail()`.
-    *   **Update:** Email templates for 2FA (`TWO_FACTOR_CODE_EMAIL` for setup, `TWO_FACTOR_LOGIN_CODE` for login) created. SendGrid integration for these emails relies on existing `MailService`. Further testing of SendGrid key and settings is still advised.
+    *   **Update:** Email templates for 2FA (`TWO_FACTOR_CODE_EMAIL`, `TWO_FACTOR_LOGIN_CODE`) created. SendGrid integration for these emails relies on existing `MailService`. Further testing of SendGrid key and settings is still advised.
 *   Perform detailed function analysis for both backend and frontend.
 *   Analyze dependency usage to identify unused or missing packages.
 *   Document implemented project requirements.
@@ -324,12 +340,29 @@ A comprehensive Two-Factor Authentication (2FA) system has been implemented, off
         *   Updated `AuthService.ts` (frontend) with `login2FA` and `resendLoginOtp` methods.
         *   Ensured `SettingsService.ts` (frontend) correctly calls backend 2FA settings endpoints.
     *   **Rationale:** Significantly enhances account security by adding an additional layer of verification for users. Addresses planned action items for 2FA implementation.
-*   **YYYY-MM-DD:** Fixed console error in `TaskViewDialog.tsx` and related linter warning.
+*   YYYY-MM-DD:** Fixed console error in `TaskViewDialog.tsx` and related linter warning.
     *   **Issue:** `TypeError: Cannot read properties of null (reading 'title')` caused by accessing `task.title` before `task` data was loaded. A linter warning for `TaskStatus.DELETED` also appeared.
     *   **Fix:**
         *   Added null checks for the `task` object in `frontend/src/components/tasks/TaskViewDialog.tsx` before accessing `task.title` in `DialogTitle` and properties of `task` in `DialogActions`. Display 'Loading Task...' if task is null.
         *   Removed the non-existent `TaskStatus.DELETED` from the status filter in the same component, resolving the linter error.
     *   **Rationale:** Prevents runtime errors and improves UI stability when task data is loading or unavailable. Corrected enum usage.
+
+*   **YYYY-MM-DD (Current Sprint/Date):** Standardized and Implemented 'Remember Device for 2FA' Functionality.
+    *   **Backend:**
+        *   Updated `LoginTwoFactorDto` to include `rememberDevice?: boolean` and `VerifyTwoFactorDto` to include `remember_browser?: boolean`.
+        *   Modified `AuthController` (`POST /auth/login/2fa`): Now processes `rememberDevice` from `LoginTwoFactorDto` and passes it to `AuthService.login2FA`.
+        *   Updated `AuthService.login2FA` signature to accept `rememberDevice?: boolean`.
+        *   Significantly updated `AuthService.signIn`:
+            *   Added a private helper `generateDeviceFingerprint(userAgentString)` for consistent fingerprinting.
+            *   Now loads `user.rememberedBrowsers`.
+            *   Checks if the current device fingerprint matches a non-expired entry in `user.rememberedBrowsers`.
+            *   If a match is found, it bypasses the 2FA challenge, logs the user in directly, and calls `handleNewLoginSecurityChecks`.
+        *   Made `AuthService.handleNewLoginSecurityChecks` public. This method continues to be responsible for device fingerprint storage (using `two_factor_device_remembrance_days`) and new login notifications.
+        *   Modified `TwoFactorController` (`POST /settings/verify_2fa/`):
+            *   Now processes `remember_browser` from `VerifyTwoFactorDto`.
+            *   If 2FA setup verification is successful and `remember_browser` is true, it calls the public `authService.handleNewLoginSecurityChecks` to register the device.
+    *   **Frontend:** No direct code changes in this iteration, but existing functionality in `Login.tsx` (sending `rememberDevice`) and `Settings.tsx` (sending `remember_browser`) now correctly interfaces with the enhanced backend logic.
+    *   **Rationale:** Implemented a consistent and functional "remember this device" feature, allowing users to bypass 2FA on trusted devices for a configurable duration (`two_factor_device_remembrance_days`). This enhances user experience by reducing friction on recognized devices, while security is maintained through device fingerprinting and notifications for logins from new/unrecognized devices. Standardized the behavior for remembering a device during both the login 2FA prompt and the 2FA setup verification process.
 
 ## 9. Task Management & Communication Protocol
 
@@ -340,4 +373,33 @@ A comprehensive Two-Factor Authentication (2FA) system has been implemented, off
 
 ## 10. Bug Tracking
 
-*(To be populated as bugs are identified and resolved)* 
+*(To be populated as bugs are identified and resolved)*
+
+### Newly Reported Issues (2025-05-14)
+
+1.  **Quick Notes Leakage:** Quick notes of an admin user are showing in another user's notes section.
+2.  **Incorrect Task Assignee Display:** Tasks created by a user for themselves (personal tasks) are showing as "Unassigned" in task lists instead of "My Task" or "Personal Task".
+3.  **Duplicate Sidebar Menu Icon:** There are two "Tasks Overview" icons in the sidebar menu; the first one should be removed.
+4.  **Admin Task Visibility Discrepancy:** Admin account sees 5 tasks for all departments, while another user (member of HR) sees no tasks. This behavior is unexpected.
+5.  **Admin Tasks Overview Page Error:** The "Tasks Overview" page for the admin user shows "Error loading data: Validation failed (uuid is expected)".
+6.  **Provincial Department Task Assignment Failure:** Unable to assign a task to a provincial department. System requests selection of at least one department, even when a province and department are already check-marked.
+7.  **User Page Issues (User Management):**
+    *   The "Users" page (currently titled "User Management") is intended for listing users to assign tasks.
+    *   User selection for assignment is not working.
+    *   An "Add User" button is present and should be removed as this page is not for user creation.
+8.  **Task Assignee Display & Interaction in Departments Page & Dashboard:**
+    *   In the "Departments" page, when a department is selected, task creator and assignee information is visible. This detailed display (showing actual names instead of "Unassigned" for personal/creator tasks) should be consistent in the user's main dashboard/task lists.
+    *   Currently, the dashboard shows "Unassigned" for such tasks.
+    *   Admin created tasks are showing the username "ading" in the middle (needs clarification/enhancement).
+    *   Clicking on a task card (e.g., in Departments page or dashboard) does not pop out the full task details dialog.
+9.  **Department Members Not Showing:** In the "Departments" page, selecting a department (e.g., IT) does not show its members (shows "Members 0").
+10. **Task Details Dialog Enhancement:**
+    *   The dialog shows "Created By" with a user ID/UUID instead of a user-friendly name.
+    *   Needs professional redesign, potentially using a glassmorphism effect. This should apply to other popups/dialogs for consistency.
+11. **Duplicate Buttons in Task Details Dialog:** "Cancel Task", "Delete Task", and "Delegate Assignments" buttons are still duplicated in the Task Details dialog.
+12. **Department Task Assignment Failure:** When trying to assign a task to a department, an error "department is not selected" occurs.
+13. **System Activity Logs Page Issues:**
+    *   The styling of the "Activity Logs" page (Admin Panel) does not match the overall application design.
+    *   Needs filters (e.g., by user, action, date range).
+    *   The log information is insufficient and not "lovely" (needs more comprehensive details).
+14. **System Settings Save Error:** When changing settings in the "System Settings" page and clicking "Save All Changes", an error "Sorry, something went wrong" appears. 

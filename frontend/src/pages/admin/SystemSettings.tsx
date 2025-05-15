@@ -13,7 +13,7 @@ import {
   Alert,
   Snackbar,
   Container,
-  // CircularProgress, // Removed unused
+  CircularProgress,
   // Paper, // Removed unused
   // Grid, // Removed unused
   // Select, // Removed unused
@@ -32,7 +32,7 @@ import { RootState } from '../../store';
 import ModernDashboardLayout from '../../components/dashboard/ModernDashboardLayout';
 import Sidebar from '../../components/Sidebar';
 import DashboardTopBar from '../../components/dashboard/DashboardTopBar';
-import { SettingsService } from '../../services/settings';
+import { SettingsService, NotificationSettings } from '../../services/settings';
 
 const DRAWER_WIDTH = 240;
 
@@ -168,6 +168,11 @@ const SystemSettings: React.FC = () => {
   const [generatingApiKey, setGeneratingApiKey] = useState(false); // Keep state, but button removed
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
 
+  // Add this callback
+  const handleToggleTopWidgets = useCallback(() => {
+    setTopWidgetsVisible(prev => !prev);
+  }, []);
+
   useEffect(() => {
     // Function to fetch settings
     const fetchSettings = async () => {
@@ -291,7 +296,22 @@ const SystemSettings: React.FC = () => {
   const handleTestEmailSettings = async () => {
     setTestingEmail(true);
     try {
-      const result = await SettingsService.testEmailSettings();
+      // Find the notification settings from the current state
+      const notificationSection = settings.find(sec => sec.id === 'notifications');
+      const currentNotificationSettings: Partial<NotificationSettings> = {};
+      if (notificationSection) {
+        notificationSection.settings.forEach(setting => {
+          // Assuming a map like notificationSettingsMap exists and is in scope
+          // to convert frontend IDs (e.g., emailNotifications) to backend fields (e.g., email_notifications_enabled)
+          // For this example, we'll assume direct mapping or that the map is handled by the service if necessary
+          // but ideally, the payload should match what the backend endpoint expects.
+          // Let's construct a payload based on the NotificationSettings interface keys for now.
+          if (setting.id === 'emailNotifications') currentNotificationSettings.emailNotifications = setting.value;
+          // Add other relevant notification settings here if needed by the testEmailSettings endpoint
+        });
+      }
+
+      const result = await SettingsService.testEmailSettings(currentNotificationSettings);
       if (result.success) {
         setSnackbar({ open: true, message: 'Test email sent successfully!', severity: 'success' });
       } else {
@@ -540,6 +560,7 @@ const SystemSettings: React.FC = () => {
           onProfileClick={handleProfileClick}
           onSettingsClick={handleSettingsClick}
           onHelpClick={handleHelpClick}
+          onToggleTopWidgets={handleToggleTopWidgets}
           topWidgetsVisible={topWidgetsVisible}
         />
       }

@@ -38,6 +38,7 @@ import { Roles } from "../rbac/decorators/roles.decorator";
 import { RolesGuard } from "../rbac/guards/roles.guard";
 import { AdminService } from "../admin/admin.service";
 import { TaskOverviewStatsDto } from "../admin/admin.service";
+import { UpdateTaskAssignmentsDto } from "./dto/update-task-assignments.dto";
 
 @Controller("tasks")
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -51,6 +52,28 @@ export class TasksController {
     private readonly activityLogService: ActivityLogService,
     private readonly adminService: AdminService,
   ) {}
+
+  @Get("overview")
+  @ApiOperation({
+    summary: "Get comprehensive task overview statistics (Admin/Leadership)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Returns task overview data.",
+    type: TaskOverviewStatsDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Insufficient permissions.",
+  })
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "Administrator", "Super Admin")
+  async getTasksOverview(@Request() req): Promise<TaskOverviewStatsDto> {
+    this.logger.log(
+      `User ${req.user.userId} (${req.user.role?.name}) fetching task overview`,
+    );
+    return this.adminService.getTasksOverviewStats(req.user);
+  }
 
   @Post()
   create(@Body() createTaskDto: CreateTaskDto, @Request() req) {
@@ -288,9 +311,9 @@ export class TasksController {
     return this.tasksService.restoreTask(id, req.user);
   }
 
-  @Delete(":id/permanent-delete")
+  @Delete(":id/permanent")
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Administrator")
+  @Roles("Administrator", "Super Admin")
   @Permissions("task:delete:permanent")
   @ApiOperation({ summary: "Permanently delete task (Admin only)" })
   @ApiResponse({ status: 200, description: "Task permanently deleted." })
@@ -304,18 +327,45 @@ export class TasksController {
     return this.tasksService.hardRemove(id, req.user);
   }
 
-  @Get("overview")
-  @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
-  @ApiOperation({ summary: "Get an overview of task statistics (Leadership/Admin)" })
-  @ApiResponse({
-    status: 200,
-    description: "Task overview statistics retrieved successfully.",
-    type: TaskOverviewStatsDto,
-  })
-  @ApiResponse({ status: 403, description: "Forbidden." })
-  async getTasksOverview(@Request() req): Promise<TaskOverviewStatsDto> {
-    this.logger.log(`User ${req.user.userId} (${req.user.role?.name}) requested tasks overview.`);
-    return this.adminService.getTasksOverviewStats(req.user);
+  @Patch(":id/assignments")
+  @ApiOperation({ summary: "Update assignments for a specific task" })
+  @ApiResponse({ status: 200, description: "Task assignments updated successfully", type: Task })
+  @ApiResponse({ status: 400, description: "Invalid assignment data" })
+  @ApiResponse({ status: 403, description: "Forbidden - Insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Task not found" })
+  @Permissions("task:update", "task:assign")
+  async updateTaskAssignments(
+    @Param("id") id: string,
+    @Body() updateTaskAssignmentsDto: UpdateTaskAssignmentsDto,
+    @Request() req,
+  ): Promise<Task> {
+    this.logger.log(`PATCH /tasks/${id}/assignments request by user ${req.user.userId}`);
+    return this.tasksService.updateAssignments(
+      id,
+      updateTaskAssignmentsDto,
+      req.user,
+    );
+  }
+
+  @Patch(":id/delegate-assignments-by-creator")
+  @ApiOperation({ summary: "Delegate task assignments (creator only)" })
+  @ApiBody({ type: DelegateTaskDto })
+  @ApiResponse({ status: 200, description: "Task assignments delegated successfully by creator.", type: Task })
+  @ApiResponse({ status: 400, description: "Invalid input, or task state does not allow delegation." })
+  @ApiResponse({ status: 403, description: "Forbidden - Only the task creator can perform this action." })
+  @ApiResponse({ status: 404, description: "Task not found." })
+  async delegateTaskAssignmentsByCreator(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() delegateTaskDto: DelegateTaskDto,
+    @Request() req,
+  ): Promise<Task> {
+    this.logger.log(
+      `User ${req.user.userId} attempting creator-delegation for task ${id}`,
+    );
+    return this.tasksService.delegateTaskAssignmentsByCreator(
+      id,
+      delegateTaskDto,
+      req.user,
+    );
   }
 }

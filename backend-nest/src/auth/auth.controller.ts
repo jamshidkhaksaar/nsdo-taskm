@@ -81,16 +81,19 @@ export class AuthController {
     @Req() request: Request,
   ): Promise<any> {
     this.logger.log(
-      `[Controller] POST /auth/login/2fa for userId: ${loginTwoFactorDto.userId}`,
+      `[Controller] POST /auth/login/2fa for userId: ${loginTwoFactorDto.userId}, rememberDevice: ${loginTwoFactorDto.rememberDevice}`,
     );
     try {
       const ipAddress = request.ip || '';
       const userAgent = request.headers['user-agent'] || '';
+      const rememberDevice = loginTwoFactorDto.rememberDevice === true;
+
       const result = await this.authService.login2FA(
         loginTwoFactorDto.userId,
         loginTwoFactorDto.verificationCode,
         ipAddress,
         userAgent,
+        rememberDevice,
       );
       return result;
     } catch (error) {

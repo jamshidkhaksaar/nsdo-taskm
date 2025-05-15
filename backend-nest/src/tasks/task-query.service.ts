@@ -8,7 +8,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In, Not, Between } from "typeorm";
+import { Repository, In, Not, Between, IsNull } from "typeorm";
 import { Task, TaskStatus, TaskType } from "./entities/task.entity";
 import { User } from "../users/entities/user.entity";
 import { Department } from "../departments/entities/department.entity";
@@ -76,22 +76,46 @@ export class TaskQueryService {
     // Initialize query builder
     const qb = this.tasksRepository.createQueryBuilder("task");
 
+    // Join and select createdBy and assignedToUsers, ensuring they are not soft-deleted
+    // If a task was created by or assigned to a user who is now soft-deleted,
+    // these relations might not populate or would need careful handling based on desired UX.
+    // For now, we assume relations should point to non-deleted users if they are to be actively displayed.
+    qb.leftJoinAndSelect("task.createdBy", "creator", "creator.deletedAt IS NULL")
+      .leftJoinAndSelect("task.assignedToUsers", "assignees", "assignees.deletedAt IS NULL")
+      .leftJoinAndSelect("task.assignedToDepartments", "departments") // Departments don't have soft delete in this context
+      .leftJoinAndSelect("task.assignedToProvince", "province")
+      .leftJoinAndSelect("task.delegatedFromTask", "parent")
+      .leftJoinAndSelect("task.delegatedToTask", "children")
+      .leftJoinAndSelect("task.delegatedBy", "delegatedByUser", "delegatedByUser.deletedAt IS NULL");
+
     // Basic filtering (example: by status)
     if (query.status) {
       qb.andWhere("task.status = :status", { status: query.status });
     }
+    if (query.department_id) {
+      qb.innerJoin("task.assignedToDepartments", "departmentFilter", "departmentFilter.id = :deptIdToFilter", { deptIdToFilter: query.department_id });
+    }
 
     // --- Authorization Logic ---
-    const userId = user.userId;
-    const userRole = user.role; // Assuming role is passed in the user object
+    const userId = user.userId; // Assuming this is the ID string
+    const userRoleName = user.role?.name?.toLowerCase(); // Get role name, lowercase for case-insensitive comparison
 
-    const includeAll = false; // Placeholder until RBAC is fully integrated
-    const includeAllParam = query.include_all === "true"; // Check for explicit request
+    let includeAll = false;
+    if (userRoleName && ['admin', 'super_admin', 'administrator', 'leadership'].includes(userRoleName)) {
+      includeAll = true;
+    }
+    
+    // Allow explicit query param to override role-based includeAll, mainly for testing or specific non-admin 'view all' scenarios
+    const includeAllParam = query.include_all === "true";
+    if (includeAllParam) {
+        includeAll = true; // If param is true, always include all
+    } else if (query.include_all === "false") {
+        includeAll = false; // If param is explicitly false, force normal filtering even for admin
+    }
 
-    if (!(includeAll || includeAllParam)) {
-      // Standard users/others only see tasks relevant to them
+    if (!includeAll) { // If not including all (either by role or by param)
       const userEntity = await this.usersRepository.findOne({
-        where: { id: userId },
+        where: { id: userId, deletedAt: IsNull() }, // Ensure the requesting user is not soft-deleted
         relations: ["departments"], // Need departments for condition 3
       });
 
@@ -101,11 +125,11 @@ export class TaskQueryService {
 
       const departmentIds = userEntity.departments.map((dept) => dept.id);
 
-      qb.leftJoinAndSelect("task.assignedToUsers", "assignedUser")
+      qb.leftJoinAndSelect("task.assignedToUsers", "assignedUser") // Re-alias to avoid conflict if already joined, or ensure distinct
         .leftJoinAndSelect("task.assignedToDepartments", "assignedDept")
         .where((subQb) => {
-          subQb.where("task.createdById = :userId", { userId });
-          subQb.orWhere("assignedUser.id = :userId", { userId });
+          subQb.where("task.createdById = :userId", { userId }); // userId here is of the non-deleted userEntity
+          subQb.orWhere("assignedUser.id = :userId AND assignedUser.deletedAt IS NULL", { userId }); // Also check assignedUser is not deleted
           if (departmentIds.length > 0) {
             subQb.orWhere("assignedDept.id IN (:...departmentIds)", {
               departmentIds,
@@ -117,13 +141,6 @@ export class TaskQueryService {
     if (query.includeDeleted !== "true") {
       qb.andWhere("task.deletedAt IS NULL");
     }
-
-    qb.leftJoinAndSelect("task.createdBy", "creator")
-      .leftJoinAndSelect("task.assignedToUsers", "assignees")
-      .leftJoinAndSelect("task.assignedToDepartments", "departments")
-      .leftJoinAndSelect("task.assignedToProvince", "province")
-      .leftJoinAndSelect("task.delegatedFromTask", "parent")
-      .leftJoinAndSelect("task.delegatedToTask", "children");
 
     if (query.sortBy) {
       const order = query.order?.toUpperCase() === "DESC" ? "DESC" : "ASC";
@@ -222,7 +239,7 @@ export class TaskQueryService {
   ): Promise<[Task[], number]> {
     this.logger.log(
       `Fetching deleted tasks for user ${reqUser.userId} (${reqUser.role?.name}) with query:`,
-      query,
+      JSON.stringify(query, null, 2), // Pretty print query
     );
     const userRoleName = reqUser.role?.name?.toUpperCase(); // Normalize to uppercase
     const isAdminOrLeadership = ["ADMIN", "LEADERSHIP", "SUPER ADMIN"].includes(
@@ -252,17 +269,21 @@ export class TaskQueryService {
         { search: `%${query.search}%` },
       );
     }
-    if (query.userId) {
-      queryBuilder.andWhere("task.createdById = :userId", {
-        userId: query.userId,
+    if (query.userId) { // This likely refers to createdById based on DTO
+      queryBuilder.andWhere("task.createdById = :createdById", {
+        createdById: query.userId,
       });
     }
     if (query.departmentId) {
+      // Ensure this join doesn't cause issues if assignedToDepartments is empty for some tasks
+      // This condition implies that the task must be assigned to this specific department.
       queryBuilder.andWhere("assignedToDepartments.id = :departmentId", {
         departmentId: query.departmentId,
       });
     }
     if (query.provinceId) {
+      // This condition means the task is either directly assigned to the province
+      // OR assigned to a department that belongs to this province.
       queryBuilder.andWhere(
         "(task.assignedToProvinceId = :provinceId OR assignedToDepartments.provinceId = :provinceId)",
         { provinceId: query.provinceId },
@@ -286,7 +307,21 @@ export class TaskQueryService {
 
     const sortBy = query.sortBy || "deletedAt";
     const sortOrder = query.sortOrder || "DESC";
-    queryBuilder.orderBy(`task.${sortBy}`, sortOrder);
+    
+    // Validate sortBy to prevent SQL injection if it's user-provided and not from a fixed list
+    const allowedSortByFields = [
+      "id", "title", "status", "priority", "type", "dueDate", 
+      "createdAt", "updatedAt", "deletedAt", "deletionReason"
+      // Add more fields if sorting by relational properties is needed, e.g., "createdBy.username"
+      // This requires careful handling of aliases in queryBuilder.orderBy
+    ];
+
+    if (allowedSortByFields.includes(sortBy)) {
+        queryBuilder.orderBy(`task.${sortBy}`, sortOrder as "ASC" | "DESC");
+    } else {
+        this.logger.warn(`Invalid sortBy field used: '${sortBy}'. Defaulting to 'task.deletedAt'.`);
+        queryBuilder.orderBy(`task.deletedAt`, sortOrder as "ASC" | "DESC"); // Default and safe sort field
+    }
 
     // Use number directly, applying default if undefined or null
     const page = query.page ?? 1;
@@ -296,11 +331,43 @@ export class TaskQueryService {
     const safePage = Math.max(1, Math.floor(page));
     const safeLimit = Math.max(1, Math.floor(limit));
 
-    const skip = (safePage - 1) * safeLimit;
-    queryBuilder.skip(skip).take(safeLimit);
+    queryBuilder.skip((safePage - 1) * safeLimit).take(safeLimit);
 
-    const [tasks, total] = await queryBuilder.getManyAndCount();
-    return [tasks, total];
+    try {
+      // Log the generated SQL for inspection
+      const sql = queryBuilder.getSql();
+      this.logger.debug(`[findAllDeleted] Generated SQL: ${sql}`);
+      
+      const [tasks, total] = await queryBuilder.getManyAndCount();
+      
+      // Log the tasks that are about to be returned, especially if any look suspicious
+      this.logger.debug(`[findAllDeleted] Tasks to be returned (first few): ${JSON.stringify(tasks.slice(0, 3), null, 2)}`);
+      if (tasks.some(t => typeof t !== 'object' || t === null || !t.id)) {
+          this.logger.error('[findAllDeleted] CRITICAL: Some items in tasks array are not valid task objects or are missing IDs before returning!');
+          // Optional: Filter out bad data as a last resort if root cause is hard to find immediately.
+          // const validTasks = tasks.filter(t => typeof t === 'object' && t !== null && t.id);
+          // if (validTasks.length !== tasks.length) {
+          //   this.logger.warn(`[findAllDeleted] Filtered out ${tasks.length - validTasks.length} invalid items from results.`);
+          //   return [validTasks, validTasks.length]; // Note: 'total' might become inaccurate if filtering here.
+          // }
+      }
+
+      return [tasks, total];
+    } catch (error) {
+      this.logger.error(
+        `Error fetching deleted tasks: ${error.message}`,
+        error.stack,
+      );
+      // Log the failing SQL if available in the error object
+      // TypeORM errors often include 'query' and 'parameters' properties
+      if (error.query) {
+          this.logger.error(`Failing SQL: ${error.query}`);
+      }
+      if (error.parameters) {
+          this.logger.error(`SQL Parameters: ${JSON.stringify(error.parameters)}`);
+      }
+      throw new InternalServerErrorException("Failed to retrieve deleted tasks.");
+    }
   }
 
   async getDashboardTasks(userId: string): Promise<DashboardTasksResponse> {
@@ -390,19 +457,19 @@ export class TaskQueryService {
     try {
       return await this.tasksRepository
         .createQueryBuilder("task")
-        .innerJoin("task.assignedToUsers", "user")
+        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
         .where("user.id = :userId", { userId })
         .andWhere("task.type != :personalType", {
           personalType: TaskType.PERSONAL,
         })
         .andWhere("task.isDelegated = :isDelegated", { isDelegated: false })
-        .leftJoinAndSelect("task.createdBy", "createdBy")
+        .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
         .leftJoinAndSelect(
           "task.assignedToDepartments",
           "assignedToDepartments",
         )
         .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
-        .leftJoinAndSelect("task.delegatedBy", "delegatedBy")
+        .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
         .orderBy("task.createdAt", "DESC")
         .getMany();
     } catch (error) {
@@ -481,16 +548,16 @@ export class TaskQueryService {
     try {
       return await this.tasksRepository
         .createQueryBuilder("task")
-        .innerJoin("task.assignedToUsers", "user")
+        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
         .where("user.id = :userId", { userId })
         .andWhere("task.isDelegated = :isDelegated", { isDelegated: false })
-        .leftJoinAndSelect("task.createdBy", "createdBy")
+        .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
         .leftJoinAndSelect(
           "task.assignedToDepartments",
           "assignedToDepartments",
         )
         .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
-        .leftJoinAndSelect("task.delegatedBy", "delegatedBy")
+        .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
         .orderBy("task.createdAt", "DESC")
         .getMany();
     } catch (error) {
@@ -556,16 +623,16 @@ export class TaskQueryService {
     try {
       return await this.tasksRepository
         .createQueryBuilder("task")
-        .innerJoin("task.assignedToUsers", "user")
+        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
         .where("user.id = :userId", { userId })
         .andWhere("task.isDelegated = :isDelegated", { isDelegated: true })
-        .leftJoinAndSelect("task.createdBy", "createdBy")
+        .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
         .leftJoinAndSelect(
           "task.assignedToDepartments",
           "assignedToDepartments",
         )
         .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
-        .leftJoinAndSelect("task.delegatedBy", "delegatedBy")
+        .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
         .leftJoinAndSelect("task.delegatedFromTask", "delegatedFromTask")
         .orderBy("task.createdAt", "DESC")
         .getMany();
@@ -722,7 +789,7 @@ export class TaskQueryService {
         .createQueryBuilder("task")
         .select("task.status", "status")
         .addSelect("COUNT(task.id)", "count")
-        .innerJoin("task.assignedToUsers", "user")
+        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
         .where("user.id = :userId", { userId })
         .groupBy("task.status")
         .getRawMany();

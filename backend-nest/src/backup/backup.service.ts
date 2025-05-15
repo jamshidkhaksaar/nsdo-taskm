@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, Logger, OnModuleInit } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import * as fs from "fs";
+import * as fs from "fs-extra";
 import * as path from "path";
 import * as os from "os";
 import * as child_process from "child_process";
@@ -9,14 +9,25 @@ import * as util from "util";
 import { ConfigService } from "@nestjs/config";
 import { BackupOptionsDto } from "./dto/backup-options.dto";
 import { Backup, BackupStatus, BackupType } from "./entities/backup.entity";
+import * as fs_extra from "fs-extra";
+import { v4 as uuidv4 } from "uuid";
+const pgPromise = require('pg-promise');
+import * as zlib from 'zlib';
 
 @Injectable()
-export class BackupService {
+export class BackupService implements OnModuleInit {
+  private readonly logger = new Logger(BackupService.name);
+  private backups: Backup[] = [];
+  private readonly dbBackupDir: string;
+  private readonly pgp: any;
+  private readonly dbConnectionOptions: any;
+
   constructor(
     @InjectRepository(Backup)
     private readonly backupRepository: Repository<Backup>,
     private readonly configService: ConfigService,
   ) {
+    this.dbBackupDir = path.join(process.cwd(), "pg_backups");
     // Log configuration to help with debugging
     console.log(
       `[BackupService] Using database host: ${this.configService.get<string>("DATABASE_HOST", "localhost")}`,
@@ -24,6 +35,14 @@ export class BackupService {
     console.log(
       `[BackupService] Using database port: ${this.configService.get<number>("DATABASE_PORT", 3306)}`,
     );
+    this.pgp = pgPromise({});
+    const dbUrl = this.configService.get<string>("DATABASE_URL");
+    if (!dbUrl) {
+      this.logger.error("DATABASE_URL is not configured. pg-promise setup will fail.");
+      this.dbConnectionOptions = {};
+    } else {
+      this.dbConnectionOptions = { connectionString: dbUrl };
+    }
   }
 
   async getBackups(): Promise<Backup[]> {
@@ -294,5 +313,115 @@ export class BackupService {
       filename: path.basename(backup.file_path),
       content: fileContent,
     };
+  }
+
+  async restoreBackupFromFile(file: any): Promise<any> {
+    this.logger.log(
+      `Starting restore process from uploaded file: ${file.originalname}`,
+    );
+
+    const tempDir = path.join(os.tmpdir(), 'nsdo-backups');
+    await fs.ensureDir(tempDir);
+    // Use a more specific name for the temp file to avoid potential clashes if originalname is not unique enough
+    const uniqueFilename = `${uuidv4()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const tempFilePath = path.join(tempDir, uniqueFilename);
+
+    try {
+      this.logger.log(`Saving uploaded file temporarily to: ${tempFilePath}`);
+      await fs.writeFile(tempFilePath, file.buffer); // fs.writeFile from fs-extra
+      this.logger.log(`File ${file.originalname} saved successfully to ${tempFilePath}`);
+
+      let sqlContent: string;
+
+      if (file.originalname.endsWith('.gz')) {
+        this.logger.log(`Decompressing gzipped file: ${file.originalname}`);
+        const fileBuffer = await fs.readFile(tempFilePath); // fs.readFile from fs-extra
+        const decompressedBuffer = await new Promise<Buffer>((resolve, reject) => {
+          zlib.gunzip(fileBuffer, (err, buffer) => {
+            if (err) return reject(err);
+            resolve(buffer);
+          });
+        });
+        sqlContent = decompressedBuffer.toString('utf8');
+        this.logger.log(`File ${file.originalname} decompressed successfully.`);
+      } else if (file.originalname.endsWith('.sql')) {
+        sqlContent = await fs.readFile(tempFilePath, "utf8"); // fs.readFile from fs-extra
+        this.logger.log(`Read SQL content from ${file.originalname}`);
+      } else {
+        // Clean up before throwing error
+        if (await fs.pathExists(tempFilePath)) {
+          await fs.unlink(tempFilePath);
+        }
+        throw new Error(
+          "Unsupported file type. Only .sql or .gz files are supported for direct restore.",
+        );
+      }
+
+      if (!sqlContent || sqlContent.trim() === "") {
+         // Clean up before throwing error
+        if (await fs.pathExists(tempFilePath)) {
+          await fs.unlink(tempFilePath);
+        }
+        throw new Error("SQL content is empty or invalid.");
+      }
+
+      this.logger.log(
+        `Attempting to execute SQL commands from ${file.originalname}`,
+      );
+
+      // Use the pgp instance and connection options initialized in the constructor
+      const db = this.pgp(this.dbConnectionOptions);
+
+      await db.tx(async (t) => {
+        this.logger.log("Executing SQL script within a transaction...");
+        await t.none(sqlContent);
+        this.logger.log(
+          `SQL script from ${file.originalname} executed successfully.`, 
+        );
+      });
+
+      this.logger.log(
+        `Database restoration from file ${file.originalname} completed successfully.`,
+      );
+      return {
+        message: `Database restored successfully from ${file.originalname}`,
+        filename: file.originalname,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error during database restoration from file ${file.originalname}: ${error.message}`,
+        error.stack,
+      );
+      throw new Error( // Re-throw with a clear message for the controller
+        `Failed to restore database from ${file.originalname}. Reason: ${error.message}`,
+      );
+    } finally {
+      try {
+        if (await fs.pathExists(tempFilePath)) {
+          await fs.unlink(tempFilePath); // fs.unlink from fs-extra
+          this.logger.log(`Temporary file ${tempFilePath} deleted.`);
+        }
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to delete temporary file ${tempFilePath}: ${cleanupError.message}`,
+        );
+      }
+    }
+  }
+
+  private generateBackupName(type: "full" | "partial"): string {
+    const timestamp = new Date().toISOString().replace(/[.:T]/g, "-").slice(0, -5); // Format: YYYY-MM-DD-HH-MM-SS
+    return `backup-${type}-${timestamp}`;
+  }
+
+  async onModuleInit() {
+    this.logger.log("BackupService onModuleInit: Ensuring backup directory exists.");
+    try {
+      await fs.ensureDir(this.dbBackupDir);
+      // Load existing backups metadata if needed, e.g., from files or database
+      // this.loadBackupsFromDisk(); 
+    } catch (error) {
+      this.logger.error('Failed to ensure backup directory or load backups on init', error);
+    }
   }
 }

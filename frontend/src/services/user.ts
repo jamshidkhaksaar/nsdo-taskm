@@ -39,14 +39,22 @@ export const UserService = {
     },
 
     // Get user by ID
-    getUserById: async (id: string): Promise<User> => { 
+    getUserById: async (id: string): Promise<User | null> => { 
         try {
             console.log(`[UserService] Fetching user with ID: ${id}`);
             const response = await axios.get(`users/${id}`);
             return response.data;
-        } catch (error: unknown) {
-            console.error(`[UserService] Error fetching user with ID ${id}:`, error);
-            throw error; 
+        } catch (error: any) { 
+            if (error.isAxiosError && error.response && error.response.status === 404) {
+                console.warn(`[UserService] User with ID ${id} not found (404). Attempted fetch. Details:`, error.message);
+                return null; 
+            } else {
+                // Log other types of errors as actual errors
+                console.error(`[UserService] Error fetching user with ID ${id}:`, error);
+                // Decide if you want to return null or re-throw for non-404s
+                // For now, returning null to suppress errors that might break UI if not handled by caller
+                return null; 
+            }
         }
     },
 

@@ -177,13 +177,33 @@ const standardizeTask = (data: any): Task => {
     // --- End Improved Department ID Handling ---
 
 
+    // Determine task type
+    let determinedType = data.type;
+    if (!determinedType) {
+      // If type is missing from backend, try to infer
+      const hasAssignedUsers = assignedToUserIds && assignedToUserIds.length > 0;
+      const hasAssignedDepts = finalAssignedToDepartmentIds && finalAssignedToDepartmentIds.length > 0;
+      
+      if (!hasAssignedUsers && !hasAssignedDepts && createdById && createdById !== 'unknown_user') {
+        // No explicit user or department assignees, and there's a valid creator
+        determinedType = TaskType.PERSONAL;
+      } else if (hasAssignedUsers) {
+        determinedType = TaskType.USER;
+      } else if (hasAssignedDepts) {
+        determinedType = data.assignedToProvinceId ? TaskType.PROVINCE_DEPARTMENT : TaskType.DEPARTMENT;
+      } else {
+        // Fallback if no other criteria met
+        determinedType = TaskType.USER; 
+      }
+    }
+
     const task: Task = {
         id: ensureStringId(data.id),
         title: data.title || 'Untitled Task',
         description: data.description || '',
         status: data.status || TaskStatus.PENDING,
         priority: data.priority || TaskPriority.MEDIUM,
-        type: data.type || TaskType.USER, // Default if missing
+        type: determinedType, // Use the determined type
         dueDate: data.dueDate || data.due_date || null,
         createdAt: data.createdAt || data.created_at || new Date().toISOString(), // Default if missing
         updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(), // Default if missing
@@ -640,4 +660,159 @@ export const TaskService = {
             throw error;
         }
     },
+
+    // --- Admin Task Management Methods ---
+
+    archiveCompletedTasks: async (): Promise<{ count: number }> => {
+        try {
+            console.log('[TaskService] Archiving all completed tasks...');
+            const response = await apiClient.post<{ count: number }>('/admin/tasks/archive-completed');
+            console.log('[TaskService] Archived completed tasks response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error archiving completed tasks:', error);
+            throw error;
+        }
+    },
+
+    wipeAllTasks: async (): Promise<{ count: number }> => {
+        try {
+            console.log('[TaskService] Wiping all tasks from the system...');
+            // Ensure this endpoint is correctly protected and requires specific confirmation on the backend too.
+            const response = await apiClient.delete<{ count: number }>('/admin/tasks/wipe-all');
+            console.log('[TaskService] Wipe all tasks response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error wiping all tasks:', error);
+            throw error;
+        }
+    },
+
+    getRecycledTasks: async (initialParams: any = {}): Promise<{ tasks: Task[], total: number }> => {
+        // Clone params to avoid modifying the original object passed by the component
+        const params = { ...initialParams };
+
+        // Define keys that expect UUIDs and should be removed if they are empty strings
+        const uuidKeys: (keyof RecycleBinQueryDto)[] = ['userId', 'departmentId', 'provinceId', 'deletedByUserId'];
+
+        for (const key of uuidKeys) {
+            if (params[key] === '') {
+                console.warn(`[TaskService.getRecycledTasks] Removing empty string for UUID parameter: ${key}`);
+                delete params[key];
+            }
+            // Also remove if it's null, as backend DTOs might not always have @IsOptional for nulls if expecting UUID
+            if (params[key] === null) {
+                delete params[key];
+            }
+        }
+        
+        // Ensure page and limit are numbers if they exist, or remove if invalid
+        if (params.page !== undefined && (isNaN(parseInt(params.page)) || parseInt(params.page) <= 0)) {
+            console.warn(`[TaskService.getRecycledTasks] Invalid page parameter '${params.page}', removing.`);
+            delete params.page;
+        }
+        if (params.limit !== undefined && (isNaN(parseInt(params.limit)) || parseInt(params.limit) <= 0)) {
+            console.warn(`[TaskService.getRecycledTasks] Invalid limit parameter '${params.limit}', removing.`);
+            delete params.limit;
+        }
+
+
+        try {
+            console.log('[TaskService.getRecycledTasks] Fetching recycled tasks with processed params:', params);
+            const response = await apiClient.get<any>('/tasks/recycle-bin', { params }); // response.data is typically { data: [], total: N, ... }
+
+            let tasks: Task[] = [];
+            let total = 0;
+
+            // Helper function to filter and map task data
+            const filterAndStandardize = (dataArray: any[]): Task[] => {
+                if (!Array.isArray(dataArray)) {
+                    return [];
+                }
+                return dataArray
+                    .filter(item => item && typeof item === 'object' && !Array.isArray(item)) // Ensure item is a non-null object
+                    .map(standardizeTask);
+            };
+
+            if (Array.isArray(response.data)) {
+                // This case implies the backend isn't paginating as expected by other branches.
+                // Or it's a non-paginated list of tasks (less likely for a recycle bin).
+                console.warn('[TaskService.getRecycledTasks] Received a direct array. Assuming it\'s all tasks and total is its length.');
+                tasks = filterAndStandardize(response.data);
+                total = tasks.length; // total should ideally come from a paginated response if this list is partial
+            } else if (response.data && typeof response.data === 'object') {
+                // Handle common paginated structures
+                if (Array.isArray(response.data.data) && typeof response.data.total === 'number') {
+                    console.log('[TaskService.getRecycledTasks] Received paginated structure (data/total).');
+                    tasks = filterAndStandardize(response.data.data);
+                    total = response.data.total;
+                } else if (Array.isArray(response.data.results) && typeof response.data.count === 'number') {
+                     console.log('[TaskService.getRecycledTasks] Received paginated structure (results/count).');
+                    tasks = filterAndStandardize(response.data.results);
+                    total = response.data.count;
+                } else if (Array.isArray(response.data.tasks) && typeof response.data.total === 'number') {
+                     console.log('[TaskService.getRecycledTasks] Received paginated structure (tasks/total).');
+                    tasks = filterAndStandardize(response.data.tasks);
+                    total = response.data.total;
+                } else if (response.data.message) {
+                     console.error('[TaskService.getRecycledTasks] Received object with a message, potentially an error:', response.data);
+                     // tasks will remain [], total will remain 0
+                } else {
+                    console.error('[TaskService.getRecycledTasks] Received object but not a recognized paginated structure:', response.data);
+                    // tasks will remain [], total will remain 0
+                }
+            } else {
+                console.error('[TaskService.getRecycledTasks] Expected an array or a known paginated structure from /tasks/recycle-bin, but received:', response.data);
+                // tasks will remain [], total will remain 0
+            }
+            
+            return { tasks, total };
+
+        } catch (error: any) {
+            console.error('[TaskService.getRecycledTasks] Error fetching recycled tasks:', error.message);
+            if (error.isAxiosError && error.response) {
+                console.error('[TaskService.getRecycledTasks] Axios error details:', {
+                    status: error.response.status,
+                    data: error.response.data,
+                    config: error.config,
+                });
+                if (error.response.status === 400 && error.response.data && Array.isArray(error.response.data.message)) {
+                    console.error('[TaskService.getRecycledTasks] Backend Validation Errors:', error.response.data.message);
+                }
+            } else if (error.request) {
+                console.error('[TaskService.getRecycledTasks] Error: No response received:', error.request);
+            }
+            return { tasks: [], total: 0 }; // Return default structure on error
+        }
+    },
+
+    wipeRecycleBin: async (): Promise<{ count: number }> => {
+        try {
+            console.log('[TaskService] Wiping all tasks from recycle bin...');
+            const response = await apiClient.delete<{ count: number }>('/admin/tasks/recycle-bin/wipe-all');
+            console.log('[TaskService] Wipe recycle bin response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error wiping recycle bin:', error);
+            throw error;
+        }
+    }
 };
+
+// We need to define RecycleBinQueryDto frontend-side if we want to use its keys strongly.
+// For now, string array is fine.
+interface RecycleBinQueryDto {
+  search?: string;
+  userId?: string;
+  departmentId?: string;
+  provinceId?: string;
+  status?: string[]; // Assuming TaskStatus enum values are strings
+  type?: string[];   // Assuming TaskType enum values are strings
+  fromDate?: string;
+  toDate?: string;
+  deletedByUserId?: string;
+  sortBy?: string;
+  sortOrder?: "ASC" | "DESC";
+  page?: number;
+  limit?: number;
+}

@@ -6,6 +6,8 @@ import {
   Body,
   UseGuards,
   ValidationPipe,
+  Delete,
+  HttpCode,
 } from "@nestjs/common";
 import { EmailTemplatesService } from "./email-templates.service";
 import { UpdateEmailTemplateDto } from "./dto/email-template.dto";
@@ -84,5 +86,23 @@ export class EmailTemplatesController {
       templateKey,
       updateEmailTemplateDto,
     );
+  }
+
+  @Delete(":templateKey")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Delete an email template (Admin only)" })
+  @ApiParam({
+    name: "templateKey",
+    description: "The key of the template to delete",
+    type: String,
+  })
+  @ApiResponse({
+    status: 204,
+    description: "Template deleted successfully.",
+  })
+  @ApiResponse({ status: 404, description: "Template not found." })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  async remove(@Param("templateKey") templateKey: string) {
+    await this.emailTemplatesService.remove(templateKey);
   }
 }

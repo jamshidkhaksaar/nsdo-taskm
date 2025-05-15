@@ -139,7 +139,7 @@ export const SettingsService = {
   },
   
   // Test notification settings
-  testEmailSettings: async (settings: Partial<NotificationSettings>): Promise<void> => {
+  testEmailSettings: async (settings: Partial<NotificationSettings>): Promise<{ success: boolean; message: string }> => {
     try {
       console.log('[SettingsService] Testing email settings');
       const response = await axios.post('settings/notification-settings/test-email/', settings);

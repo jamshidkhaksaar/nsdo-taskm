@@ -11,11 +11,11 @@ export class VerifyTwoFactorDto {
   verification_code: string;
 
   @ApiProperty({
-    description: 'Whether to remember this browser for future 2FA bypass.',
-    example: true,
+    description: 'Whether to remember this browser for future 2FA bypass during setup verification.',
+    example: false,
     required: false,
   })
   @IsOptional()
   @IsBoolean()
   remember_browser?: boolean;
-} 
+}

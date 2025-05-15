@@ -250,105 +250,86 @@ export class DepartmentsController {
 
   // Helper method to format department responses
   private async formatDepartmentResponse(department: Department) {
+    if (!department) {
+      this.logger.warn("[formatDepartmentResponse] Received null or undefined department object.");
+      return null;
+    }
+
     this.logger.debug(`Formatting department ${department.id}, headId: ${department.headId}`);
 
-    // Format the head name from head object if it exists
     let head_name = "No Head Assigned";
-    let head = department.head;
-
-    // If we have a headId but no valid head object, try to load the head user
-    if (department.headId && (!department.head || !department.head.username)) {
+    if (department.head && department.head.username) {
+      head_name = department.head.username;
+    } else if (department.headId) {
+      // Attempt to load head if only ID is present and head object wasn't populated by the service
       try {
-        const headUser = await this.departmentsService.getUserById(
-          department.headId,
-        );
+        const headUser = await this.departmentsService.getUserById(department.headId);
         if (headUser) {
-          head = headUser;
-          this.logger.debug(`Loaded head user for formatting: ${head.username}`);
+          head_name = headUser.username;
+          // Optionally, assign to department.head if it helps other logic, but formatDepartmentResponse should be self-contained
+          // department.head = headUser; 
         }
       } catch (error) {
-        this.logger.error(`Error loading head user for formatting: ${error.message}`, error.stack);
+        this.logger.error(`[formatDepartmentResponse] Error loading head user ${department.headId} for department ${department.id}: ${error.message}`);
       }
     }
+    
+    const members_count = department.members?.length || 0;
+    const formattedMembers = department.members?.map(member => ({ 
+        id: member.id, 
+        username: member.username || "Unknown User"
+        // avatar: member.avatarUrl // if you want to include avatar
+    })) || [];
 
-    if (head && head.username) {
-      head_name = head.username;
-      this.logger.debug(`Set head_name to ${head_name} for department ${department.id}`);
-    }
+    // Initialize taskSummary with all expected keys from TaskStatus
+    const defaultTaskSummary: { [K in TaskStatus | 'total']: number } = {
+      total: 0,
+      [TaskStatus.PENDING]: 0,
+      [TaskStatus.IN_PROGRESS]: 0,
+      [TaskStatus.COMPLETED]: 0,
+      [TaskStatus.CANCELLED]: 0,
+      [TaskStatus.DELEGATED]: 0,
+      [TaskStatus.DELETED]: 0, // Ensure all statuses are covered
+    };
 
-    // Get members count - first try from the department.members array
-    let members_count = department.members ? department.members.length : 0;
+    let finalTaskSummary = { ...defaultTaskSummary };
 
-    // If members_count is 0, try a direct query to double-check
-    if (members_count === 0) {
-      try {
-        // Get count directly from the junction table
-        const memberCountResult = await this.departmentsService.getMemberCount(
-          department.id,
-        );
-        if (memberCountResult > 0) {
-          members_count = memberCountResult;
-          this.logger.debug(`Updated member count from direct query: ${members_count}`);
-        }
-      } catch (error) {
-        this.logger.error(`Error getting direct member count: ${error.message}`, error.stack);
+    try {
+      if (department.id) {
+        const summaryFromService = await this.departmentsService.getTaskSummary(department.id);
+        // Merge, ensuring all keys from defaultTaskSummary are present
+        finalTaskSummary = { ...defaultTaskSummary, ...summaryFromService };
+      } else {
+        this.logger.warn(`[formatDepartmentResponse] Department object missing ID for department named '${department.name}', cannot fetch task summary.`);
       }
+    } catch (error) {
+      this.logger.error(`[formatDepartmentResponse] Error fetching task summary for department ${department.id}. Using default task summary. Error: ${error.message}`);
+      // finalTaskSummary already holds defaultTaskSummary
     }
 
-    // Format members data properly for the frontend
-    const members = department.members
-      ? department.members.map((member) => {
-          // Simplify to use just the available properties
-          return {
-            id: member.id,
-            name: member.username || "Unknown User",
-            avatar: null,
-          };
-        })
-      : [];
+    const active_projects = (finalTaskSummary.total - (finalTaskSummary[TaskStatus.COMPLETED] ?? 0) - (finalTaskSummary[TaskStatus.CANCELLED] ?? 0)) > 0 ? 1 : 0; // Simplified: any non-finished task means active project
+    const completion_rate = finalTaskSummary.total > 0 
+        ? Math.round(((finalTaskSummary[TaskStatus.COMPLETED] ?? 0) / finalTaskSummary.total) * 100) 
+        : 0;
 
-    this.logger.debug(`Department ${department.id} has ${members_count} members.`);
-
-    // Get tasks count for active projects (simplified)
-    const active_projects = department.assignedTasks
-      ? department.assignedTasks.filter(
-          (task) => task.status !== TaskStatus.COMPLETED,
-        ).length > 0
-        ? 1
-        : 0
-      : 0;
-
-    // Calculate completion rate
-    const totalTasks = department.assignedTasks
-      ? department.assignedTasks.length
-      : 0;
-    const completedTasks = department.assignedTasks
-      ? department.assignedTasks.filter(
-          (task) => task.status === TaskStatus.COMPLETED,
-        ).length
-      : 0;
-    const completion_rate =
-      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-    // Create a formatted response
     const result = {
       id: department.id,
       name: department.name,
       description: department.description,
-      head: head || department.head,
+      headId: department.headId || null, // Ensure headId is present
       head_name,
-      provinceId: department.provinceId,
+      provinceId: department.provinceId || null, // Ensure provinceId is present
       province_name: department.province?.name || null,
       members_count,
-      members,
+      members: formattedMembers,
       active_projects,
       completion_rate,
+      taskSummary: finalTaskSummary, // Send the full summary
       createdAt: department.createdAt,
       updatedAt: department.updatedAt,
     };
 
     this.logger.debug(`Formatted department result for ${result.id}: Name=${result.name}, Head=${result.head_name}, Members=${result.members_count}`);
-
     return result;
   }
 }

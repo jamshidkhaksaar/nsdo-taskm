@@ -6,6 +6,7 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  DeleteDateColumn,
 } from "typeorm";
 import { Exclude } from "class-transformer";
 import { Task } from "../../tasks/entities/task.entity";
@@ -70,6 +71,12 @@ export class User {
   @Column({ type: "json", nullable: true, name: "remembered_browsers" })
   rememberedBrowsers: { fingerprint: string; expiresAt: Date }[];
 
+  @Column({ default: 0, name: "failed_two_factor_attempts" })
+  failed_two_factor_attempts: number;
+
+  @Column({ nullable: true, type: "timestamp", name: "two_factor_lockout_until" })
+  two_factor_lockout_until: Date | null;
+
   @Column({ nullable: true, type: "text" })
   bio: string;
 
@@ -100,6 +107,9 @@ export class User {
   })
   updatedAt: Date;
 
+  @DeleteDateColumn({ type: "timestamp", nullable: true, name: "deleted_at" })
+  deletedAt: Date | null;
+
   @OneToMany(() => Task, (task) => task.createdBy)
   createdTasks: Task[];
 
@@ -107,11 +117,6 @@ export class User {
   assignedTasks: Task[];
 
   @ManyToMany(() => Department, (department) => department.members)
-  @JoinTable({
-    name: "user_departments",
-    joinColumn: { name: "user_id", referencedColumnName: "id" },
-    inverseJoinColumn: { name: "department_id", referencedColumnName: "id" },
-  })
   departments: Department[];
 
   @OneToMany(() => Note, (note) => note.user)

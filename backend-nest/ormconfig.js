@@ -10,6 +10,7 @@ const { NotificationSettings } = require('./dist/src/settings/entities/notificat
 const { SecuritySettings } = require('./dist/src/settings/entities/security-settings.entity');
 const { ActivityLog } = require('./dist/src/admin/entities/activity-log.entity');
 const { Backup } = require('./dist/src/backup/entities/backup.entity');
+const { EmailTemplate } = require('./dist/src/email-templates/entities/email-template.entity');
 
 module.exports = new DataSource({
   type: 'mysql',
@@ -32,6 +33,7 @@ module.exports = new DataSource({
     SecuritySettings,
     ActivityLog,
     Backup,
+    EmailTemplate,
   ],
   migrations: ['src/migrations/*.ts'],
   migrationsTableName: "typeorm_migrations",

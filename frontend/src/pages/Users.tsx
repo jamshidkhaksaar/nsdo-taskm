@@ -15,8 +15,7 @@ import {
   DialogContentText,
   DialogTitle,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import { User } from '@/types/index';
+import { User } from '../types/user';
 import { UserService } from '../services/user';
 import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
@@ -36,8 +35,11 @@ const Users: React.FC = () => {
   const [notifications] = useState(3);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
+  // New state for managing multiple selected user IDs
+  const [selectedUserIdsArray, setSelectedUserIdsArray] = useState<string[]>([]);
 
   // React Query for Users
   const usersQuery = useQuery<User[]>({
@@ -51,7 +53,7 @@ const Users: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setDeleteDialogOpen(false);
-      setSelectedUser(null);
+      setUserToDelete(null);
     },
     onError: (error: any) => {
       console.error("Error deleting user:", error);
@@ -70,15 +72,6 @@ const Users: React.FC = () => {
     setTopWidgetsVisible(prev => !prev);
   }, []);
 
-  const handleViewUser = (userId: string) => {
-    const userToSelect = usersQuery.data?.find(u => u.id === userId);
-    setSelectedUser(userToSelect || null);
-  };
-
-  const handleCreateUser = () => {
-    navigate('/admin/user-management/create');
-  };
-
   const isLoading = usersQuery.isLoading;
   const combinedError = usersQuery.error;
 
@@ -86,16 +79,8 @@ const Users: React.FC = () => {
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Typography variant="h4" fontWeight="bold" color="#fff">
-          User Management
+          Select Users
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateUser}
-          sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
-        >
-          Add User
-        </Button>
       </Box>
 
       {isLoading ? (
@@ -109,12 +94,12 @@ const Users: React.FC = () => {
       ) : (
         <UserList
           users={usersQuery.data || []}
-          onSelectUser={handleViewUser}
-          selectedUser={selectedUser?.id || null}
           searchQuery={searchTerm}
           onSearchChange={(query: string) => setSearchTerm(query)}
-          selectedUserIds={[]}
-          onSelectedUsersChange={(ids: string[]) => console.log('Selected IDs:', ids)}
+          selectedUserIds={selectedUserIdsArray}
+          onSelectedUsersChange={(ids: string[]) => setSelectedUserIdsArray(ids)}
+          selectedUser={null}
+          onSelectUser={() => {}}
         />
       )}
 
@@ -127,14 +112,14 @@ const Users: React.FC = () => {
         <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
         <DialogContent>
           <DialogContentText id="alert-dialog-description">
-            Are you sure you want to delete the user "{selectedUser?.username}"? This action cannot be undone.
+            Are you sure you want to delete the user "{userToDelete?.username}"? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
             Cancel
           </Button>
-          <Button onClick={() => deleteUserMutation.mutate(selectedUser?.id || '')} color="error" autoFocus disabled={deleteUserMutation.isPending}>
+          <Button onClick={() => deleteUserMutation.mutate(userToDelete?.id || '')} color="error" autoFocus disabled={deleteUserMutation.isPending}>
             {deleteUserMutation.isPending ? <CircularProgress size={20} /> : 'Delete'}
           </Button>
         </DialogActions>

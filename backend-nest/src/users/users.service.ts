@@ -8,7 +8,7 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In } from "typeorm";
+import { Repository, In, IsNull } from "typeorm";
 import { User } from "./entities/user.entity";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
@@ -89,24 +89,25 @@ export class UsersService {
 
   async findUsersByDepartment(departmentId: string): Promise<User[]> {
     try {
-      this.logger.log(`Finding users in department with ID: ${departmentId}`);
+      this.logger.log(`Finding active users in department with ID: ${departmentId}`);
 
       const users = await this.usersRepository
         .createQueryBuilder("user")
         .innerJoin("user.departments", "department")
         .where("department.id = :departmentId", { departmentId })
+        .andWhere("user.deletedAt IS NULL") // Ensure only active users are fetched
         .getMany();
 
       this.logger.log(
-        `Found ${users.length} users in department with ID: ${departmentId}`,
+        `Found ${users.length} active users in department with ID: ${departmentId}`,
       );
       return users;
     } catch (error) {
       this.logger.error(
-        `Error finding users in department ${departmentId}: ${error.message}`,
+        `Error finding active users in department ${departmentId}: ${error.message}`,
         error.stack,
       );
-      return [];
+      return []; // Return empty array on error, or rethrow if preferred
     }
   }
 
@@ -229,22 +230,24 @@ export class UsersService {
 
   async deleteUser(id: string): Promise<void> {
     try {
-      this.logger.log(`Deleting user with ID: ${id}`);
+      this.logger.log(`Soft deleting user with ID: ${id}`);
 
-      // First check if the user exists
-      await this.findById(id);
+      const user = await this.usersRepository.findOne({ where: { id, deletedAt: IsNull() } });
 
-      // Delete the user
-      const result = await this.usersRepository.delete(id);
-
-      if (result.affected === 0) {
-        throw new NotFoundException(`User with ID ${id} not found`);
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found or already deleted.`);
       }
 
-      this.logger.log(`Successfully deleted user with ID: ${id}`);
+      const result = await this.usersRepository.softDelete(id);
+
+      if (result.affected === 0) {
+        throw new NotFoundException(`User with ID ${id} not found or could not be soft-deleted.`);
+      }
+
+      this.logger.log(`Successfully soft-deleted user with ID: ${id}`);
     } catch (error) {
       this.logger.error(
-        `Error deleting user with ID ${id}: ${error.message}`,
+        `Error soft-deleting user with ID ${id}: ${error.message}`,
         error.stack,
       );
       throw error;
@@ -255,13 +258,10 @@ export class UsersService {
     try {
       this.logger.log(`Updating password for user with ID: ${id}`);
 
-      // First check if the user exists
       const user = await this.findById(id);
 
-      // Update the password
       user.password = hashedPassword;
 
-      // Save the updated user
       const updatedUser = await this.usersRepository.save(user);
 
       this.logger.log(`Successfully updated password for user with ID: ${id}`);
@@ -281,13 +281,10 @@ export class UsersService {
         `Updating status for user with ID: ${id} to ${isActive ? "active" : "inactive"}`,
       );
 
-      // First check if the user exists
       const user = await this.findById(id);
 
-      // Update the status
       user.isActive = isActive;
 
-      // Save the updated user
       const updatedUser = await this.usersRepository.save(user);
 
       this.logger.log(

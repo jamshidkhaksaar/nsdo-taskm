@@ -41,18 +41,19 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [dueDate, setDueDate] = useState<Dayjs | null>(null);
   const [loading, setLoading] = useState(false);
-  const derivedInitialType = dialogType === 'assign' && initialAssignedUserIds.length > 0 ? TaskType.USER : initialType;
-  const [taskType, setTaskType] = useState<TaskType>(derivedInitialType);
+  const [taskType, setTaskType] = useState<TaskType>(initialType);
   const [assignedToUserIds, setAssignedToUserIds] = useState<string[]>(initialAssignedUserIds);
   const [assignedToDepartmentIds, setAssignedToDepartmentIds] = useState<string[]>(initialAssignedDepartmentIds);
   const [assignedToProvinceId, setAssignedToProvinceId] = useState<string | null>(null);
   const [isFormInitialized, setIsFormInitialized] = useState(false);
 
-  const isAssignmentFixed = dialogType === 'assign' && initialAssignedUserIds.length > 0;
+  const isAssignmentFixed = dialogType === 'assign' && 
+    (initialAssignedUserIds.length > 0 || initialAssignedDepartmentIds.length > 0);
+  
   const isPersonalOnly = initialType === TaskType.PERSONAL && !isAssignmentFixed;
 
   const resetForm = useCallback(() => {
-    if (!isFormInitialized && open) {
+    if (open && !isFormInitialized) {
       setTitle('');
       setDescription('');
       setDueDate(null);
@@ -60,27 +61,43 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setLoading(false);
       clearFormError();
 
-      const resetType = isAssignmentFixed ? TaskType.USER : initialType;
-      setTaskType(resetType);
+      let determinedTaskType = initialType;
+
+      if (dialogType === 'assign') {
+        if (initialAssignedUserIds.length > 0) {
+          determinedTaskType = TaskType.USER;
+        } else if (initialAssignedDepartmentIds.length > 0) {
+          determinedTaskType = TaskType.DEPARTMENT;
+        }
+      }
+      setTaskType(determinedTaskType);
+
+      setAssignedToUserIds(initialAssignedUserIds);
+      setAssignedToDepartmentIds(initialAssignedDepartmentIds);
+      
+      setAssignedToProvinceId(null);
 
       if (!isAssignmentFixed) {
-          setAssignedToUserIds([]);
-          setAssignedToDepartmentIds([]);
-          setAssignedToProvinceId(null);
-      } else {
-          setAssignedToUserIds(initialAssignedUserIds);
-          setAssignedToDepartmentIds(initialAssignedDepartmentIds);
-          setAssignedToProvinceId(null);
+        setAssignedToUserIds([]);
+        setAssignedToDepartmentIds([]);
       }
       
       setIsFormInitialized(true);
     }
-  }, [open, initialType, clearFormError, initialAssignedUserIds, isAssignmentFixed, isFormInitialized, initialAssignedDepartmentIds]);
+  }, [
+    open, 
+    isFormInitialized, 
+    dialogType, 
+    initialType, 
+    initialAssignedUserIds, 
+    initialAssignedDepartmentIds, 
+    clearFormError,
+    isAssignmentFixed
+  ]);
 
   useEffect(() => {
     resetForm();
     
-    // Reset the initialization flag when dialog closes
     if (!open) {
       setIsFormInitialized(false);
     }

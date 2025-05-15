@@ -33,6 +33,7 @@ import { RecycleBinQueryDto } from "./dto/recycle-bin-query.dto";
 import { MailService } from "../mail/mail.service";
 import { ConfigService } from "@nestjs/config";
 import { TaskQueryService } from "./task-query.service";
+import { UpdateTaskAssignmentsDto } from "./dto/update-task-assignments.dto";
 
 // Define the missing Response Type
 export interface DashboardTasksResponse {
@@ -849,8 +850,8 @@ export class TasksService {
     delegatorInfo: any,
   ): Promise<Task[]> {
     this.logger.log(
-      `Attempting delegation of task ${id} by user ${delegatorInfo.userId} (${delegatorInfo.role?.name}) to users:`,
-      dto.newAssigneeUserIds,
+      `Attempting sub-task delegation of task ${id} by user ${delegatorInfo.userId} to users:`,
+      dto.delegatedToUserIds,
     );
     // const originalTask = await this.findOne(id);
     const originalTask = await this.taskQueryService.findOne(id);
@@ -899,11 +900,11 @@ export class TasksService {
 
     // Validate new assignees
     const newAssignees = await this.usersRepository.find({
-      where: { id: In(dto.newAssigneeUserIds) },
+      where: { id: In(dto.delegatedToUserIds) },
     });
-    if (newAssignees.length !== dto.newAssigneeUserIds.length) {
+    if (newAssignees.length !== dto.delegatedToUserIds.length) {
       const foundIds = newAssignees.map((u) => u.id);
-      const notFoundIds = dto.newAssigneeUserIds.filter(
+      const notFoundIds = dto.delegatedToUserIds.filter(
         (id) => !foundIds.includes(id),
       );
       this.logger.error(
@@ -986,7 +987,7 @@ export class TasksService {
             delegatorName: delegatorUser.username,
             originalTaskTitle: originalTask.title,
             taskTitle: savedSubTask.title,
-            delegationReason: dto.delegationReason || "No reason provided",
+            delegationReason: "Task delegated via sub-task creation", // Placeholder if original dto.delegationReason was used
             taskLink: subTaskLink,
           },
         );
@@ -1094,5 +1095,294 @@ export class TasksService {
     }
 
     return assignees; // Returns unique list of User entities
+  }
+
+  async updateAssignments(
+    taskId: string,
+    dto: UpdateTaskAssignmentsDto,
+    reqUser: any, // Contains userId, roles etc. from JWT
+  ): Promise<Task> {
+    this.logger.log(
+      `Updating assignments for task ${taskId} by user ${reqUser.userId} with DTO:`, 
+      dto
+    );
+
+    const task = await this.taskQueryService.findOne(taskId, [
+      "createdBy",
+      "assignedToUsers",
+      "assignedToDepartments",
+      "assignedToProvince",
+    ]);
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${taskId} not found.`);
+    }
+
+    // --- Permission Check (Example) ---
+    // This needs to align with your project's RBAC strategy.
+    // For now, let's assume creator or admin/leadership can change assignments.
+    const isCreator = task.createdById === reqUser.userId;
+    const isAdminOrLeadership = reqUser.roles?.some(
+      (role: string) => role === "Administrator" || role === "Leadership",
+    );
+    // const canUpdateAssignments = await this.taskQueryService.checkAssigneePermission(task, reqUser.userId); // Or if assignees can reassign
+
+    if (!isCreator && !isAdminOrLeadership) {
+      throw new ForbiddenException(
+        "You do not have permission to update assignments for this task.",
+      );
+    }
+    
+    // Store original assignees for notification comparison later
+    const originalAssigneesForNotification = await this.getAssigneesForNotification(task);
+
+    // --- Clear Existing Assignments before applying new ones ---
+    task.assignedToUsers = [];
+    task.assignedToDepartments = [];
+    task.assignedToProvinceId = null;
+    task.assignedToProvince = null; // Clear the relation object too
+
+    // --- Determine New Task Type and Apply New Assignments ---
+    const { assignedToUserIds, assignedToDepartmentIds, assignedToProvinceId } =
+      dto;
+
+    const hasUsers = assignedToUserIds && assignedToUserIds.length > 0;
+    const hasDepartments =
+      assignedToDepartmentIds && assignedToDepartmentIds.length > 0;
+    // For provinceId, `null` is a valid input to clear it, so check for string presence for actual ID.
+    const hasProvince = typeof assignedToProvinceId === 'string' && assignedToProvinceId.length > 0;
+
+    // --- Validation Logic (similar to create, but adapted for update context) ---
+    if (hasUsers && (hasDepartments || hasProvince)) {
+      throw new BadRequestException(
+        "Cannot assign task to both users and departments/province simultaneously during update.",
+      );
+    }
+    if (!hasDepartments && hasProvince) {
+      throw new BadRequestException(
+        "Province assignment requires at least one department assignment during update.",
+      );
+    }
+
+    // --- Apply New Assignments based on DTO content ---
+    if (hasUsers) {
+      task.type = TaskType.USER;
+      const users = await this.usersRepository.findBy({ id: In(assignedToUserIds!) });
+      if (users.length !== assignedToUserIds!.length) {
+        throw new BadRequestException("One or more assigned users not found.");
+      }
+      task.assignedToUsers = users;
+      this.logger.debug(`Task ${taskId} updated to USER type, ${users.length} users.`);
+    } else if (hasDepartments && hasProvince) {
+      task.type = TaskType.PROVINCE_DEPARTMENT;
+      const province = await this.provincesRepository.findOneBy({ id: assignedToProvinceId! });
+      if (!province) {
+        throw new BadRequestException(`Province with ID ${assignedToProvinceId} not found.`);
+      }
+      task.assignedToProvinceId = province.id;
+      task.assignedToProvince = province; // Set relation object
+
+      const departments = await this.departmentsRepository.find({
+        where: { id: In(assignedToDepartmentIds!) },
+        relations: ["province"],
+      });
+      if (departments.length !== assignedToDepartmentIds!.length) {
+        throw new BadRequestException("One or more assigned departments not found.");
+      }
+      const invalidDepartments = departments.filter(d => d.provinceId !== province.id);
+      if (invalidDepartments.length > 0) {
+        throw new BadRequestException(
+          `Departments [${invalidDepartments.map((d) => d.id).join(", ")}] do not belong to province ${province.id}.`,
+        );
+      }
+      task.assignedToDepartments = departments;
+      this.logger.debug(`Task ${taskId} updated to PROVINCE_DEPARTMENT type, province ${province.id}, ${departments.length} depts.`);
+    } else if (hasDepartments) {
+      task.type = TaskType.DEPARTMENT;
+      const departments = await this.departmentsRepository.findBy({ id: In(assignedToDepartmentIds!) });
+      if (departments.length !== assignedToDepartmentIds!.length) {
+        throw new BadRequestException("One or more assigned departments not found.");
+      }
+      task.assignedToDepartments = departments;
+      this.logger.debug(`Task ${taskId} updated to DEPARTMENT type, ${departments.length} depts.`);
+    } else {
+      // No specific assignments provided, or explicitly cleared -> Becomes PERSONAL
+      task.type = TaskType.PERSONAL;
+      const creatorUser = await this.usersRepository.findOneBy({ id: task.createdById });
+      if (!creatorUser) {
+        this.logger.error(`Failed to find creator ${task.createdById} for personal task ${taskId}.`);
+        throw new InternalServerErrorException("Could not assign task to creator.");
+      }
+      task.assignedToUsers = [creatorUser];
+      this.logger.debug(`Task ${taskId} updated to PERSONAL type.`);
+    }
+
+    const updatedTask = await this.tasksRepository.save(task);
+    this.logger.log(`Task ${taskId} assignments updated successfully.`);
+    
+    // --- Handle Notifications for assignment changes ---
+    // Reload task with relations for notifications
+    const taskForNotification = await this.taskQueryService.findOne(updatedTask.id, [
+        "assignedToUsers", 
+        "assignedToDepartments", 
+        "assignedToProvince", 
+        "createdBy"
+    ]);
+    if (taskForNotification) {
+        await this.sendTaskAssignmentChangeNotifications(taskForNotification, originalAssigneesForNotification, reqUser);
+    }
+
+    return this.taskQueryService.findOne(updatedTask.id); // Return the full updated task
+  }
+
+  private async sendTaskAssignmentChangeNotifications(task: Task, originalAssignees: User[], actor: any) {
+    const currentAssignees = await this.getAssigneesForNotification(task);
+    const frontendUrl = this.configService.get<string>("FRONTEND_URL") || "http://localhost:5173";
+    const taskLink = `${frontendUrl}/tasks/${task.id}`;
+
+    const newAssignees = currentAssignees.filter(ca => !originalAssignees.some(oa => oa.id === ca.id));
+    const removedAssignees = originalAssignees.filter(oa => !currentAssignees.some(ca => ca.id === oa.id));
+
+    const commonEmailVars = {
+        taskTitle: task.title,
+        taskLink: taskLink,
+        actorUsername: actor.username || 'System',
+        dueDate: task.dueDate ? task.dueDate.toLocaleDateString() : "N/A",
+        taskDescription: task.description || "No description provided.",
+    };
+
+    for (const user of newAssignees) {
+        if (user.id === actor.userId) continue; // Don't notify actor of their own action
+        this.logger.log(`Notifying new assignee ${user.username} for task ${task.id}`);
+        // TODO: Send TASK_NEWLY_ASSIGNED email and in-app notification
+        await this.mailService.sendTemplatedEmail(user.email, "TASK_NEWLY_ASSIGNED", {
+            ...commonEmailVars,
+            username: user.username,
+        }).catch(e => this.logger.error(`Failed to send TASK_NEWLY_ASSIGNED email to ${user.email}: ${e.message}`));
+    }
+
+    for (const user of removedAssignees) {
+        if (user.id === actor.userId) continue;
+        this.logger.log(`Notifying removed assignee ${user.username} for task ${task.id}`);
+        // TODO: Send TASK_REMOVED_FROM_ASSIGNMENT email and in-app notification
+        await this.mailService.sendTemplatedEmail(user.email, "TASK_REMOVED_FROM_ASSIGNMENT", {
+            ...commonEmailVars,
+            username: user.username,
+        }).catch(e => this.logger.error(`Failed to send TASK_REMOVED_FROM_ASSIGNMENT email to ${user.email}: ${e.message}`));
+    }
+    // Consider notifying the task creator if assignments change significantly, unless they are the actor.
+    if (task.createdBy && task.createdById !== actor.userId && (newAssignees.length > 0 || removedAssignees.length > 0)) {
+        this.logger.log(`Notifying creator ${task.createdBy.username} of assignment changes for task ${task.id}`);
+        // TODO: Send TASK_ASSIGNMENT_CHANGED email and in-app notification to creator
+        await this.mailService.sendTemplatedEmail(task.createdBy.email, "TASK_ASSIGNMENT_CHANGED", {
+            ...commonEmailVars,
+            username: task.createdBy.username,
+            changerUsername: actor.username || 'System',
+        }).catch(e => this.logger.error(`Failed to send TASK_ASSIGNMENT_CHANGED email to creator ${task.createdBy.email}: ${e.message}`));
+    }
+  }
+
+  async delegateTaskAssignmentsByCreator(
+    taskId: string,
+    dto: DelegateTaskDto,
+    requestingUser: any, // UserDocument or similar, contains userId
+  ): Promise<Task> {
+    this.logger.log(
+      `User ${requestingUser.userId} attempting to delegate assignments for task ${taskId} to users: ${dto.delegatedToUserIds.join(', ')}`,
+    );
+
+    const task = await this.taskQueryService.findOne(taskId, [
+      "createdBy",
+      "assignedToUsers",
+      "assignedToDepartments",
+      "assignedToProvince",
+    ]);
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${taskId} not found.`);
+    }
+
+    // --- Strict Permission Check: Only the creator can delegate ---
+    if (task.createdById !== requestingUser.userId) {
+      this.logger.warn(
+        `Forbidden: User ${requestingUser.userId} (not creator ${task.createdById}) attempted to delegate task ${taskId}.`,
+      );
+      throw new ForbiddenException("Only the task creator can delegate this task.");
+    }
+
+    // Prevent delegation of completed or cancelled tasks
+    if ([TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.DELETED].includes(task.status)) {
+      throw new BadRequestException(
+        `Cannot delegate a task that is already ${task.status}.`,
+      );
+    }
+    
+    const originalAssigneesForNotification = await this.getAssigneesForNotification(task);
+
+    // Validate new assignees
+    const newAssigneeUsers = await this.usersRepository.find({
+      where: { id: In(dto.delegatedToUserIds) },
+    });
+    if (newAssigneeUsers.length !== dto.delegatedToUserIds.length) {
+      const foundIds = newAssigneeUsers.map((u) => u.id);
+      const notFoundIds = dto.delegatedToUserIds.filter(
+        (id) => !foundIds.includes(id),
+      );
+      this.logger.error(
+        `Delegation failed for task ${taskId}: One or more new assignees not found: ${notFoundIds.join(', ')}`,
+      );
+      throw new BadRequestException(
+        `One or more new assignees not found: ${notFoundIds.join(', ')}`,
+      );
+    }
+
+    // --- Update Task Assignments and Type ---
+    task.assignedToUsers = newAssigneeUsers;
+    task.type = TaskType.USER;
+
+    // Clear other assignment types
+    task.assignedToDepartments = [];
+    task.assignedToProvinceId = null;
+    task.assignedToProvince = null;
+
+    // Clear fields related to the other (sub-task) delegation flow
+    task.isDelegated = false;
+    task.delegatedByUserId = null;
+    task.delegatedBy = null;
+    task.delegatedFromTaskId = null;
+    task.delegatedFromTask = null;
+
+    const updatedTask = await this.tasksRepository.save(task);
+    this.logger.log(
+      `Task ${taskId} assignments successfully delegated by creator ${requestingUser.userId} to ${newAssigneeUsers.length} users.`,
+    );
+
+    // --- Handle Notifications for assignment changes ---
+    const taskForNotification = await this.taskQueryService.findOne(updatedTask.id, [
+        "assignedToUsers", 
+        "assignedToDepartments",
+        "assignedToProvince", 
+        "createdBy"
+    ]);
+
+    if (taskForNotification) {
+        const actor = { 
+            userId: requestingUser.userId, 
+            username: requestingUser.username || (taskForNotification.createdBy ? taskForNotification.createdBy.username : 'Creator')
+        };
+        await this.sendTaskAssignmentChangeNotifications(taskForNotification, originalAssigneesForNotification, actor);
+    }
+    
+    // Add activity log
+    await this.activityLogService.createLog({
+      user_id: requestingUser.userId,
+      action: "TASK_DELEGATED_BY_CREATOR",
+      target: "Task",
+      target_id: updatedTask.id,
+      details: `Task "${updatedTask.title}" assignments delegated by creator to users: ${newAssigneeUsers.map(u => u.username || u.id).join(', ')}.`,
+      status: "success",
+    });
+
+    return this.taskQueryService.findOne(updatedTask.id);
   }
 }

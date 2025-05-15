@@ -70,10 +70,10 @@ export class ActivityLogService {
     status: "success" | "warning" | "error" = "success",
   ): Promise<ActivityLog> {
     const userContext = req.user as {
-      userId?: string;
+      id?: string;
       username?: string /* other fields */;
     };
-    const userId = userContext?.userId; // Extract the userId
+    const userId = userContext?.id;
     const ip_address =
       req.ip || (req.headers["x-forwarded-for"] as string) || "unknown";
 

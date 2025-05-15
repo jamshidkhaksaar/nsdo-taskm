@@ -19,7 +19,6 @@ import {
 
 interface TwoFactorFormInputs {
   verificationCode: string;
-  rememberDevice: boolean;
 }
 
 // Define schemas based on the 2FA method
@@ -29,7 +28,6 @@ const appTwoFactorSchema = z.object({
     .min(6, 'Code must be 6 digits')
     .max(6, 'Code must be 6 digits')
     .regex(/^\\d{6}$/, 'Code must be 6 digits'),
-  rememberDevice: z.boolean().default(true),
 });
 
 const emailTwoFactorSchema = z.object({
@@ -38,7 +36,6 @@ const emailTwoFactorSchema = z.object({
     .min(6, 'Code must be 6 characters')
     .max(6, 'Code must be 6 characters')
     .regex(/^[a-zA-Z0-9]{6}$/, 'Code must be 6 characters (alphanumeric)'),
-  rememberDevice: z.boolean().default(true),
 });
 
 interface TwoFactorAuthPopupProps {
@@ -74,7 +71,6 @@ const TwoFactorAuthPopup: React.FC<TwoFactorAuthPopupProps> = ({
     resolver: zodResolver(currentSchema), // Use the conditional schema
     defaultValues: {
       verificationCode: '',
-      rememberDevice: true,
     },
   });
 
@@ -86,7 +82,7 @@ const TwoFactorAuthPopup: React.FC<TwoFactorAuthPopupProps> = ({
   
   React.useEffect(() => {
     if (!open) {
-      reset({ verificationCode: '', rememberDevice: true });
+      reset({ verificationCode: '' });
     }
   }, [open, reset]);
 
@@ -123,12 +119,6 @@ const TwoFactorAuthPopup: React.FC<TwoFactorAuthPopupProps> = ({
               inputMode: twoFactorMethod === 'email' ? 'text' : 'numeric',
               pattern: twoFactorMethod === 'email' ? '^[a-zA-Z0-9]*$' : '[0-9]*',
             }}
-          />
-          <FormControlLabel
-            control={<Checkbox {...register('rememberDevice')} color="primary" defaultChecked />}
-            label="Remember this device for 30 days"
-            disabled={loading}
-            sx={{ mt: 1 }}
           />
           
           {twoFactorMethod === 'email' && onResendEmailCode && (

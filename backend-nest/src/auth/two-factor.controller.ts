@@ -18,6 +18,7 @@ import { UsersService } from "../users/users.service";
 import { SetupTwoFactorDto } from "./dto/setup-two-factor.dto";
 import { VerifyTwoFactorDto } from "./dto/verify-two-factor.dto";
 import { SendEmailCodeDto } from "./dto/send-email-code.dto";
+import { AuthService } from "./auth.service";
 
 @ApiTags("Two Factor Authentication")
 @Controller("settings")
@@ -27,6 +28,7 @@ export class TwoFactorController {
   constructor(
     private readonly twoFactorService: TwoFactorService,
     private readonly usersService: UsersService,
+    private readonly authService: AuthService,
   ) {}
 
   @Get("2fa-status")
@@ -95,23 +97,30 @@ export class TwoFactorController {
   async verify(@Request() req, @Body() verifyTwoFactorDto: VerifyTwoFactorDto) {
     try {
       this.logger.log(
-        `Verify 2FA request received with code: ${verifyTwoFactorDto.verification_code?.substring(0, 2)}***`,
+        `Verify 2FA request received for user ${req.user.userId} with code: ${verifyTwoFactorDto.verification_code?.substring(0, 2)}***, remember_browser: ${verifyTwoFactorDto.remember_browser}`,
       );
 
       const userId = req.user.userId;
-      const rememberBrowser = verifyTwoFactorDto.remember_browser === true;
-      this.logger.log(
-        `Verifying 2FA code for user ${userId}, remember browser: ${rememberBrowser}`,
-      );
-
       const verified = await this.twoFactorService.verify(
         userId,
         verifyTwoFactorDto.verification_code,
-        rememberBrowser,
       );
 
       if (verified) {
         this.logger.log(`2FA verification successful for user ${userId}`);
+        
+        if (verifyTwoFactorDto.remember_browser === true) {
+          this.logger.log(`User ${userId} requested to remember this browser during 2FA setup verification.`);
+          const user = await this.usersService.findById(userId, ["rememberedBrowsers"]);
+          if (user) {
+            const ipAddress = req.ip || '';
+            const userAgent = req.headers['user-agent'] || '';
+            await this.authService.handleNewLoginSecurityChecks(user, ipAddress, userAgent);
+            this.logger.log(`Called handleNewLoginSecurityChecks for user ${userId} after 2FA setup verification.`);
+          } else {
+            this.logger.warn(`User ${userId} not found when trying to remember browser after 2FA setup.`);
+          }
+        }
         return { success: true, message: "2FA verification successful" };
       } else {
         this.logger.warn(

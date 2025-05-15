@@ -228,4 +228,34 @@ export class AdminController {
     await this.adminService.adminResetUser2FA(targetUserId, req.user as User);
     return { message: "User 2FA has been successfully reset." };
   }
+
+  @Post("tasks/archive-completed")
+  @Roles("Administrator", "Super Admin")
+  @ApiOperation({ summary: "Archive all completed tasks (move to recycle bin)" })
+  @ApiResponse({ status: 200, description: "Completed tasks archived successfully.", type: Object })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  async archiveCompletedTasks(@Request() req) {
+    this.logger.log(`User ${req.user.username} (ID: ${req.user.userId}) initiated archiving of completed tasks.`);
+    return this.adminService.archiveCompletedTasks(req.user as User);
+  }
+
+  @Delete("tasks/wipe-all")
+  @Roles("Super Admin")
+  @ApiOperation({ summary: "Permanently wipe ALL tasks from the system" })
+  @ApiResponse({ status: 200, description: "All tasks wiped successfully.", type: Object })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  async wipeAllTasks(@Request() req) {
+    this.logger.warn(`User ${req.user.username} (ID: ${req.user.userId}) initiated WIPE ALL TASKS. This is a destructive operation.`);
+    return this.adminService.wipeAllTasks(req.user as User);
+  }
+
+  @Delete("tasks/recycle-bin/wipe-all")
+  @Roles("Administrator", "Super Admin")
+  @ApiOperation({ summary: "Permanently wipe all tasks from the recycle bin" })
+  @ApiResponse({ status: 200, description: "Recycle bin wiped successfully.", type: Object })
+  @ApiResponse({ status: 403, description: "Forbidden." })
+  async wipeRecycleBin(@Request() req) {
+    this.logger.log(`User ${req.user.username} (ID: ${req.user.userId}) initiated wiping of the task recycle bin.`);
+    return this.adminService.wipeRecycleBin(req.user as User);
+  }
 }

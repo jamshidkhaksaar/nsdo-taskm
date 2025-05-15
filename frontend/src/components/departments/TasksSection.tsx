@@ -15,19 +15,18 @@ import WorkIcon from '@mui/icons-material/Work';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
-import { Task } from '@/types/index';
+import { Task, TaskType, User, Department } from '@/types/index';
 import { UserService } from '@/services/user';
 
 interface TasksSectionProps {
   tasks?: Task[];
-  currentUserId: number;
-  currentDepartmentId: number;
-  viewMode: 'department' | 'user' | 'assigned';
+  currentUserId?: string;
+  currentDepartmentId?: string;
+  viewMode: 'department' | 'user' | 'assigned' | 'dashboard';
   onAddTask?: () => void;
   onTaskClick?: (task: Task) => void;
   onTaskUpdated?: (task: Task) => Promise<void>;
   showAddButton?: boolean;
-  // Allow alternative task grouping
   upcomingTasks?: Task[];
   ongoingTasks?: Task[];
   completedTasks?: Task[];
@@ -111,20 +110,52 @@ const TasksSection: React.FC<TasksSectionProps> = ({
   }, [upcomingTasks, ongoingTasks, completedTasks, userCache]);
   
   // Helper function to get user name
-  const getUserName = (userId: string | number) => {
+  const getUserName = (userId?: string | number): string => {
+    if (!userId) return 'Unknown User';
     const id = String(userId);
     return userCache[id] || id;
   };
   
-  // Format assigned users for display
-  const formatAssignedUsers = (assignedIds?: string[]) => {
-    if (!assignedIds || assignedIds.length === 0) return "Unassigned";
-    
-    if (assignedIds.length === 1) {
-      return getUserName(assignedIds[0]);
+  // Enhanced assignee display logic
+  const getAssigneeDisplay = (task: Task): string => {
+    if (!task) return 'Unassigned';
+
+    const createdByCurrentUser = task.createdById === currentUserId;
+
+    switch (task.type) {
+      case TaskType.PERSONAL:
+        return 'Personal Task';
+      case TaskType.USER:
+        if (task.assignedToUserIds && task.assignedToUserIds.length > 0) {
+          if (task.assignedToUserIds.length === 1 && task.assignedToUserIds[0] === currentUserId && createdByCurrentUser) {
+            return 'My Task (Self-assigned)';
+          }
+          if (task.assignedToUserIds.length === 1) {
+            return getUserName(task.assignedToUserIds[0]);
+          }
+          return `${getUserName(task.assignedToUserIds[0])} + ${task.assignedToUserIds.length - 1} more`;
+        }
+        return 'Unassigned (User Task)';
+      case TaskType.DEPARTMENT:
+      case TaskType.PROVINCE_DEPARTMENT:
+        if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
+          if (task.assignedToDepartments.length === 1) {
+            // Attempt to get department name, fallback to ID if necessary
+            // This assumes department objects with names are part of the task or fetched separately
+            const deptName = task.assignedToDepartments[0].name || `Dept ${task.assignedToDepartments[0].id}`;
+            return `For: ${deptName}`;
+          }
+          return `Multiple Departments (${task.assignedToDepartments.length})`;
+        }
+        return 'Unassigned (Department Task)';
+      default:
+        // Fallback for older tasks or unknown types, try to use assignedToUserIds
+        if (task.assignedToUserIds && task.assignedToUserIds.length > 0) {
+            if (task.assignedToUserIds.length === 1) return getUserName(task.assignedToUserIds[0]);
+            return `${getUserName(task.assignedToUserIds[0])} + ${task.assignedToUserIds.length - 1} more`;
+        }
+        return 'Unassigned';
     }
-    
-    return `${getUserName(assignedIds[0])} + ${assignedIds.length - 1} more`;
   };
 
   const TaskBox = ({ 
@@ -220,7 +251,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                     <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }} />
                     <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                       {/* Use camelCase: assignedToUserIds */}
-                      {formatAssignedUsers(task.assignedToUserIds)}
+                      {getAssigneeDisplay(task)}
                     </Typography>
                   </Box>
                   <Chip

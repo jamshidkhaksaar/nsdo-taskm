@@ -74,7 +74,6 @@ const Settings: React.FC = () => {
   const [selectedSetupMethod, setSelectedSetupMethod] = useState<'app' | 'email'>('app');
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
-  const [rememberDeviceForSetup, setRememberDeviceForSetup] = useState(true);
   const [loading, setLoading] = useState(false);
   const [twoFaLoading, setTwoFaLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -225,7 +224,7 @@ const Settings: React.FC = () => {
     setSuccess(null);
     setTwoFaLoading(true);
     try {
-      const verificationResult = await SettingsService.verify2FA(verificationCode.trim(), rememberDeviceForSetup);
+      const verificationResult = await SettingsService.verify2FA(verificationCode.trim());
       if (verificationResult.success) {
         setSuccess('Two-Factor Authentication has been successfully enabled!');
         setTwoFactorEnabled(true);
@@ -537,19 +536,6 @@ const Settings: React.FC = () => {
                         sx={{ '& .MuiOutlinedInput-root': glassStyles.input }}
                         inputProps={{ maxLength: 6, pattern: "\\d*" }}
                       />
-                      <FormControlLabel
-                        control={
-                          <Switch /* Using Switch from MUI, not Checkbox */
-                            checked={rememberDeviceForSetup}
-                            onChange={(e) => setRememberDeviceForSetup(e.target.checked)}
-                            sx={{
-                              '& .MuiSwitch-switchBase.Mui-checked': { color: 'white' },
-                              '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: theme.palette.primary.main }
-                            }}
-                          />
-                        }
-                        label={<Typography sx={{ color: 'white' }}>Remember this browser for 90 days</Typography>}
-                      />
                       <Box sx={{mt: 2, display: 'flex', gap: 2}}>
                         <Button 
                           variant="contained" 
@@ -593,8 +579,8 @@ const Settings: React.FC = () => {
                       <FormControlLabel
                         control={
                           <Switch /* Using Switch from MUI, not Checkbox */
-                            checked={rememberDeviceForSetup}
-                            onChange={(e) => setRememberDeviceForSetup(e.target.checked)}
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
                             sx={{
                               '& .MuiSwitch-switchBase.Mui-checked': { color: 'white' },
                               '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: theme.palette.primary.main }

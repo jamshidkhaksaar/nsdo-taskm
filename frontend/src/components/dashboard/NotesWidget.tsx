@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -11,6 +11,8 @@ import {
   Stack,
   Divider,
   Tooltip,
+  Alert,
+  CircularProgress,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -24,6 +26,9 @@ import {
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import createMuiStyles from '../../utils/muiStyleFixes';
+import { NoteService, QuickNote } from '../../services/noteService';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 
 // Define available note colors
 const NOTE_COLORS = [
@@ -122,14 +127,6 @@ const NoteCard = styled(Card, {
   })
 );
 
-interface QuickNote {
-  id: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  color: string;
-}
-
 const NotesWidget: React.FC = () => {
   const [notes, setNotes] = useState<QuickNote[]>([]);
   const [newNoteContent, setNewNoteContent] = useState('');
@@ -137,42 +134,57 @@ const NotesWidget: React.FC = () => {
   const [editContent, setEditContent] = useState('');
   const [editColor, setEditColor] = useState(NOTE_COLORS[0]);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load notes from localStorage on component mount
-  useEffect(() => {
-    const savedNotes = localStorage.getItem('quickNotes');
-    if (savedNotes) {
-      try {
-        setNotes(JSON.parse(savedNotes));
-      } catch (e) {
-        console.error('Failed to parse saved notes:', e);
-        setNotes([]);
-      }
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
+
+  const fetchNotes = useCallback(async () => {
+    if (!currentUser) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fetchedNotes = await NoteService.getNotes();
+      setNotes(fetchedNotes);
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+      setError('Failed to load notes. Please try again later.');
+      setNotes([]);
     }
-  }, []);
+    setIsLoading(false);
+  }, [currentUser]);
 
-  const saveNotes = (updatedNotes: QuickNote[]) => {
-    setNotes(updatedNotes);
-    localStorage.setItem('quickNotes', JSON.stringify(updatedNotes));
-  };
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
 
-  const addNote = () => {
+  const addNote = async () => {
     if (!newNoteContent.trim()) return;
-    const now = new Date().toISOString();
-    const newNote: QuickNote = {
-      id: uuidv4(),
-      content: newNoteContent,
-      createdAt: now,
-      updatedAt: now,
-      color: NOTE_COLORS[0], // Default color
-    };
-    saveNotes([newNote, ...notes]);
-    setNewNoteContent('');
+    setIsLoading(true);
+    try {
+      const newNote = await NoteService.addNote({ 
+        content: newNoteContent,
+        color: NOTE_COLORS[0]
+      });
+      setNotes(prevNotes => [newNote, ...prevNotes]);
+      setNewNoteContent('');
+    } catch (err) {
+      console.error('Failed to add note:', err);
+      setError('Failed to save note.');
+    }
+    setIsLoading(false);
   };
 
-  const deleteNote = (id: string) => {
-    const updatedNotes = notes.filter((note) => note.id !== id);
-    saveNotes(updatedNotes);
+  const deleteNote = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await NoteService.deleteNote(id);
+      setNotes(prevNotes => prevNotes.filter((note) => note.id !== id));
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+      setError('Failed to delete note.');
+    }
+    setIsLoading(false);
   };
 
   const startEditNote = (note: QuickNote) => {
@@ -190,18 +202,20 @@ const NotesWidget: React.FC = () => {
     setEditColor(NOTE_COLORS[0]);
   };
 
-  const saveEditNote = (id: string) => {
+  const saveEditNote = async (id: string) => {
     if (!editContent.trim()) return;
-    const updatedNotes = notes.map(note =>
-      note.id === id
-        ? { ...note, content: editContent, updatedAt: new Date().toISOString(), color: editColor }
-        : note
-    );
-    saveNotes(updatedNotes);
-    cancelEditNote();
+    setIsLoading(true);
+    try {
+      const updatedNote = await NoteService.updateNote(id, { content: editContent, color: editColor });
+      setNotes(prevNotes => prevNotes.map(note => (note.id === id ? updatedNote : note)));
+      cancelEditNote();
+    } catch (err) {
+      console.error('Failed to save edited note:', err);
+      setError('Failed to save changes.');
+    }
+    setIsLoading(false);
   };
 
-  // Auto-focus input when edit mode starts
   useEffect(() => {
     if (editingNoteId && editInputRef.current) {
       editInputRef.current.focus();
@@ -218,6 +232,12 @@ const NotesWidget: React.FC = () => {
           </Typography>
         </Box>
 
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
         <Box sx={{ mb: 2 }}>
           <StyledAddNoteField
             fullWidth
@@ -225,12 +245,13 @@ const NotesWidget: React.FC = () => {
             placeholder="Add a quick note..."
             value={newNoteContent}
             onChange={(e) => setNewNoteContent(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && addNote()}
+            onKeyPress={(e) => e.key === 'Enter' && !isLoading && addNote()}
+            disabled={isLoading}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton onClick={addNote} edge="end" sx={{ color: '#64b5f6' }}>
-                    <AddIcon />
+                  <IconButton onClick={addNote} edge="end" sx={{ color: '#64b5f6' }} disabled={isLoading}>
+                    {isLoading && notes.length === 0 ? <CircularProgress size={20} /> : <AddIcon />}
                   </IconButton>
                 </InputAdornment>
               ),
@@ -238,86 +259,81 @@ const NotesWidget: React.FC = () => {
           />
         </Box>
 
+        {isLoading && notes.length === 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2}}>
+            <CircularProgress />
+          </Box>
+        )}
+
         <Box sx={{ flexGrow: 1, overflowY: 'auto', pr: 1 }}>
-          {notes.length === 0 ? (
+          {!isLoading && notes.length === 0 && !error && (
             <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', py: 2 }}>
               No notes yet. Add one above!
             </Typography>
-          ) : (
-            notes.map((note) => (
-              <NoteCard key={note.id} bgColor={note.color}>
-                {editingNoteId === note.id ? (
-                  // Edit Mode
-                  <>
-                    <CardContent sx={{ pb: '8px !important' }}>
-                      <StyledEditField
-                        fullWidth
-                        multiline
-                        variant="standard"
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        autoFocus
-                        inputRef={editInputRef}
-                      />
-                      {/* Color Selection Swatches */}
-                      <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                        {NOTE_COLORS.map((colorOption) => (
-                          <Tooltip key={colorOption} title="Set color">
-                            <ColorButton
-                              size="small"
-                              colorValue={colorOption}
-                              isSelected={editColor === colorOption}
-                              onClick={() => setEditColor(colorOption)}
-                            />
-                          </Tooltip>
-                        ))}
-                      </Stack>
-                    </CardContent>
-                    <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-                    <CardActions sx={{ justifyContent: 'flex-end', pt: 0.5, pb: '4px !important' }}>
-                      <Tooltip title="Cancel Edit">
-                        <IconButton size="small" onClick={cancelEditNote} sx={{ color: '#e57373' }}>
-                          <CancelIcon fontSize="inherit" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Save Note">
-                        <IconButton size="small" onClick={() => saveEditNote(note.id)} sx={{ color: '#81c784' }}>
-                          <SaveIcon fontSize="inherit" />
-                        </IconButton>
-                      </Tooltip>
-                    </CardActions>
-                  </>
-                ) : (
-                  // View Mode
-                  <>
-                    <CardContent sx={{ pb: '8px !important' }}>
-                      <Typography sx={{ color: '#fff', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                        {note.content}
-                      </Typography>
-                    </CardContent>
-                    <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-                    <CardActions sx={{ justifyContent: 'space-between', pt: 0.5, pb: '4px !important' }}>
-                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                        {format(new Date(note.updatedAt), 'Pp')}
-                      </Typography>
-                      <Box>
-                        <Tooltip title="Edit Note">
-                          <IconButton size="small" onClick={() => startEditNote(note)} sx={{ color: '#90caf9' }}>
-                            <EditIcon fontSize="inherit" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete Note">
-                          <IconButton size="small" onClick={() => deleteNote(note.id)} sx={{ color: '#e57373' }}>
-                            <DeleteIcon fontSize="inherit" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </CardActions>
-                  </>
-                )}
-              </NoteCard>
-            ))
           )}
+          {notes.map((note) => (
+            <NoteCard key={note.id} bgColor={note.color}>
+              {editingNoteId === note.id ? (
+                // Edit Mode
+                <CardContent sx={{ p: 1, pb: '8px !important' }}>
+                  <StyledEditField
+                    fullWidth
+                    multiline
+                    variant="standard"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    inputRef={editInputRef}
+                    disabled={isLoading}
+                  />
+                  <Stack direction="row" spacing={0.5} sx={{ mt: 1, mb: 0.5 }} justifyContent="flex-start">
+                    {NOTE_COLORS.map((colorOption) => (
+                      <Tooltip title={colorOption} key={colorOption}>
+                        <ColorButton 
+                          colorValue={colorOption} 
+                          isSelected={editColor === colorOption}
+                          onClick={() => setEditColor(colorOption)}
+                          disabled={isLoading}
+                        />
+                      </Tooltip>
+                    ))}
+                  </Stack>
+                </CardContent>
+              ) : (
+                // View Mode
+                <CardContent sx={{ p: 1.5, pb: '12px !important' }}>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#fff' }}>
+                    {note.content}
+                  </Typography>
+                </CardContent>
+              )}
+              <CardActions sx={{ justifyContent: 'space-between', pt: 0, px: 1, pb: 0.5 }}>
+                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.65rem' }}>
+                  {format(new Date(note.updated_at || note.created_at), 'MMM d, HH:mm')}
+                </Typography>
+                <Box>
+                  {editingNoteId === note.id ? (
+                    <>
+                      <IconButton size="small" onClick={() => saveEditNote(note.id)} sx={{ color: '#81c784' }} disabled={isLoading}>
+                        <SaveIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={cancelEditNote} sx={{ color: '#e57373' }} disabled={isLoading}>
+                        <CancelIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <IconButton size="small" onClick={() => startEditNote(note)} sx={{ color: 'rgba(255, 255, 255, 0.7)' }} disabled={isLoading}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => deleteNote(note.id)} sx={{ color: 'rgba(255, 255, 255, 0.7)' }} disabled={isLoading}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  )}
+                </Box>
+              </CardActions>
+            </NoteCard>
+          ))}
         </Box>
       </StyledCardContent>
     </StyledCard>

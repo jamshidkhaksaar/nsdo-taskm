@@ -14,9 +14,14 @@ import {
   ListItem, 
   ListItemText, 
   IconButton,
-  CircularProgress 
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from '@mui/material';
-import { Edit as EditIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { useNavigate } from 'react-router-dom';
@@ -48,6 +53,13 @@ interface SnackbarState {
   severity: 'success' | 'error' | 'info' | 'warning';
 }
 
+interface ConfirmationDialogState {
+  open: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+}
+
 const DRAWER_WIDTH = 240;
 
 // Add card style for glassmorphism
@@ -75,6 +87,12 @@ const EmailConfiguration: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null); // State for template being edited
   const [testingEmail, setTestingEmail] = useState(false); // State for test email loading
   const [testRecipientEmail, setTestRecipientEmail] = useState(''); // State for test email input
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmationDialogState>({ // State for confirmation dialog
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   console.log('EmailConfiguration component mounted');
   console.log('Current location:', window.location.pathname);
@@ -205,6 +223,28 @@ const EmailConfiguration: React.FC = () => {
       )
     );
     setSnackbar({ open: true, message: 'Template updated successfully', severity: 'success' });
+  };
+
+  const handleDeleteTemplate = async (templateKey: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Confirm Deletion',
+      message: `Are you sure you want to delete the template "${templateKey}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, open: false }); // Close dialog immediately
+        setLoadingTemplates(true);
+        try {
+          await axios.delete(`/email-templates/${templateKey}`);
+          setEmailTemplates(prevTemplates => prevTemplates.filter(t => t.templateKey !== templateKey));
+          setSnackbar({ open: true, message: `Template "${templateKey}" deleted successfully`, severity: 'success' });
+        } catch (error) {
+          console.error(`Failed to delete template ${templateKey}:`, error);
+          setSnackbar({ open: true, message: `Failed to delete template ${templateKey}`, severity: 'error' });
+        } finally {
+          setLoadingTemplates(false);
+        }
+      },
+    });
   };
 
   const handleCloseSnackbar = () => {
@@ -343,11 +383,14 @@ const EmailConfiguration: React.FC = () => {
               }
             >
               <ListItemText 
-                primary={template.templateKey.replace(/_/g, ' ')} 
-                secondary={template.description || 'No description'}
-                primaryTypographyProps={{ color: '#fff' }}
-                secondaryTypographyProps={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                primary={template.templateKey} 
+                secondary={template.description || `Subject: ${template.subject}`} 
+                primaryTypographyProps={{ color: 'rgba(255, 255, 255, 0.9)' }}
+                secondaryTypographyProps={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
+              <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteTemplate(template.templateKey)} sx={{ color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#fff' }, ml: 1 /* Add margin */ }}>
+                <DeleteIcon />
+              </IconButton>
             </ListItem>
           ))}
         </List>
@@ -432,6 +475,38 @@ const EmailConfiguration: React.FC = () => {
             template={selectedTemplate}
             onSave={handleTemplateSave}
           />
+          <Dialog
+            open={confirmDialog.open}
+            onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
+            aria-labelledby="alert-dialog-title"
+            aria-describedby="alert-dialog-description"
+            PaperProps={{
+                style: {
+                    backgroundColor: 'rgba(30, 30, 30, 0.9)', // Darker background for the dialog itself
+                    backdropFilter: 'blur(5px)',
+                    color: '#fff',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                },
+            }}
+          >
+            <DialogTitle id="alert-dialog-title" sx={{ color: '#fff' }}>
+              {confirmDialog.title}
+            </DialogTitle>
+            <DialogContent>
+              <DialogContentText id="alert-dialog-description" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                {confirmDialog.message}
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })} sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Cancel
+              </Button>
+              <Button onClick={confirmDialog.onConfirm} autoFocus sx={{ color: '#FF6B6B', '&:hover': { backgroundColor: 'rgba(255, 107, 107, 0.1)' } }}>
+                Confirm
+              </Button>
+            </DialogActions>
+          </Dialog>
         </>
       }
       sidebarOpen={isSidebarOpen}

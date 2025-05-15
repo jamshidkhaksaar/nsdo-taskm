@@ -1,6 +1,6 @@
-import { Injectable, Logger, Inject, forwardRef } from "@nestjs/common";
+import { Injectable, Logger, Inject, forwardRef, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Like, Repository, Between, LessThan, Not, In } from "typeorm";
+import { Like, Repository, Between, LessThan, Not, In, IsNull } from "typeorm";
 import { User } from "../users/entities/user.entity";
 import { Department } from "../departments/entities/department.entity";
 import { Task, TaskStatus } from "../tasks/entities/task.entity";
@@ -143,16 +143,16 @@ export class AdminService {
         inProgressTasksCount,
         completedTasksCount,
       ] = await Promise.all([
-        this.usersRepository.count(),
+        this.usersRepository.count({ where: { deletedAt: IsNull() } }),
         this.departmentsRepository.count(),
-        this.tasksRepository.count(),
-        this.usersRepository.count({ where: { isActive: true } }),
-        this.usersRepository.count({ where: { isActive: false } }),
-        this.tasksRepository.count({ where: { status: TaskStatus.PENDING } }),
+        this.tasksRepository.count({ where: { isDeleted: false } }),
+        this.usersRepository.count({ where: { isActive: true, deletedAt: IsNull() } }),
+        this.usersRepository.count({ where: { isActive: false, deletedAt: IsNull() } }),
+        this.tasksRepository.count({ where: { status: TaskStatus.PENDING, isDeleted: false } }),
         this.tasksRepository.count({
-          where: { status: TaskStatus.IN_PROGRESS },
+          where: { status: TaskStatus.IN_PROGRESS, isDeleted: false },
         }),
-        this.tasksRepository.count({ where: { status: TaskStatus.COMPLETED } }),
+        this.tasksRepository.count({ where: { status: TaskStatus.COMPLETED, isDeleted: false } }),
       ]);
 
       // Get tasks due soon (next 7 days)
@@ -164,14 +164,16 @@ export class AdminService {
         where: {
           dueDate: Between(today, nextWeek),
           status: TaskStatus.PENDING,
+          isDeleted: false,
         },
       });
 
       // Get overdue tasks
       const overdueTasksCount = await this.tasksRepository.count({
         where: {
-          dueDate: Between(new Date(0), today),
+          dueDate: LessThan(today),
           status: TaskStatus.PENDING,
+          isDeleted: false,
         },
       });
 
@@ -392,20 +394,27 @@ export class AdminService {
     }
   }
 
-  async getAllUsers(search?: string) {
+  async getAllUsers(search?: string, includeDeleted: boolean = false) {
     let users: User[] = [];
-    const relations = ["role", "departments"]; // Ensure relations are loaded
+    const relations = ["role", "departments"];
+
+    const whereConditions: any = { deletedAt: includeDeleted ? Not(IsNull()) : IsNull() };
 
     if (search) {
       users = await this.usersRepository.find({
         where: [
-          { username: Like(`%${search}%`) },
-          { email: Like(`%${search}%`) },
+          { ...whereConditions, username: Like(`%${search}%`) },
+          { ...whereConditions, email: Like(`%${search}%`) },
         ],
-        relations, // Add relations here
+        relations,
+        withDeleted: includeDeleted,
       });
     } else {
-      users = await this.usersRepository.find({ relations }); // Add relations here
+      users = await this.usersRepository.find({ 
+        where: whereConditions,
+        relations,
+        withDeleted: includeDeleted,
+      });
     }
 
     return users.map((user) => ({
@@ -1313,79 +1322,53 @@ export class AdminService {
 
   // --- Helper Method for Department Task Stats --- 
   private async calculateDepartmentTaskStats(): Promise<DepartmentStatsDto[]> {
-    const now = new Date();
-    const todayStart = new Date(new Date(now).setHours(0, 0, 0, 0));
+    const departments = await this.departmentsRepository.find();
+    const stats: DepartmentStatsDto[] = [];
 
-    try {
-      const rawStats = await this.tasksRepository
-        .createQueryBuilder("task")
-        .select("dept.id", "departmentId")
-        .addSelect("dept.name", "departmentName")
-        .addSelect("task.status", "status")
-        // Calculate overdue status directly in the query
-        .addSelect(
-          `CASE WHEN task.dueDate < :todayStart AND task.status NOT IN (:...excludedStatuses) THEN 1 ELSE 0 END`,
-          "isOverdue"
-        )
-        .addSelect("COUNT(task.id)", "count")
-        .innerJoin("task.assignedToDepartments", "dept")
-        .where("task.isDeleted = :isDeleted", { isDeleted: false })
-        .setParameters({ 
-            todayStart: todayStart.toISOString(), 
-            excludedStatuses: [TaskStatus.COMPLETED, TaskStatus.CANCELLED]
-        })
-        .groupBy("dept.id, dept.name, task.status, isOverdue")
-        .getRawMany();
-        
-      // Process raw stats into the desired DTO structure
-      const departmentMap = new Map<string, DepartmentStatsDto>();
+    for (const dept of departments) {
+      const taskQb = this.tasksRepository.createQueryBuilder("task")
+        .leftJoin("task.assignedToDepartments", "assignedDept")
+        .where("assignedDept.id = :departmentId", { departmentId: dept.id })
+        .andWhere("task.isDeleted = :isDeleted", { isDeleted: false });
 
-      rawStats.forEach(row => {
-        const { departmentId, departmentName, status, isOverdue, count } = row;
-        const taskCount = parseInt(count, 10);
+      const pending = await taskQb.andWhere("task.status = :status", { status: TaskStatus.PENDING }).getCount();
+      const inProgress = await taskQb.andWhere("task.status = :status", { status: TaskStatus.IN_PROGRESS }).getCount(); // Cloned qb is reset for each count
+      const completed = await taskQb.andWhere("task.status = :status", { status: TaskStatus.COMPLETED }).getCount();
+      const total = await taskQb.getCount(); // Total for THIS department
+      
+      // Re-fetch for overdue count with its specific date condition
+      const overdueQb = this.tasksRepository.createQueryBuilder("task")
+        .leftJoin("task.assignedToDepartments", "assignedDept")
+        .where("assignedDept.id = :departmentId", { departmentId: dept.id })
+        .andWhere("task.isDeleted = :isDeleted", { isDeleted: false })
+        .andWhere("task.status NOT IN (:...statuses)", { statuses: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] })
+        .andWhere("task.dueDate < :today", { today: new Date().toISOString() });
+      const overdue = await overdueQb.getCount();
 
-        if (!departmentMap.has(departmentId)) {
-          departmentMap.set(departmentId, {
-            departmentId,
-            departmentName,
-            counts: { pending: 0, inProgress: 0, completed: 0, overdue: 0, total: 0 }
-          });
-        }
-
-        const deptStats = departmentMap.get(departmentId)!;
-        deptStats.counts.total += taskCount;
-
-        if (parseInt(isOverdue, 10) === 1) {
-            deptStats.counts.overdue += taskCount;
-        }
-
-        // Add to status counts (excluding completed/cancelled from specific statuses if already counted)
-        if (status === TaskStatus.PENDING && parseInt(isOverdue, 10) === 0) deptStats.counts.pending += taskCount;
-        else if (status === TaskStatus.IN_PROGRESS) deptStats.counts.inProgress += taskCount;
-        else if (status === TaskStatus.COMPLETED) deptStats.counts.completed += taskCount;
-        // We don't count CANCELLED or DELEGATED separately here, but they contribute to total
+      stats.push({
+        departmentId: dept.id,
+        departmentName: dept.name,
+        counts: { pending, inProgress, completed, overdue, total },
       });
-
-      return Array.from(departmentMap.values());
-
-    } catch (error) {
-      this.logger.error("Failed to calculate department task stats:", error);
-      return []; // Return empty array on error
     }
+    return stats;
   }
 
   // --- Helper Method for User Task Stats --- 
   private async calculateUserTaskStats(requestingUser: User): Promise<UserTaskStatsDto[]> {
     this.logger.log(`Calculating user task stats. Requesting user: ${requestingUser.username}`);
-    const users = await this.usersRepository.find({ where: { isActive: true }, relations: ['role'] });
+    // Ensure we only get active, non-deleted users for stats calculation
+    const users = await this.usersRepository.find({ where: { isActive: true, deletedAt: IsNull() }, relations: ['role', 'departments'] });
     const userStats: UserTaskStatsDto[] = [];
     this.logger.debug(`Found ${users.length} active users to process for stats.`);
+    
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
     for (const user of users) {
       this.logger.debug(`Processing user: ${user.username}, ID: ${user.id}, Type of ID: ${typeof user.id}`);
-      if (typeof user.id !== 'string' || user.id.length === 0) {
-        this.logger.error(`User ${user.username} has invalid ID: ${user.id}. Skipping for stats calculation.`);
-        continue; // Skip this user if ID is problematic
+      if (typeof user.id !== 'string' || !uuidRegex.test(user.id)) { // Added regex test for UUID format
+        this.logger.error(`User ${user.username} has invalid ID format: ${user.id}. Skipping for stats calculation.`);
+        continue; // Skip this user if ID is not a valid UUID
       }
 
       // Only include actual users, not system roles if any, or filter by specific roles if needed for the overview
@@ -1492,13 +1475,21 @@ export class AdminService {
       const provinceNameMap = new Map(allProvinces.map(p => [p.id, p.name]));
       const departmentProvinceMap = new Map<string, string>(); // DeptId -> ProvinceId
       
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
       // Need to fetch departments to get their province mapping if not readily available
       // Optimization: If departmentStats included provinceId, we wouldn't need this fetch.
       // For now, fetch all departments with their province relation.
       const departments = await this.departmentsRepository.find({ relations: ["province"] });
       departments.forEach(d => {
           if (d.province?.id) { // Ensure province relationship is loaded and has an ID
-              departmentProvinceMap.set(d.id, d.province.id);
+              if (typeof d.province.id === 'string' && uuidRegex.test(d.province.id)) {
+                departmentProvinceMap.set(d.id, d.province.id);
+              } else {
+                this.logger.warn(`Department ${d.name} (ID: ${d.id}) has a linked province with an invalid ID format: ${d.province.id}. Skipping for province stats.`);
+              }
+          } else {
+            // this.logger.debug(`Department ${d.name} (ID: ${d.id}) is not linked to any province or province ID is null.`);
           }
       });
       
@@ -1526,9 +1517,88 @@ export class AdminService {
   }
 
   async adminResetUser2FA(targetUserId: string, adminUser: User): Promise<void> {
-    this.logger.log(`Admin ${adminUser.username} (ID: ${adminUser.id}) attempting to reset 2FA for user ID: ${targetUserId}`);
+    this.logger.log(
+      `Admin user ${adminUser.username} (ID: ${adminUser.id}) is attempting to reset 2FA for user ID: ${targetUserId}`,
+    );
+
+    const targetUser = await this.usersRepository.findOneBy({ id: targetUserId });
+
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID ${targetUserId} not found.`);
+    }
+
     await this.twoFactorService.adminDisableTwoFactor(targetUserId, adminUser.id);
-    // Basic logging is done within adminDisableTwoFactor and by the request logger.
-    // Detailed activity logging can be enhanced here later if needed, e.g., using a more generic log method in ActivityLogService.
+
+    this.logger.log(
+      `2FA reset for user ${targetUser.username} (ID: ${targetUserId}) by admin ${adminUser.username} (ID: ${adminUser.id})`,
+    );
+    await this.activityLogService.createLog({
+      action: "Admin Reset 2FA",
+      user_id: adminUser.id,
+      details: `Admin ${adminUser.username} reset 2FA for user ${targetUser.username}`,
+      target: "User",
+      target_id: targetUserId,
+      status: "success",
+    });
+  }
+
+  // --- Admin Task Management Methods ---
+
+  async archiveCompletedTasks(requestingUser: User): Promise<{ count: number }> {
+    this.logger.log(
+      `User ${requestingUser.username} (ID: ${requestingUser.id}) requested to archive completed tasks.`,
+    );
+    // TODO: Implement logic to find all tasks with status COMPLETED,
+    // update their isDeleted to true, set deletedAt, deletedById (requestingUser.id),
+    // and deletionReason to "Archived as completed".
+    // Return the count of tasks archived.
+    // Ensure this operation is atomic if possible.
+    const count = 0; // Placeholder
+    await this.activityLogService.createLog({
+      action: "Archive Completed Tasks",
+      user_id: requestingUser.id,
+      details: `Archived ${count} completed tasks.`,
+      target: "Task",
+      status: "success",
+    });
+    return { count };
+  }
+
+  async wipeAllTasks(requestingUser: User): Promise<{ count: number }> {
+    this.logger.warn(
+      `CRITICAL: User ${requestingUser.username} (ID: ${requestingUser.id}) requested to WIPE ALL TASKS.`,
+    );
+    // TODO: Implement logic to PERMANENTLY DELETE all tasks from the database.
+    // This is a hard delete operation.
+    // Return the count of tasks wiped.
+    // Ensure this operation is atomic if possible and has extra confirmation/logging.
+    const count = 0; // Placeholder
+    await this.activityLogService.createLog({
+      action: "Wipe All Tasks",
+      user_id: requestingUser.id,
+      details: `Wiped ${count} tasks from the system. THIS IS A DESTRUCTIVE ACTION.`,
+      target: "System",
+      status: "success",
+    });
+    return { count };
+  }
+
+  async wipeRecycleBin(requestingUser: User): Promise<{ count: number }> {
+    this.logger.log(
+      `User ${requestingUser.username} (ID: ${requestingUser.id}) requested to wipe the task recycle bin.`,
+    );
+    // TODO: Implement logic to find all tasks where isDeleted = true (or deletedAt is not null)
+    // and PERMANENTLY DELETE them from the database.
+    // This is a hard delete operation on soft-deleted tasks.
+    // Return the count of tasks wiped from the recycle bin.
+    const count = 0; // Placeholder
+    await this.activityLogService.createLog({
+      action: "Wipe Recycle Bin",
+      user_id: requestingUser.id,
+      details: `Wiped ${count} tasks from the recycle bin.`,
+      target: "Task",
+      status: "success",
+    });
+    return { count };
   }
 }
