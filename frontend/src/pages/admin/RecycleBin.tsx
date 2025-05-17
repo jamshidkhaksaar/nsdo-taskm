@@ -190,7 +190,7 @@ const RecycleBin: React.FC = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await axios.get('/api/v1/users');
+      const response = await axios.get('users');
       setUsers(response.data);
     } catch (error) {
       console.error('Failed to fetch users:', error);

@@ -6,6 +6,7 @@ import {
 import { TaskService } from '@/services/task';
 import { Task } from '@/types/index';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useNavigate } from 'react-router-dom';
 
 interface EditTaskDialogProps {
   open: boolean;
@@ -15,7 +16,7 @@ interface EditTaskDialogProps {
 }
 
 const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUpdated, taskId }) => {
-
+  const navigate = useNavigate();
   const { error: fetchError, handleError, clearError } = useErrorHandler();
 
   const [task, setTask] = useState<Task | null>(null);
@@ -39,6 +40,14 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
     }
   }, [open, taskId, clearError, handleError]);
 
+  const handleAssignUsers = () => {
+    if (task && task.id) {
+      navigate('/users', { state: { taskId: task.id } });
+    } else {
+      console.error("Cannot navigate to assign users: task or task.id is missing.");
+    }
+  };
+
   return (
     <Dialog 
       open={open} 
@@ -60,7 +69,18 @@ const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ open, onClose, onTaskUp
               <CircularProgress />
             </Box>
           ) : task ? (
-            <Typography>Task details for {task.title} would be editable here.</Typography>
+            <>
+              <Typography>Task details for {task.title} would be editable here.</Typography>
+              <Box sx={{ mt: 2 }}>
+                <Button 
+                  variant="outlined" 
+                  onClick={handleAssignUsers}
+                  disabled={!task || !task.id}
+                >
+                  Assign Users to this Task
+                </Button>
+              </Box>
+            </>
           ) : (
             <Typography>Task not found or unable to load.</Typography>
           )}

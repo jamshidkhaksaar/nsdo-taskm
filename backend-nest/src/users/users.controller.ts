@@ -15,6 +15,7 @@ import {
   NotFoundException,
   ParseUUIDPipe,
   ForbiddenException,
+  Query,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -22,7 +23,7 @@ import * as bcrypt from "bcrypt";
 import { ActivityLogService } from "../admin/services/activity-log.service";
 import { TasksService } from "../tasks/tasks.service";
 import { TaskQueryService } from "../tasks/task-query.service";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth, ApiOkResponse, ApiQuery } from "@nestjs/swagger";
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -30,8 +31,12 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { InitiatePasswordResetDto } from "./dto/initiate-password-reset.dto";
 import { Roles } from "../rbac/decorators/roles.decorator";
 import { RolesGuard } from "../rbac/guards/roles.guard";
+import { PageOptionsDto } from "../common/dto/page-options.dto";
+import { PageDto } from "../common/dto/page.dto";
+import { User } from "./entities/user.entity";
 
 @ApiTags("Users")
+@ApiBearerAuth()
 @Controller("users")
 @UseGuards(JwtAuthGuard)
 export class UsersController {
@@ -47,20 +52,20 @@ export class UsersController {
 
   @Get()
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("User", "Leadership", "Administrator")
+  @Roles("User", "Leadership", "Administrator", "Super Admin")
   @Permissions('user:read')
-  async getAllUsers() {
-    this.logger.log("Getting all users");
-
-    const users = await this.usersService.findAll();
-    // Map to safe response structure based on existing User entity fields
-    return users.map((user) => ({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role && typeof user.role === 'object' ? { id: user.role.id, name: user.role.name } : user.role,
-      isActive: user.isActive,
-    }));
+  @ApiOperation({ summary: "Get all users with pagination and search" })
+  @ApiOkResponse({ 
+    description: "Successfully retrieved users.",
+    type: PageDto<User>
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'take', required: false, type: Number, description: 'Items per page' })
+  @ApiQuery({ name: 'q', required: false, type: String, description: 'Search term' })
+  @ApiQuery({ name: 'order', required: false, enum: ['ASC', 'DESC'], description: 'Order (ASC/DESC)' })
+  async getAllUsers(@Query() pageOptionsDto: PageOptionsDto): Promise<PageDto<User>> {
+    this.logger.log(`Getting users with options: ${JSON.stringify(pageOptionsDto)}`);
+    return this.usersService.getUsers(pageOptionsDto);
   }
 
   @Get(":id")

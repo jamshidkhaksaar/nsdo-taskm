@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Container,
@@ -14,113 +14,182 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  Pagination,
+  Stack,
+  Paper,
 } from '@mui/material';
 import { User } from '../types/user';
-import { UserService } from '../services/user';
+import * as UserService from '../services/users.service';
 import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
 import UserList from '../components/users/UserList';
 import { RootState } from '@/store';
+import { Page, PageOptions, Order } from '../types/page';
+import { useDebounce } from '../hooks/useDebounce';
 
 const DRAWER_WIDTH = 240;
+const DEFAULT_TAKE = 10;
 
 const Users: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
-  // User state
-  const [searchTerm, setSearchTerm] = useState('');
+  const [taskIdToAssign, setTaskIdToAssign] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (location.state && location.state.taskId) {
+      setTaskIdToAssign(location.state.taskId);
+      console.log('Task ID from location state:', location.state.taskId);
+    } else {
+      console.log('No Task ID found in location state for assignment.');
+    }
+  }, [location.state]);
+
+  const [internalSearchTerm, setInternalSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(internalSearchTerm, 500);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_TAKE);
+
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const [notifications] = useState(3);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
-
-  // New state for managing multiple selected user IDs
   const [selectedUserIdsArray, setSelectedUserIdsArray] = useState<string[]>([]);
 
-  // React Query for Users
-  const usersQuery = useQuery<User[]>({
-    queryKey: ['users', searchTerm],
-    queryFn: () => searchTerm ? UserService.searchUsers(searchTerm) : UserService.getUsers(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  const deleteUserMutation = useMutation({
-    mutationFn: UserService.deleteUser,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      setDeleteDialogOpen(false);
-      setUserToDelete(null);
-    },
-    onError: (error: any) => {
-      console.error("Error deleting user:", error);
-    },
-  });
-
-  const handleLogout = () => {
-    navigate('/login');
+  const pageOptions: PageOptions = {
+    page: currentPage,
+    take: itemsPerPage,
+    q: debouncedSearchTerm,
+    order: Order.ASC,
   };
 
-  const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
-  }, []);
+  const usersQuery = useQuery<Page<User>, Error>({
+    queryKey: ['users', pageOptions],
+    queryFn: () => UserService.getUsers(pageOptions),
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
+  });
 
-  const handleToggleTopWidgets = useCallback(() => {
-    setTopWidgetsVisible(prev => !prev);
-  }, []);
+  const deleteUserMutation = useQueryClient().getMutationCache().find({ mutationKey: ['deleteUser'] });
+
+  const handleLogout = () => navigate('/login');
+  const handleToggleSidebar = useCallback(() => setIsSidebarOpen(prev => !prev), []);
+
+  const handleAssignSelectedUsers = () => {
+    if (!taskIdToAssign) {
+      alert('No task context for assignment. Please ensure you navigated from a task.');
+      return;
+    }
+    if (selectedUserIdsArray.length > 0) {
+      console.log(`Assigning task ${taskIdToAssign} to user IDs:`, selectedUserIdsArray);
+      // TODO: Implement actual API call here
+      alert(`Selected users for assignment to task ${taskIdToAssign}: ${selectedUserIdsArray.join(', ')}.\nCheck console for IDs.`);
+    } else {
+      alert('Please select at least one user to assign.');
+    }
+  };
+
+  const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
+    setCurrentPage(value);
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
+
+  useEffect(() => {
+    console.log('Selected User IDs (from Users.tsx effect):', selectedUserIdsArray);
+  }, [selectedUserIdsArray]);
 
   const isLoading = usersQuery.isLoading;
-  const combinedError = usersQuery.error;
+  const queryError = usersQuery.error;
+  const usersData = usersQuery.data?.data || [];
+  const pageMeta = usersQuery.data?.meta;
 
   const mainContent = (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" fontWeight="bold" color="#fff">
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4" fontWeight="bold" color="text.primary">
           Select Users
         </Typography>
+        <Button 
+          variant="contained" 
+          color="primary"
+          onClick={handleAssignSelectedUsers}
+          disabled={selectedUserIdsArray.length === 0 || isLoading}
+        >
+          Assign Task to Selected ({selectedUserIdsArray.length})
+        </Button>
       </Box>
+      
+      <Paper elevation={2} sx={{p: 2, mb: 2, background: 'rgba(255, 255, 255, 0.05)', backdropFilter: 'blur(5px)'}}>
+        <UserList
+          users={usersData}
+          searchQuery={internalSearchTerm}
+          onSearchChange={setInternalSearchTerm}
+          selectedUserIds={selectedUserIdsArray}
+          onSelectedUsersChange={setSelectedUserIdsArray}
+          title="Available Users"
+        />
+      </Paper>
 
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}>
+      {isLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
           <CircularProgress />
         </Box>
-      ) : combinedError ? (
-        <Alert severity="error" sx={{ m: 3 }}>
-          {combinedError.message || 'An error occurred loading data.'}
+      )}
+      {!isLoading && queryError && (
+        <Alert severity="error" sx={{ my: 2 }}>
+          {queryError.message || 'An error occurred loading users.'}
         </Alert>
-      ) : (
-        <UserList
-          users={usersQuery.data || []}
-          searchQuery={searchTerm}
-          onSearchChange={(query: string) => setSearchTerm(query)}
-          selectedUserIds={selectedUserIdsArray}
-          onSelectedUsersChange={(ids: string[]) => setSelectedUserIdsArray(ids)}
-          selectedUser={null}
-          onSelectUser={() => {}}
-        />
+      )}
+      {!isLoading && !queryError && usersData.length === 0 && !debouncedSearchTerm && (
+         <Typography sx={{textAlign: 'center', my: 2, color: 'text.secondary'}}>
+            No users found.
+        </Typography>
+      )}
+       {!isLoading && !queryError && usersData.length === 0 && debouncedSearchTerm && (
+         <Typography sx={{textAlign: 'center', my: 2, color: 'text.secondary'}}>
+            No users match your search "{debouncedSearchTerm}".
+        </Typography>
       )}
 
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
+      {pageMeta && pageMeta.pageCount > 1 && !isLoading && !queryError && (
+        <Stack spacing={2} sx={{ mt: 3, mb:2, alignItems: 'center' }}>
+          <Pagination
+            count={pageMeta.pageCount}
+            page={currentPage}
+            onChange={handlePageChange}
+            color="primary"
+            sx={{ 
+              '& .MuiPaginationItem-root': {
+                color: 'rgba(255,255,255,0.8)'
+              },
+              '& .Mui-selected': {
+                backgroundColor: 'rgba(100,180,255,0.3)'
+              }
+            }}
+          />
+        </Stack>
+      )}
+
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>{"Confirm Deletion"}</DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description">
-            Are you sure you want to delete the user "{userToDelete?.username}"? This action cannot be undone.
+          <DialogContentText>
+            Are you sure you want to delete user "{userToDelete?.username}"?
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
-            Cancel
-          </Button>
-          <Button onClick={() => deleteUserMutation.mutate(userToDelete?.id || '')} color="error" autoFocus disabled={deleteUserMutation.isPending}>
-            {deleteUserMutation.isPending ? <CircularProgress size={20} /> : 'Delete'}
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={() => userToDelete && console.log('Delete user:', userToDelete.id)}
+            color="error"
+          >
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
@@ -148,8 +217,8 @@ const Users: React.FC = () => {
           onProfileClick={() => navigate('/profile')}
           onSettingsClick={() => navigate('/settings')}
           onHelpClick={() => console.log('Help')}
-          onToggleTopWidgets={handleToggleTopWidgets}
-          topWidgetsVisible={topWidgetsVisible}
+          onToggleTopWidgets={() => console.log('Toggle Top Widgets')}
+          topWidgetsVisible={true}
         />
       }
       mainContent={mainContent}

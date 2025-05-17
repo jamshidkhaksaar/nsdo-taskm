@@ -81,9 +81,9 @@ export class TasksService {
     private taskQueryService: TaskQueryService,
   ) {}
 
-  async create(createTaskDto: CreateTaskDto, user: any): Promise<Task> {
+  async create(createTaskDto: CreateTaskDto, creatorId: string): Promise<Task> {
     this.logger.log("Creating task with DTO:", createTaskDto);
-    this.logger.log("Creating user:", user);
+    this.logger.log("Creating user ID:", creatorId);
 
     try {
       const task = new Task();
@@ -93,7 +93,7 @@ export class TasksService {
       task.dueDate = createTaskDto.dueDate
         ? new Date(createTaskDto.dueDate)
         : null;
-      task.createdById = user.userId; // Set from the authenticated user
+      task.createdById = creatorId; // Set from creatorId
       task.status = TaskStatus.PENDING; // Default status
       task.isDelegated = false; // New tasks are not delegated by default
       task.assignedToUsers = []; // Initialize relations
@@ -205,11 +205,11 @@ export class TasksService {
         task.type = TaskType.PERSONAL;
         // Assign to self if personal
         const creatorUser = await this.usersRepository.findOneBy({
-          id: user.userId,
+          id: creatorId,
         });
         if (!creatorUser) {
           throw new NotFoundException(
-            `Creator user with ID ${user.userId} not found.`,
+            `Creator user with ID ${creatorId} not found.`,
           );
         }
         task.assignedToUsers = [creatorUser];
@@ -248,7 +248,7 @@ export class TasksService {
           taskWithRelations.assignedToUsers
         ) {
           for (const assignedUser of taskWithRelations.assignedToUsers) {
-            if (assignedUser.id === user.userId) continue;
+            if (assignedUser.id === creatorId) continue;
 
             // Send Email (Existing Logic)
             try {
@@ -326,7 +326,7 @@ export class TasksService {
               const uniqueUsers = Array.from(uniqueUsersMap.values());
 
               for (const deptUser of uniqueUsers) {
-                if (deptUser.id === user.userId) continue;
+                if (deptUser.id === creatorId) continue;
 
                 // Find which assigned department(s) this user belongs to for context
                 // Use the originally fetched assignedToDepartments for name
@@ -405,7 +405,7 @@ export class TasksService {
       // Log activity
       try {
         await this.activityLogService.createLog({
-          user_id: user.userId,
+          user_id: creatorId,
           action: "CREATE_TASK",
           target: "Task",
           target_id: savedTask.id,
@@ -423,7 +423,7 @@ export class TasksService {
 
       return savedTask;
     } catch (error) {
-      this.logger.error(`Error creating task: ${error.message}`, error.stack, { createTaskDto, userId: user?.userId });
+      this.logger.error(`Error creating task: ${error.message}`, error.stack, { createTaskDto, userId: creatorId });
       if (
         error instanceof BadRequestException ||
         error instanceof NotFoundException ||

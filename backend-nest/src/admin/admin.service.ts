@@ -1568,11 +1568,10 @@ export class AdminService {
     this.logger.warn(
       `CRITICAL: User ${requestingUser.username} (ID: ${requestingUser.id}) requested to WIPE ALL TASKS.`,
     );
-    // TODO: Implement logic to PERMANENTLY DELETE all tasks from the database.
-    // This is a hard delete operation.
-    // Return the count of tasks wiped.
-    // Ensure this operation is atomic if possible and has extra confirmation/logging.
-    const count = 0; // Placeholder
+    
+    const result = await this.tasksRepository.delete({}); // Hard delete all tasks
+    const count = result.affected || 0;
+
     await this.activityLogService.createLog({
       action: "Wipe All Tasks",
       user_id: requestingUser.id,
@@ -1580,6 +1579,7 @@ export class AdminService {
       target: "System",
       status: "success",
     });
+    this.logger.log(`Wiped ${count} tasks from the system.`);
     return { count };
   }
 
@@ -1587,11 +1587,17 @@ export class AdminService {
     this.logger.log(
       `User ${requestingUser.username} (ID: ${requestingUser.id}) requested to wipe the task recycle bin.`,
     );
-    // TODO: Implement logic to find all tasks where isDeleted = true (or deletedAt is not null)
-    // and PERMANENTLY DELETE them from the database.
-    // This is a hard delete operation on soft-deleted tasks.
-    // Return the count of tasks wiped from the recycle bin.
-    const count = 0; // Placeholder
+
+    // Find tasks that are soft-deleted (isDeleted = true or deletedAt is not null)
+    // Assuming 'isDeleted' is the primary flag for soft deletion in your Task entity
+    // If you primarily use 'deletedAt', the condition would be { deletedAt: Not(IsNull()) }
+    const deleteCriteria = { isDeleted: true }; 
+    // Alternatively, if using deletedAt:
+    // const deleteCriteria = { deletedAt: Not(IsNull()) };
+
+    const result = await this.tasksRepository.delete(deleteCriteria);
+    const count = result.affected || 0;
+
     await this.activityLogService.createLog({
       action: "Wipe Recycle Bin",
       user_id: requestingUser.id,
@@ -1599,6 +1605,7 @@ export class AdminService {
       target: "Task",
       status: "success",
     });
+    this.logger.log(`Wiped ${count} tasks from the recycle bin.`);
     return { count };
   }
 }

@@ -70,20 +70,20 @@ export class TasksController {
   @Roles("Leadership", "Administrator", "Super Admin")
   async getTasksOverview(@Request() req): Promise<TaskOverviewStatsDto> {
     this.logger.log(
-      `User ${req.user.userId} (${req.user.role?.name}) fetching task overview`,
+      `User ${req.user.id} (${req.user.role?.name}) fetching task overview`,
     );
     return this.adminService.getTasksOverviewStats(req.user);
   }
 
   @Post()
   create(@Body() createTaskDto: CreateTaskDto, @Request() req) {
-    this.logger.log(`User ${req.user.userId} creating task: ${createTaskDto.title}`);
-    return this.tasksService.create(createTaskDto, req.user);
+    this.logger.log(`User ${req.user.id} creating task: ${createTaskDto.title}`);
+    return this.tasksService.create(createTaskDto, req.user.id);
   }
 
   @Get()
   findAll(@Query() query: FindAllTasksDto, @Request() req) {
-    this.logger.log(`User ${req.user.userId} finding tasks with query: ${JSON.stringify(query)}`);
+    this.logger.log(`User ${req.user.id} finding tasks with query: ${JSON.stringify(query)}`);
     return this.taskQueryService.findAll(query, req.user);
   }
 
@@ -103,34 +103,38 @@ export class TasksController {
   @Roles("Leadership", "Administrator", "Super Admin")
   @Permissions("task:read")
   async getRecycleBin(@Query() query: RecycleBinQueryDto, @Request() req) {
-    this.logger.log(`User ${req.user.userId} accessing recycle bin with query: ${JSON.stringify(query)}`);
+    this.logger.log(`User ${req.user.id} accessing recycle bin with query: ${JSON.stringify(query)}`);
     return this.taskQueryService.findAllDeleted(query, req.user);
   }
 
   @Get("dashboard")
   getDashboardTasks(@Request() req) {
-    this.logger.log(`User ${req.user.userId} fetching dashboard tasks`);
-    return this.taskQueryService.getDashboardTasks(req.user.userId);
+    this.logger.log(`User ${req.user.id} fetching dashboard tasks`);
+    return this.taskQueryService.getDashboardTasks(req.user.id);
   }
 
   @Get("assigned-to-me")
   getTasksAssignedToMe(@Request() req) {
-    return this.taskQueryService.getTasksAssignedToUser(req.user.userId);
+    this.logger.log(`User ${req.user.id} fetching tasks assigned to them`);
+    return this.taskQueryService.getTasksAssignedToUser(req.user.id);
   }
 
   @Get("created-by-me")
   getTasksCreatedByMe(@Request() req) {
-    return this.taskQueryService.getTasksCreatedByUser(req.user.userId);
+    this.logger.log(`User ${req.user.id} fetching tasks created by them`);
+    return this.taskQueryService.getTasksCreatedByUser(req.user.id);
   }
 
   @Get("delegated-by-me")
   getTasksDelegatedByMe(@Request() req) {
-    return this.taskQueryService.getTasksDelegatedByUser(req.user.userId);
+    this.logger.log(`User ${req.user.id} fetching tasks delegated by them`);
+    return this.taskQueryService.getTasksDelegatedByUser(req.user.id);
   }
 
   @Get("delegated-to-me")
   getTasksDelegatedToMe(@Request() req) {
-    return this.taskQueryService.getTasksDelegatedToUser(req.user.userId);
+    this.logger.log(`User ${req.user.id} fetching tasks delegated to them`);
+    return this.taskQueryService.getTasksDelegatedToUser(req.user.id);
   }
 
   @Get(":id")
@@ -138,7 +142,7 @@ export class TasksController {
   @ApiResponse({ status: 200, description: 'Task found', type: Task })
   @ApiResponse({ status: 404, description: 'Task not found' })
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
-    this.logger.log(`Finding task with ID: ${id} for user ${req.user.userId}`);
+    this.logger.log(`Finding task with ID: ${id} for user ${req.user.id}`);
     return this.taskQueryService.findOne(id);
   }
 
@@ -148,7 +152,7 @@ export class TasksController {
     @Body() updateTaskDto: UpdateTaskDto,
     @Request() req,
   ) {
-    this.logger.log(`User ${req.user.userId} updating task ${id}`);
+    this.logger.log(`User ${req.user.id} updating task ${id}`);
     return this.tasksService.update(id, updateTaskDto, req.user);
   }
 
@@ -176,7 +180,7 @@ export class TasksController {
     @Body() deleteTaskDto: DeleteTaskDto,
     @Request() req,
   ) {
-    this.logger.log(`User ${req.user.userId} deleting (soft) task ${id}`);
+    this.logger.log(`User ${req.user.id} deleting (soft) task ${id}`);
     return this.tasksService.remove(id, deleteTaskDto, req.user);
   }
 
@@ -186,7 +190,7 @@ export class TasksController {
     @Body() updateTaskStatusDto: UpdateTaskStatusDto,
     @Request() req,
   ) {
-    this.logger.log(`User ${req.user.userId} updating status for task ${id}`);
+    this.logger.log(`User ${req.user.id} updating status for task ${id}`);
     return this.tasksService.updateStatus(id, updateTaskStatusDto, req.user);
   }
 
@@ -196,7 +200,7 @@ export class TasksController {
     @Body() updateTaskPriorityDto: UpdateTaskPriorityDto,
     @Request() req,
   ) {
-    this.logger.log(`User ${req.user.userId} updating priority for task ${id}`);
+    this.logger.log(`User ${req.user.id} updating priority for task ${id}`);
     return this.tasksService.updatePriority(
       id,
       updateTaskPriorityDto,
@@ -217,7 +221,7 @@ export class TasksController {
     @Body() delegateTaskDto: DelegateTaskDto,
     @Request() req,
   ) {
-    this.logger.log(`User ${req.user.userId} delegating task ${id}`);
+    this.logger.log(`User ${req.user.id} delegating task ${id}`);
     return this.tasksService.delegateTask(id, delegateTaskDto, req.user);
   }
 
@@ -246,7 +250,7 @@ export class TasksController {
     @Body() updateStatusDto: UpdateTaskStatusDto,
     @Request() req,
   ) {
-    this.logger.log(`User ${req.user.userId} cancelling task ${id}`);
+    this.logger.log(`User ${req.user.id} cancelling task ${id}`);
     updateStatusDto.status = TaskStatus.CANCELLED;
     return this.tasksService.updateStatus(id, updateStatusDto, req.user);
   }
@@ -289,7 +293,11 @@ export class TasksController {
     @Param("userId", ParseUUIDPipe) userId: string,
     @Request() req,
   ): Promise<TaskStatusCounts> {
-    this.logger.log(`User ${req.user.userId} fetching task counts by status for user ${userId}`);
+    if (req.user.id !== userId && !req.user.role?.permissions?.some(p => p.action === 'read' && p.subject === 'Task')) {
+        this.logger.warn(`User ${req.user.id} tried to access task counts for user ${userId} without sufficient permissions.`);
+        throw new ForbiddenException("You do not have permission to view task counts for this user.");
+    }
+    this.logger.log(`User ${req.user.id} fetching task counts for user ${userId}`);
     return this.taskQueryService.getTaskCountsByStatusForUser(userId);
   }
 
@@ -307,7 +315,7 @@ export class TasksController {
   })
   @ApiResponse({ status: 404, description: "Task not found." })
   async restoreTask(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
-    this.logger.log(`User ${req.user.userId} restoring task ${id}`);
+    this.logger.log(`User ${req.user.id} restoring task ${id}`);
     return this.tasksService.restoreTask(id, req.user);
   }
 
@@ -323,7 +331,7 @@ export class TasksController {
   })
   @ApiResponse({ status: 404, description: "Task not found." })
   async permanentDelete(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
-    this.logger.log(`User ${req.user.userId} permanently deleting task ${id}`);
+    this.logger.log(`User ${req.user.id} permanently deleting task ${id}`);
     return this.tasksService.hardRemove(id, req.user);
   }
 
@@ -339,7 +347,9 @@ export class TasksController {
     @Body() updateTaskAssignmentsDto: UpdateTaskAssignmentsDto,
     @Request() req,
   ): Promise<Task> {
-    this.logger.log(`PATCH /tasks/${id}/assignments request by user ${req.user.userId}`);
+    this.logger.log(
+      `User ${req.user.id} updating assignments for task ${id} with DTO: ${JSON.stringify(updateTaskAssignmentsDto)}`,
+    );
     return this.tasksService.updateAssignments(
       id,
       updateTaskAssignmentsDto,
@@ -360,7 +370,7 @@ export class TasksController {
     @Request() req,
   ): Promise<Task> {
     this.logger.log(
-      `User ${req.user.userId} attempting creator-delegation for task ${id}`,
+      `User ${req.user.id} (creator) attempting to delegate task ${id}`,
     );
     return this.tasksService.delegateTaskAssignmentsByCreator(
       id,

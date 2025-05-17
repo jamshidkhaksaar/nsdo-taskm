@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useSnackbar } from 'notistack';
-import { User, UserRole } from '../types';
+import { User, UserRole } from '../types/index';
 
 export const useUserRoles = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -14,7 +14,7 @@ export const useUserRoles = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get('/api/users');
+      const response = await axios.get('users');
       setUsers(response.data);
       return response.data;
     } catch (err) {
@@ -31,7 +31,7 @@ export const useUserRoles = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/api/rbac/users/${userId}/roles`);
+      const response = await axios.get(`/rbac/users/${userId}/roles`);
       
       // Update the userRoles state with the fetched roles for this user
       setUserRoles(prev => ({

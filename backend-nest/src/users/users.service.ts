@@ -8,7 +8,7 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In, IsNull } from "typeorm";
+import { Repository, In, IsNull, Brackets, ILike } from "typeorm";
 import { User } from "./entities/user.entity";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
@@ -18,6 +18,8 @@ import { ConfigService } from "@nestjs/config";
 import { RoleService } from "../rbac/services/role.service";
 import { Role } from "../rbac/entities/role.entity";
 import { Department } from "../departments/entities/department.entity";
+import { PageOptionsDto } from "../common/dto/page-options.dto";
+import { PageDto, PageMetaDto } from "../common/dto/page.dto";
 
 @Injectable()
 export class UsersService {
@@ -111,20 +113,50 @@ export class UsersService {
     }
   }
 
-  async findAll(): Promise<User[]> {
+  async getUsers(pageOptionsDto: PageOptionsDto): Promise<PageDto<User>> {
+    this.logger.log(
+      `Fetching users with options: ${JSON.stringify(pageOptionsDto)}`,
+    );
+    const queryBuilder = this.usersRepository.createQueryBuilder("user");
+
+    // Define a default sort column, e.g., username or createdAt
+    const sortBy = 'username'; // Or allow specific sortable fields via PageOptionsDto if needed
+
+    queryBuilder
+      .leftJoinAndSelect("user.role", "role")
+      .leftJoinAndSelect("user.departments", "departments")
+      .orderBy(`user.${sortBy}`, pageOptionsDto.order) // Use the defined sortBy and pageOptionsDto.order for direction
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take)
+      .where("user.deletedAt IS NULL");
+
+    if (pageOptionsDto.q) {
+      const searchTerm = `%${pageOptionsDto.q.toLowerCase()}%`; // Convert search term to lowercase for LIKE
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where("LOWER(user.username) LIKE :searchTerm", { searchTerm })
+            .orWhere("LOWER(user.email) LIKE :searchTerm", { searchTerm })
+            .orWhere("LOWER(user.first_name) LIKE :searchTerm", { searchTerm })
+            .orWhere("LOWER(user.last_name) LIKE :searchTerm", { searchTerm })
+            .orWhere("LOWER(role.name) LIKE :searchTerm", {searchTerm}); // Added search by role name
+        }),
+      );
+    }
+
     try {
-      this.logger.log("Finding all users");
-      const users = await this.usersRepository.find({
-        relations: ["departments"],
-      });
-      this.logger.log(`Found ${users.length} users`);
-      return users;
+      const itemCount = await queryBuilder.getCount();
+      // Use getMany() instead of getRawAndEntities() if only entities are needed and hydrated correctly by TypeORM
+      const entities = await queryBuilder.getMany(); 
+
+      const pageMetaDto = new PageMetaDto({ itemCount, pageOptionsDto });
+      this.logger.log(`Found ${itemCount} users matching criteria.`);
+      return new PageDto(entities, pageMetaDto);
     } catch (error) {
       this.logger.error(
-        `Error finding all users: ${error.message}`,
+        `Error fetching users: ${error.message}`,
         error.stack,
       );
-      throw error;
+      throw new InternalServerErrorException("Could not fetch users.");
     }
   }
 
