@@ -402,4 +402,49 @@ A comprehensive Two-Factor Authentication (2FA) system has been implemented, off
     *   The styling of the "Activity Logs" page (Admin Panel) does not match the overall application design.
     *   Needs filters (e.g., by user, action, date range).
     *   The log information is insufficient and not "lovely" (needs more comprehensive details).
-14. **System Settings Save Error:** When changing settings in the "System Settings" page and clicking "Save All Changes", an error "Sorry, something went wrong" appears. 
+14. **System Settings Save Error:** When changing settings in the "System Settings" page and clicking "Save All Changes", an error "Sorry, something went wrong" appears.
+
+## Workflow Permissions Visualizer for RBAC
+
+This feature will provide a visual way to understand how different user roles interact with application workflows (e.g., Task Creation) based on their RBAC permissions. It will be a new tab within the Admin Panel's RBAC section.
+
+**I. Conceptual & Design (Align with PRD)**
+
+1.  **Define V1 Scope:**
+    *   **Focus Workflow:** Start with "Task Creation".
+    *   **Visualization:** Read-only display of how different roles can navigate the steps of task creation, showing what actions/fields they can interact with based on their existing permissions.
+    *   **Key Elements:** Roles, Workflow Steps (e.g., "Initiate Task", "Set Details", "Assign", "Set Dates"), Connections, and Permission annotations.
+2.  **Data Model Design (Backend):**
+    *   **New Entities:**
+        *   `Workflow`: Represents a business process (e.g., `id`, `name`, `description`, `slug`).
+        *   `WorkflowStep`: Represents a distinct stage or action within a workflow (e.g., `id`, `workflowId`, `name`, `description`, `order`).
+    *   **Linking to RBAC:**
+        *   *Implicit Linking:* If permission names are granular (e.g., `task:create:%`), map these to workflow steps.
+        *   *Explicit Linking (more flexible):* A join table like `WorkflowStepPermissionRequirement` (`workflowStepId`, `permissionId`). For V1, implicit mapping might be sufficient if permission names are well-structured.
+3.  **API Design (Backend):**
+    *   Endpoints to define and retrieve workflows and their steps.
+    *   An endpoint to fetch the necessary data for the frontend to render the visualization for a selected workflow and (optionally) a specific role.
+4.  **UI/UX Design (Frontend):**
+    *   **Tab:** New "Workflow Visualizer" tab in the RBAC admin section.
+    *   **Selectors:** Dropdowns to select the Workflow and (optionally V1, definite V2) the Role.
+    *   **Diagram Library:** Consider React Flow or Cytoscape.js.
+    *   **Display:** Define node types (Role, Workflow Step), edge styles, and how permissions are displayed (tooltips, side panel).
+
+**II. Backend Development Plan**
+
+1.  **Create `Workflows` Module (`backend-nest/src/admin/workflows/`)**
+    *   **Entities:**
+        *   `workflow.entity.ts`: (`id`, `name`, `slug`, `description`, `createdAt`, `updatedAt`)
+        *   `workflow-step.entity.ts`: (`id`, `workflowId` (FK to Workflow), `name`, `description`, `stepOrder`, `relevantPermissionPatterns` (e.g., `["task:create:%", "task:details:%"]`), `createdAt`, `updatedAt`)
+    *   **DTOs:** For creating/updating workflows and steps.
+    *   **Service (`workflows.service.ts`):**
+        *   CRUD for `Workflow` and `WorkflowStep`.
+        *   `getWorkflowVisualData(workflowSlug: string, roleId?: string)`: Fetches workflow, steps, roles, and computes permission-based connections for visualization.
+    *   **Controller (`workflows.controller.ts`):**
+        *   CRUD endpoints for workflows/steps.
+        *   `GET /admin/workflows/visualize/:workflowSlug`
+        *   `GET /admin/workflows/visualize/:workflowSlug/role/:roleId`
+    *   **Module (`workflows.module.ts`):** Wire up and import into `AdminModule`.
+2.  **Database Migrations:** Add tables for `workflows` and `workflow_steps`.
+3.  **Seed Data:**
+    *   Create a seed for the "Task Creation" workflow with defined steps (e.g., `initiate-task`, `set-basic-details`, `set-assignments`, `set-due-date`, `submit-creation`) and their relevant permission patterns. 
