@@ -238,7 +238,7 @@ export class UsersService {
     this.logger.log(
       `Creating new admin user with username: ${username}, email: ${email}`,
     );
-    return this.create(username, email, password, "Administrator");
+    return this.create(username, email, password, "admin");
   }
 
   async findByRole(roleName: string): Promise<User[]> {

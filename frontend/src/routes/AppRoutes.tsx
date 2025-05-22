@@ -50,8 +50,7 @@ const WorkflowVisualizerPage = lazyLoad(import('../pages/admin/rbac/workflow-vis
 const ROLES = {
   USER: 'User',
   LEADERSHIP: 'Leadership',
-  ADMIN: 'Administrator',
-  SUPER_ADMIN: 'Super Admin'
+  ADMIN: 'admin',
 };
 
 const AppRoutes: React.FC = () => {
@@ -70,19 +69,19 @@ const AppRoutes: React.FC = () => {
         {/* Routes for User, Leadership, Admin */}
         <Route
           path="/dashboard"
-          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN, ROLES.SUPER_ADMIN]}><Dashboard /></PrivateRoute>}
+          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN]}><Dashboard /></PrivateRoute>}
         />
         <Route
           path="/departments"
-          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN, ROLES.SUPER_ADMIN]}><Departments /></PrivateRoute>}
+          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN]}><Departments /></PrivateRoute>}
         />
         <Route
           path="/users"
-          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN, ROLES.SUPER_ADMIN]}><Users /></PrivateRoute>}
+          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN]}><Users /></PrivateRoute>}
         />
         <Route
           path="/provinces"
-          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN, ROLES.SUPER_ADMIN]}><ProvincesPage /></PrivateRoute>}
+          element={<PrivateRoute allowedRoles={[ROLES.USER, ROLES.LEADERSHIP, ROLES.ADMIN]}><ProvincesPage /></PrivateRoute>}
         />
 
         {/* Routes for Leadership, Admin */}

@@ -16,10 +16,9 @@ const LeadershipRoute: React.FC<LeadershipRouteProps> = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check if user exists and has Leadership, Administrator, or Super Admin role (case-insensitive)
-  const isAllowed = user?.role &&
-                   typeof user.role === 'string' &&
-                   ['LEADERSHIP', 'ADMINISTRATOR', 'SUPER ADMIN'].includes(user.role.toUpperCase());
+  // Check if user exists and has Leadership, Administrator, Super Admin, or admin role (case-insensitive)
+  const userRoleUpper = user?.role && typeof user.role === 'string' ? user.role.toUpperCase() : '';
+  const isAllowed = ['LEADERSHIP', 'ADMINISTRATOR', 'SUPER ADMIN', 'ADMIN'].includes(userRoleUpper);
 
   if (!isAllowed) {
     console.warn(`User (Role: ${user?.role}) without Leadership/Admin access attempted to access route.`);
@@ -31,4 +30,4 @@ const LeadershipRoute: React.FC<LeadershipRouteProps> = ({ children }) => {
   return children;
 };
 
-export default LeadershipRoute; 
+export default LeadershipRoute;

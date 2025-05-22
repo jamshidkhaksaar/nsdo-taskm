@@ -421,50 +421,51 @@ export class DepartmentsService {
   async getTaskSummary(
     departmentId: string,
   ): Promise<{ [key in TaskStatus]?: number } & { total: number }> {
-    try {
-      this.logger.log(
-        `[DepartmentsService] Getting task summary for department ${departmentId}`,
-      );
-      // Ensure department exists (optional, findOne throws NotFoundException if needed)
-      // await this.findOne(departmentId);
+    this.logger.debug(
+      `[DepartmentsService] Calculating task summary for department ID: ${departmentId}`,
+    );
 
-      // Use TaskQueryService
-      const tasks = await this.taskQueryService.getTasksForDepartment(departmentId);
-      this.logger.log(
-        `[DepartmentsService] Found ${tasks.length} tasks for department ${departmentId}`,
-      );
+    if (!departmentId) {
+      this.logger.warn("[DepartmentsService] getTaskSummary called with no departmentId. Returning empty summary.");
+      const emptySummary: { [key in TaskStatus]?: number } & { total: number } = {
+        total: 0,
+      };
+      Object.values(TaskStatus).forEach(status => {
+        emptySummary[status] = 0;
+      });
+      return emptySummary;
+    }
+
+    try {
+      // Fetch tasks related to this department using TaskQueryService
+      const tasks = await this.taskQueryService.getTasksForDepartments([departmentId]);
+      this.logger.debug(`[DepartmentsService] Found ${tasks.length} tasks for department ${departmentId}`);
 
       const summary: { [key in TaskStatus]?: number } & { total: number } = {
         total: tasks.length,
-        [TaskStatus.PENDING]: 0,
-        [TaskStatus.IN_PROGRESS]: 0,
-        [TaskStatus.COMPLETED]: 0,
-        [TaskStatus.CANCELLED]: 0,
-        [TaskStatus.DELEGATED]: 0, // Include delegated count if needed
       };
 
+      // Initialize summary for all statuses
+      Object.values(TaskStatus).forEach(status => {
+        summary[status] = 0;
+      });
+
+      // Calculate counts for each status
       for (const task of tasks) {
-        if (summary[task.status] !== undefined) {
-          summary[task.status]!++;
+        const statusKey = task.status as TaskStatus;
+        if (statusKey && summary[statusKey] !== undefined) {
+          summary[statusKey]++;
         }
       }
-
-      this.logger.log(
-        `[DepartmentsService] Task summary for ${departmentId}:`,
-        summary,
-      );
+      this.logger.debug(`[DepartmentsService] Task summary for department ${departmentId}:`, summary);
       return summary;
     } catch (error) {
       this.logger.error(
-        `[DepartmentsService] Error calculating task summary for department ${departmentId}:`,
-        error,
+        `[DepartmentsService] Error calculating task summary for department ${departmentId}: ${error.message}`,
+        error.stack,
       );
-      // Rethrow specific errors or a generic one
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       throw new InternalServerErrorException(
-        `Failed to get task summary for department ${departmentId}`,
+        `Failed to calculate task summary for department ${departmentId}.`,
       );
     }
   }
@@ -636,22 +637,21 @@ export class DepartmentsService {
     }
   }
 
-  // Method to get tasks specifically for a department
+  // Method to retrieve all tasks associated with a department
   async getTasksForDepartment(departmentId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks for department ID: ${departmentId}`);
+    this.logger.debug(`[TaskQueryService] Fetching tasks for department ID: ${departmentId}`);
+    if (!departmentId) {
+        this.logger.warn("[TaskQueryService] getTasksForDepartment called with no departmentId.");
+        return [];
+    }
     try {
-      // Use TaskQueryService to fetch tasks
-      const tasks = await this.taskQueryService.getTasksForDepartment(departmentId);
-      this.logger.log(`Found ${tasks.length} tasks for department ${departmentId}`);
-      return tasks;
+        // Corrected to use getTasksForDepartments with an array
+        const tasks = await this.taskQueryService.getTasksForDepartments([departmentId]); 
+        this.logger.log(`[TaskQueryService] Found ${tasks.length} tasks for department ${departmentId}`);
+        return tasks;
     } catch (error) {
-      this.logger.error(
-        `Error fetching tasks for department ${departmentId}: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Could not retrieve tasks for department ${departmentId}.`,
-      );
+        this.logger.error(`[TaskQueryService] Error fetching tasks for department ${departmentId}: ${error.message}`, error.stack);
+        throw new InternalServerErrorException(`Could not retrieve tasks for department ${departmentId}: ${error.message}`);
     }
   }
 }

@@ -63,14 +63,14 @@ export class ProvinceController {
     type: [Province],
   })
   @ApiResponse({ status: 401, description: "Unauthorized." })
-  @Roles("User", "Leadership", "Administrator")
+  @Roles("User", "Leadership", "admin")
   async findAccessibleProvinces(): Promise<Province[]> {
     return this.provinceService.findAll();
   }
 
   @Post("admin")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Create a new province (Admin Only)" })
   @ApiResponse({
     status: 201,
@@ -87,7 +87,7 @@ export class ProvinceController {
 
   @Get("admin")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Get all provinces (Admin Only)" })
   @ApiResponse({
     status: 200,
@@ -101,7 +101,7 @@ export class ProvinceController {
 
   @Get("admin/:id")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Get a specific province by ID (Admin Only)" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({
@@ -119,7 +119,7 @@ export class ProvinceController {
 
   @Put("admin/:id")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Update a province by ID (Admin Only)" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({
@@ -139,7 +139,7 @@ export class ProvinceController {
 
   @Delete("admin/:id")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Delete a province by ID (Admin Only)" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({ status: 204, description: "Province deleted successfully." })
@@ -152,7 +152,7 @@ export class ProvinceController {
 
   @Get("admin/:provinceId/departments")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({
     summary: "Get departments assigned to a province (Admin Only)",
   })
@@ -173,7 +173,7 @@ export class ProvinceController {
 
   @Post("admin/:provinceId/departments")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Assign department(s) to a province (Admin Only)" })
   @ApiParam({ name: "provinceId", description: "Province UUID", type: String })
   @ApiResponse({
@@ -202,7 +202,7 @@ export class ProvinceController {
 
   @Delete("admin/:provinceId/departments/:departmentId")
   @UseGuards(RolesGuard)
-  @Roles("Administrator")
+  @Roles("admin")
   @ApiOperation({ summary: "Remove a department from a province (Admin Only)" })
   @ApiParam({ name: "provinceId", description: "Province UUID", type: String })
   @ApiParam({
@@ -228,13 +228,13 @@ export class ProvinceController {
   }
 
   @Get(":id/tasks")
+  @UseGuards(RolesGuard)
+  @Roles("Leadership", "admin")
   @ApiOperation({ summary: "Get tasks for a specific province" })
   @ApiParam({ name: "id", description: "Province UUID", type: String })
   @ApiResponse({ status: 200, description: "List of tasks for the province." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   @ApiResponse({ status: 404, description: "Province not found." })
-  @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
   async getTasksForProvince(@Param("id", ParseUUIDPipe) id: string) {
     const tasks = await this.taskQueryService.getTasksForProvince(id);
     return tasks;
@@ -242,7 +242,7 @@ export class ProvinceController {
 
   @Get(":id/performance")
   @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @ApiOperation({
     summary:
       "Get performance statistics for a province (Leadership/Admin Only)",
@@ -282,7 +282,7 @@ export class ProvinceController {
   @Post("/multi-performance")
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @ApiOperation({
     summary:
       "Get performance statistics for multiple provinces (Leadership/Admin Only)",

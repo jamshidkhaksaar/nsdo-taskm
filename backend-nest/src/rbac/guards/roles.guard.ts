@@ -33,8 +33,8 @@ export class RolesGuard implements CanActivate {
 
     const userRoleNameUpper = user.role.name.toUpperCase();
 
-    // If the user is a Super Admin, grant access immediately.
-    if (userRoleNameUpper === "SUPER ADMIN") {
+    // If the user is a Super Admin or admin, grant access immediately.
+    if (userRoleNameUpper === "SUPER ADMIN" || userRoleNameUpper === "ADMIN") {
       return true;
     }
 

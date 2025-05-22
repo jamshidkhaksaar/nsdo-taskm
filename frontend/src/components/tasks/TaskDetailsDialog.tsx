@@ -33,7 +33,7 @@ interface TaskDetailsDialogProps {
 }
 
 // Example leadership roles - this should ideally come from a config or constants file
-const LEADERSHIP_ROLES = ['Super Admin', 'Manager', 'Team Lead', 'Leadership']; // Add all relevant roles
+const LEADERSHIP_ROLES = ['Team Lead', 'Leadership']; // Add all relevant roles
 
 const TaskDetailsDialog: React.FC<TaskDetailsDialogProps> = ({
     taskId,

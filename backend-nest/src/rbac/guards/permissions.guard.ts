@@ -48,11 +48,11 @@ export class PermissionsGuard implements CanActivate {
       );
     }
 
-    // If the user is a Super Admin, grant access immediately.
+    // If the user is a Super Admin or admin, grant access immediately.
     const userRoleNameUpper = user.role.name.toUpperCase();
-    if (userRoleNameUpper === "SUPER ADMIN") {
+    if (userRoleNameUpper === "SUPER ADMIN" || userRoleNameUpper === "ADMIN") {
       this.logger.log(
-        `PermissionsGuard Granted (Super Admin): User ${user.id} (Role: ${user.role.name}) automatically granted access.`
+        `PermissionsGuard Granted (Super Admin/Admin): User ${user.id} (Role: ${user.role.name}) automatically granted access.`
       );
       return true;
     }

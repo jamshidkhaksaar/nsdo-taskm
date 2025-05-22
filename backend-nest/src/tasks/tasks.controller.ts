@@ -67,7 +67,7 @@ export class TasksController {
     description: "Forbidden - Insufficient permissions.",
   })
   @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator", "Super Admin")
+  @Roles("Leadership", "admin")
   async getTasksOverview(@Request() req): Promise<TaskOverviewStatsDto> {
     this.logger.log(
       `User ${req.user.id} (${req.user.role?.name}) fetching task overview`,
@@ -100,7 +100,7 @@ export class TasksController {
     description: "Forbidden - Insufficient permissions.",
   })
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator", "Super Admin")
+  @Roles("admin")
   @Permissions("task:read")
   async getRecycleBin(@Query() query: RecycleBinQueryDto, @Request() req) {
     this.logger.log(`User ${req.user.id} accessing recycle bin with query: ${JSON.stringify(query)}`);
@@ -173,7 +173,7 @@ export class TasksController {
     description: "Bad Request (e.g., insufficient deletion reason).",
   })
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions("task:manage")
   remove(
     @Param("id", ParseUUIDPipe) id: string,
@@ -214,7 +214,7 @@ export class TasksController {
   @ApiResponse({ status: 201, description: "Task delegated successfully." })
   @ApiResponse({ status: 400, description: "Invalid input or permissions." })
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions("task:manage")
   async delegateTask(
     @Param("id", ParseUUIDPipe) id: string,
@@ -243,7 +243,7 @@ export class TasksController {
       "Bad Request (e.g., trying to cancel a completed task or insufficient reason).",
   })
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions("task:manage")
   cancelTask(
     @Param("id", ParseUUIDPipe) id: string,
@@ -266,7 +266,7 @@ export class TasksController {
   })
   @ApiResponse({ status: 404, description: "Department not found." })
   @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async getTaskCountsByStatusForDepartment(
     @Param("departmentId", ParseUUIDPipe) departmentId: string,
   ): Promise<TaskStatusCounts> {
@@ -287,7 +287,7 @@ export class TasksController {
   })
   @ApiResponse({ status: 404, description: "User not found." })
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions("task:read")
   async getTaskCountsByStatusForUser(
     @Param("userId", ParseUUIDPipe) userId: string,
@@ -303,7 +303,7 @@ export class TasksController {
 
   @Post(":id/restore")
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions("task:manage")
   @ApiOperation({
     summary: "Restore task from recycle bin (Leadership/Admin only)",
@@ -321,7 +321,7 @@ export class TasksController {
 
   @Delete(":id/permanent")
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Administrator", "Super Admin")
+  @Roles("admin")
   @Permissions("task:delete:permanent")
   @ApiOperation({ summary: "Permanently delete task (Admin only)" })
   @ApiResponse({ status: 200, description: "Task permanently deleted." })

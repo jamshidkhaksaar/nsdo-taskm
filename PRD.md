@@ -134,14 +134,14 @@ This section details the core features of the task management system, their curr
     - **Potential Conflict:** The controller-level RBAC (guards run first) is more restrictive than the service-level logic. If `PermissionsGuard` enforces "task:manage" and the specified roles strictly, only users matching those criteria can access the endpoint, regardless of the service's more permissive checks. This needs clarification or alignment.
     - The user request specifies:
         1.  Delegation enabled if task is assigned to current user by someone else. (Partially covered by `isAssignee` in service if controller allows).
-        2.  Delegation enabled if task assigned to user's department and user is a manager. (This specific "department manager" delegation logic is not explicitly present in `TasksService.delegateTask()` unless the manager role maps to "Leadership" or "Administrator" and has "task:manage").
+        2.  Delegation enabled if task assigned to user's department and user has a leadership role (e.g., Leadership). (This specific "department leadership" delegation logic is not explicitly present in `TasksService.delegateTask()` unless the leadership role has appropriate task management permissions).
 - **Verification Steps:**
     - Assuming the controller-level RBAC (`task:manage` permission and Leadership/Administrator role) is the effective gate:
         - Log in as a "Leadership" or "Administrator" role with "task:manage" permission.
             - Delegate a task originally assigned to User A to User B. Verify sub-task creation for User B, original task status update, and notifications.
     - If service-level permissions were reachable (e.g., if controller guards were less strict or "task:manage" was granted more broadly):
         - Scenario 1 (Task assigned to current user): User A is assigned a task. Log in as User A. Attempt to delegate to User C. Verify outcome based on effective permissions.
-        - Scenario 2 (Department manager): Task assigned to Dept X. User M is manager of Dept X. Log in as User M. Attempt to delegate to User D in Dept X. Verify.
+        - Scenario 2 (Department leadership): Task assigned to Dept X. User L has a leadership role and is associated with Dept X. Log in as User L. Attempt to delegate to User D in Dept X. Verify.
     - Log in as a user without the "task:manage" permission and relevant role. Confirm "Delegate Task" button is hidden/disabled or API call fails with 403.
     - Test delegation of a completed or cancelled task; expect a 400 Bad Request.
 
@@ -489,3 +489,24 @@ This feature will provide a visual way to understand how different user roles in
 2.  **Database Migrations:** Add tables for `workflows` and `workflow_steps`.
 3.  **Seed Data:**
     *   Create a seed for the "Task Creation" workflow with defined steps (e.g., `initiate-task`, `set-basic-details`, `set-assignments`, `set-due-date`, `submit-creation`) and their relevant permission patterns.
+
+## Bug Report: User Undefined in Notification Fetching
+
+**Observed Behavior:**
+Backend logs show `[NotificationsController] User undefined fetching their unread notifications` and `[NotificationsService] Fetching unread notifications for user undefined`.
+This indicates that the `userId` is not being correctly passed to the notification fetching logic.
+
+**Expected Behavior:**
+The correct `userId` should be passed to the notifications service so that users can retrieve their own notifications.
+
+**Impact:**
+Users may not be able to see their notifications.
+
+**File(s) Potentially Involved:**
+- `backend-nest/src/notifications/notifications.controller.ts`
+- `backend-nest/src/notifications/notifications.service.ts`
+
+**Severity:** Medium (affects core user functionality but doesn't break the app)
+
+**Next Steps:**
+Investigate how `userId` is (or isn't) being retrieved and passed in the notifications controller/service flow.

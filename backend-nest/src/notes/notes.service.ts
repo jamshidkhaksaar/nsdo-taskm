@@ -6,7 +6,7 @@ import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
 
 interface AuthenticatedUserPayload {
-  userId: string;
+  id: string;
   username: string;
   // Add other fields from JWT payload if necessary, e.g., role
 }
@@ -21,7 +21,7 @@ export class NotesService {
   async create(createNoteDto: CreateNoteDto, authUser: AuthenticatedUserPayload): Promise<Note> {
     const note = this.noteRepository.create({
       ...createNoteDto,
-      user_id: authUser.userId,
+      user_id: authUser.id,
     });
     return this.noteRepository.save(note);
   }

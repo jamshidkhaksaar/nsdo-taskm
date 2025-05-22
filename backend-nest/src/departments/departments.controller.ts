@@ -44,7 +44,7 @@ export class DepartmentsController {
   ) {}
 
   @Get()
-  @Roles("User", "Leadership", "Administrator")
+  @Roles("User", "Leadership", "admin")
   async getAllDepartments(
     @Request() req,
     @Query("provinceId") provinceId?: string,
@@ -71,7 +71,7 @@ export class DepartmentsController {
   }
 
   @Get("/:id")
-  @Roles("User", "Leadership", "Administrator")
+  @Roles("User", "Leadership", "admin")
   async getDepartmentById(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
 
@@ -89,7 +89,7 @@ export class DepartmentsController {
   }
 
   @Post()
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async createDepartment(
     @Body() createDepartmentDto: CreateDepartmentDto,
     @Request() req,
@@ -110,7 +110,7 @@ export class DepartmentsController {
   }
 
   @Put("/:id")
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async updateDepartment(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() updateDepartmentDto: UpdateDepartmentDto,
@@ -134,7 +134,7 @@ export class DepartmentsController {
   }
 
   @Delete("/:id")
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async deleteDepartment(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     const department = await this.departmentsService.findOne(id);
 
@@ -152,7 +152,7 @@ export class DepartmentsController {
   }
 
   @Post("/:id/members/:userId")
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async addMember(
     @Param("id", ParseUUIDPipe) id: string,
     @Param("userId", ParseUUIDPipe) userId: string,
@@ -173,7 +173,7 @@ export class DepartmentsController {
   }
 
   @Delete("/:id/members/:userId")
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async removeMember(
     @Param("id", ParseUUIDPipe) id: string,
     @Param("userId", ParseUUIDPipe) userId: string,
@@ -195,10 +195,10 @@ export class DepartmentsController {
 
   @Get("/:id/tasks")
   @ApiOperation({ summary: "Get tasks for a specific department" })
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async getTasksForDepartment(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     // Use TaskQueryService
-    const tasks = await this.taskQueryService.getTasksForDepartment(id);
+    const tasks = await this.taskQueryService.getTasksForDepartments([id]);
 
     // Log activity
     try {
@@ -218,13 +218,15 @@ export class DepartmentsController {
   }
 
   @Get("/:id/performance")
-  @Roles("Leadership", "Administrator")
-  getDepartmentPerformance(@Param("id", ParseUUIDPipe) id: string): Promise<any> {
+  @ApiOperation({ summary: "Get performance metrics for a department" })
+  @Roles("Leadership", "admin")
+  async getDepartmentPerformance(@Param("id", ParseUUIDPipe) id: string): Promise<any> {
     return this.departmentsService.getDepartmentPerformance(id);
   }
 
   @Get("/:id/members")
-  @Roles("Leadership", "Administrator")
+  @ApiOperation({ summary: "Get all members of a department" })
+  @Roles("User", "Leadership", "admin")
   async getDepartmentMembers(
     @Param("id", ParseUUIDPipe) id: string,
     @Request() req,

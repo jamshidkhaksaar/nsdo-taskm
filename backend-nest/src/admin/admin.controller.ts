@@ -22,7 +22,7 @@ import { ParseUUIDPipe } from "@nestjs/common";
 @ApiTags("Admin")
 @Controller("admin")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("Administrator", "Super Admin", "Leadership")
+@Roles("admin", "Leadership")
 export class AdminController {
   private readonly logger = new Logger(AdminController.name);
 
@@ -39,7 +39,7 @@ export class AdminController {
   }
 
   @Get("dashboard/tasks-overview")
-  @Roles("admin", "Super Admin", "leadership")
+  @Roles("admin", "Leadership")
   @ApiOperation({ summary: "Get aggregated task statistics for overview dashboard" })
   @ApiResponse({
     status: 200,
@@ -81,7 +81,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles("admin", "Super Admin")
+  @Roles("admin")
   @Get("users")
   @ApiOperation({ summary: "Get all users" })
   @ApiResponse({ status: 200, description: "All users retrieved successfully" })
@@ -90,7 +90,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles("admin", "Super Admin")
+  @Roles("admin")
   @Get("departments")
   @ApiOperation({ summary: "Get all departments" })
   @ApiResponse({
@@ -213,8 +213,8 @@ export class AdminController {
   }
 
   @Post("users/:targetUserId/reset-2fa")
-  @Roles("Administrator", "Super Admin")
-  @ApiOperation({ summary: "Admin: Reset a user\'s Two-Factor Authentication" })
+  @Roles("admin")
+  @ApiOperation({ summary: "Admin: Reset a user's Two-Factor Authentication" })
   @ApiResponse({ status: 200, description: "User 2FA reset successfully." })
   @ApiResponse({ status: 403, description: "Forbidden." })
   @ApiResponse({ status: 404, description: "Target user not found." })
@@ -230,7 +230,7 @@ export class AdminController {
   }
 
   @Post("tasks/archive-completed")
-  @Roles("Administrator", "Super Admin")
+  @Roles("admin")
   @ApiOperation({ summary: "Archive all completed tasks (move to recycle bin)" })
   @ApiResponse({ status: 200, description: "Completed tasks archived successfully.", type: Object })
   @ApiResponse({ status: 403, description: "Forbidden." })
@@ -240,7 +240,7 @@ export class AdminController {
   }
 
   @Delete("tasks/wipe-all")
-  @Roles("Super Admin")
+  @Roles("admin")
   @ApiOperation({ summary: "Permanently wipe ALL tasks from the system" })
   @ApiResponse({ status: 200, description: "All tasks wiped successfully.", type: Object })
   @ApiResponse({ status: 403, description: "Forbidden." })
@@ -250,8 +250,8 @@ export class AdminController {
   }
 
   @Delete("tasks/recycle-bin/wipe-all")
-  @Roles("Administrator", "Super Admin")
-  @ApiOperation({ summary: "Permanently wipe all tasks from the recycle bin" })
+  @Roles("admin")
+  @ApiOperation({ summary: "Permanently wipe ALL items from the recycle bin" })
   @ApiResponse({ status: 200, description: "Recycle bin wiped successfully.", type: Object })
   @ApiResponse({ status: 403, description: "Forbidden." })
   async wipeRecycleBin(@Request() req) {

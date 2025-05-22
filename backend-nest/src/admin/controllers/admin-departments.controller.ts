@@ -23,7 +23,7 @@ import { ActivityLogService } from "../services/activity-log.service";
 
 @Controller("admin/departments")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("Administrator")
+@Roles("admin")
 export class AdminDepartmentsController {
   private readonly logger = new Logger(AdminDepartmentsController.name);
 

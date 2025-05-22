@@ -64,14 +64,20 @@ export const usersSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchUsers.fulfilled, (state, action: PayloadAction<UserType[]>) => {
-        state.users = action.payload.map(user => ({
-          id: String(user.id),
-          // Derive name from first_name and last_name if they exist in UserType
-          name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || `User ${user.id}`, // Fallback if names missing
-          first_name: user.first_name,
-          last_name: user.last_name,
-          avatar: user.avatar,
-        }));
+        if (Array.isArray(action.payload)) {
+          state.users = action.payload.map(user => ({
+            id: String(user.id),
+            name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || `User ${user.id}`,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            avatar: user.avatar,
+          }));
+        } else {
+          // Handle cases where payload is not an array, e.g., log an error and set users to empty array
+          console.error('[userSlice] fetchUsers.fulfilled: action.payload is not an array:', action.payload);
+          state.users = []; // Default to empty array or handle as appropriate
+          state.error = 'Received invalid user data format'; // Optionally set an error state
+        }
         state.loading = false;
       })
       .addCase(fetchUsers.rejected, (state, action) => {

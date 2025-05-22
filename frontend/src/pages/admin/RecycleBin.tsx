@@ -133,7 +133,7 @@ const RecycleBin: React.FC = () => {
   useEffect(() => {
     if (user && user.role) {
       const upperCaseRole = user.role.toUpperCase();
-      if (!["ADMINISTRATOR", "LEADERSHIP", "SUPER ADMIN"].includes(upperCaseRole)) {
+      if (!["ADMINISTRATOR", "LEADERSHIP", "SUPER ADMIN", "ADMIN"].includes(upperCaseRole)) {
         navigate('/dashboard');
       }
     } else if (!user) {

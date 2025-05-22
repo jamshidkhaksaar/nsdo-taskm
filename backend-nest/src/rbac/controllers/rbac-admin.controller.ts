@@ -39,7 +39,7 @@ export class RbacAdminController {
   ) {}
 
   @Post("migrate")
-  @Roles("Administrator")
+  @Roles("admin")
   @HttpCode(HttpStatus.OK)
   async runMigration() {
     try {
@@ -59,7 +59,7 @@ export class RbacAdminController {
   }
 
   @Post("init")
-  @Roles("Administrator")
+  @Roles("admin")
   @HttpCode(HttpStatus.OK)
   async initializeRbac() {
     try {
@@ -81,25 +81,25 @@ export class RbacAdminController {
 
   // Role Management Endpoints
   @Get("roles")
-  @Roles("Administrator")
+  @Roles("admin")
   async getAllRoles(): Promise<Role[]> {
     return this.roleService.findAll();
   }
 
   @Get("roles/:id")
-  @Roles("Administrator")
+  @Roles("admin")
   async getRoleById(@Param("id", ParseUUIDPipe) id: string): Promise<Role> {
     return this.roleService.findById(id);
   }
 
   @Post("roles")
-  @Roles("Administrator")
+  @Roles("admin")
   async createRole(@Body() createRoleDto: CreateRoleDto): Promise<Role> {
     return this.roleService.create(createRoleDto);
   }
 
   @Put("roles/:id")
-  @Roles("Administrator")
+  @Roles("admin")
   async updateRole(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() updateRoleDto: UpdateRoleDto,
@@ -108,7 +108,7 @@ export class RbacAdminController {
   }
 
   @Delete("roles/:id")
-  @Roles("Administrator")
+  @Roles("admin")
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteRole(@Param("id", ParseUUIDPipe) id: string): Promise<void> {
     return this.roleService.delete(id);
@@ -116,19 +116,19 @@ export class RbacAdminController {
 
   // Permission Management Endpoints
   @Get("permissions")
-  @Roles("Administrator")
+  @Roles("admin")
   async getAllPermissions(): Promise<Permission[]> {
     return this.permissionService.findAll();
   }
 
   @Get("permissions/:id")
-  @Roles("Administrator")
+  @Roles("admin")
   async getPermissionById(@Param("id", ParseUUIDPipe) id: string): Promise<Permission> {
     return this.permissionService.findById(id);
   }
 
   @Post("permissions")
-  @Roles("Administrator")
+  @Roles("admin")
   @HttpCode(HttpStatus.CREATED)
   async createPermission(
     @Body() createPermissionDto: CreatePermissionDto,
@@ -137,7 +137,7 @@ export class RbacAdminController {
   }
 
   @Put("permissions/:id")
-  @Roles("Administrator")
+  @Roles("admin")
   async updatePermission(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() updatePermissionDto: UpdatePermissionDto,
@@ -146,7 +146,7 @@ export class RbacAdminController {
   }
 
   @Delete("permissions/:id")
-  @Roles("Administrator")
+  @Roles("admin")
   @HttpCode(HttpStatus.NO_CONTENT)
   async deletePermission(@Param("id", ParseUUIDPipe) id: string): Promise<void> {
     return this.permissionService.remove(id);
@@ -154,7 +154,7 @@ export class RbacAdminController {
 
   // Role-Permission Management
   @Post("roles/:roleId/permissions/:permissionId")
-  @Roles("Administrator")
+  @Roles("admin")
   async addPermissionToRole(
     @Param("roleId", ParseUUIDPipe) roleId: string,
     @Param("permissionId", ParseUUIDPipe) permissionId: string,
@@ -163,7 +163,7 @@ export class RbacAdminController {
   }
 
   @Delete("roles/:roleId/permissions/:permissionId")
-  @Roles("Administrator")
+  @Roles("admin")
   async removePermissionFromRole(
     @Param("roleId", ParseUUIDPipe) roleId: string,
     @Param("permissionId", ParseUUIDPipe) permissionId: string,

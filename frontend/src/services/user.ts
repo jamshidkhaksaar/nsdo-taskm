@@ -30,8 +30,8 @@ export const UserService = {
     getUsers: async (): Promise<User[]> => {
         try {
             console.log('[UserService] Fetching users from:', `${CONFIG.API_URL}/users/`);
-            const response = await axios.get('users/');
-            return response.data;
+            const response = await axios.get<{ data: User[], meta: any }>('users/'); // Assuming meta can be any object for now
+            return response.data.data; // Extract the array from the data property
         } catch (error: unknown) {
             console.error('[UserService] Error fetching users:', error);
             throw error; 

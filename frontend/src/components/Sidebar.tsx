@@ -31,6 +31,9 @@ import MailIcon from '@mui/icons-material/Mail';
 import SecurityIcon from '@mui/icons-material/Security';
 import logo from '../assets/images/logo.png';
 import logoIcon from '../assets/images/logoIcon.png';
+import GroupIcon from '@mui/icons-material/Group';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 
 // Define interface for menu items
 interface MenuItem {
@@ -39,6 +42,7 @@ interface MenuItem {
   icon: React.ReactNode;
   description?: string;
   onClick?: (navigate: any) => void;
+  permission?: string;
 }
 
 const DRAWER_WIDTH = 240;
@@ -62,10 +66,6 @@ const tasksOverviewItem: MenuItem =
   { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> };
 
 // Items visible only to Leadership and Admins
-const managerMenuItems: MenuItem[] = [
-  // { title: 'Tasks Overview', path: '/tasks-overview', icon: <AssessmentIcon /> }, // Removed duplicate
-];
-
 const adminMenuItems: MenuItem[] = [
   { 
     title: 'Admin Dashboard', 
@@ -133,6 +133,13 @@ const adminMenuItems: MenuItem[] = [
     icon: <MailIcon />,
     description: 'Configure email settings and templates'
   },
+];
+
+const leadershipMenuItems: MenuItem[] = [
+  { title: 'User Management', icon: <GroupIcon />, path: '/admin/users', permission: 'user:view:list' },
+  { title: 'Department Management', icon: <BusinessIcon />, path: '/admin/departments', permission: 'department:view' },
+  { title: 'Role Management', icon: <VerifiedUserIcon />, path: '/admin/roles', permission: 'role:view' },
+  { title: 'Workflow Visualizer', icon: <AccountTreeIcon />, path: '/admin/rbac/workflow-visualizer/task-assignment', permission: 'page:view:admin_dashboard' },
 ];
 
 interface SidebarProps {
@@ -336,20 +343,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
           {userHasPermission(PERMISSIONS.TASKS_OVERVIEW) && renderMenuItem(tasksOverviewItem, tasksOverviewItem.title)}
         </List>
 
-        {/* Leadership menu section - visible to Leadership and Admins */}
-        {userHasPermission(PERMISSIONS.TASKS_OVERVIEW) && (
-          <>
-            <Divider sx={{ 
-              my: 1, 
-              borderColor: 'rgba(255, 255, 255, 0.08)',
-              mx: 2
-            }} />
-            <List>
-              {managerMenuItems.map((item) => renderMenuItem(item, item.title))}
-            </List>
-          </>
-        )}
-
         {/* Admin menu section */}
         {canViewAdminPanel && (
           <>
@@ -369,8 +362,10 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
             </Tooltip>
             <Collapse in={adminMenuOpen && open} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding sx={{ pl: open ? 2 : 0 }}>
-                  {adminMenuItems.map((item) => renderMenuItem(item, item.title))} 
-                  {/* TODO: Add permission checks for individual admin items if needed */}
+                  {user && user.role === 'admin' && adminMenuItems.map((item) => renderMenuItem(item, item.title))}
+                  {user && user.role === 'Leadership' && leadershipMenuItems.map((item) => renderMenuItem(item, item.title))}
+                  {/* Removed mapping for managerMenuItems */}
+                  {/* {userMenuItems.map((item) => renderMenuItem(item, item.title))} */}{/* General items for all authenticated users - REMOVED as userMenuItems is not defined here and likely covered by mainMenuItems or role-specific items */}
                 </List>
             </Collapse>
           </>

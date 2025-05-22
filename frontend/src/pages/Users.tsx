@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { User } from '../types/user';
 import * as UserService from '../services/users.service';
+import { TaskService } from '../services/task';
 import Sidebar from '../components/Sidebar';
 import ModernDashboardLayout from '../components/dashboard/ModernDashboardLayout';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar';
@@ -27,6 +28,8 @@ import UserList from '../components/users/UserList';
 import { RootState } from '@/store';
 import { Page, PageOptions, Order } from '../types/page';
 import { useDebounce } from '../hooks/useDebounce';
+import SelectExistingTaskDialog from '../components/dialogs/SelectExistingTaskDialog';
+import CreateTaskDialog from '../components/dialogs/CreateTaskDialog';
 
 const DRAWER_WIDTH = 240;
 const DEFAULT_TAKE = 10;
@@ -58,6 +61,13 @@ const Users: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [selectedUserIdsArray, setSelectedUserIdsArray] = useState<string[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+
+  const [assignTaskDialogOpen, setAssignTaskDialogOpen] = useState(false);
+  const [userToAssignTask, setUserToAssignTask] = useState<User | null>(null);
+
+  const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
 
   const pageOptions: PageOptions = {
     page: currentPage,
@@ -78,15 +88,28 @@ const Users: React.FC = () => {
   const handleLogout = () => navigate('/login');
   const handleToggleSidebar = useCallback(() => setIsSidebarOpen(prev => !prev), []);
 
-  const handleAssignSelectedUsers = () => {
+  const handleAssignSelectedUsers = async () => {
     if (!taskIdToAssign) {
       alert('No task context for assignment. Please ensure you navigated from a task.');
       return;
     }
     if (selectedUserIdsArray.length > 0) {
-      console.log(`Assigning task ${taskIdToAssign} to user IDs:`, selectedUserIdsArray);
-      // TODO: Implement actual API call here
-      alert(`Selected users for assignment to task ${taskIdToAssign}: ${selectedUserIdsArray.join(', ')}.\nCheck console for IDs.`);
+      setIsAssigning(true);
+      setAssignmentError(null);
+      try {
+        console.log(`Assigning task ${taskIdToAssign} to user IDs:`, selectedUserIdsArray);
+        await TaskService.updateTask(taskIdToAssign, { assignedToUserIds: selectedUserIdsArray });
+        alert(`Successfully assigned task to selected users!`);
+        queryClient.invalidateQueries({ queryKey: ['task', taskIdToAssign] });
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        setSelectedUserIdsArray([]);
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to assign users. Please try again.';
+        console.error("Failed to assign users to task:", errorMessage, error);
+        setAssignmentError(errorMessage);
+      } finally {
+        setIsAssigning(false);
+      }
     } else {
       alert('Please select at least one user to assign.');
     }
@@ -113,18 +136,37 @@ const Users: React.FC = () => {
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4" fontWeight="bold" color="text.primary">
-          Select Users
+          {taskIdToAssign ? 'Select Users to Assign' : 'User Management'}
         </Typography>
-        <Button 
-          variant="contained" 
-          color="primary"
-          onClick={handleAssignSelectedUsers}
-          disabled={selectedUserIdsArray.length === 0 || isLoading}
-        >
-          Assign Task to Selected ({selectedUserIdsArray.length})
-        </Button>
+        {taskIdToAssign && (
+          <Button 
+            variant="contained" 
+            color="primary"
+            onClick={handleAssignSelectedUsers}
+            disabled={selectedUserIdsArray.length === 0 || isLoading || isAssigning}
+          >
+            {isAssigning ? <CircularProgress size={24} color="inherit" /> : `Assign to Task (${selectedUserIdsArray.length})`}
+          </Button>
+        )}
+        {!taskIdToAssign && selectedUserIdsArray.length > 0 && (
+          <Button 
+            variant="contained" 
+            color="secondary" 
+            onClick={() => setCreateTaskDialogOpen(true)}
+            disabled={isLoading || isAssigning}
+            sx={{ ml: 2 }}
+          >
+            Create & Assign Task ({selectedUserIdsArray.length})
+          </Button>
+        )}
       </Box>
       
+      {assignmentError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setAssignmentError(null)}>
+          {assignmentError}
+        </Alert>
+      )}
+
       <Paper elevation={2} sx={{p: 2, mb: 2, background: 'rgba(255, 255, 255, 0.05)', backdropFilter: 'blur(5px)'}}>
         <UserList
           users={usersData}
@@ -132,7 +174,7 @@ const Users: React.FC = () => {
           onSearchChange={setInternalSearchTerm}
           selectedUserIds={selectedUserIdsArray}
           onSelectedUsersChange={setSelectedUserIdsArray}
-          title="Available Users"
+          title={taskIdToAssign ? "Select Users to Assign" : "Available Users"}
         />
       </Paper>
 
@@ -193,6 +235,18 @@ const Users: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <SelectExistingTaskDialog 
+        open={assignTaskDialogOpen} 
+        onClose={() => setAssignTaskDialogOpen(false)} 
+        user={userToAssignTask}
+      />
+
+      <CreateTaskDialog 
+        open={createTaskDialogOpen}
+        onClose={() => setCreateTaskDialogOpen(false)}
+        assignedUserIds={selectedUserIdsArray}
+      />
 
     </Container>
   );

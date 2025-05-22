@@ -52,8 +52,8 @@ export class UsersController {
 
   @Get()
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("User", "Leadership", "Administrator", "Super Admin")
-  @Permissions('user:read')
+  @Roles("User", "Leadership", "admin")
+  @Permissions('user:view:list')
   @ApiOperation({ summary: "Get all users with pagination and search" })
   @ApiOkResponse({ 
     description: "Successfully retrieved users.",
@@ -70,7 +70,7 @@ export class UsersController {
 
   @Get(":id")
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("User", "Leadership", "Administrator")
+  @Roles("User", "Leadership", "admin")
   @Permissions('user:read')
   async getUserById(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     this.logger.log(`Getting user with ID: ${id}`);
@@ -99,7 +99,7 @@ export class UsersController {
 
   @Post()
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions('user:manage')
   async createUser(@Body() createUserDto: CreateUserDto, @Request() req) {
     this.logger.log(`Creating new user: ${createUserDto.username}`);
@@ -133,7 +133,7 @@ export class UsersController {
 
   @Delete(":id")
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions('user:manage')
   async deleteUser(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     this.logger.log(`Deleting user with ID: ${id}`);
@@ -167,7 +167,7 @@ export class UsersController {
 
   @Post(':id/admin-reset-password')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Administrator", "Super Admin") // Only admins can do this
+  @Roles("admin") // Only admins can do this
   @Permissions('user:manage') // Requires permission to manage users
   @ApiOperation({ summary: "Admin resets a user's password" })
   @ApiResponse({ status: 200, description: "Password reset successfully, returns new temporary password." })
@@ -196,7 +196,7 @@ export class UsersController {
 
   @Post(":id/toggle-status")
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions('user:manage')
   async toggleStatus(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     this.logger.log(`Toggling status for user with ID: ${id}`);
@@ -223,7 +223,7 @@ export class UsersController {
   }
 
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   @Permissions('user:manage')
   @Put(":id")
   async updateUser(
@@ -255,7 +255,7 @@ export class UsersController {
   @Get(":id/tasks")
   @ApiOperation({ summary: "Get tasks associated with a user (assigned or created)" })
   @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async getTasksForUser(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     const tasks = await this.taskQueryService.getTasksForUser(id);
     return tasks;
@@ -263,7 +263,7 @@ export class UsersController {
 
   @Get(":id/performance")
   @UseGuards(RolesGuard)
-  @Roles("Leadership", "Administrator")
+  @Roles("Leadership", "admin")
   async getPerformance(@Param("id", ParseUUIDPipe) id: string, @Request() req) {
     this.logger.log(`Fetching performance data for user with ID: ${id}`);
     // Dummy data for now

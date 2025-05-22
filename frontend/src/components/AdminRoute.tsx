@@ -11,10 +11,9 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const location = useLocation();
 
-  // Check if user exists and role string is Administrator or Super Admin (case-insensitive)
-  const isAdmin = user?.role && 
-                   typeof user.role === 'string' && 
-                   (user.role.toUpperCase() === 'ADMINISTRATOR' || user.role.toUpperCase() === 'SUPER ADMIN');
+  // Check if user exists and role string is 'admin', 'Administrator' or 'Super Admin' (case-insensitive)
+  const userRoleUpper = user?.role && typeof user.role === 'string' ? user.role.toUpperCase() : '';
+  const isAdmin = userRoleUpper === 'ADMIN' || userRoleUpper === 'ADMINISTRATOR' || userRoleUpper === 'SUPER ADMIN';
 
   if (!isAdmin) {
     console.warn(`Non-admin user (Role: ${user?.role}) attempted to access admin route.`);
@@ -25,4 +24,4 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   return children;
 };
 
-export default AdminRoute; 
+export default AdminRoute;

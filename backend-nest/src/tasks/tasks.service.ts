@@ -1123,7 +1123,7 @@ export class TasksService {
     // For now, let's assume creator or admin/leadership can change assignments.
     const isCreator = task.createdById === reqUser.userId;
     const isAdminOrLeadership = reqUser.roles?.some(
-      (role: string) => role === "Administrator" || role === "Leadership",
+      (role: string) => role === "admin" || role === "Leadership",
     );
     // const canUpdateAssignments = await this.taskQueryService.checkAssigneePermission(task, reqUser.userId); // Or if assignees can reassign
 

@@ -744,4 +744,112 @@ export class TaskQueryService {
       );
     }
   }
+
+  async getTasksCreatedByUser(userId: string): Promise<Task[]> {
+    this.logger.debug(`Fetching tasks created by user ID: ${userId}`);
+    if (!userId) {
+      this.logger.warn("[TaskQueryService] getTasksCreatedByUser called with no userId.");
+      return [];
+    }
+    try {
+      const tasks = await this.tasksRepository.find({
+        where: { createdById: userId, deletedAt: IsNull() }, // Ensure not soft-deleted
+        relations: [
+          "assignedToUsers",
+          "assignedToDepartments",
+          "assignedToProvince",
+          "delegatedFromTask",
+          "delegatedBy",
+          "createdBy", // Though we filter by createdById, including it for consistency
+        ],
+        order: { createdAt: "DESC" },
+      });
+      this.logger.log(`Found ${tasks.length} tasks created by user ${userId}`);
+      return tasks;
+    } catch (error) {
+      this.logger.error(`Error fetching tasks created by user ${userId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Could not retrieve tasks created by user ${userId}: ${error.message}`);
+    }
+  }
+
+  async getTasksForProvince(provinceId: string): Promise<Task[]> {
+    this.logger.debug(`Fetching tasks for province ID: ${provinceId}`);
+    if (!provinceId) {
+      this.logger.warn("[TaskQueryService] getTasksForProvince called with no provinceId.");
+      return [];
+    }
+    try {
+      const tasks = await this.tasksRepository.find({
+        where: { assignedToProvinceId: provinceId, deletedAt: IsNull() },
+        relations: [
+          "assignedToUsers",
+          "assignedToDepartments",
+          "assignedToProvince",
+          "delegatedFromTask",
+          "delegatedBy",
+          "createdBy",
+        ],
+        order: { createdAt: "DESC" },
+      });
+      this.logger.log(`Found ${tasks.length} tasks for province ${provinceId}`);
+      return tasks;
+    } catch (error) {
+      this.logger.error(`Error fetching tasks for province ${provinceId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Could not retrieve tasks for province ${provinceId}: ${error.message}`);
+    }
+  }
+
+  async getTasksAssignedToUser(userId: string): Promise<Task[]> {
+    this.logger.debug(`Fetching tasks directly assigned to user ID: ${userId}`);
+    if (!userId) {
+      this.logger.warn("[TaskQueryService] getTasksAssignedToUser called with no userId.");
+      return [];
+    }
+    try {
+      const tasks = await this.tasksRepository.createQueryBuilder("task")
+        .leftJoinAndSelect("task.assignedToUsers", "assignee")
+        .leftJoinAndSelect("task.createdBy", "createdBy")
+        .leftJoinAndSelect("task.assignedToDepartments", "assignedToDepartments")
+        .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
+        .leftJoinAndSelect("task.delegatedBy", "delegatedBy")
+        .leftJoinAndSelect("task.delegatedFromTask", "delegatedFromTask")
+        .where("assignee.id = :userId", { userId })
+        .andWhere("task.deletedAt IS NULL")
+        .orderBy("task.createdAt", "DESC")
+        .getMany();
+
+      this.logger.log(`Found ${tasks.length} tasks assigned to user ${userId}`);
+      return tasks;
+    } catch (error) {
+      this.logger.error(`Error fetching tasks assigned to user ${userId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Could not retrieve tasks assigned to user ${userId}: ${error.message}`);
+    }
+  }
+
+  async getTasksForUser(userId: string): Promise<Task[]> {
+    this.logger.debug(`Fetching all tasks related to user ID: ${userId}`);
+    if (!userId) {
+      this.logger.warn("[TaskQueryService] getTasksForUser called with no userId.");
+      return [];
+    }
+    try {
+      const tasks = await this.tasksRepository.createQueryBuilder("task")
+        .leftJoinAndSelect("task.assignedToUsers", "assignee")
+        .leftJoinAndSelect("task.createdBy", "creator") // Alias for createdBy
+        .leftJoinAndSelect("task.assignedToDepartments", "assignedToDepartments")
+        .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
+        .leftJoinAndSelect("task.delegatedBy", "delegatedBy")
+        .leftJoinAndSelect("task.delegatedFromTask", "delegatedFromTask")
+        .where("(assignee.id = :userId OR creator.id = :userId)", { userId })
+        .andWhere("task.deletedAt IS NULL")
+        .orderBy("task.createdAt", "DESC")
+        .getMany();
+
+      this.logger.log(`Found ${tasks.length} tasks related to user ${userId}`);
+      return tasks;
+    } catch (error) {
+      this.logger.error(`Error fetching tasks for user ${userId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Could not retrieve tasks for user ${userId}: ${error.message}`);
+    }
+  }
 }

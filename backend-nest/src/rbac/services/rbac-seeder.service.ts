@@ -178,44 +178,10 @@ const INITIAL_PERMISSIONS = [
 // Define initial Roles and their permissions
 const INITIAL_ROLES = [
   {
-    name: "Super Admin",
-    description: "Has all permissions, system role.",
-    isSystemRole: true,
-    permissions: INITIAL_PERMISSIONS.map((p) => p.name), // Assign all permissions
-  },
-  {
     name: "admin", // Changed from 'Admin'
     description: "Administrator role with full access to the system.",
     isSystemRole: true,
-    // Explicitly list all permissions for clarity, including new granular ones
-    permissions: [
-      // Tasks
-      "task.create", "task.view.own", "task.view.department", "task.view.all", "task.view.recyclebin",
-      "task.view.counts.own", "task.view.counts.department", "task.view.counts.user",
-      "task.update.details.own", "task.update.details.all",
-      "task.update.status.own", "task.update.status.all",
-      "task.update.priority.own", "task.update.priority.all",
-      "task.delete.soft.own", "task.delete.soft.all", "task.delete.permanent",
-      "task.restore", "task.delegate.own", "task.delegate.all",
-      // Notes
-      "note:add", "note:view", "note:edit:own", "note:delete:own",
-      // Departments
-      "department:create", "department:view", "department:edit", "department:delete", "department:assign_users",
-      // Users
-      "user:create", "user:view:profile", "user:view:list", "user:edit:any", "user:delete", "user:assign_role",
-      "user:manage_2fa:own", "user:manage_2fa:any",
-      // Provinces
-      "province:create", "province:view", "province:edit", "province:delete",
-      // Settings
-      "settings:view:system", "settings:edit:system",
-      // Admin Pages
-      "page:view:admin_dashboard", "page:view:user_management", "page:view:department_management",
-      "page:view:role_management", "page:view:activity_logs", "page:view:backup_restore", "page:view:recycle_bin",
-      // General Pages
-      "page:view:dashboard", "page:view:tasks_overview",
-      // RBAC Management
-      "role:create", "role:edit", "role:delete", "permission:assign",
-    ],
+    permissions: INITIAL_PERMISSIONS.map((p) => p.name), // Assign all permissions
   },
   {
     name: "Leadership",
@@ -245,69 +211,6 @@ const INITIAL_ROLES = [
       "page:view:admin_dashboard", "page:view:department_management", // Relevant admin pages
     ],
   },
-  {
-    name: "manager",
-    description: "Manager role with access to departmental management and reporting.",
-    isSystemRole: true,
-    permissions: [
-      // Tasks
-      "task.create", "task.view.own", "task.view.department", "task.view.all", "task.view.recyclebin",
-      "task.view.counts.own", "task.view.counts.department", "task.view.counts.user",
-      "task.update.details.own", "task.update.details.all",
-      "task.update.status.own", "task.update.status.all",
-      "task.update.priority.own", "task.update.priority.all",
-      "task.delete.soft.own", "task.delete.soft.all",
-      "task.restore",
-      "task.delegate.own", "task.delegate.all",
-      // Notes
-      "note:add", "note:view", "note:edit:own", "note:delete:own",
-      // Departments
-      "department:view", // View own department
-      // Users
-      "user:view:profile", "user:view:list", "user:edit:own_profile",
-      "user:manage_2fa:own",
-      // General Pages
-      "page:view:dashboard", "page:view:tasks_overview", // Added
-    ],
-  },
-  {
-    name: "employee",
-    description: "Standard user role with basic task access.",
-    isSystemRole: false,
-    permissions: [
-      // Tasks
-      "task.create", "task.view.own", // Can only view own
-      "task.view.counts.own", // Can only view own counts
-      "task.update.details.own", "task.update.status.own", "task.update.priority.own",
-      "task.delete.soft.own",
-      "task.delegate.own",
-      // Notes
-      "note:add", "note:view", "note:edit:own", "note:delete:own",
-      // Users
-      "user:view:profile", "user:edit:own_profile",
-      "user:manage_2fa:own",
-      // General Pages
-      "page:view:dashboard", "page:view:tasks_overview", // Added
-    ],
-  },
-  // Remove the duplicate 'Standard User' role for now to avoid confusion
-  // {
-  //   name: "Standard User",
-  //   description: "Basic access for regular users.",
-  //   isSystemRole: false,
-  //   permissions: [
-  //     "task:view:own",
-  //     "task:edit:own",
-  //     "task:create",
-  //     "note:add",
-  //     "note:view",
-  //     "note:edit:own",
-  //     "note:delete:own",
-  //     "user:view:profile",
-  //     "user:edit:own_profile",
-  //     "user:manage_2fa:own",
-  //   ],
-  // },
 ];
 
 @Injectable()
