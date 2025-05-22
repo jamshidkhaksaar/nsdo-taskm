@@ -14,6 +14,7 @@ import { ActivityLogsController } from "./controllers/activity-logs.controller";
 import { AdminDepartmentsController } from "./controllers/admin-departments.controller";
 import { ActivityLoggerInterceptorFactory } from "./interceptors/activity-logger.interceptor";
 import { AuthModule } from "../auth/auth.module";
+import { WorkflowsModule } from "./workflows/workflows.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from "../auth/auth.module";
     forwardRef(() => DepartmentsModule),
     forwardRef(() => TasksModule),
     forwardRef(() => AuthModule),
+    WorkflowsModule,
   ],
   controllers: [
     AdminController,

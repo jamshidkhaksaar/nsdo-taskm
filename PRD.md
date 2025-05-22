@@ -312,7 +312,48 @@ A comprehensive Two-Factor Authentication (2FA) system has been implemented, off
 *   **`SettingsService.ts` (`frontend/src/services/settings.ts`):**
     *   Contains methods to interact with the backend 2FA settings endpoints (`get2FAStatus`, `setup2FA`, `verify2FA`).
 
-## 8. Change Log & Rationales
+## 8. New Features & Enhancements
+
+### 8.1. Workflow Permissions Visualizer (Admin)
+
+- **Description:** A new page in the Admin Panel (`/admin/rbac/workflow-visualizer`) allows administrators to visually manage permissions for different workflows. Initially, a "Task Creation" workflow is implemented.
+- **Functionality:**
+    - Admins can view a graph of User Roles and Workflow Steps (specific actions/permissions).
+    - Admins can create or remove connections (permissions) between a Role and a Workflow Step by interacting with the graph (e.g., drawing lines).
+    - Changes made in the visualizer are saved to the backend, updating the `role_workflow_step_permissions` table.
+- **Backend Implementation (`backend-nest`):
+    - **Entities:**
+        - `Workflow`: Defines a workflow (e.g., "Task Creation"). Fields: `id`, `name`, `slug`, `description`, `steps`.
+        - `WorkflowStep`: Defines a specific step/action within a workflow. Fields: `id`, `workflowId`, `name`, `description`, `stepOrder`, `permissionIdentifier` (e.g., "task:create:personal").
+        - `RoleWorkflowStepPermission`: A join table linking `Role` and `WorkflowStep`, indicating if a role has permission for a step. Fields: `roleId`, `workflowStepId`, `hasPermission`.
+    - **DTOs:**
+        - `UpdateWorkflowPermissionDto`: For updating a single role-step permission link. (`roleId`, `workflowStepId`, `hasPermission`).
+        - `WorkflowVisualizerDataDto`: Structure for sending data to the frontend (workflow details, roles, steps, existing permissions).
+    - **Service (`WorkflowsService`):
+        - `getWorkflowVisualData(workflowSlug: string)`: Fetches workflow, its steps, all system roles, and their current permissions for the given workflow slug.
+        - `updateRoleWorkflowStepPermission(dto: UpdateWorkflowPermissionDto)`: Creates or updates a permission link.
+        - `onModuleInit()`: Seeds an initial "Task Creation" workflow with predefined steps (e.g., Create Personal Task, Assign Task to Users, Delete Own Task, etc.) based on user request.
+    - **Controller (`WorkflowsController`):
+        - `GET /admin/workflows/:workflowSlug/visualize`: Endpoint for frontend to fetch visualization data. Protected for Admin role.
+        - `POST /admin/workflows/permissions`: Endpoint for frontend to save permission changes. Protected for Admin role.
+    - **Module (`WorkflowsModule`):
+        - Encapsulates all workflow-related components.
+        - Imported into `AdminModule`.
+- **Frontend Implementation (`frontend`):
+    - **Page:** `WorkflowVisualizerPage.tsx` located at `frontend/src/pages/admin/rbac/workflow-visualizer/`.
+    - **Routing:** Accessible via `/admin/rbac/workflow-visualizer`, protected by `<AdminRoute>`.
+    - **UI:**
+        - Uses Material UI components (`Box`, `Paper`, `Typography`) for layout and styling, consistent with other admin pages.
+        - Implements glassmorphism for visual appeal.
+        - Placeholder for React Flow (or similar graph library) to display roles and workflow steps as nodes, and permissions as interactive edges.
+        - (Future) Dropdown to select different workflows if more are added.
+    - **API Integration:**
+        - (TODO) Fetch data from `/admin/workflows/:workflowSlug/visualize`.
+        - (TODO) Send updates via `POST /admin/workflows/permissions` when connections are changed by the admin.
+- **RBAC Permissions:** The visualizer page itself is accessible only by users with the "Admin" role. The permissions granted via the visualizer will be based on the `permissionIdentifier` of each `WorkflowStep` and should be enforced by the `PermissionsGuard` in relevant parts of the application (e.g., `TasksController`, `DashboardController`).
+- **Status:** Initial backend structure and frontend page shell implemented. Seeding for "Task Creation" workflow is in place. React Flow integration and full data binding on the frontend are pending. The actual enforcement of these visualized permissions in the application logic (linking `permissionIdentifier` to `PermissionsGuard` checks) is a critical next step.
+
+## 9. Change Log & Rationales
 
 *   **2024-0X-XX:** Removed references to the non-existent `ApiSettings` entity from `backend-nest/ormconfig.ts` (import only) and `backend-nest/src/app.module.ts` (import and `TypeOrmModule` entities array).
     *   **Rationale:** Resolved startup compilation errors. Entity confirmed as obsolete.
@@ -364,14 +405,14 @@ A comprehensive Two-Factor Authentication (2FA) system has been implemented, off
     *   **Frontend:** No direct code changes in this iteration, but existing functionality in `Login.tsx` (sending `rememberDevice`) and `Settings.tsx` (sending `remember_browser`) now correctly interfaces with the enhanced backend logic.
     *   **Rationale:** Implemented a consistent and functional "remember this device" feature, allowing users to bypass 2FA on trusted devices for a configurable duration (`two_factor_device_remembrance_days`). This enhances user experience by reducing friction on recognized devices, while security is maintained through device fingerprinting and notifications for logins from new/unrecognized devices. Standardized the behavior for remembering a device during both the login 2FA prompt and the 2FA setup verification process.
 
-## 9. Task Management & Communication Protocol
+## 10. Task Management & Communication Protocol
 
 *   **Task Tracking:** This PRD will serve as the primary task tracking document. Context7 MCP server will be used for fetching up-to-date documentation when needed. (Note: Task Master MCP is not available).
 *   **Data Integrity:** Ensure all data interactions use the real MySQL database via backend APIs. No mock data.
 *   **Change Control:** Detailed rationale will be provided in Section 7 before any code or dependency removal.
 *   **Verification:** Frontend testing confirmation will be requested after implementations/fixes. Proceed only after receiving "great job" or similar approval.
 
-## 10. Bug Tracking
+## 11. Bug Tracking
 
 *(To be populated as bugs are identified and resolved)*
 
@@ -447,4 +488,4 @@ This feature will provide a visual way to understand how different user roles in
     *   **Module (`workflows.module.ts`):** Wire up and import into `AdminModule`.
 2.  **Database Migrations:** Add tables for `workflows` and `workflow_steps`.
 3.  **Seed Data:**
-    *   Create a seed for the "Task Creation" workflow with defined steps (e.g., `initiate-task`, `set-basic-details`, `set-assignments`, `set-due-date`, `submit-creation`) and their relevant permission patterns. 
+    *   Create a seed for the "Task Creation" workflow with defined steps (e.g., `initiate-task`, `set-basic-details`, `set-assignments`, `set-due-date`, `submit-creation`) and their relevant permission patterns.

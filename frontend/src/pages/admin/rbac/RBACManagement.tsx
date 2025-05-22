@@ -5,7 +5,8 @@ import {
   Paper,
   Tabs,
   Tab,
-  Alert
+  Alert,
+  Button
 } from '@mui/material';
 import RoleManagement from './RoleManagement';
 import PermissionManagement from './PermissionManagement';
@@ -128,6 +129,7 @@ const RBACManagement: React.FC = () => {
             <Tab label="Roles" />
             <Tab label="Permissions" />
             <Tab label="System Setup" />
+            <Tab label="Workflow Visualizer" />
           </Tabs>
         </Box>
 
@@ -144,6 +146,29 @@ const RBACManagement: React.FC = () => {
         {/* System Setup Tab */}
         <TabPanel value={tabValue} index={2}>
           <SystemSetup />
+        </TabPanel>
+
+        {/* Workflow Visualizer Tab */}
+        <TabPanel value={tabValue} index={3}>
+          <Typography variant="h6" gutterBottom sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+            Workflow Permissions Visualizer
+          </Typography>
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2 }}>
+            Visualize and manage permissions by connecting roles to workflow steps.
+            This tool provides a graphical interface for the selected workflow.
+          </Typography>
+          <Button 
+            variant="contained" 
+            color="primary"
+            onClick={() => navigate('/admin/rbac/workflow-visualizer/task-creation')}
+            sx={{ 
+              backgroundColor: '#2196f3', 
+              '&:hover': { backgroundColor: '#1976d2' },
+              color: '#fff' 
+            }}
+          >
+            Open Task Creation Workflow Visualizer
+          </Button>
         </TabPanel>
       </Paper>
     </Box>

@@ -41,6 +41,9 @@ import { join } from "path";
               user: "apikey", // SendGrid requires 'apikey' as the user
               pass: sendGridApiKey || "YOUR_FALLBACK_SENDGRID_API_KEY", // Use fetched key or a fallback/placeholder
             },
+            tls: {
+              rejectUnauthorized: false
+            }
           },
           defaults: {
             from: `"${configService.get<string>("MAIL_FROM_NAME") || "TaskM App"}" <${defaultFromEmail}>`,

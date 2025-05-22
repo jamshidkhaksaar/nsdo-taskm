@@ -46,6 +46,11 @@ import { Backup } from "./backup/entities/backup.entity";
 import { Role } from "./rbac/entities/role.entity";
 import { Permission } from "./rbac/entities/permission.entity";
 
+// Import new workflow entities
+import { Workflow } from "./admin/workflows/entities/workflow.entity";
+import { WorkflowStep } from "./admin/workflows/entities/workflow-step.entity";
+import { RoleWorkflowStepPermission } from "./admin/workflows/entities/role-workflow-step-permission.entity";
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -84,6 +89,9 @@ import { Permission } from "./rbac/entities/permission.entity";
             Notification,
             Role,
             Permission,
+            Workflow,
+            WorkflowStep,
+            RoleWorkflowStepPermission,
           ],
           synchronize:
             isDevelopment || configService.get("DATABASE_SYNC") === "true",

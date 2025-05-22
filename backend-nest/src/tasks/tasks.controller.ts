@@ -110,7 +110,7 @@ export class TasksController {
   @Get("dashboard")
   getDashboardTasks(@Request() req) {
     this.logger.log(`User ${req.user.id} fetching dashboard tasks`);
-    return this.taskQueryService.getDashboardTasks(req.user.id);
+    return this.taskQueryService.getDashboardTasks(req.user);
   }
 
   @Get("assigned-to-me")

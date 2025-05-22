@@ -84,7 +84,7 @@ const Login: React.FC = () => {
   const [loginCredentials, setLoginCredentials] = useState<LoginFormInputs | null>(null);
   const [twoFactorUserId, setTwoFactorUserId] = useState<string | null>(null); // Store UserID for 2FA calls
   const [twoFactorMethod, setTwoFactorMethod] = useState<string | undefined>(undefined); // 'app' or 'email'
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>("captcha-disabled-for-dev"); // Temporary
   const [emailCodeSent, setEmailCodeSent] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
@@ -253,12 +253,12 @@ const Login: React.FC = () => {
     setError(''); // Clear previous errors
     // authLoading will be true via Redux if loginAsync is dispatched. We don't need setLocalIsLoading(true) here for the API call itself.
 
-    if (!captchaToken) {
-      console.warn('[Login.tsx] onSubmit: captchaToken is missing. Aborting.');
-      setError('CAPTCHA verification incomplete. Please wait or refresh.');
-      return;
-    }
-    console.log('[Login.tsx] onSubmit: Captcha token present:', captchaToken);
+    // if (!captchaToken) {
+    //   console.warn('[Login.tsx] onSubmit: captchaToken is missing. Aborting.');
+    //   setError('CAPTCHA verification incomplete. Please wait or refresh.');
+    //   return;
+    // }
+    // console.log('[Login.tsx] onSubmit: Captcha token present:', captchaToken);
 
     try {
       if (data.rememberMe) localStorage.setItem('rememberedUsername', data.username);
@@ -684,7 +684,7 @@ const Login: React.FC = () => {
         </Box>
 
         <Box sx={{ my: 2, display: 'flex', justifyContent: 'center' }}>
-          {turnstileSiteKey ? (
+          {/* {turnstileSiteKey ? (
             <Turnstile 
               siteKey={turnstileSiteKey}
               onSuccess={(token) => {
@@ -711,7 +711,8 @@ const Login: React.FC = () => {
             <Alert severity="warning">
               CAPTCHA is not configured. Please contact support.
             </Alert>
-          )}
+          )} */}
+          <Alert severity="info">CAPTCHA temporarily disabled for development.</Alert>
         </Box>
 
         <Button
@@ -719,7 +720,8 @@ const Login: React.FC = () => {
           fullWidth
           variant="contained"
           sx={glassStyles.button}
-          disabled={authLoading || isSubmitting || !captchaToken}
+          // disabled={authLoading || isSubmitting || !captchaToken}
+          disabled={authLoading || isSubmitting}
         >
           {(authLoading || isSubmitting) ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
         </Button>

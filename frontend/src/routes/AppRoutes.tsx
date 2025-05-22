@@ -44,6 +44,7 @@ const SystemSettings = lazyLoad(import('../pages/admin/SystemSettings'));
 const BackupRestore = lazyLoad(import('../pages/admin/BackupRestore'));
 const EmailConfiguration = lazyLoad(import('../pages/admin/EmailConfiguration'));
 const AdminTaskManagementPage = lazyLoad(import('../pages/admin/AdminTaskManagementPage'));
+const WorkflowVisualizerPage = lazyLoad(import('../pages/admin/rbac/workflow-visualizer/WorkflowVisualizerPage'));
 
 // Define roles constants for readability
 const ROLES = {
@@ -108,6 +109,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/admin/backup" element={<AdminRoute><BackupRestore /></AdminRoute>} />
         <Route path="/admin/email-config" element={<AdminRoute><EmailConfiguration /></AdminRoute>} />
         <Route path="/admin/task-management" element={<AdminRoute><AdminTaskManagementPage /></AdminRoute>} />
+        <Route path="/admin/rbac/workflow-visualizer/:workflowSlug" element={<AdminRoute><WorkflowVisualizerPage /></AdminRoute>} />
 
         {/* Fallback Route */}
         <Route path="*" element={<NotFound />} />

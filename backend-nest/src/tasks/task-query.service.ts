@@ -26,6 +26,8 @@ export class TaskQueryService {
     private tasksRepository: Repository<Task>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Department)
+    private readonly departmentsRepository: Repository<Department>,
     // Inject UsersService if needed for helper methods like checkAssigneePermission
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
@@ -370,30 +372,33 @@ export class TaskQueryService {
     }
   }
 
-  async getDashboardTasks(userId: string): Promise<DashboardTasksResponse> {
+  async getDashboardTasks(requestingUser: User): Promise<DashboardTasksResponse> {
     try {
-      const user = await this.usersRepository.findOne({
-        where: { id: userId },
-        relations: ["departments"],
-      });
+      // User object is now passed directly
+      const userId = requestingUser.id;
+      const userRole = requestingUser.role?.name; // Assuming role is populated
 
-      if (!user) {
-        throw new NotFoundException(`User with ID ${userId} not found.`);
+      if (!requestingUser) { // Should not happen if JwtAuthGuard is effective
+        throw new NotFoundException(`Requesting user not found.`);
       }
 
-      const departmentIds = user.departments
-        ? user.departments.map((d) => d.id)
+      const departmentIds = requestingUser.departments
+        ? requestingUser.departments.map((d) => d.id)
         : [];
 
-      const myPersonalTasks = await this.getMyPersonalTasks(userId);
+      const myPersonalTasks = await this.getMyPersonalTasks(userId, userRole);
       const tasksICreatedForOthers =
-        await this.getTasksCreatedByUserForOthers(userId);
+        await this.getTasksCreatedByUserForOthers(userId, userRole);
       const tasksAssignedToMe =
-        await this.getTasksAssignedToUserExplicitly(userId);
-      const tasksAssignedToMyDepartments =
-        await this.getTasksForDepartments(departmentIds);
-      const tasksDelegatedByMe = await this.getTasksDelegatedByUser(userId);
-      const tasksDelegatedToMe = await this.getTasksDelegatedToUser(userId);
+        await this.getTasksAssignedToUserExplicitly(userId, userRole);
+      
+      // For department tasks, if superadmin, get all, else get for user's departments
+      const tasksAssignedToMyDepartments = userRole === 'Super Admin'
+        ? await this.getAllDepartmentTasks() // New helper needed for this
+        : await this.getTasksForDepartments(departmentIds);
+
+      const tasksDelegatedByMe = await this.getTasksDelegatedByUser(userId, userRole);
+      const tasksDelegatedToMe = await this.getTasksDelegatedToUser(userId, userRole);
 
       const response = {
         myPersonalTasks,
@@ -411,7 +416,7 @@ export class TaskQueryService {
       return response;
     } catch (error) {
       this.logger.error(
-        `[TaskQueryService] Error fetching dashboard tasks for user ${userId}:`,
+        `[TaskQueryService] Error fetching dashboard tasks for user ${requestingUser.id}:`,
         error,
       );
       if (error instanceof NotFoundException) {
@@ -423,15 +428,22 @@ export class TaskQueryService {
     }
   }
 
-  async getMyPersonalTasks(userId: string): Promise<Task[]> {
-    this.logger.log(`Fetching personal tasks for user ${userId}`);
+  async getMyPersonalTasks(userId: string, userRole?: string): Promise<Task[]> {
+    this.logger.log(`Fetching personal tasks for user ${userId}${userRole ? ` (Role: ${userRole})` : ''}`);
     try {
+      const whereClause: any = {
+        type: TaskType.PERSONAL,
+        isDelegated: false,
+        isDeleted: false, // Added to ensure only non-deleted tasks
+      };
+
+      if (userRole !== 'Super Admin') {
+        whereClause.createdById = userId;
+      }
+      // If Super Admin, createdById is omitted
+
       return await this.tasksRepository.find({
-        where: {
-          createdById: userId,
-          type: TaskType.PERSONAL,
-          isDelegated: false,
-        },
+        where: whereClause,
         relations: [
           "assignedToUsers",
           "assignedToDepartments",
@@ -450,28 +462,28 @@ export class TaskQueryService {
     }
   }
 
-  async getTasksAssignedToUserExplicitly(userId: string): Promise<Task[]> {
+  async getTasksAssignedToUserExplicitly(userId: string, userRole?: string): Promise<Task[]> {
     this.logger.log(
-      `Fetching tasks assigned explicitly (non-personal) to user ${userId}`,
+      `Fetching tasks assigned explicitly to user ${userId}${userRole ? ` (Role: ${userRole})` : ''}`,
     );
     try {
-      return await this.tasksRepository
+      const qb = this.tasksRepository
         .createQueryBuilder("task")
-        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
-        .where("user.id = :userId", { userId })
-        .andWhere("task.type != :personalType", {
-          personalType: TaskType.PERSONAL,
-        })
-        .andWhere("task.isDelegated = :isDelegated", { isDelegated: false })
         .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
-        .leftJoinAndSelect(
-          "task.assignedToDepartments",
-          "assignedToDepartments",
-        )
+        .leftJoinAndSelect("task.assignedToUsers", "assignee", "assignee.deletedAt IS NULL")
+        .leftJoinAndSelect("task.assignedToDepartments", "assignedToDepartments")
         .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
         .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
-        .orderBy("task.createdAt", "DESC")
-        .getMany();
+        .where("task.type != :personalType", { personalType: TaskType.PERSONAL })
+        .andWhere("task.isDelegated = :isDelegated", { isDelegated: false })
+        .andWhere("task.isDeleted = :isDeleted", { isDeleted: false }); // Added
+
+      if (userRole !== 'Super Admin') {
+        qb.andWhere("assignee.id = :userId", { userId });
+      }
+      // If Super Admin, the assignee.id = :userId condition is omitted
+
+      return await qb.orderBy("task.createdAt", "DESC").getMany();
     } catch (error) {
       this.logger.error(
         `Error fetching non-personal tasks assigned to user ${userId}:`,
@@ -483,17 +495,24 @@ export class TaskQueryService {
     }
   }
 
-  async getTasksCreatedByUserForOthers(userId: string): Promise<Task[]> {
+  async getTasksCreatedByUserForOthers(userId: string, userRole?: string): Promise<Task[]> {
     this.logger.log(
-      `Fetching tasks created by user ${userId} for others (non-personal)`,
+      `Fetching tasks created by user ${userId} for others${userRole ? ` (Role: ${userRole})` : ''}`,
     );
     try {
+      const whereClause: any = {
+        type: Not(TaskType.PERSONAL),
+        isDelegated: false,
+        isDeleted: false, // Added
+      };
+
+      if (userRole !== 'Super Admin') {
+        whereClause.createdById = userId;
+      }
+      // If Super Admin, createdById is omitted
+
       return await this.tasksRepository.find({
-        where: {
-          createdById: userId,
-          type: Not(TaskType.PERSONAL),
-          isDelegated: false,
-        },
+        where: whereClause,
         relations: [
           "assignedToUsers",
           "assignedToDepartments",
@@ -518,85 +537,67 @@ export class TaskQueryService {
     if (!departmentIds || departmentIds.length === 0) {
       return [];
     }
-    this.logger.log(
-      `[TaskQueryService] Fetching tasks for departments: ${departmentIds.join(", ")}`,
-    );
+    this.logger.log(`Fetching tasks for departments: ${departmentIds.join(", ")}`);
     try {
       return await this.tasksRepository
         .createQueryBuilder("task")
         .innerJoin("task.assignedToDepartments", "department")
         .where("department.id IN (:...departmentIds)", { departmentIds })
-        .leftJoinAndSelect("task.createdBy", "createdBy")
-        .leftJoinAndSelect("task.assignedToUsers", "assignedToUsers")
-        .leftJoinAndSelect(
-          "task.assignedToDepartments",
-          "assignedToDepartments_rel",
-        )
-        .orderBy("task.createdAt", "DESC")
-        .getMany();
-    } catch (error) {
-      this.logger.error(
-        `[TaskQueryService] Error fetching tasks for departments ${departmentIds.join(", ")}:`,
-        error,
-      );
-      return [];
-    }
-  }
-
-  async getTasksAssignedToUser(userId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks assigned directly to user ${userId}`);
-    try {
-      return await this.tasksRepository
-        .createQueryBuilder("task")
-        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
-        .where("user.id = :userId", { userId })
         .andWhere("task.isDelegated = :isDelegated", { isDelegated: false })
+        .andWhere("task.isDeleted = :isDeleted", { isDeleted: false }) // Added
         .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
-        .leftJoinAndSelect(
-          "task.assignedToDepartments",
-          "assignedToDepartments",
-        )
+        .leftJoinAndSelect("task.assignedToUsers", "assignedToUsers", "assignedToUsers.deletedAt IS NULL")
         .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
         .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
         .orderBy("task.createdAt", "DESC")
         .getMany();
     } catch (error) {
       this.logger.error(
-        `Error fetching tasks assigned to user ${userId}:`,
+        `Error fetching tasks for departments ${departmentIds.join(", ")}:`,
         error,
       );
-      throw new Error(`Failed to fetch assigned tasks: ${error.message}`);
+      throw new Error(`Failed to fetch department tasks: ${error.message}`);
     }
   }
 
-  async getTasksCreatedByUser(userId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks created by user ${userId}`);
+  async getAllDepartmentTasks(): Promise<Task[]> {
+    this.logger.log(`Fetching all tasks assigned to any department (Super Admin)`);
     try {
-      return await this.tasksRepository.find({
-        where: { createdById: userId, isDelegated: false },
-        relations: [
-          "assignedToUsers",
-          "assignedToDepartments",
-          "assignedToProvince",
-          "delegatedBy",
-          "createdBy",
-        ],
-        order: { createdAt: "DESC" },
-      });
+      return await this.tasksRepository
+        .createQueryBuilder("task")
+        .innerJoin("task.assignedToDepartments", "department") // Ensures task is assigned to at least one dept
+        .andWhere("task.isDelegated = :isDelegated", { isDelegated: false })
+        .andWhere("task.isDeleted = :isDeleted", { isDeleted: false })
+        .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
+        .leftJoinAndSelect("task.assignedToUsers", "assignedToUsers", "assignedToUsers.deletedAt IS NULL")
+        .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
+        .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
+        .orderBy("task.createdAt", "DESC")
+        .getMany();
     } catch (error) {
       this.logger.error(
-        `Error fetching tasks created by user ${userId}:`,
+        `Error fetching all department tasks for Super Admin:`,
         error,
       );
-      throw new Error(`Failed to fetch created tasks: ${error.message}`);
+      throw new Error(`Failed to fetch all department tasks: ${error.message}`);
     }
   }
 
-  async getTasksDelegatedByUser(userId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks delegated by user ${userId}`);
+  async getTasksDelegatedByUser(userId: string, userRole?: string): Promise<Task[]> {
+    this.logger.log(`Fetching tasks delegated by user ${userId}${userRole ? ` (Role: ${userRole})` : ''}`);
     try {
+      const whereClause: any = {
+        isDelegated: true,
+        isDeleted: false, // Added
+      };
+
+      if (userRole !== 'Super Admin') {
+        whereClause.delegatedByUserId = userId;
+      }
+      // If Super Admin, delegatedByUserId is omitted
+
       return await this.tasksRepository.find({
-        where: { delegatedByUserId: userId, isDelegated: true },
+        where: whereClause,
         relations: [
           "createdBy",
           "assignedToUsers",
@@ -618,24 +619,29 @@ export class TaskQueryService {
     }
   }
 
-  async getTasksDelegatedToUser(userId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks delegated to user ${userId}`);
+  async getTasksDelegatedToUser(userId: string, userRole?: string): Promise<Task[]> {
+    this.logger.log(`Fetching tasks delegated to user ${userId}${userRole ? ` (Role: ${userRole})` : ''}`);
     try {
-      return await this.tasksRepository
+      const qb = this.tasksRepository
         .createQueryBuilder("task")
-        .innerJoin("task.assignedToUsers", "user", "user.deletedAt IS NULL") // Ensure joined user is not soft-deleted
-        .where("user.id = :userId", { userId })
-        .andWhere("task.isDelegated = :isDelegated", { isDelegated: true })
-        .leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
-        .leftJoinAndSelect(
-          "task.assignedToDepartments",
-          "assignedToDepartments",
-        )
+        .innerJoin("task.assignedToUsers", "assignee", "assignee.deletedAt IS NULL")
+        .where("task.isDelegated = :isDelegated", { isDelegated: true })
+        .andWhere("task.isDeleted = :isDeleted", { isDeleted: false }); // Added
+        // For delegated tasks, the assignee is the one it's delegated TO.
+
+      if (userRole !== 'Super Admin') {
+        qb.andWhere("assignee.id = :userId", { userId });
+      }
+      // If Super Admin, assignee.id = :userId is omitted
+
+      qb.leftJoinAndSelect("task.createdBy", "createdBy", "createdBy.deletedAt IS NULL")
+        .leftJoinAndSelect("task.assignedToDepartments", "assignedToDepartments")
         .leftJoinAndSelect("task.assignedToProvince", "assignedToProvince")
         .leftJoinAndSelect("task.delegatedBy", "delegatedBy", "delegatedBy.deletedAt IS NULL")
         .leftJoinAndSelect("task.delegatedFromTask", "delegatedFromTask")
-        .orderBy("task.createdAt", "DESC")
-        .getMany();
+        .orderBy("task.createdAt", "DESC");
+
+      return await qb.getMany();
     } catch (error) {
       this.logger.error(
         `Error fetching tasks delegated to user ${userId}:`,
@@ -643,91 +649,6 @@ export class TaskQueryService {
       );
       throw new Error(
         `Failed to fetch tasks delegated to user: ${error.message}`,
-      );
-    }
-  }
-
-  async getTasksForDepartment(departmentId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks for department ${departmentId}`);
-    try {
-      return await this.tasksRepository.find({
-        where: {
-          assignedToDepartments: { id: departmentId },
-        },
-        relations: [
-          "createdBy",
-          "assignedToUsers",
-          "assignedToDepartments",
-          "assignedToProvince",
-          "delegatedBy",
-          "delegatedFromTask",
-        ],
-        order: { createdAt: "DESC" },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error fetching tasks for department ${departmentId}:`,
-        error,
-      );
-      if (error instanceof NotFoundException) throw error;
-      throw new Error(
-        `Failed to fetch tasks for department ${departmentId}: ${error.message}`,
-      );
-    }
-  }
-
-  async getTasksForUser(userId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks assigned to user ${userId}`);
-    try {
-      return await this.tasksRepository.find({
-        where: {
-          assignedToUsers: { id: userId },
-        },
-        relations: [
-          "createdBy",
-          "assignedToUsers",
-          "assignedToDepartments",
-          "assignedToProvince",
-          "delegatedBy",
-          "delegatedFromTask",
-        ],
-        order: { createdAt: "DESC" },
-      });
-    } catch (error) {
-      this.logger.error(`Error fetching tasks for user ${userId}:`, error);
-      if (error instanceof NotFoundException) throw error;
-      throw new Error(
-        `Failed to fetch tasks for user ${userId}: ${error.message}`,
-      );
-    }
-  }
-
-  async getTasksForProvince(provinceId: string): Promise<Task[]> {
-    this.logger.log(`Fetching tasks for province ${provinceId}`);
-    try {
-      return await this.tasksRepository.find({
-        where: [
-          { assignedToProvinceId: provinceId },
-          { assignedToDepartments: { provinceId: provinceId } },
-        ],
-        relations: [
-          "createdBy",
-          "assignedToUsers",
-          "assignedToDepartments",
-          "assignedToProvince",
-          "delegatedBy",
-          "delegatedFromTask",
-        ],
-        order: { createdAt: "DESC" },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error fetching tasks for province ${provinceId}:`,
-        error,
-      );
-      if (error instanceof NotFoundException) throw error;
-      throw new Error(
-        `Failed to fetch tasks for province ${provinceId}: ${error.message}`,
       );
     }
   }
