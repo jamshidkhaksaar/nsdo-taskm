@@ -17,6 +17,7 @@ import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
 import { Task, TaskType, User, Department } from '@/types/index';
 import { UserService } from '@/services/user';
+import { formatAssigneeDisplay, formatAssignerDisplay } from '@/utils/userDisplayUtils';
 
 interface TasksSectionProps {
   tasks?: Task[];
@@ -115,48 +116,6 @@ const TasksSection: React.FC<TasksSectionProps> = ({
     const id = String(userId);
     return userCache[id] || id;
   };
-  
-  // Enhanced assignee display logic
-  const getAssigneeDisplay = (task: Task): string => {
-    if (!task) return 'Unassigned';
-
-    const createdByCurrentUser = task.createdById === currentUserId;
-
-    switch (task.type) {
-      case TaskType.PERSONAL:
-        return 'Personal Task';
-      case TaskType.USER:
-        if (task.assignedToUserIds && task.assignedToUserIds.length > 0) {
-          if (task.assignedToUserIds.length === 1 && task.assignedToUserIds[0] === currentUserId && createdByCurrentUser) {
-            return 'My Task (Self-assigned)';
-          }
-          if (task.assignedToUserIds.length === 1) {
-            return getUserName(task.assignedToUserIds[0]);
-          }
-          return `${getUserName(task.assignedToUserIds[0])} + ${task.assignedToUserIds.length - 1} more`;
-        }
-        return 'Unassigned (User Task)';
-      case TaskType.DEPARTMENT:
-      case TaskType.PROVINCE_DEPARTMENT:
-        if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
-          if (task.assignedToDepartments.length === 1) {
-            // Attempt to get department name, fallback to ID if necessary
-            // This assumes department objects with names are part of the task or fetched separately
-            const deptName = task.assignedToDepartments[0].name || `Dept ${task.assignedToDepartments[0].id}`;
-            return `For: ${deptName}`;
-          }
-          return `Multiple Departments (${task.assignedToDepartments.length})`;
-        }
-        return 'Unassigned (Department Task)';
-      default:
-        // Fallback for older tasks or unknown types, try to use assignedToUserIds
-        if (task.assignedToUserIds && task.assignedToUserIds.length > 0) {
-            if (task.assignedToUserIds.length === 1) return getUserName(task.assignedToUserIds[0]);
-            return `${getUserName(task.assignedToUserIds[0])} + ${task.assignedToUserIds.length - 1} more`;
-        }
-        return 'Unassigned';
-    }
-  };
 
   const TaskBox = ({ 
     title, 
@@ -241,7 +200,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.75rem', mr: 0.5 }} />
                     <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                      Created by: {getUserName(task.createdById)}
+                      {formatAssignerDisplay(task)}
                     </Typography>
                   </Box>
                 )}
@@ -250,8 +209,7 @@ const TasksSection: React.FC<TasksSectionProps> = ({
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }} />
                     <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      {/* Use camelCase: assignedToUserIds */}
-                      {getAssigneeDisplay(task)}
+                      {formatAssigneeDisplay(task, null)}
                     </Typography>
                   </Box>
                   <Chip

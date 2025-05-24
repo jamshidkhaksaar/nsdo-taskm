@@ -51,6 +51,7 @@ const DRAWER_WIDTH = 240;
 const PERMISSIONS = {
   TASKS_OVERVIEW: 'page:view:tasks_overview',
   ADMIN_PANEL: 'page:view:admin_dashboard', // Example for admin panel access
+  USER_LIST: 'user:view:list', // Add permission for Users page
   // Add other permission keys as needed
 };
 
@@ -337,7 +338,9 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggleDrawer, onLogout, drawe
       >
         {/* Main menu items */}
         <List>
-          {mainMenuItems.map((item) => renderMenuItem(item, item.title))}
+          {mainMenuItems
+            .filter((item) => !item.permission || userHasPermission(item.permission))
+            .map((item) => renderMenuItem(item, item.title))}
           
           {/* Conditionally render Tasks Overview based on permission */}
           {userHasPermission(PERMISSIONS.TASKS_OVERVIEW) && renderMenuItem(tasksOverviewItem, tasksOverviewItem.title)}

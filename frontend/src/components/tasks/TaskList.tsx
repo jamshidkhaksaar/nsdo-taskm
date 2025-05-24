@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Task } from '../../types';
-import { deleteTask } from '../../services/tasks.service'; // Import the deleteTask service
-import { format, isPast } from 'date-fns'; // Import date-fns functions (removed parseISO)
-import { useSelector } from 'react-redux'; // Import useSelector
-import { selectAuthUser } from '../../store/slices/authSlice'; // Import the selector
-import { TaskStatus } from '../../types'; // Import TaskStatus enum
+import { deleteTask } from '../../services/tasks.service';
+import { format, isPast } from 'date-fns';
+import { useSelector } from 'react-redux';
+import { selectAuthUser } from '../../store/slices/authSlice';
+import { TaskStatus, TaskType } from '../../types';
 import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, TextField, Button } from '@mui/material';
+import { formatAssigneeDisplay, formatAssignerDisplay } from '../../utils/userDisplayUtils';
 
 interface TaskListProps {
   tasks: Task[];
@@ -81,48 +82,9 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onEdit, onDelete }) => {
               const dueDateObj = task.dueDate ? new Date(task.dueDate) : null;
               const isOverdue = dueDateObj && isPast(dueDateObj) && task.status !== TaskStatus.COMPLETED && task.status !== TaskStatus.CANCELLED;
               
-              // --- REVISED ASSIGNEE LOGIC ---
-              let assigneeDisplay = 'Unassigned'; // Default
-              const resolvedCurrentUser = currentUser; // Ensure currentUser is resolved before use in conditions
-
-              if (resolvedCurrentUser) {
-                const isCreatedByCurrentUser = task.createdById === resolvedCurrentUser.id;
-                const isAssignedToCurrentUser = task.assignedToUsers?.some(user => user.id === resolvedCurrentUser.id);
-                const hasOtherAssignees = task.assignedToUsers && task.assignedToUsers.length > 0;
-                // Check if it's explicitly assigned to users *other than* the current user
-                const isAssignedToOthersOnly = hasOtherAssignees && !isAssignedToCurrentUser;
-                const isAssignedToDepartment = task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0;
-                const isEffectivelyUnassigned = !hasOtherAssignees && !isAssignedToDepartment; // Not assigned to any specific user or dept
-
-                if (task.type === TaskType.PERSONAL) {
-                  if (isCreatedByCurrentUser) {
-                    assigneeDisplay = resolvedCurrentUser.username || 'My Task';
-                  } else {
-                    // Personal task created by someone else (e.g. admin view)
-                    assigneeDisplay = task.createdBy?.username || `User (${task.createdById.substring(0,6)})`;
-                  }
-                } else if (isAssignedToCurrentUser) {
-                  assigneeDisplay = resolvedCurrentUser.username || 'My Task';
-                } else if (hasOtherAssignees) { // Assigned to some user(s), but not the current one
-                  assigneeDisplay = task.assignedToUsers?.map(u => u.username || u.first_name || `User (${u.id.substring(0,6)})`).join(', ') || 'Assigned';
-                } else if (isAssignedToDepartment) {
-                  assigneeDisplay = 'Department Task';
-                } else if (isCreatedByCurrentUser && isEffectivelyUnassigned) { 
-                  // Created by current user, not PERSONAL type, and not assigned to anyone else or dept
-                  assigneeDisplay = resolvedCurrentUser.username || 'My Task';
-                }
-                // If none of the above, it remains 'Unassigned'
-              } else {
-                // Fallback if no current user (e.g., public view, though unlikely for this component)
-                if (task.assignedToUsers && task.assignedToUsers.length > 0) {
-                  assigneeDisplay = task.assignedToUsers.map(u => u.username || u.first_name || `User (${u.id.substring(0,6)})`).join(', ');
-                } else if (task.assignedToDepartmentIds && task.assignedToDepartmentIds.length > 0) {
-                  assigneeDisplay = 'Department Task';
-                }
-              }
-              // --------------------------------
-
-              const creatorName = task.createdBy?.username || task.createdBy?.first_name || `User ${task.createdById.substring(0, 6)}...`; // Fallback to truncated ID
+              // Use utility functions for proper display
+              const assigneeDisplay = formatAssigneeDisplay(task, currentUser);
+              const creatorName = formatAssignerDisplay(task);
 
               // Assumption: Description is not needed in the main table view per user request.
               // Clicking task might show details later.

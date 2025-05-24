@@ -131,10 +131,11 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
     setLoading(true);
 
-    const newTaskPayload: Omit<CreateTask, 'status' | 'type' | 'createdById'> = {
+    const newTaskPayload: Omit<CreateTask, 'status' | 'createdById'> = {
       title,
       description,
       priority,
+      type: taskType,
       dueDate: dueDate ? dayjs(dueDate).toISOString() : undefined,
       assignedToUserIds: taskType === TaskType.USER ? assignedToUserIds : undefined,
       assignedToDepartmentIds: (taskType === TaskType.DEPARTMENT || taskType === TaskType.PROVINCE_DEPARTMENT) ? assignedToDepartmentIds : undefined,

@@ -308,48 +308,7 @@ export const TaskService = {
         return response.data.map(standardizeTask);
     },
 
-    // Create a new task
-    // Reverted signature: Accept optional createdById based on CreateTask type
-    // Payload construction will handle conditional inclusion
-    createTask: async (taskData: Omit<CreateTask, 'status' | 'type'>): Promise<Task> => {
-        try {
-            console.log('Creating task with data:', taskData);
-
-            // Base payload without conditional fields
-            const payload: any = {
-                title: taskData.title,
-                description: taskData.description || '',
-                priority: taskData.priority,
-                assignedToUserIds: taskData.assignedToUserIds,
-                assignedToDepartmentIds: taskData.assignedToDepartmentIds,
-                assignedToProvinceId: taskData.assignedToProvinceId,
-                isDelegated: taskData.isDelegated,
-                dueDate: taskData.dueDate ? (dayjs.isDayjs(taskData.dueDate) ? taskData.dueDate.toISOString() : toISOString(taskData.dueDate)) : null,
-            };
-
-            // Conditionally add createdById if it exists in taskData
-            // This allows the dialog to control sending it based on task type
-            if (taskData.createdById) {
-                payload.createdById = taskData.createdById;
-            }
-
-            // Filter out undefined/null values from payload before sending
-            Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null) && delete payload[key]);
-
-            console.log('Submitting payload to API:', payload);
-
-            const response = await apiClient.post<Task>('/tasks/', payload);
-            const createdTask = response.data;
-
-            return {
-                ...standardizeTask(createdTask),
-                priority: taskData.priority as TaskPriority
-            };
-        } catch (error) {
-            console.error('Error creating task:', error);
-            throw error;
-        }
-    },
+    // Create a new task    createTask: async (taskData: Omit<CreateTask, 'status'>): Promise<Task> => {        try {            console.log('Creating task with data:', taskData);                        // Base payload without conditional fields            const payload: any = {                title: taskData.title,                description: taskData.description || '',                priority: taskData.priority,                type: taskData.type,                assignedToUserIds: taskData.assignedToUserIds,                assignedToDepartmentIds: taskData.assignedToDepartmentIds,                assignedToProvinceId: taskData.assignedToProvinceId,                isDelegated: taskData.isDelegated,                dueDate: taskData.dueDate ? (dayjs.isDayjs(taskData.dueDate) ? taskData.dueDate.toISOString() : toISOString(taskData.dueDate)) : null,            };                        // Conditionally add createdById if it exists in taskData            // This allows the dialog to control sending it based on task type            if (taskData.createdById) {                payload.createdById = taskData.createdById;            }                        // Filter out undefined/null values from payload before sending            Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null) && delete payload[key]);                        console.log('Submitting payload to API:', payload);            const response = await apiClient.post<Task>('/tasks/', payload);            const createdTask = response.data;                        return {                ...standardizeTask(createdTask),                priority: taskData.priority as TaskPriority            };        } catch (error) {            console.error('Error creating task:', error);            throw error;        }    },
 
     // Update an existing task
     updateTask: async (taskId: string, updates: TaskUpdate): Promise<Task> => {
@@ -657,6 +616,37 @@ export const TaskService = {
             return response.data;
         } catch (error) {
             console.error('Error fetching task overview data:', error);
+            throw error;
+        }
+    },
+
+    // NEW method to fetch tasks by status with pagination for Tasks Overview tabs
+    getTasksByStatusWithPagination: async (
+        status: string,
+        page: number = 1,
+        limit: number = 10
+    ): Promise<{ tasks: Task[], total: number, totalPages: number }> => {
+        try {
+            console.log(`[TaskService.getTasksByStatusWithPagination] Fetching ${status} tasks, page ${page}, limit ${limit}`);
+            const response = await apiClient.get<{ tasks: Task[], total: number, totalPages: number }>(
+                '/admin/dashboard/tasks-by-status',
+                {
+                    params: { status, page: page.toString(), limit: limit.toString() }
+                }
+            );
+            
+            console.log('[TaskService.getTasksByStatusWithPagination] API Response:', response.data);
+            
+            // Standardize tasks in the response
+            const standardizedTasks = response.data.tasks.map(standardizeTask);
+            
+            return {
+                tasks: standardizedTasks,
+                total: response.data.total,
+                totalPages: response.data.totalPages
+            };
+        } catch (error) {
+            console.error('Error fetching tasks by status with pagination:', error);
             throw error;
         }
     },

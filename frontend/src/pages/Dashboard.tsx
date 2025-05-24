@@ -104,18 +104,7 @@ const initialDashboardData: DashboardTasksResponse = {
 // Define identifiers for task sections
 type TaskSectionId = 'assigned' | 'created' | 'personal' | 'myDepartments' | 'delegatedTo' | 'delegatedBy';
 
-// Define structure for section configuration
-interface TaskSectionConfig {
-  id: TaskSectionId;
-  title: string;
-  tasks: Task[];
-  color: string; // Subtle background color
-  showAddButton?: boolean;
-  addTaskType?: TaskType;
-  departmentName?: string; // Optional: For dynamic title
-}
-
-// Define subtle colors for sections
+// Define structure for section configurationinterface TaskSectionConfig {  id: TaskSectionId;  title: string;  tasks: Task[];  color: string; // Subtle background color  showAddButton?: boolean;  addTaskType?: TaskType;  departmentName?: string; // Optional: For dynamic title  description?: string; // Description of what tasks are included in this section}// Define subtle colors for sections
 const SECTION_COLORS: Record<TaskSectionId, string> = {
   assigned: 'rgba(100, 181, 246, 0.08)', // Light Blue tint
   created: 'rgba(229, 115, 115, 0.08)', // Light Red tint
@@ -683,38 +672,44 @@ const Dashboard: React.FC = () => {
         title: 'Tasks Assigned To Me',
         tasks: dashboardData.tasksAssignedToMe || [],
         color: SECTION_COLORS.assigned,
+        description: 'Tasks specifically assigned to me as an individual'
       },
       {
         id: 'myDepartments',
-        title: departmentTitle,
+        title: 'Department Tasks',
         tasks: dashboardData.tasksAssignedToMyDepartments || [],
         color: SECTION_COLORS.myDepartments,
+        description: 'Tasks assigned to my department(s) as a whole'
       },
       {
         id: 'created',
         title: 'Tasks I Created/Assigned',
         tasks: dashboardData.tasksICreatedForOthers || [],
         color: SECTION_COLORS.created,
+        description: 'Tasks I have created or assigned to others'
       },
       {
         id: 'personal',
-        title: 'My Tasks (Personal)',
+        title: 'My Personal Tasks',
         tasks: dashboardData.myPersonalTasks || [],
         color: SECTION_COLORS.personal,
         showAddButton: true,
         addTaskType: TaskType.PERSONAL,
+        description: 'My personal tasks and reminders'
       },
       {
         id: 'delegatedTo',
         title: 'Tasks Delegated To Me',
         tasks: dashboardData.tasksDelegatedToMe || [],
         color: SECTION_COLORS.delegatedTo,
+        description: 'Tasks that have been delegated to me by others'
       },
       {
         id: 'delegatedBy',
-        title: 'Tasks Delegated By Me',
+        title: 'Tasks I Delegated',
         tasks: dashboardData.tasksDelegatedByMe || [],
         color: SECTION_COLORS.delegatedBy,
+        description: 'Tasks I have delegated to others'
       },
     ];
   }, [dashboardData]);

@@ -1,524 +1,764 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
-  Typography,
   Paper,
-  Alert,
-  Skeleton,
-  CircularProgress,
+  Typography,
+  Tabs,
+  Tab,
+  Button,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
   Grid,
   Card,
   CardContent,
-  TableContainer,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Container,
-  Button,
+  CardHeader,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  IconButton,
+  Divider,
+  LinearProgress,
+  useTheme,
+  Skeleton,
+  Alert,
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  SelectChangeEvent,
 } from '@mui/material';
-import GppBadOutlinedIcon from '@mui/icons-material/GppBadOutlined';
-import { Task, TaskStatus, User, Department } from '@/types/index';
-import { RootState } from '@/store';
-import { TaskService } from '@/services/task';
-import { UserService } from '@/services/user';
-import { DepartmentService } from '@/services/department';
-import Sidebar from '@/components/Sidebar';
-import ModernDashboardLayout from '@/components/dashboard/ModernDashboardLayout';
-import DashboardTopBar from '@/components/dashboard/DashboardTopBar';
-import api from '../utils/axios';
+import {
+  Assignment as TaskIcon,
+  Person as PersonIcon,
+  Business as BusinessIcon,
+  LocationOn as ProvinceIcon,
+  Delete as DeleteIcon,
+  Restore as RestoreIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  FilterList as FilterIcon,
+  Visibility as ViewIcon,
+  Assessment as ChartIcon,
+  Schedule as PendingIcon,
+  PlayArrow as InProgressIcon,
+  CheckCircle as CompletedIcon,
+  Forward as DelegatedIcon,
+} from '@mui/icons-material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { Task, TaskStatus, TaskType, User, Department, Province } from '../types';
+import { TaskService } from '../services/task';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
 import { format } from 'date-fns';
 
-// Define interfaces for the expected data structure from the backend
-interface OverallCountsDto {
-  totalTasks: number;
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel({ children, value, index, ...other }: TabPanelProps) {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`overview-tabpanel-${index}`}
+      aria-labelledby={`overview-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
+interface TaskStats {
+  total: number;
   pending: number;
   inProgress: number;
   completed: number;
-  cancelled: number;
-  delegated: number;
-  overdue: number;
-  dueToday: number;
-  activeUsers: number;
-  totalDepartments: number;
+  completionRate: number;
 }
 
-// Add DepartmentStatsDto interface matching backend
-interface DepartmentStatsDto {
-  departmentId: string;
-  departmentName: string;
-  counts: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    overdue: number;
-    total: number;
-  };
+interface RecycleBinTask extends Task {
+  deletedAt: Date;
+  deletedBy: User;
+  deletionReason: string;
 }
 
-// Add UserTaskStatsDto interface matching backend
-interface UserTaskStatsDto {
-  userId: string;
-  username: string;
-  counts: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    overdue: number;
-    totalAssigned: number;
-  };
+interface DelegationInfo {
+  task: Task;
+  delegatedBy: User;
+  delegatedTo: User;
+  delegationReason: string;
+  delegatedAt: Date;
 }
 
-// Add ProvinceStatsDto interface matching backend
-interface ProvinceStatsDto {
-  provinceId: string;
-  provinceName: string;
-  counts: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    overdue: number;
-    total: number;
-  };
-}
-
-interface TaskOverviewStatsDto {
-  overallCounts: OverallCountsDto;
-  departmentStats: DepartmentStatsDto[];
-  userStats: UserTaskStatsDto[];
-  provinceStats: ProvinceStatsDto[];
-  overdueTasks: Task[];
-}
-
-const REQUIRED_PERMISSION = "page:view:tasks_overview";
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const TasksOverview: React.FC = () => {
-  const navigate = useNavigate();
-  const { user: currentUser, token } = useSelector((state: RootState) => state.auth);
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('sidebarOpenState');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
-  const [notifications, setNotifications] = useState(0);
-  const [topWidgetsVisible, setTopWidgetsVisible] = useState(true);
-  const [stats, setStats] = useState<TaskOverviewStatsDto | null>(null);
-  const [loadingStats, setLoadingStats] = useState<boolean>(false);
-  const [statsError, setStatsError] = useState<string | null>(null);
-
-  const { data: fetchedUsers = [], isLoading: isLoadingUsers, error: usersError } = useQuery<User[]>({
-    queryKey: ['users'],
-    queryFn: UserService.getUsers,
-  });
-
-  const { data: fetchedDepartments = [], isLoading: isLoadingDepartments, error: departmentsError } = useQuery<Department[]>({
-    queryKey: ['departments'],
-    queryFn: DepartmentService.getDepartments,
-  });
-
-  const { data: allTasksData = [], isLoading: isLoadingAllTasks, error: allTasksError } = useQuery<Task[]>({
-    queryKey: ['allTasksForOverview'],
-    queryFn: () => TaskService.getTasks({}),
-  });
-
-  const isLoading = isLoadingUsers || isLoadingDepartments || isLoadingAllTasks;
-  const errorCombined = usersError || departmentsError || allTasksError;
+  const theme = useTheme();
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
+  
+  const [activeTab, setActiveTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [recycleBinTasks, setRecycleBinTasks] = useState<RecycleBinTask[]>([]);
+  const [delegations, setDelegations] = useState<DelegationInfo[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  
+  // Filters
+  const [userFilter, setUserFilter] = useState<string>('');
+  const [departmentFilter, setDepartmentFilter] = useState<string>('');
+  const [provinceFilter, setProvinceFilter] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<string>('all');
+  
+  // Dialogs
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [selectedTaskToRestore, setSelectedTaskToRestore] = useState<RecycleBinTask | null>(null);
 
   useEffect(() => {
-    if (!currentUser || !token) {
-      navigate('/login');
-      return;
-    }
-
-    let userPermissions: string[] = [];
-    if (currentUser.role && typeof currentUser.role === 'object' && Array.isArray(currentUser.role.permissions)) {
-        userPermissions = currentUser.role.permissions.map(p => p.name);
-    }
-    
-    if (userPermissions.includes(REQUIRED_PERMISSION)) {
-      setHasAccess(true);
-    } else {
-      console.warn(`User ${currentUser.username} (Role: ${typeof currentUser.role === 'object' ? currentUser.role.name : currentUser.role}) does not have permission: ${REQUIRED_PERMISSION}`);
-      setHasAccess(false);
-    }
-  }, [currentUser, token, navigate]);
-
-  useEffect(() => {
-    if (hasAccess !== true) return;
-
-    const fetchOverviewStats = async () => {
-      setLoadingStats(true);
-      setStatsError(null);
+    const loadData = async () => {
+      setLoading(true);
       try {
-        const response = await api.get<TaskOverviewStatsDto>('/admin/dashboard/tasks-overview');
-        setStats(response.data);
-      } catch (err: any) {
-        console.error("Error fetching task overview stats:", err);
-        setStatsError(err.response?.data?.message || err.message || 'Failed to fetch overview statistics.');
+        const [tasksData, usersData, deptsData, provData] = await Promise.all([
+          TaskService.getAllTasks(),
+          TaskService.getUsers(),
+          TaskService.getDepartments(),
+          TaskService.getProvinces(),
+        ]);
+        
+        setTasks(tasksData.filter(task => !task.isDeleted));
+        setUsers(usersData);
+        setDepartments(deptsData);
+        setProvinces(provData);
+        
+        // Simulate loading recycle bin data and delegations
+        // In real implementation, these would be separate API calls
+        const deletedTasks = tasksData.filter(task => task.isDeleted);
+        setRecycleBinTasks(deletedTasks as RecycleBinTask[]);
+        
+        const delegatedTasks = tasksData.filter(task => task.isDelegated);
+        setDelegations(delegatedTasks.map(task => ({
+          task,
+          delegatedBy: task.delegatedBy || {} as User,
+          delegatedTo: task.assignedToUsers?.[0] || {} as User,
+          delegationReason: task.delegationReason || '',
+          delegatedAt: new Date(task.createdAt),
+        })));
+        
+      } catch (error) {
+        console.error('Error loading tasks overview data:', error);
       } finally {
-        setLoadingStats(false);
+        setLoading(false);
       }
     };
 
-    fetchOverviewStats();
-  }, [hasAccess]);
+    loadData();
+  }, []);
 
-  const handleToggleSidebar = useCallback(() => {
-    setSidebarOpen(prev => {
-      const newState = !prev;
-      localStorage.setItem('sidebarOpenState', JSON.stringify(newState));
-      return newState;
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (userFilter && !task.assignedToUsers?.some(user => user.id === userFilter)) {
+        return false;
+      }
+      if (departmentFilter && !task.assignedToDepartments?.some(dept => dept.id === departmentFilter)) {
+        return false;
+      }
+      if (provinceFilter && task.assignedToProvince?.id !== provinceFilter) {
+        return false;
+      }
+      if (dateFilter !== 'all') {
+        const taskDate = new Date(task.createdAt);
+        const now = new Date();
+        const daysDiff = Math.floor((now.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        switch (dateFilter) {
+          case 'week':
+            return daysDiff <= 7;
+          case 'month':
+            return daysDiff <= 30;
+          case 'quarter':
+            return daysDiff <= 90;
+          default:
+            return true;
+        }
+      }
+      return true;
     });
-  }, []);
+  }, [tasks, userFilter, departmentFilter, provinceFilter, dateFilter]);
 
-  const handleLogout = useCallback(() => {
-    navigate('/login');
-  }, [navigate]);
+  const taskStats: TaskStats = useMemo(() => {
+    const total = filteredTasks.length;
+    const pending = filteredTasks.filter(task => task.status === TaskStatus.PENDING).length;
+    const inProgress = filteredTasks.filter(task => task.status === TaskStatus.IN_PROGRESS).length;
+    const completed = filteredTasks.filter(task => task.status === TaskStatus.COMPLETED).length;
+    const completionRate = total > 0 ? (completed / total) * 100 : 0;
 
-  const handleToggleTopWidgets = useCallback(() => {
-    setTopWidgetsVisible(prev => !prev);
-  }, []);
+    return { total, pending, inProgress, completed, completionRate };
+  }, [filteredTasks]);
 
-  const formatAssignees = (task: Task): string => {
-    let assignees: string[] = [];
-    if (task.assignedToUsers && task.assignedToUsers.length > 0) {
-      assignees.push(...task.assignedToUsers.map(u => u.username));
-    }
-    if (task.assignedToDepartments && task.assignedToDepartments.length > 0) {
-      assignees.push(...task.assignedToDepartments.map(d => `${d.name} (Dept)`));
-    }
-    return assignees.length > 0 ? assignees.join(', ') : 'Unassigned';
+  const chartData = useMemo(() => {
+    const statusData = [
+      { name: 'Pending', value: taskStats.pending, color: '#FFA726' },
+      { name: 'In Progress', value: taskStats.inProgress, color: '#42A5F5' },
+      { name: 'Completed', value: taskStats.completed, color: '#66BB6A' },
+    ];
+
+    const typeData = [
+      { name: 'Personal', value: filteredTasks.filter(task => task.type === TaskType.PERSONAL).length },
+      { name: 'Department', value: filteredTasks.filter(task => task.type === TaskType.DEPARTMENT).length },
+      { name: 'User', value: filteredTasks.filter(task => task.type === TaskType.USER).length },
+      { name: 'Province', value: filteredTasks.filter(task => task.type === TaskType.PROVINCE_DEPARTMENT).length },
+    ];
+
+    return { statusData, typeData };
+  }, [filteredTasks, taskStats]);
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
   };
 
-  const renderActualContent = () => {
-    if (loadingStats) {
-      return <Box sx={{ p: 3, textAlign: 'center'}}><CircularProgress /></Box>;
+  const handleRestoreTask = async (task: RecycleBinTask) => {
+    try {
+      await TaskService.restoreTask(task.id);
+      setRecycleBinTasks(prev => prev.filter(t => t.id !== task.id));
+      setRestoreDialogOpen(false);
+      setSelectedTaskToRestore(null);
+    } catch (error) {
+      console.error('Error restoring task:', error);
     }
-    if (statsError) {
-      return <Alert severity="error" sx={{ m: 3 }}>{statsError}</Alert>;
+  };
+
+  const getStatusIcon = (status: TaskStatus) => {
+    switch (status) {
+      case TaskStatus.PENDING:
+        return <PendingIcon sx={{ color: '#FFA726' }} />;
+      case TaskStatus.IN_PROGRESS:
+        return <InProgressIcon sx={{ color: '#42A5F5' }} />;
+      case TaskStatus.COMPLETED:
+        return <CompletedIcon sx={{ color: '#66BB6A' }} />;
+      default:
+        return <TaskIcon />;
     }
-    if (!stats) {
-        return <Typography sx={{p: 3, color: 'text.secondary'}}>No statistics available.</Typography>;
+  };
+
+  const getTypeIcon = (type: TaskType) => {
+    switch (type) {
+      case TaskType.PERSONAL:
+        return <PersonIcon />;
+      case TaskType.DEPARTMENT:
+        return <BusinessIcon />;
+      case TaskType.USER:
+        return <PersonIcon />;
+      case TaskType.PROVINCE_DEPARTMENT:
+        return <ProvinceIcon />;
+      default:
+        return <TaskIcon />;
     }
-    
+  };
+
+  if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ color: '#fff' }}>
-          Tasks Overview Dashboard
-        </Typography>
-
-        {stats && (
-          <Box>
-            {/* Section A: Overall Summary Cards */}
-            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 2, mb: 2 }}>
-              Overall Summary
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">Total Tasks</Typography>
-                    <Typography variant="h4">{stats.overallCounts.totalTasks}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">Pending</Typography>
-                    <Typography variant="h4">{stats.overallCounts.pending}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">In Progress</Typography>
-                    <Typography variant="h4">{stats.overallCounts.inProgress}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">Completed</Typography>
-                    <Typography variant="h4">{stats.overallCounts.completed}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ color: 'orange' }}>Overdue</Typography>
-                    <Typography variant="h4" sx={{ color: 'orange' }}>{stats.overallCounts.overdue}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">Due Today</Typography>
-                    <Typography variant="h4">{stats.overallCounts.dueToday}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">Active Users</Typography>
-                    <Typography variant="h4">{stats.overallCounts.activeUsers}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Card sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                  <CardContent>
-                    <Typography variant="h6">Departments</Typography>
-                    <Typography variant="h4">{stats.overallCounts.totalDepartments}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-
-            {/* Section B: Department Performance Table */}
-            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
-              Department Performance
-            </Typography>
-            {stats.departmentStats && stats.departmentStats.length > 0 ? (
-              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                <Table aria-label="department performance table">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Department</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Total</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Pending</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>In Progress</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Completed</TableCell>
-                      <TableCell align="right" sx={{ color: 'orange', fontWeight: 'bold' }}>Overdue</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {stats.departmentStats.map((dept) => (
-                      <TableRow key={dept.departmentId} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
-                          {dept.departmentName}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.total}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.pending}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.inProgress}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{dept.counts.completed}</TableCell>
-                        <TableCell align="right" sx={{ color: dept.counts.overdue > 0 ? 'orange' : '#fff' }}>{dept.counts.overdue}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info">No department task data available.</Alert>
-            )}
-            
-            {/* Section C: User Performance Table */}
-            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
-              User Performance
-            </Typography>
-            {stats.userStats && stats.userStats.length > 0 ? (
-              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                <Table aria-label="user performance table">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>User</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Total Assigned</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Pending</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>In Progress</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Completed</TableCell>
-                      <TableCell align="right" sx={{ color: 'orange', fontWeight: 'bold' }}>Overdue</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {stats.userStats.map((userStat) => (
-                      <TableRow key={userStat.userId} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
-                          {userStat.username}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.totalAssigned}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.pending}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.inProgress}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{userStat.counts.completed}</TableCell>
-                        <TableCell align="right" sx={{ color: userStat.counts.overdue > 0 ? 'orange' : '#fff' }}>{userStat.counts.overdue}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info">No user task data available.</Alert>
-            )}
-
-            {/* Section D: Province Performance Table */}
-            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
-              Province Performance
-            </Typography>
-            {stats.provinceStats && stats.provinceStats.length > 0 ? (
-              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                <Table aria-label="province performance table">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Province</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Total Tasks</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Pending</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>In Progress</TableCell>
-                      <TableCell align="right" sx={{ color: '#ccc', fontWeight: 'bold' }}>Completed</TableCell>
-                      <TableCell align="right" sx={{ color: 'orange', fontWeight: 'bold' }}>Overdue</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {stats.provinceStats.map((provStat) => (
-                      <TableRow key={provStat.provinceId} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
-                          {provStat.provinceName}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.total}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.pending}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.inProgress}</TableCell>
-                        <TableCell align="right" sx={{ color: '#fff' }}>{provStat.counts.completed}</TableCell>
-                        <TableCell align="right" sx={{ color: provStat.counts.overdue > 0 ? 'orange' : '#fff' }}>{provStat.counts.overdue}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info">No province task data available.</Alert>
-            )}
-
-            {/* Section E: Overdue Tasks List */}
-            <Typography variant="h5" gutterBottom sx={{ color: '#eee', mt: 4, mb: 2 }}>
-              Overdue Tasks (Oldest First)
-            </Typography>
-            {stats.overdueTasks && stats.overdueTasks.length > 0 ? (
-              <TableContainer component={Paper} sx={{ background: 'rgba(255, 255, 255, 0.08)', color: '#fff' }}>
-                <Table aria-label="overdue tasks table" size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Title</TableCell>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Due Date</TableCell>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Assignee(s)/Dept(s)</TableCell>
-                      <TableCell sx={{ color: '#ccc', fontWeight: 'bold' }}>Created By</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {stats.overdueTasks.map((task) => (
-                      <TableRow key={task.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell component="th" scope="row" sx={{ color: '#fff' }}>
-                          {task.title}
-                        </TableCell>
-                        <TableCell sx={{ color: 'orange' }}>
-                          {task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'N/A'}
-                        </TableCell>
-                        <TableCell sx={{ color: '#fff' }}>{formatAssignees(task)}</TableCell>
-                        <TableCell sx={{ color: '#fff' }}>{task.createdBy?.username ?? 'Unknown'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info">No overdue tasks found.</Alert>
-            )}
-
-          </Box>
-        )}
+        <Skeleton variant="text" width="30%" height={40} />
+        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} variant="rectangular" width="25%" height={120} />
+          ))}
+        </Box>
+        <Skeleton variant="rectangular" width="100%" height={400} sx={{ mt: 2 }} />
       </Box>
-    );
-  };
-
-  if (hasAccess === null) {
-    return (
-      <ModernDashboardLayout
-        sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={240} />}
-        topBar={<DashboardTopBar 
-                  username={currentUser?.username ?? 'User'} 
-                  notificationCount={notifications}
-                  onToggleSidebar={handleToggleSidebar}
-                  onNotificationClick={() => setNotifications(0)}
-                  onProfileClick={() => navigate('/profile')}
-                  onSettingsClick={() => navigate('/settings')}
-                  onHelpClick={() => console.log('Help clicked')}
-                  onLogout={handleLogout}
-                  onToggleTopWidgets={handleToggleTopWidgets}
-                  topWidgetsVisible={topWidgetsVisible}
-                />}
-        mainContent={
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-            <CircularProgress />
-          </Box>
-        }
-        sidebarOpen={sidebarOpen}
-        drawerWidth={240}
-      />
-    );
-  }
-
-  if (hasAccess === false) {
-    return (
-      <ModernDashboardLayout
-        sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={240} />}
-        topBar={<DashboardTopBar 
-                  username={currentUser?.username ?? 'User'} 
-                  notificationCount={notifications}
-                  onToggleSidebar={handleToggleSidebar}
-                  onNotificationClick={() => setNotifications(0)}
-                  onProfileClick={() => navigate('/profile')}
-                  onSettingsClick={() => navigate('/settings')}
-                  onHelpClick={() => console.log('Help clicked')}
-                  onLogout={handleLogout}
-                  onToggleTopWidgets={handleToggleTopWidgets}
-                  topWidgetsVisible={topWidgetsVisible}
-                />}
-        mainContent={
-          <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
-            <GppBadOutlinedIcon sx={{ fontSize: 80, color: 'error.main' }} />
-            <Typography variant="h4" component="h1" gutterBottom sx={{ color: 'error.main' }}>
-              Access Denied
-            </Typography>
-            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-              You do not have the required permission ({REQUIRED_PERMISSION}) to view this page.
-            </Typography>
-            <Button variant="contained" onClick={() => navigate('/dashboard')} sx={{ mt: 3 }}>
-              Go to Dashboard
-            </Button>
-          </Container>
-        }
-        sidebarOpen={sidebarOpen}
-        drawerWidth={240}
-      />
     );
   }
 
   return (
-    <ModernDashboardLayout
-      sidebar={<Sidebar open={sidebarOpen} onToggleDrawer={handleToggleSidebar} onLogout={handleLogout} drawerWidth={240} />}
-      topBar={<DashboardTopBar 
-                username={currentUser?.username ?? 'User'} 
-                notificationCount={notifications}
-                onToggleSidebar={handleToggleSidebar}
-                onNotificationClick={() => setNotifications(0)}
-                onProfileClick={() => navigate('/profile')}
-                onSettingsClick={() => navigate('/settings')}
-                onHelpClick={() => console.log('Help clicked')}
-                onLogout={handleLogout}
-                onToggleTopWidgets={handleToggleTopWidgets}
-                topWidgetsVisible={topWidgetsVisible}
-              />}
-      mainContent={renderActualContent()}
-      sidebarOpen={sidebarOpen}
-      drawerWidth={240}
-    />
+    <Box sx={{ width: '100%', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" gutterBottom fontWeight="600">
+          Tasks Overview
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Monitor task performance across users, departments, and provinces
+        </Typography>
+
+        {/* Statistics Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
+                      Total Tasks
+                    </Typography>
+                    <Typography variant="h4" fontWeight="600">
+                      {taskStats.total}
+                    </Typography>
+                  </Box>
+                  <TaskIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
+                      Completion Rate
+                    </Typography>
+                    <Typography variant="h4" fontWeight="600">
+                      {taskStats.completionRate.toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <TrendingUpIcon sx={{ fontSize: 40, color: 'success.main' }} />
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={taskStats.completionRate}
+                  sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
+                      In Progress
+                    </Typography>
+                    <Typography variant="h4" fontWeight="600">
+                      {taskStats.inProgress}
+                    </Typography>
+                  </Box>
+                  <InProgressIcon sx={{ fontSize: 40, color: 'info.main' }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
+                      Pending
+                    </Typography>
+                    <Typography variant="h4" fontWeight="600">
+                      {taskStats.pending}
+                    </Typography>
+                  </Box>
+                  <PendingIcon sx={{ fontSize: 40, color: 'warning.main' }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* Filters */}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <FilterIcon />
+            <Typography variant="h6">Filters</Typography>
+            
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>User</InputLabel>
+              <Select
+                value={userFilter}
+                label="User"
+                onChange={(e: SelectChangeEvent) => setUserFilter(e.target.value)}
+              >
+                <MenuItem value="">All Users</MenuItem>
+                {users.map((user) => (
+                  <MenuItem key={user.id} value={user.id}>
+                    {user.firstName} {user.lastName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Department</InputLabel>
+              <Select
+                value={departmentFilter}
+                label="Department"
+                onChange={(e: SelectChangeEvent) => setDepartmentFilter(e.target.value)}
+              >
+                <MenuItem value="">All Departments</MenuItem>
+                {departments.map((dept) => (
+                  <MenuItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Province</InputLabel>
+              <Select
+                value={provinceFilter}
+                label="Province"
+                onChange={(e: SelectChangeEvent) => setProvinceFilter(e.target.value)}
+              >
+                <MenuItem value="">All Provinces</MenuItem>
+                {provinces.map((province) => (
+                  <MenuItem key={province.id} value={province.id}>
+                    {province.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Date Range</InputLabel>
+              <Select
+                value={dateFilter}
+                label="Date Range"
+                onChange={(e: SelectChangeEvent) => setDateFilter(e.target.value)}
+              >
+                <MenuItem value="all">All Time</MenuItem>
+                <MenuItem value="week">Last Week</MenuItem>
+                <MenuItem value="month">Last Month</MenuItem>
+                <MenuItem value="quarter">Last Quarter</MenuItem>
+              </Select>
+            </FormControl>
+
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setUserFilter('');
+                setDepartmentFilter('');
+                setProvinceFilter('');
+                setDateFilter('all');
+              }}
+            >
+              Clear Filters
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* Charts */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader title="Task Status Distribution" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={chartData.statusData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {chartData.statusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader title="Task Types" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData.typeData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <RechartsTooltip />
+                    <Bar dataKey="value" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* Tabs */}
+        <Paper sx={{ width: '100%' }}>
+          <Tabs value={activeTab} onChange={handleTabChange} variant="fullWidth">
+            <Tab label="Pending Tasks" />
+            <Tab label="In Progress Tasks" />
+            <Tab label="Completed Tasks" />
+            <Tab label="Deleted Tasks" />
+            <Tab label="Delegated Tasks" />
+          </Tabs>
+
+          {/* Pending Tasks */}
+          <TabPanel value={activeTab} index={0}>
+            <TasksTable 
+              tasks={filteredTasks.filter(task => task.status === TaskStatus.PENDING)}
+              users={users}
+              departments={departments}
+              provinces={provinces}
+            />
+          </TabPanel>
+
+          {/* In Progress Tasks */}
+          <TabPanel value={activeTab} index={1}>
+            <TasksTable 
+              tasks={filteredTasks.filter(task => task.status === TaskStatus.IN_PROGRESS)}
+              users={users}
+              departments={departments}
+              provinces={provinces}
+            />
+          </TabPanel>
+
+          {/* Completed Tasks */}
+          <TabPanel value={activeTab} index={2}>
+            <TasksTable 
+              tasks={filteredTasks.filter(task => task.status === TaskStatus.COMPLETED)}
+              users={users}
+              departments={departments}
+              provinces={provinces}
+            />
+          </TabPanel>
+
+          {/* Deleted Tasks (Recycle Bin) */}
+          <TabPanel value={activeTab} index={3}>
+            <RecycleBinTable 
+              tasks={recycleBinTasks}
+              onRestore={(task) => {
+                setSelectedTaskToRestore(task);
+                setRestoreDialogOpen(true);
+              }}
+            />
+          </TabPanel>
+
+          {/* Delegated Tasks */}
+          <TabPanel value={activeTab} index={4}>
+            <DelegatedTasksTable delegations={delegations} />
+          </TabPanel>
+        </Paper>
+      </Box>
+
+      {/* Restore Dialog */}
+      <Dialog open={restoreDialogOpen} onClose={() => setRestoreDialogOpen(false)}>
+        <DialogTitle>Restore Task</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to restore "{selectedTaskToRestore?.title}"?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRestoreDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={() => selectedTaskToRestore && handleRestoreTask(selectedTaskToRestore)}
+            variant="contained"
+          >
+            Restore
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 
-export default TasksOverview;
+// Helper Components
+const TasksTable: React.FC<{
+  tasks: Task[];
+  users: User[];
+  departments: Department[];
+  provinces: Province[];
+}> = ({ tasks, users, departments, provinces }) => {
+  if (tasks.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 4 }}>
+        <Typography variant="h6" color="text.secondary">
+          No tasks found
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <List>
+      {tasks.map((task, index) => (
+        <React.Fragment key={task.id}>
+          <ListItem alignItems="flex-start">
+            <ListItemAvatar>
+              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                <TaskIcon />
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="subtitle1" fontWeight="600">
+                    {task.title}
+                  </Typography>
+                  <Chip 
+                    label={task.status.replace('_', ' ').toUpperCase()} 
+                    size="small"
+                    color={
+                      task.status === TaskStatus.COMPLETED ? 'success' :
+                      task.status === TaskStatus.IN_PROGRESS ? 'info' : 'warning'
+                    }
+                  />
+                  <Chip 
+                    label={task.priority.toUpperCase()} 
+                    size="small" 
+                    variant="outlined"
+                    color={
+                      task.priority === 'high' ? 'error' :
+                      task.priority === 'medium' ? 'warning' : 'success'
+                    }
+                  />
+                </Box>
+              }
+              secondary={
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {task.description}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Created: {format(new Date(task.createdAt), 'MMM dd, yyyy')}
+                    {task.dueDate && ` • Due: ${format(new Date(task.dueDate), 'MMM dd, yyyy')}`}
+                  </Typography>
+                </Box>
+              }
+            />
+          </ListItem>
+          {index < tasks.length - 1 && <Divider variant="inset" component="li" />}
+        </React.Fragment>
+      ))}
+    </List>
+  );
+};
+
+const RecycleBinTable: React.FC<{
+  tasks: RecycleBinTask[];
+  onRestore: (task: RecycleBinTask) => void;
+}> = ({ tasks, onRestore }) => {
+  if (tasks.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 4 }}>
+        <Typography variant="h6" color="text.secondary">
+          No deleted tasks found
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <List>
+      {tasks.map((task, index) => (
+        <React.Fragment key={task.id}>
+          <ListItem
+            alignItems="flex-start"
+            secondaryAction={
+              <Tooltip title="Restore Task">
+                <IconButton edge="end" onClick={() => onRestore(task)}>
+                  <RestoreIcon />
+                </IconButton>
+              </Tooltip>
+            }
+          >
+            <ListItemAvatar>
+              <Avatar sx={{ bgcolor: 'error.main' }}>
+                <DeleteIcon />
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={
+                <Typography variant="subtitle1" fontWeight="600">
+                  {task.title}
+                </Typography>
+              }
+              secondary={
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Reason: {task.deletionReason}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Deleted: {format(new Date(task.deletedAt), 'MMM dd, yyyy')} by {task.deletedBy?.firstName} {task.deletedBy?.lastName}
+                  </Typography>
+                </Box>
+              }
+            />
+          </ListItem>
+          {index < tasks.length - 1 && <Divider variant="inset" component="li" />}
+        </React.Fragment>
+      ))}
+    </List>
+  );
+};
+
+const DelegatedTasksTable: React.FC<{
+  delegations: DelegationInfo[];
+}> = ({ delegations }) => {
+  if (delegations.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 4 }}>
+        <Typography variant="h6" color="text.secondary">
+          No delegated tasks found
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <List>
+      {delegations.map((delegation, index) => (
+        <React.Fragment key={delegation.task.id}>
+          <ListItem alignItems="flex-start">
+            <ListItemAvatar>
+              <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                <DelegatedIcon />
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={
+                <Typography variant="subtitle1" fontWeight="600">
+                  {delegation.task.title}
+                </Typography>
+              }
+              secondary={
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Delegated by: {delegation.delegatedBy?.firstName} {delegation.delegatedBy?.lastName} 
+                    → {delegation.delegatedTo?.firstName} {delegation.delegatedTo?.lastName}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Reason: {delegation.delegationReason}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Delegated: {format(new Date(delegation.delegatedAt), 'MMM dd, yyyy')}
+                  </Typography>
+                </Box>
+              }
+            />
+          </ListItem>
+          {index < delegations.length - 1 && <Divider variant="inset" component="li" />}
+        </React.Fragment>
+      ))}
+    </List>
+  );
+};
+
+export default TasksOverview; 

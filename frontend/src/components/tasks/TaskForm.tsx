@@ -51,7 +51,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
         const usersData = await getUsers(); 
         const departmentsData = await getDepartments();
         const provincesData = await getProvinces();
-        setUsers(usersData);
+        setUsers(usersData.data);
         setDepartments(departmentsData);
         setProvinces(provincesData);
       } catch (err) {
@@ -97,7 +97,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
       setAssignedToUserIds([]);
       setAssignedToDepartmentIds([]);
       setAssignedToProvinceId(null);
-      setInitialType(null); // Reset initial state too
+      setInitialType(null);
+      setInitialAssignedToUserIds([]);
+      setInitialAssignedToDepartmentIds([]);
+      setInitialAssignedToProvinceId(null);
     }
   }, [task]);
 
@@ -186,6 +189,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
           assignedToDepartmentIds: (type === TaskType.DEPARTMENT || type === TaskType.PROVINCE_DEPARTMENT) ? assignedToDepartmentIds : undefined,
           assignedToProvinceId: type === TaskType.PROVINCE_DEPARTMENT ? assignedToProvinceId : undefined,
         };
+        console.log("### createPayload before addTask:", JSON.stringify(createPayload, null, 2)); // Added for debugging
         await addTask(createPayload as Omit<Task, "id" | "createdAt" | "updatedAt" | "createdById">); // Cast might still be needed if CreateTask has extra fields not in Task
         alert('Task added successfully');
       }
@@ -230,37 +234,35 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
               required
             />
           </div>
-          <div className="mb-4">
-            <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              id="status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            >
-              {/* Use enum members from index.ts */}
-              <option value={TaskStatus.PENDING}>Pending</option>
-              <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
-              <option value={TaskStatus.COMPLETED}>Completed</option>
-              <option value={TaskStatus.CANCELLED}>Cancelled</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+              <select
+                id="status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              >
+                <option value={TaskStatus.PENDING}>Pending</option>
+                <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
+                <option value={TaskStatus.COMPLETED}>Completed</option>
+                <option value={TaskStatus.CANCELLED}>Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="priority" className="block text-sm font-medium text-gray-700">Priority</label>
+              <select
+                id="priority"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              >
+                <option value={TaskPriority.LOW}>Low</option>
+                <option value={TaskPriority.MEDIUM}>Medium</option>
+                <option value={TaskPriority.HIGH}>High</option>
+              </select>
+            </div>
           </div>
-
-          <div className="mb-4">
-            <label htmlFor="priority" className="block text-sm font-medium text-gray-700">Priority</label>
-            <select
-              id="priority"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            >
-              {/* Use enum members from index.ts */}
-              <option value={TaskPriority.LOW}>Low</option>
-              <option value={TaskPriority.MEDIUM}>Medium</option>
-              <option value={TaskPriority.HIGH}>High</option>
-            </select>
-          </div>
-
           <div className="mb-4">
             <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700">Due Date</label>
             <input
@@ -273,23 +275,24 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
           </div>
 
           <div className="mb-4">
-            <label htmlFor="type" className="block text-sm font-medium text-gray-700">Type</label>
+            <label htmlFor="taskType" className="block text-sm font-medium text-gray-700">Task Type</label>
             <select
-              id="type"
+              id="taskType"
               value={type}
               onChange={(e) => handleTypeChange(e.target.value as TaskType)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
-              {/* Use enum members from index.ts */}
-              <option value={TaskType.PERSONAL}>Personal</option>
-              <option value={TaskType.DEPARTMENT}>Department</option>
-              <option value={TaskType.USER}>User Assigned</option>
-              <option value={TaskType.PROVINCE_DEPARTMENT}>Province Department</option>
+              <option value={TaskType.PERSONAL}>Personal (Self-assigned)</option>
+              <option value={TaskType.USER}>Assign to User(s)</option>
+              <option value={TaskType.DEPARTMENT}>Assign to Department(s)</option>
+              <option value={TaskType.PROVINCE_DEPARTMENT}>Assign to Provincial Department(s)</option>
             </select>
           </div>
 
-          {/* --- Assignment Fields --- */}
-          {type === TaskType.USER && (
+          {/* Conditional Assignment Fields */}
+          {loadingDropdownData && <p>Loading assignment options...</p>}
+
+          {type === TaskType.USER && !loadingDropdownData && (
             <div className="mb-4">
               <label htmlFor="assignedToUserIds" className="block text-sm font-medium text-gray-700">Assign to Users</label>
               <select
@@ -300,14 +303,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-32"
               >
                 {users.map(user => (
-                  <option key={user.id} value={user.id}>{user.username || user.email}</option>
+                  <option key={user.id} value={user.id}>{user.username} ({user.email})</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple users.</p>
+              <p className="text-xs text-gray-500">Hold Ctrl/Cmd to select multiple users.</p>
             </div>
           )}
 
-          {type === TaskType.DEPARTMENT && (
+          {type === TaskType.DEPARTMENT && !loadingDropdownData && (
             <div className="mb-4">
               <label htmlFor="assignedToDepartmentIds" className="block text-sm font-medium text-gray-700">Assign to Departments</label>
               <select
@@ -321,79 +324,80 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSuccess }) => {
                   <option key={dept.id} value={dept.id}>{dept.name}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple departments.</p>
+              <p className="text-xs text-gray-500">Hold Ctrl/Cmd to select multiple departments.</p>
             </div>
           )}
-
-          {type === TaskType.PROVINCE_DEPARTMENT && (
-            <>
-              <div className="mb-4">
+          
+          {type === TaskType.PROVINCE_DEPARTMENT && !loadingDropdownData && (
+            <div className="space-y-4 p-3 border border-dashed border-gray-300 rounded-md">
+              <div>
                 <label htmlFor="assignedToProvinceId" className="block text-sm font-medium text-gray-700">Assign to Province</label>
                 <select
                   id="assignedToProvinceId"
                   value={assignedToProvinceId || ''}
                   onChange={(e) => {
                     const newProvinceId = e.target.value || null;
-                    setAssignedToProvinceId(newProvinceId); // Always update the selected province
-
-                    if (newProvinceId) {
-                      // Filter currently selected departments to keep only those that belong to the new province
-                      const validDepartmentsInNewProvince = departments
+                    setAssignedToProvinceId(newProvinceId);
+                    // When province changes, clear selected departments from other provinces
+                    // Only keep departments that belong to the newly selected province, if any were already selected
+                    const currentlySelectedDeptsInNewProvince = departments
                         .filter(dept => dept.provinceId === newProvinceId && assignedToDepartmentIds.includes(dept.id))
                         .map(dept => dept.id);
-                      setAssignedToDepartmentIds(validDepartmentsInNewProvince);
-                    } else {
-                      // If no province is selected (e.g., user selected "Select Province"), clear department IDs
-                      setAssignedToDepartmentIds([]);
-                    }
+                    setAssignedToDepartmentIds(currentlySelectedDeptsInNewProvince);
                   }}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
-                  <option value="">Select Province</option>
+                  <option value="">-- Select Province --</option>
                   {provinces.map(prov => (
                     <option key={prov.id} value={prov.id}>{prov.name}</option>
                   ))}
                 </select>
               </div>
-              <div className="mb-4">
-                <label htmlFor="assignedToDepartmentIds" className="block text-sm font-medium text-gray-700">Assign to Departments (in selected province)</label>
+
+              <div>
+                <label htmlFor="assignedToDepartmentIdsProv" className="block text-sm font-medium text-gray-700">
+                  Assign to Departments (in {provinces.find(p=>p.id === assignedToProvinceId)?.name || 'selected province'})
+                </label>
                 <select
                   multiple
-                  id="assignedToDepartmentIds"
+                  id="assignedToDepartmentIdsProv"
                   value={assignedToDepartmentIds}
                   onChange={(e) => setAssignedToDepartmentIds(Array.from(e.target.selectedOptions, option => option.value))}
-                  disabled={!assignedToProvinceId} // Disable if no province selected
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-32 disabled:bg-gray-100"
+                  disabled={!assignedToProvinceId}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-32 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   {departments
-                    .filter(dept => dept.provinceId === assignedToProvinceId) // Filter departments by selected province
+                    .filter(dept => dept.provinceId === assignedToProvinceId)
                     .map(dept => (
                       <option key={dept.id} value={dept.id}>{dept.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple departments. Departments are filtered by selected province.</p>
+                {!assignedToProvinceId && <p className="text-xs text-gray-500">Please select a province first.</p>}
+                {assignedToProvinceId && departments.filter(dept => dept.provinceId === assignedToProvinceId).length === 0 && (
+                  <p className="text-xs text-yellow-600">No departments found for the selected province.</p>
+                )}
+                 <p className="text-xs text-gray-500">Hold Ctrl/Cmd to select multiple departments.</p>
               </div>
-            </>
+            </div>
           )}
-          {/* End Assignment Fields */}
 
-          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-
-          <div className="flex justify-end space-x-2">
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          
+          <div className="flex items-center justify-end mt-6">
             <button
               type="button"
               onClick={onClose}
+              className="mr-2 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
               disabled={loading}
-              className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={loading || loadingDropdownData}
             >
-              {loading ? 'Saving...' : (task ? 'Update Task' : 'Add Task')}
+              {loading ? (task ? 'Updating...' : 'Adding...') : (task ? 'Save Changes' : 'Add Task')}
             </button>
           </div>
         </form>

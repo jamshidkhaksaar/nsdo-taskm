@@ -58,6 +58,7 @@ import { DepartmentService } from '../../services/department';
 import { Department, CreateDepartmentPayload, Province } from '@/types/index';
 import * as provinceService from '../../services/provinceService';
 import { UserService } from '../../services/user';
+import MemberCard from '../../components/departments/MemberCard';
 
 interface DepartmentFormData {
   name: string;
@@ -81,7 +82,8 @@ interface LocalUser {
   created_at: string;
   updated_at: string;
   avatar?: string;
-  role?: string;
+  role?: string | { id: string; name: string };
+  position?: string;
   status: string;
 }
 
@@ -123,6 +125,25 @@ const DepartmentManagement: React.FC = () => {
     sx: {
       ...glassStyles.form,
       minWidth: '500px',
+      borderRadius: '16px',
+      '& .MuiDialogTitle-root': {
+        padding: '16px 24px',
+        color: 'white',
+      },
+      '& .MuiDialogContent-root': {
+        padding: '24px',
+      },
+      '& .MuiDialogActions-root': {
+        padding: '16px 24px',
+      },
+    }
+  };
+
+  const memberDialogPaperProps = {
+    sx: {
+      ...glassStyles.form,
+      minWidth: '800px',
+      maxWidth: '1200px',
       borderRadius: '16px',
       '& .MuiDialogTitle-root': {
         padding: '16px 24px',
@@ -801,7 +822,7 @@ const DepartmentManagement: React.FC = () => {
       <Dialog
         open={openMembersDialog}
         onClose={() => setOpenMembersDialog(false)}
-        PaperProps={dialogPaperProps}
+        PaperProps={memberDialogPaperProps}
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -837,74 +858,62 @@ const DepartmentManagement: React.FC = () => {
             </Button>
           </Box>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ minHeight: '400px', maxHeight: '600px', overflow: 'auto' }}>
           {selectedDepartment && selectedDepartment.members && selectedDepartment.members.length > 0 ? (
-            <List>
+            <Grid container spacing={2}>
               {(selectedDepartment?.members || [])
                 .map((member) => {
                   if (!member || !member.id) return null;
 
-                  const firstName = member.first_name || '';
-                  const lastName = member.last_name || '';
-                  const fullName = `${firstName} ${lastName}`.trim();
-                  let displayName = member.username || fullName;
-
-                  if (!displayName) {
-                    const fullUser = availableUsers.find(u => String(u.id) === String(member.id));
-                    if (fullUser) {
-                      const fullUserFirstName = fullUser.first_name || '';
-                      const fullUserLastName = fullUser.last_name || '';
-                      const fullUserFullName = `${fullUserFirstName} ${fullUserLastName}`.trim();
-                      displayName = fullUser.username || fullUserFullName;
-                    }
-                  }
-
-                  if (!displayName) {
-                    displayName = `User ID: ${member.id}`;
-                  }
+                  // Get full user data from availableUsers if available
+                  const fullUser = availableUsers.find(u => String(u.id) === String(member.id));
+                  
+                  // Prepare member data for MemberCard
+                  const memberRole = member.role || fullUser?.role;
+                  const roleForCard = typeof memberRole === 'string' 
+                    ? { id: memberRole, name: memberRole } 
+                    : memberRole as { id: string; name: string } | undefined;
+                  
+                  const memberData = {
+                    id: member.id,
+                    username: member.username || fullUser?.username,
+                    first_name: member.first_name || fullUser?.first_name,
+                    last_name: member.last_name || fullUser?.last_name,
+                    avatar: member.avatar || fullUser?.avatar,
+                    position: member.position || fullUser?.position,
+                    role: roleForCard,
+                  };
 
                   return (
-                    <ListItem 
-                      key={member.id}
-                      secondaryAction={
-                        <IconButton edge="end" onClick={() => handleRemoveMemberFromDepartment(member.id)}>
-                          <DeleteIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-                        </IconButton>
-                      }
-                      sx={{ 
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
-                        '&:last-child': { borderBottom: 'none' } 
-                      }}
-                    >
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
-                          {member.avatar ? (
-                            <img src={member.avatar} alt={displayName} width="100%" height="100%" style={{ objectFit: 'cover' }}/>
-                          ) : displayName.includes('User ID:') ? (
-                            <PersonIcon />
-                          ) : (
-                            (displayName.split(' ')[0]?.[0] || '') + (displayName.split(' ')[1]?.[0] || '')
-                          )}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText 
-                        primary={displayName} 
-                        sx={{ color: '#fff' }} 
+                    <Grid item xs={12} sm={6} md={4} key={member.id}>
+                      <MemberCard
+                        member={memberData}
+                        onRemove={handleRemoveMemberFromDepartment}
+                        canRemove={true}
                       />
-                    </ListItem>
+                    </Grid>
                   );
                 })
                 .filter(Boolean)
               }
-            </List>
+            </Grid>
           ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body1" color="text.secondary">
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <PersonIcon sx={{ fontSize: 64, color: 'rgba(255, 255, 255, 0.3)', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
                 No members in this department yet
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Click "Add Member" to assign users to this department
               </Typography>
+              <Button 
+                variant="contained" 
+                onClick={handleOpenAddMemberDialog}
+                startIcon={<PersonIcon />}
+                sx={glassStyles.button}
+              >
+                Add First Member
+              </Button>
             </Box>
           )}
         </DialogContent>

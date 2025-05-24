@@ -14,6 +14,7 @@ export interface User {
     id: string;
     name: string;
   } | null;
+  departments?: Department[]; // Array of departments for the user
   position?: string;
   status: 'active' | 'inactive';
   date_joined: string;
@@ -109,7 +110,8 @@ export enum TaskStatus {
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
-  DELEGATED = 'delegated'
+  DELEGATED = 'delegated',
+  DELETED = 'deleted',
 }
 
 export enum TaskPriority {
@@ -123,6 +125,12 @@ export enum TaskType {
   DEPARTMENT = 'department',
   USER = 'user',
   PROVINCE_DEPARTMENT = 'province_department'
+}
+
+export enum DelegationRequestStatus {
+  PENDING_APPROVAL = "pending_approval",
+  APPROVED = "approved",
+  REJECTED = "rejected",
 }
 
 // Define Task interface (ensure properties match backend entity)
@@ -149,6 +157,13 @@ export interface Task {
   delegatedFromTask?: Task | null; // Optional relation
   delegatedByUserId?: string | null;
   delegatedBy?: User | null; // Optional relation
+  delegationStatus?: DelegationRequestStatus | null;
+  delegationReason?: string | null; // Reason from delegator
+  pendingDelegatedToUserId?: string | null;
+  pendingDelegatedToUser?: User | null;
+  delegationReviewComment?: string | null; // Comment from creator on approval/rejection
+  delegatedToTaskId?: string | null; // ID of the new task created upon delegation approval
+  delegatedToTask?: Task | null; // Relation to the new task
 }
 
 // Define CreateTask interface (matching CreateTaskDto from backend, excluding backend-managed fields)

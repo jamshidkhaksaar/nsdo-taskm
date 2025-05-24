@@ -29,7 +29,7 @@ import {
   IconButton,
   Autocomplete,
 } from '@mui/material';
-import { Task, TaskStatus, TaskPriority, TaskType, User as UserType, CreatorDelegateTaskDto } from '../../types/index';
+import { Task, TaskStatus, TaskPriority, TaskType, User as UserType, Department, CreatorDelegateTaskDto, DelegationRequestStatus } from '../../types/index';
 import { TaskService } from '../../services/task';
 import * as tasksService from '../../services/tasks.service';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
@@ -49,6 +49,9 @@ import LocationCityIcon from '@mui/icons-material/LocationCity';
 import SendIcon from '@mui/icons-material/Send';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
+import RequestDelegationDialog from './RequestDelegationDialog';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { UpdateDelegationStatusDtoFrontend } from '../../services/tasks.service';
 
 interface TaskViewDialogProps {
   open: boolean;
@@ -75,9 +78,17 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   const [delegationError, setDelegationError] = useState<string | null>(null);
   const [isSubmittingDelegation, setIsSubmittingDelegation] = useState(false);
 
+  const [showRequestDelegationDialog, setShowRequestDelegationDialog] = useState(false);
+  const [showRejectionCommentDialog, setShowRejectionCommentDialog] = useState(false);
+  const [rejectionComment, setRejectionComment] = useState("");
+
   const glassStyles = getGlassmorphismStyles(theme);
 
   const permissions = useTaskPermissions(task);
+
+  const canEditDetails = permissions.canEdit;
+  const canActuallyCancel = permissions.canCancel;
+  const canActuallyDelete = permissions.canDelete;
 
   const [openCancelDialog, setOpenCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -230,6 +241,45 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
   const canCreatorDelegate = isCreator && task && 
     ![TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.DELEGATED].includes(task.status);
 
+  const canRequestDelegation = (): boolean => {
+    if (!task || !currentUser) return false;
+    const suitableStatus = ![TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.DELETED].includes(task.status);
+    const notAlreadyPendingOrApproved = task.delegationStatus !== DelegationRequestStatus.PENDING_APPROVAL && task.delegationStatus !== DelegationRequestStatus.APPROVED;
+    if (!suitableStatus || !notAlreadyPendingOrApproved) return false;
+
+    const isDirectAssignee = task.assignedToUsers?.some(u => u.id === currentUser.id) || false;
+    let isDepartmentAssignee = false;
+    if (task.assignedToDepartments && currentUser && Array.isArray((currentUser as any).departments)) {
+      const userDeptIds = (currentUser as any).departments.map((d: Department) => d.id);
+      isDepartmentAssignee = task.assignedToDepartments.some(assignedDept => userDeptIds.includes(assignedDept.id));
+    }
+    return isDirectAssignee || isDepartmentAssignee;
+  };
+
+  const handleDelegationReview = async (isApproved: boolean) => {
+    if (!task || !taskId) return;
+    setIsSubmittingDelegation(true);
+    setDelegationError(null);
+
+    const dto: UpdateDelegationStatusDtoFrontend = {
+      status: isApproved ? DelegationRequestStatus.APPROVED : DelegationRequestStatus.REJECTED,
+      rejectionReason: !isApproved ? rejectionComment : undefined,
+    };
+
+    try {
+      const updatedTask = await tasksService.approveOrRejectDelegation(taskId, dto);
+      setTask(updatedTask);
+      fetchTaskDetails();
+      if (showRejectionCommentDialog) setShowRejectionCommentDialog(false);
+      setRejectionComment("");
+    } catch (err: any) {
+      console.error("Failed to process delegation review:", err);
+      setDelegationError(err.message || "Failed to update delegation status.");
+    } finally {
+      setIsSubmittingDelegation(false);
+    }
+  };
+
   const renderContent = () => {
     if (loading || loadingRefData) {
       return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4, minHeight: 200 }}><CircularProgress /></Box>;
@@ -248,12 +298,75 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     if (!task) {
       return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4, minHeight: 200 }}>
-            <Typography variant="body1" color="text.secondary">
-                {taskId ? "Task data could not be loaded." : "No task selected."}
-            </Typography>
+          <Typography>No task data.</Typography>
         </Box>
       );
     }
+
+    // --- Start: Delegation Status Information Display --- 
+    let delegationStatusDisplay: React.ReactNode | null = null;
+    if (task.delegationStatus && task.delegationStatus !== null) { // Check if status exists and is not null
+      const pendingDelegateeName = getUserName(task.pendingDelegatedToUserId);
+      const creatorName = getUserName(task.createdById);
+      // Delegator name (who initiated the request)
+      const delegatorName = task.delegatedByUserId ? getUserName(task.delegatedByUserId) : 'an assignee'; 
+
+      switch (task.delegationStatus) {
+        case DelegationRequestStatus.PENDING_APPROVAL:
+          delegationStatusDisplay = (
+            <Alert severity="info" sx={{ mt: 1, mb: 2 }} icon={<PeopleIcon fontSize="inherit" />}>
+              Delegation from <strong>{delegatorName}</strong> to <strong>{pendingDelegateeName}</strong> is pending approval by creator (<strong>{creatorName}</strong>).
+              {task.delegationReason && <Typography variant="body2" display="block" sx={{ mt: 0.5 }}>Delegator Reason: {task.delegationReason}</Typography>}
+            </Alert>
+          );
+          break;
+        case DelegationRequestStatus.APPROVED:
+          delegationStatusDisplay = (
+            <Alert severity="success" sx={{ mt: 1, mb: 2 }} icon={<SendIcon fontSize="inherit" />}>
+              Delegation request from <strong>{delegatorName}</strong> was approved by <strong>{creatorName}</strong>.
+              {task.delegatedToTask && task.delegatedToTask.assignedToUsers && task.delegatedToTask.assignedToUsers.length > 0 &&
+                <Typography variant="body2" display="block" sx={{ mt: 0.5 }}>New task assigned to: <strong>{getUserName(task.delegatedToTask.assignedToUsers[0].id)}</strong>.</Typography>
+              }
+              {/* Original task is now {task.status} */}
+              {task.delegationReviewComment && <Typography variant="body2" display="block" sx={{ mt: 0.5 }}>Creator Comment: {task.delegationReviewComment}</Typography>}
+            </Alert>
+          );
+          break;
+        case DelegationRequestStatus.REJECTED:
+          delegationStatusDisplay = (
+            <Alert severity="error" sx={{ mt: 1, mb: 2 }} icon={<CancelIcon fontSize="inherit" />}>
+              Delegation request from <strong>{delegatorName}</strong> to <strong>{pendingDelegateeName}</strong> was rejected by <strong>{creatorName}</strong>.
+              {task.delegationReviewComment && <Typography variant="body2" display="block" sx={{ mt: 0.5 }}>Creator Reason: {task.delegationReviewComment}</Typography>}
+            </Alert>
+          );
+          break;
+        default:
+          delegationStatusDisplay = null;
+          break;
+      }
+    }
+    // --- End: Delegation Status Information Display ---
+
+    // --- Start: Indicator for a task that IS a delegated task ---
+    let isDelegatedTaskIndicator: React.ReactNode | null = null;
+    if (task.isDelegated && task.delegatedFromTask) { // Check if this task is a result of delegation
+      // We might not have the full delegatedFromTask object, but we should have its ID.
+      // For a richer display, one might fetch details of delegatedFromTask.id if only ID is present.
+      // For now, we assume delegatedFromTask could be populated enough for a name, or use ID.
+      const originalTaskTitle = task.delegatedFromTask.title || `ID: ${task.delegatedFromTaskId}`;
+      isDelegatedTaskIndicator = (
+        <Alert severity="info" sx={{ mt: 1, mb: 2 }} icon={<PeopleIcon fontSize="inherit" />}>
+          This task was delegated from task: <strong>{originalTaskTitle}</strong>.
+        </Alert>
+      );
+    } else if (task.isDelegated && task.delegatedFromTaskId) {
+       isDelegatedTaskIndicator = (
+        <Alert severity="info" sx={{ mt: 1, mb: 2 }} icon={<PeopleIcon fontSize="inherit" />}>
+          This task was delegated from task ID: <strong>{task.delegatedFromTaskId}</strong>.
+        </Alert>
+      );
+    }
+    // --- End: Indicator for a task that IS a delegated task ---
 
     let creatorNameNode: React.ReactNode;
     if (task.createdBy) {
@@ -345,7 +458,7 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
     const formattedCreatedAt = task.createdAt ? formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATE) : 'N/A';
     const formattedUpdatedAt = task.updatedAt ? formatDate(task.updatedAt, DATE_FORMATS.DISPLAY_DATE) : 'N/A';
 
-    const createdByText = `Created By: ${creatorNameNode} on ${formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATETIME)}`;
+    const createdByText = `Created by: ${getUserName(task.createdById)} on ${formatDate(task.createdAt, DATE_FORMATS.DISPLAY_DATETIME)}`;
     const dueDateText = `Due Date: ${task.dueDate ? formatDate(task.dueDate, DATE_FORMATS.DISPLAY_DATE) : 'N/A'}`;
     const updatedAtText = `Last Updated: ${formatDate(task.updatedAt, DATE_FORMATS.DISPLAY_DATETIME)}`;
 
@@ -356,6 +469,8 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
                 <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
                     {task.title}
                 </Typography>
+                {delegationStatusDisplay}
+                {isDelegatedTaskIndicator}
             </Grid>
 
             <Grid item xs={12} sm={6}>
@@ -432,6 +547,37 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
                     </Typography>
                 </Box>
             </Grid>
+
+            {/* Creator Delegation Review Area */}
+            {currentUser && task && currentUser.id === task.createdById && task.delegationStatus === DelegationRequestStatus.PENDING_APPROVAL && (
+              <Grid item xs={12} sx={{ mt: 2, p: 2, border: '1px dashed grey', borderRadius: 1 }}>
+                <Typography variant="h6" gutterBottom>Delegation Request Pending Your Approval</Typography>
+                <Typography variant="body2" sx={{mb: 1}}>
+                  User <strong>{getUserName(task.delegatedByUserId)}</strong> wants to delegate this task to <strong>{getUserName(task.pendingDelegatedToUserId)}</strong>.
+                </Typography>
+                {task.delegationReason && <Typography variant="body2" sx={{mb: 2}}>Reason: <em>{task.delegationReason}</em></Typography>}
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button 
+                    variant="contained" 
+                    color="success" 
+                    onClick={() => handleDelegationReview(true)} 
+                    disabled={isSubmittingDelegation}
+                    startIcon={isSubmittingDelegation ? <CircularProgress size={20}/> : <CheckCircleIcon />}
+                  >
+                    Approve
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    color="error" 
+                    onClick={() => setShowRejectionCommentDialog(true)} 
+                    disabled={isSubmittingDelegation}
+                    startIcon={<CancelIcon />}
+                  >
+                    Reject
+                  </Button>
+                </Box>
+              </Grid>
+            )}
         </Grid>
         
         {isCreatorDelegating && (
@@ -496,14 +642,25 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
             Delegate Task
           </Button>
         )}
-        {task && permissions.canCancel && !isCreatorDelegating && (
+        {task && canActuallyCancel && !isCreatorDelegating && (
           <Button onClick={() => setOpenCancelDialog(true)} startIcon={<CancelIcon />} variant="outlined" color="warning" sx={{ mr: 1 }}>
             Cancel Task
           </Button>
         )}
-        {task && permissions.canDelete && onDelete && !isCreatorDelegating &&(
+        {task && canActuallyDelete && onDelete && !isCreatorDelegating &&(
           <Button onClick={() => onDelete(task.id)} startIcon={<DeleteIcon />} variant="outlined" color="error" sx={{ mr: 1 }}>
             Delete Task
+          </Button>
+        )}
+        {canRequestDelegation() && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={<SendIcon />}
+            onClick={() => setShowRequestDelegationDialog(true)}
+            sx={{ mr: 1 }}
+          >
+            Request Delegation
           </Button>
         )}
       </Box>
@@ -537,40 +694,35 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
         {renderContent()}
       </DialogContent>
       <DialogActions sx={{ borderTop: `1px solid ${theme.palette.divider}`, px:3, py: 2, background: 'rgba(0,0,0,0.03)' }}>
-        {permissions.canUpdateTask && (
+        {canEditDetails && (
           <Button 
-            onClick={() => onEdit && task && onEdit(task.id)} 
-            startIcon={<EditIcon />} 
             variant="outlined" 
-            color="primary"
-            disabled={!task || loading}
+            startIcon={<EditIcon />} 
+            onClick={() => onEdit && task && onEdit(task.id)} 
             sx={{ mr: 1 }}
           >
-            Edit Task
+            Edit Details
           </Button>
         )}
         
-        {permissions.canCancelTask && task && task.status !== TaskStatus.CANCELLED && (
+        {canActuallyCancel && (
           <Button 
-            onClick={() => setOpenCancelDialog(true)} 
-            startIcon={<CancelIcon />} 
             variant="outlined" 
-            color="warning"
-            disabled={loading || isUpdatingStatus}
+            color="warning" 
+            startIcon={<CancelIcon />} 
+            onClick={() => setOpenCancelDialog(true)}
             sx={{ mr: 1 }}
           >
             Cancel Task
           </Button>
         )}
 
-        {permissions.canDeleteTask && (
+        {canActuallyDelete && (
           <Button 
-            onClick={() => onDelete && task && onDelete(task.id)} 
-            startIcon={<DeleteIcon />} 
             variant="outlined" 
-            color="error"
-            disabled={!task || loading}
-            sx={{ mr: 1 }}
+            color="error" 
+            startIcon={<DeleteIcon />} 
+            onClick={() => onDelete && task && onDelete(task.id)}
           >
             Delete Task
           </Button>
@@ -617,6 +769,45 @@ const TaskViewDialog: React.FC<TaskViewDialogProps> = ({ open, onClose, taskId, 
             </DialogActions>
         </Dialog>
       )}
+
+      {task && showRequestDelegationDialog && currentUser && (
+          <RequestDelegationDialog
+              task={task}
+              currentUser={currentUser}
+              onClose={() => setShowRequestDelegationDialog(false)}
+              onSuccess={(updatedTask) => {
+                  setTask(updatedTask);
+                  setShowRequestDelegationDialog(false);
+                  fetchTaskDetails();
+              }}
+          />
+      )}
+
+      {/* Dialog for Rejection Comment */}
+      <Dialog open={showRejectionCommentDialog} onClose={() => setShowRejectionCommentDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Rejection Reason</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="rejectionComment"
+            label="Reason for Rejection (Optional)"
+            type="text"
+            fullWidth
+            multiline
+            rows={3}
+            value={rejectionComment}
+            onChange={(e) => setRejectionComment(e.target.value)}
+            variant="outlined"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowRejectionCommentDialog(false)} disabled={isSubmittingDelegation}>Cancel</Button>
+          <Button onClick={() => handleDelegationReview(false)} color="error" variant="contained" disabled={isSubmittingDelegation}>
+            {isSubmittingDelegation ? <CircularProgress size={24} /> : 'Confirm Rejection'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };

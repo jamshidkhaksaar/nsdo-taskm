@@ -106,7 +106,7 @@ export const DepartmentService = {
         }
     },
 
-    // START: Add Member Management Functions
+    // Member Management Functions
     addMemberToDepartment: async (departmentId: string, userId: string): Promise<Department> => {
         try {
             const response = await apiClient.post<Department>(`/departments/${departmentId}/members/${userId}`);
@@ -117,7 +117,15 @@ export const DepartmentService = {
         }
     },
 
-    // END: Add Member Management Functions
+    removeMemberFromDepartment: async (departmentId: string, userId: string): Promise<Department> => {
+        try {
+            const response = await apiClient.delete<Department>(`/departments/${departmentId}/members/${userId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error removing member from department ${departmentId}:`, error);
+            throw error;
+        }
+    },
 };
 
 

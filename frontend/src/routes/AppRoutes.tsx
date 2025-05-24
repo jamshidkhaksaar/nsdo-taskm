@@ -48,8 +48,8 @@ const WorkflowVisualizerPage = lazyLoad(import('../pages/admin/rbac/workflow-vis
 
 // Define roles constants for readability
 const ROLES = {
-  USER: 'User',
-  LEADERSHIP: 'Leadership',
+  USER: 'user',
+  LEADERSHIP: 'leadership',
   ADMIN: 'admin',
 };
 

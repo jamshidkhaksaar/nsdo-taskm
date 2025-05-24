@@ -17,7 +17,6 @@ import {
 import { RootState } from '@/store';
 import { Department, Task, TaskType } from '@/types/index';
 import { DepartmentService } from '@/services/department';
-import { TaskService } from '@/services/task';
 import DepartmentList from '@/components/departments/DepartmentList';
 import DepartmentDetail from '@/components/departments/DepartmentDetail';
 import CreateTaskDialog from '@/components/tasks/CreateTaskDialog';
@@ -44,13 +43,37 @@ const Departments: React.FC = () => {
     queryFn: DepartmentService.getDepartments,
   });
 
-  // Dynamically create queries for tasks for each department
+  // Helper function to determine which departments the user can view tasks for
+  const getAccessibleDepartmentIds = useMemo(() => {
+    if (!user || !departmentsQuery.data) return [];
+    
+    const userRole = user.role; // role is already a string in AuthUser
+    
+    // Admin and leadership can view tasks for all departments
+    if (userRole === 'admin' || userRole === 'leadership') {
+      return departmentsQuery.data.map(dept => dept.id);
+    }
+    
+    // Regular users can only view tasks for departments they belong to
+    const userDepartmentIds: string[] = [];
+    
+    // AuthUser only has single department (not departments array)
+    if (user.department && user.department.id) {
+      userDepartmentIds.push(user.department.id);
+    }
+    
+    return userDepartmentIds;
+  }, [user, departmentsQuery.data]);
+
+  // Dynamically create queries for tasks for accessible departments only
   const departmentTaskQueries = useQueries<Array<{ data: Task[] }>>({
-    queries: (departmentsQuery.data ?? []).map(department => ({
-      queryKey: ['departmentTasks', department.id],
-      queryFn: () => TaskService.getTasksByDepartment(department.id),
-      enabled: !!departmentsQuery.data, // Only run if departments are loaded
-    })),
+    queries: (departmentsQuery.data ?? [])
+      .filter(department => getAccessibleDepartmentIds.includes(department.id))
+      .map(department => ({
+        queryKey: ['departmentTasks', department.id],
+        queryFn: () => DepartmentService.getDepartmentTasks(department.id),
+        enabled: !!departmentsQuery.data && getAccessibleDepartmentIds.includes(department.id),
+      })),
   });
 
   // --- Loading and Error Handling --- 
