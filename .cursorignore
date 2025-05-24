@@ -1,4 +1,0 @@
-# Allow environment files to be seen by Cursor
-!.env*
-!backend-nest/.env*
-!frontend/.env*
