@@ -25,31 +25,13 @@ export const AppDataSource = new DataSource({
   type: "mysql",
   host: process.env.DATABASE_HOST || "localhost",
   port: parseInt(process.env.DATABASE_PORT || "3306", 10),
-  username: process.env.DATABASE_USERNAME || "root",
-  password: process.env.DATABASE_PASSWORD || "root",
-  database: process.env.DATABASE_NAME || "taskmanagement",
-  entities: ["dist/**/*.entity.js"], // Use glob pattern again
-  // Remove explicit list
-  /*
-  entities: [
-    User,
-    Department,
-    Task,
-    Note,
-    ApiSettings,
-    BackupSettings,
-    NotificationSettings,
-    SecuritySettings,
-    Setting, // New
-    ActivityLog,
-    Backup,
-    Province,
-    EmailTemplate, // New
-  ],
-  */
-  migrations: ["dist/migrations/*.js"],
+  username: process.env.DATABASE_USERNAME || "nsdopqrj_nsdo",
+  password: process.env.DATABASE_PASSWORD || "Hg[Yp-6hXrjZ",
+  database: process.env.DATABASE_NAME || "nsdopqrj_task_management",
+  entities: ["src/**/*.entity.ts"], // Use TypeScript files for development
+  migrations: ["src/migrations/*.ts"], // Use TypeScript files for development
   synchronize: false,
-  logging: true,
+  logging: false,
 });
 
 // Keep initialization block removed/commented

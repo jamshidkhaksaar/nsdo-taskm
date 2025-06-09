@@ -2,14 +2,17 @@
 
 // Determine the base URL based on environment
 const getBaseUrl = (): string => {
-  // In production, API calls should go to the same host (relative URLs)
-  // In development, we might need to specify the backend explicitly
-  if (process.env.NODE_ENV === 'production') {
-    return ''; // Use relative URLs in production
-  } else {
-    // Always use port 3001 for the backend in development
-    return 'http://localhost:3001';
+  // Remove /api/v1 from the base URL since your backend doesn't use this prefix
+  if (typeof window !== 'undefined') {
+    // Browser environment
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:3000'; // Your local backend
+    }
+    return 'https://api.nsdo.org.af'; // Production - no /api/v1 prefix
   }
+  
+  // Server-side rendering or Node.js environment
+  return process.env.VITE_APP_API_URL || 'https://api.nsdo.org.af';
 };
 
 // Define an object that can be updated during runtime
@@ -25,5 +28,7 @@ export const CONFIG = {
     CONFIG.DEBUG = !CONFIG.DEBUG;
   }
 };
+
+export const API_BASE_URL = getBaseUrl();
 
 export default CONFIG; 

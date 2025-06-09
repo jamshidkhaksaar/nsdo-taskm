@@ -2,7 +2,9 @@ import axios from '../utils/axios'; // Assuming configured axios instance
 import { User } from '../types';
 import { Page, PageOptions } from '../types/page'; // Import frontend Page and PageOptions
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = import.meta.env.VITE_APP_API_URL || 
+                 import.meta.env.VITE_API_URL || 
+                 (import.meta.env.PROD ? 'https://api.nsdo.org.af/api/v1' : 'http://localhost:3001/api/v1');
 const USERS_API_URL = `${API_URL}/users`;
 
 // This function now handles both fetching all users (with pagination) and searching users.

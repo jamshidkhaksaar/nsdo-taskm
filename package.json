@@ -24,6 +24,7 @@
     "ua-parser-js": "^2.0.3"
   },
   "devDependencies": {
+    "@stagewise/toolbar": "^0.3.0",
     "@types/ua-parser-js": "^0.7.39",
     "concurrently": "^8.2.2"
   }

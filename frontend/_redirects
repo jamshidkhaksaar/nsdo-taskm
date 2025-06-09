@@ -1,0 +1,5 @@
+# Redirects for Single Page Application
+/*    /index.html   200
+
+# API proxy rules (if needed)
+/api/*  https://api.nsdo.org.af/api/v1/:splat  200 

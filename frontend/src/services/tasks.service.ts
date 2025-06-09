@@ -3,7 +3,8 @@ import axios from '../utils/axios'; // Use the configured axios instance
 import { Task, UpdateTaskAssignmentsDto, CreatorDelegateTaskDto, TaskStatus, TaskPriority, TaskType, DelegationRequestStatus } from '../types'; // Corrected import paths for types
 
 // Use import.meta.env for Vite environment variables
-const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:3001/api'; 
+const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 
+                     (import.meta.env.PROD ? 'https://api.nsdo.org.af/api/v1' : 'http://localhost:3001/api'); 
 const TASKS_API_URL = `${API_BASE_URL}/tasks`;
 
 export const getTasks = async (): Promise<Task[]> => {

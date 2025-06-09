@@ -1,20 +1,20 @@
 {
   "name": "backend-nest",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "NSDO Task Management System",
+  "author": "Jamshid Khaksaar",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main.js",
     "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
     "create:admin": "ts-node -r tsconfig-paths/register src/cli.ts create-admin",
-    "typeorm": "typeorm-ts-node-commonjs -d ./data-source.ts",
+    "typeorm": "typeorm-ts-node-commonjs -d ./src/data-source.ts",
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
@@ -22,10 +22,11 @@
     "migrate:user-roles": "ts-node -r tsconfig-paths/register src/scripts/migrate-user-roles.ts",
     "migrate:user-roles:manual": "ts-node -r tsconfig-paths/register src/scripts/manual-role-migration.ts",
     "check:env": "ts-node -r tsconfig-paths/register src/scripts/check-env.ts",
-    "prepare:db": "npm run check:env && npm run migration:run && npm run migrate:user-roles"
+    "prepare:db": "npm run check:env && npm run migration:run && npm run migrate:user-roles",
+    "migration:run:prod": "typeorm-ts-node-commonjs migration:run -d dist/data-source.js"
   },
   "dependencies": {
-    "@nestjs-modules/mailer": "^2.0.2",
+    "@nestjs-modules/mailer": "^1.6.1",
     "@nestjs/axios": "^4.0.0",
     "@nestjs/bull": "^11.0.2",
     "@nestjs/cache-manager": "^3.0.1",
@@ -48,7 +49,7 @@
     "bullmq": "^5.49.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
-    "csurf": "^1.10.0",
+    "csurf": "^1.2.2",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "helmet": "^8.1.0",
@@ -67,13 +68,12 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1",
     "speakeasy": "^2.0.0",
-    "typeorm": "^0.3.20",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "@nestjs/cli": "^11.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
-    "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
     "@swc/cli": "^0.6.0",
@@ -108,6 +108,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "typeorm": "^0.3.24",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },

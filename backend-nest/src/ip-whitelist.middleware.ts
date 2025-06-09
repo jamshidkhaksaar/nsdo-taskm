@@ -7,6 +7,7 @@ export class IpWhitelistMiddleware implements NestMiddleware {
     "127.0.0.1",
     "::1",
     "192.168.3.90",
+    "162.0.217.90"
     // Add more trusted IPs here or load from env/config
   ];
 

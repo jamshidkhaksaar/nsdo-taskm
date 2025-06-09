@@ -1,115 +1,71 @@
-import { NestFactory } from "@nestjs/core";
-import { AppModule } from "./app.module";
-import csurf from "csurf";
-import helmet from "helmet";
-import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
-import { ValidationPipe } from "@nestjs/common";
-import { AllExceptionsFilter } from "./all-exceptions.filter";
-import { ConfigService } from "@nestjs/config";
-import { SettingsService } from "./settings/settings.service";
-import { PrefixedIoAdapter } from './common/adapters/prefixed-io.adapter';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+// import { ValidationPipe } from '@nestjs/common'; // Uncomment if you use ValidationPipe
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: ["error", "warn", "log", "debug", "verbose"], // Enable all log levels
-  });
-  // Register global exception filter
-  app.useGlobalFilters(new AllExceptionsFilter());
-
-  // Enable security headers with Helmet
-  app.use(helmet());
-  const configService = app.get(ConfigService);
-
-  // Initialize settings on app startup
   try {
-    const settingsService = app.get(SettingsService);
-    await settingsService.initializeSettings();
-    console.log("Settings initialized successfully");
+    console.error(`[${new Date().toISOString()}] NestJS Main: Attempting to bootstrap application...`);
+
+    const app = await NestFactory.create(AppModule, {
+      // You can enable more detailed NestJS logging if needed:
+      // logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    });
+
+    console.error(`[${new Date().toISOString()}] NestJS Main: AppModule created.`);
+
+    // If you have global pipes, interceptors, etc., they would be set up here
+    // For example:
+    // app.useGlobalPipes(new ValidationPipe()); // Make sure to import ValidationPipe
+    
+    // app.enableCors(); // If you need CORS - We will replace this
+    app.enableCors({
+      origin: [
+        'http://localhost:5173', // Local frontend (Vite default)
+        // 'https://task.nsdo.org.af' // Production frontend (commented out for local dev)
+      ],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      credentials: true,
+    });
+
+    const port = process.env.PORT || 3000; // cPanel will inject process.env.PORT
+    console.error(`[${new Date().toISOString()}] NestJS Main: Application bootstrapped. Attempting to listen on effective port: ${port}`);
+
+    await app.listen(port);
+    // If it reaches here, it's a good sign.
+    console.error(`[${new Date().toISOString()}] NestJS Main: Application is successfully listening on port ${port}`);
+
   } catch (error) {
-    console.error("Error initializing settings:", error);
-  }
-
-  // Enable CORS with multiple origins
-  app.enableCors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:3001",
-      "http://192.168.3.90:3000", // Add your local network IP if needed
-      configService.get("FRONTEND_URL") || "http://localhost:3000",
-    ],
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-    credentials: true,
-  });
-
-  // Set global prefix for API routes
-  app.setGlobalPrefix("api/v1");
-
-  // Enable validation pipes
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-    }),
-  );
-
-  // Enable CSRF protection with cookies
-  // CSRF protection temporarily disabled for development
-  // app.use(
-  //   csurf({
-  //     cookie: true,
-  //   }),
-  // );
-  // Setup Swagger API documentation
-  if (configService.get("NODE_ENV") !== "production") {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle("NSDO Task Management API")
-      .setDescription("API documentation for NSDO Task Management backend")
-      .setVersion("1.0")
-      .build();
-    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup("api-docs", app, swaggerDocument);
-  }
-
-  // Enable WebSocket adapter using the custom PrefixedIoAdapter
-  const globalPrefix = configService.get<string>('API_PREFIX', 'api/v1'); // Get global prefix from config or default
-  app.useWebSocketAdapter(new PrefixedIoAdapter(app.getHttpServer(), globalPrefix));
-
-  // Use port from config
-  const port = configService.get("PORT") || 3001;
-  await app.listen(port);
-  console.log(
-    `Application is running in ${configService.get("NODE_ENV") || "development"} mode on: http://localhost:${port}/api/v1`,
-  );
-
-  // Try to log available routes but handle errors properly
-  try {
-    // This will only work if the router is available as expected
-    const server = app.getHttpServer();
-    if (
-      server &&
-      server._events &&
-      server._events.request &&
-      server._events.request._router
-    ) {
-      const router = server._events.request._router;
-      const availableRoutes = router.stack
-        .filter((layer) => layer.route)
-        .map((layer) => {
-          const route = layer.route;
-          return {
-            path: route.path,
-            method: Object.keys(route.methods)[0].toUpperCase(),
-          };
-        });
-
-      console.log("Available routes:", availableRoutes.length);
-    } else {
-      console.log("Router information not available in the expected format.");
-    }
-  } catch (error) {
-    console.error("Error retrieving routes information:", error.message);
+    const err = error as Error; // Type assertion
+    const errorMessage = `[${new Date().toISOString()}] NestJS Main: CRITICAL BOOTSTRAP ERROR: ${err.message}\nFULL ERROR: ${JSON.stringify(err)}\nSTACK: ${err.stack}\n`;
+    console.error(errorMessage);
+    process.exit(1); // Exit on critical bootstrap failure
   }
 }
 
-bootstrap();
+bootstrap().catch(error => {
+  // This catches errors if the bootstrap promise itself rejects unexpectedly
+  const err = error as Error; // Type assertion
+  const unhandledBootstrapErrorMessage = `[${new Date().toISOString()}] NestJS Main: UNHANDLED ERROR FROM BOOTSTRAP PROMISE: ${err.message}\nFULL ERROR: ${JSON.stringify(err)}\nSTACK: ${err.stack}\n`;
+  console.error(unhandledBootstrapErrorMessage);
+  process.exit(1);
+});
+
+// Optional: More global error handlers, though the try/catch in bootstrap is key for startup.
+process.on('unhandledRejection', (reason, promise) => {
+  const reasonErr = reason as Error; // Type assertion
+  let message = `[${new Date().toISOString()}] NestJS Main: UNHANDLED REJECTION. `;
+  if (reasonErr && reasonErr.message) {
+    message += `Reason: ${reasonErr.message}\nStack: ${reasonErr.stack}`;
+  } else {
+    message += `Reason: ${JSON.stringify(reason)}`;
+  }
+  console.error(message);
+  // process.exit(1); // Decide if you want to exit on unhandled rejections
+});
+
+process.on('uncaughtException', (error) => {
+  const err = error as Error; // Type assertion
+  const uncaughtExceptionMessage = `[${new Date().toISOString()}] NestJS Main: UNCAUGHT EXCEPTION. Error: ${err.message}\nStack: ${err.stack}\n`;
+  console.error(uncaughtExceptionMessage);
+  process.exit(1); // Recommended to exit on uncaught exceptions
+});

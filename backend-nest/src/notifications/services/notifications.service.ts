@@ -6,6 +6,7 @@ import {
   NotificationType,
 } from "../entities/notification.entity";
 import { InternalServerErrorException } from "@nestjs/common";
+import { NotificationsGateway } from "../gateways/notifications.gateway";
 
 @Injectable()
 export class NotificationsService {
@@ -14,6 +15,7 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   async createNotification(
@@ -62,17 +64,16 @@ export class NotificationsService {
       relatedEntityId: savedNotification.relatedEntityId,
     };
 
-    const channel = "notifications:new";
     try {
-      this.logger.warn(
-        `Redis publishing temporarily disabled. Would publish notification ${savedNotification.id} to ${channel}:`,
-        payload,
-      );
+      this.notificationsGateway.sendNotificationToUser(userId, payload);
+      this.logger.log(`Notification ${savedNotification.id} sent to user via WebSocket.`);
     } catch (error) {
       this.logger.error(
-        `Error during temporarily disabled Redis publish step: ${error}`,
-      ); 
+        `Error sending notification ${savedNotification.id} to user via WebSocket: ${error.message}`,
+        error.stack,
+      );
     }
+
     return savedNotification;
   }
 

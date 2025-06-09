@@ -1,7 +1,9 @@
 import axios from '../utils/axios';
 import { Department } from '../types'; // Assuming Department type is in types/index.ts
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_APP_API_URL || 
+                 process.env.REACT_APP_API_URL || 
+                 (import.meta.env.PROD ? 'https://api.nsdo.org.af/api/v1' : 'http://localhost:3001/api');
 const DEPARTMENTS_API_URL = `${API_URL}/departments`;
 
 // Fetches all departments. Optionally filter by provinceId.

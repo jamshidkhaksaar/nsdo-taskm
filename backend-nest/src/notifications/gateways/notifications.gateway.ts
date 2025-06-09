@@ -6,7 +6,7 @@ import {
   OnGatewayDisconnect,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { Injectable, Inject, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { AuthService } from "../../auth/auth.service";
 import { WsException } from "@nestjs/websockets";
 
@@ -29,47 +29,16 @@ export class NotificationsGateway
   server: Server;
 
   private readonly logger = new Logger(NotificationsGateway.name);
-  // Temporarily comment out Redis dependency
-  // private redisSubscriber: Redis;
 
   constructor(
-    // Temporarily comment out Redis Subscriber injection decorator
-    // @Inject(REDIS_SUBSCRIBER)
-    // private readonly injectedRedisSubscriber: Redis,
     private readonly authService: AuthService,
   ) {
-    // Temporarily comment out assignment
-    // this.redisSubscriber = this.injectedRedisSubscriber;
   }
 
   onModuleInit() {
     this.logger.warn(
       "Redis subscription logic in NotificationsGateway is temporarily disabled.",
     );
-    // Temporarily disable Redis logic
-    /* Original logic:
-    this.logger.log('Initializing Redis subscription...');
-    this.redisSubscriber.subscribe('notifications:new', (err, count) => {
-      if (err) {
-        this.logger.error('Failed to subscribe to Redis channel', err);
-        return;
-      }
-      this.logger.log(`Subscribed successfully to ${count} channel(s). Listening for notifications...`);
-    });
-
-    this.redisSubscriber.on('message', (channel, message) => {
-      this.logger.log(`Received message from channel ${channel}`);
-      try {
-        const notificationPayload = JSON.parse(message);
-        const targetUserId = notificationPayload.userId;
-        if (targetUserId) {
-          this.sendNotificationToUser(targetUserId, notificationPayload);
-        }
-      } catch (error) {
-        this.logger.error('Failed to parse notification message', error);
-      }
-    });
-    */
   }
 
   async handleConnection(client: Socket, ...args: any[]) {

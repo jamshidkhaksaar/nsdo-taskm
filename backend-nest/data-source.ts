@@ -24,11 +24,11 @@ export const AppDataSourceOptions: DataSourceOptions = {
   type: 'mysql', // Or process.env.DB_TYPE
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306', 10),
-  username: process.env.DB_USERNAME || 'root',
-  password: process.env.DB_PASSWORD || 'root',
-  database: process.env.DB_DATABASE || 'taskmanagement',
-  synchronize: false, // IMPORTANT: Should be false for migrations
-  logging: false,
+  username: process.env.DB_USERNAME || 'nsdopqrj_nsdo',
+  password: process.env.DB_PASSWORD || 'Hg[Yp-6hXrjZ',
+  database: process.env.DB_DATABASE || 'nsdopqrj_task_management',
+  synchronize: true, // IMPORTANT: Should be false for migrations
+  logging: true,
   entities: [
     User,
     Department,
