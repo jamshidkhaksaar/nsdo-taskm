@@ -1,0 +1,417 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DELEGATED
+  DELETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskType {
+  PERSONAL
+  DEPARTMENT
+  USER
+  PROVINCE_DEPARTMENT
+}
+
+enum DelegationStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  TASK_STATUS_CHANGED
+  TASK_PRIORITY_CHANGED
+  TASK_DELEGATED
+  TASK_DELEGATION_NOTICE
+  MENTION
+  SYSTEM
+}
+
+enum BackupType {
+  FULL
+  PARTIAL
+}
+
+enum BackupStatus {
+  COMPLETED
+  IN_PROGRESS
+  FAILED
+}
+
+enum ActivityLogStatus {
+  success
+  warning
+  error
+}
+
+// Main User entity
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  isActive  Boolean  @default(true)
+  position  String?
+  bio       String?  @db.Text
+  avatarUrl String?
+  skills    Json?    // Array of strings
+  socialLinks Json?  // Record<string, string>
+  preferences Json?  // Record<string, any>
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // 2FA and Security fields
+  twoFactorEnabled               Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorSecret                String?   @db.Text @map("two_factor_secret")
+  twoFactorMethod                String    @default("app") @map("two_factor_method")
+  loginOtp                       String?   @db.VarChar(10) @map("login_otp")
+  loginOtpExpiresAt              DateTime? @map("login_otp_expires_at")
+  resetPasswordToken             String?   @db.VarChar(128) @map("reset_password_token")
+  resetPasswordExpires           DateTime? @map("reset_password_expires")
+  rememberedBrowsers             Json?     @map("remembered_browsers") // Array of {fingerprint: string, expiresAt: Date}
+  failedTwoFactorAttempts        Int       @default(0) @map("failed_two_factor_attempts")
+  twoFactorLockoutUntil          DateTime? @map("two_factor_lockout_until")
+
+  // RBAC Relationship
+  roleId String? @map("role_id")
+  role   Role?   @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  // Task relationships
+  createdTasks     Task[] @relation("TaskCreator")
+  assignedTasks    Task[] @relation("TaskAssignees")
+  delegatedTasks   Task[] @relation("TaskDelegatedBy")
+  pendingDelegatedTasks Task[] @relation("TaskPendingDelegatedTo")
+  deletedTasks     Task[] @relation("TaskDeletedBy")
+  cancelledTasks   Task[] @relation("TaskCancelledBy")
+
+  // Other relationships
+  departments      Department[] @relation("DepartmentMembers")
+  notes            Note[]
+  notifications    Notification[]
+  activityLogs     ActivityLog[]
+  backups          Backup[]
+  managedDepartments Department[] @relation("DepartmentHead")
+
+  @@map("user")
+}
+
+// Task entity
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String     @db.Text
+  status      TaskStatus @default(PENDING)
+  priority    TaskPriority @default(MEDIUM)
+  type        TaskType   @default(PERSONAL)
+  isPrivate   Boolean    @default(false) @map("is_private")
+  dueDate     DateTime?  @map("due_date")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  completedAt DateTime?  @map("completed_at")
+  isDeleted   Boolean    @default(false) @map("is_deleted")
+  deletedAt   DateTime?  @map("deleted_at")
+  deletionReason String? @db.Text @map("deletion_reason")
+  cancelledAt DateTime?  @map("cancelled_at")
+  cancellationReason String? @db.Text @map("cancellation_reason")
+
+  // Creator relationship
+  createdById String @map("created_by_id")
+  createdBy   User   @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  // Assignment relationships
+  assignedToUsers       User[]       @relation("TaskAssignees")
+  assignedToDepartments Department[] @relation("TaskDepartmentAssignees")
+  assignedToProvinceId  String?      @map("assigned_to_province_id")
+  assignedToProvince    Province?    @relation(fields: [assignedToProvinceId], references: [id])
+
+  // Delegation fields
+  isDelegated              Boolean          @default(false) @map("is_delegated")
+  delegatedByUserId        String?          @map("delegated_by_user_id")
+  delegatedBy              User?            @relation("TaskDelegatedBy", fields: [delegatedByUserId], references: [id])
+  delegatedFromTaskId      String?          @unique @map("delegated_from_task_id")
+  delegatedFromTask        Task?            @relation("TaskDelegationFrom", fields: [delegatedFromTaskId], references: [id])
+  delegatedToTask          Task?            @relation("TaskDelegationFrom")
+  delegationReason         String?          @db.Text @map("delegation_reason")
+  delegationStatus         DelegationStatus? @map("delegation_status")
+  pendingDelegatedToUserId String?          @map("pending_delegated_to_user_id")
+  pendingDelegatedToUser   User?            @relation("TaskPendingDelegatedTo", fields: [pendingDelegatedToUserId], references: [id])
+  delegationReviewComment  String?          @db.Text @map("delegation_review_comment")
+
+  // Deletion tracking
+  deletedById   String? @map("deleted_by_id")
+  deletedBy     User?   @relation("TaskDeletedBy", fields: [deletedById], references: [id])
+  cancelledById String? @map("cancelled_by_id")
+  cancelledBy   User?   @relation("TaskCancelledBy", fields: [cancelledById], references: [id])
+
+  @@map("task")
+}
+
+// Department entity
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Leadership
+  headId String? @map("head_id")
+  head   User?   @relation("DepartmentHead", fields: [headId], references: [id])
+
+  // Geographic assignment
+  provinceId String?   @map("province_id")
+  province   Province? @relation(fields: [provinceId], references: [id])
+
+  // Relationships
+  members       User[] @relation("DepartmentMembers")
+  assignedTasks Task[] @relation("TaskDepartmentAssignees")
+
+  @@map("department")
+}
+
+// Province entity
+model Province {
+  id          String @id @default(uuid())
+  name        String @unique
+  description String?
+
+  // Relationships
+  departments   Department[]
+  assignedTasks Task[]
+
+  @@map("province")
+}
+
+// RBAC - Role entity
+model Role {
+  id           String  @id @default(uuid())
+  name         String  @unique @db.VarChar(50)
+  description  String? @db.Text
+  isSystemRole Boolean @default(false) @map("is_system_role")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  permissions              Permission[]                   @relation("RolePermissions")
+  users                    User[]
+  workflowStepPermissions  RoleWorkflowStepPermission[]
+
+  @@map("roles")
+}
+
+// RBAC - Permission entity
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  group       String?  @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  roles Role[] @relation("RolePermissions")
+
+  @@map("permissions")
+}
+
+// Workflow Management
+model Workflow {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  steps WorkflowStep[]
+
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id                   String   @id @default(uuid())
+  workflowId           String   @map("workflow_id")
+  name                 String
+  description          String?  @db.Text
+  stepOrder            Int      @map("step_order")
+  permissionIdentifier String   @unique @map("permission_identifier")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  workflow         Workflow                     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  rolePermissions  RoleWorkflowStepPermission[]
+
+  @@map("workflow_steps")
+}
+
+model RoleWorkflowStepPermission {
+  roleId         String   @map("role_id")
+  workflowStepId String   @map("workflow_step_id")
+  hasPermission  Boolean  @default(false) @map("has_permission")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  workflowStep WorkflowStep @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, workflowStepId])
+  @@map("role_workflow_step_permissions")
+}
+
+// Content & Communication
+model Note {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  color     String   @default("rgba(25, 118, 210, 0.8)")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notes")
+}
+
+model Notification {
+  id                String           @id @default(uuid())
+  type              NotificationType
+  message           String           @db.Text
+  isRead            Boolean          @default(false) @map("is_read")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  userId            String           @map("user_id")
+  relatedEntityType String?          @map("related_entity_type")
+  relatedEntityId   String?          @map("related_entity_id")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model EmailTemplate {
+  templateKey String   @id @db.VarChar(100) @map("template_key")
+  subject     String   @db.VarChar(255)
+  bodyHtml    String   @db.Text @map("body_html")
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
+
+// System Management
+model ActivityLog {
+  id        String            @id @default(uuid())
+  userId    String?           @map("user_id")
+  action    String
+  target    String
+  targetId  String?           @map("target_id")
+  details   String
+  ipAddress String?           @map("ip_address")
+  status    ActivityLogStatus @default(success)
+  timestamp DateTime          @default(now())
+
+  // Relationships
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activity_log")
+}
+
+model Backup {
+  id           String       @id
+  name         String
+  timestamp    DateTime     @default(now())
+  size         String
+  type         BackupType   @default(FULL)
+  status       BackupStatus @default(IN_PROGRESS)
+  notes        String?
+  errorMessage String?      @map("error_message")
+  filePath     String?      @map("file_path")
+  isDeleted    Boolean      @default(false) @map("is_deleted")
+  createdById  String       @map("created_by_id")
+
+  // Relationships
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("backups")
+}
+
+// Settings
+model Setting {
+  key         String   @id @db.VarChar(50)
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model SecuritySettings {
+  id                              Int      @id @default(autoincrement())
+  twoFactorEnabled                Boolean  @default(false) @map("two_factor_enabled")
+  twoFactorDeviceRemembranceDays  Int      @default(30) @map("two_factor_device_remembrance_days")
+  twoFactorMaxFailedAttempts      Int      @default(5) @map("two_factor_max_failed_attempts")
+  passwordExpiryDays              Int      @default(90) @map("password_expiry_days")
+  maxLoginAttempts                Int      @default(5) @map("max_login_attempts")
+  lockoutDurationMinutes          Int      @default(30) @map("lockout_duration_minutes")
+  passwordComplexityRequired      Boolean  @default(true) @map("password_complexity_required")
+  sessionTimeoutMinutes           Int      @default(60) @map("session_timeout_minutes")
+  createdAt                       DateTime @default(now()) @map("created_at")
+  updatedAt                       DateTime @updatedAt @map("updated_at")
+
+  @@map("security_settings")
+}
+
+model NotificationSettings {
+  id                       Int      @id @default(autoincrement())
+  emailNotificationsEnabled Boolean  @default(true) @map("email_notifications_enabled")
+  smtpServer               String   @default("smtp.example.com") @map("smtp_server")
+  smtpPort                 Int      @default(587) @map("smtp_port")
+  smtpUsername             String   @default("notifications@example.com") @map("smtp_username")
+  smtpPassword             String?  @map("smtp_password")
+  smtpUseTls               Boolean  @default(true) @map("smtp_use_tls")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}
+
+model BackupSettings {
+  id                    Int      @id @default(autoincrement())
+  autoBackupEnabled     Boolean  @default(true) @map("auto_backup_enabled")
+  backupFrequencyHours  Int      @default(24) @map("backup_frequency_hours")
+  backupRetentionDays   Int      @default(30) @map("backup_retention_days")
+  backupLocation        String   @default("/backups") @map("backup_location")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("backup_settings")
+}
